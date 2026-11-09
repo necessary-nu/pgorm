@@ -3,7 +3,7 @@
 
 use std::{fmt, sync::Arc, time::Duration};
 
-use pgorm_bindings::{Dialect, HookEvent, PoolShape, TlsMode, TlsSettings};
+use pgorm_bindings::{Dialect, HookEvent, PoolOptions, TlsMode, TlsSettings};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{
@@ -77,22 +77,12 @@ pub(crate) fn recycling(
 /// runtime module's wrappers of its hooks.
 // [spec:pgorm:req:bindings.connections+3]
 #[pyclass(name = "_PoolShape", module = "pgorm._native", frozen)]
-pub(crate) struct NativePoolShape {
-    max_size: usize,
-    acquire_timeout: Duration,
-    wait_timeout: Option<Duration>,
-    create_timeout: Option<Duration>,
-    recycle_timeout: Option<Duration>,
-    queue_mode: pgorm::QueueMode,
-    post_create: Option<Arc<Py<PyAny>>>,
-    pre_recycle: Option<Arc<Py<PyAny>>>,
-    post_recycle: Option<Arc<Py<PyAny>>>,
-}
+pub(crate) struct NativePoolShape(pub(crate) PoolOptions<Arc<Py<PyAny>>>);
 
 impl fmt::Debug for NativePoolShape {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NativePoolShape")
-            .field("max_size", &self.max_size)
+            .field("max_size", &self.0.max_size)
             .finish_non_exhaustive()
     }
 }
@@ -118,7 +108,7 @@ impl NativePoolShape {
             "lifo" => pgorm::QueueMode::Lifo,
             _ => return Err(PyTypeError::new_err("queue_mode is 'fifo' or 'lifo'")),
         };
-        Ok(Self {
+        Ok(Self(PoolOptions {
             max_size,
             acquire_timeout: seconds(acquire_timeout, "acquire_timeout")?,
             wait_timeout: optional_seconds(wait_timeout, "wait_timeout")?,
@@ -128,7 +118,7 @@ impl NativePoolShape {
             post_create: post_create.map(Arc::new),
             pre_recycle: pre_recycle.map(Arc::new),
             post_recycle: post_recycle.map(Arc::new),
-        })
+        }))
     }
 }
 
@@ -147,37 +137,21 @@ impl Owner {
     }
 }
 
-impl NativePoolShape {
-    pub(crate) fn acquire_timeout(&self) -> Duration {
-        self.acquire_timeout
-    }
-
-    /// The shape pgorm-bindings builds the pool with, each hook calling its
-    /// wrapper on `owner`'s loop.
-    pub(crate) fn shape(&self, owner: &Owner, secrets: &Redactions) -> PoolShape {
-        let hook = |event, call: &Option<Arc<Py<PyAny>>>| {
-            call.as_ref().map(|call| {
-                hooks::hook(
-                    event,
-                    Callable {
-                        call: call.clone(),
-                        locals: owner.locals.clone(),
-                        owner: owner.owner.clone(),
-                    },
-                    secrets.clone(),
-                )
-            })
+impl Owner {
+    /// The pool hook that calls the runtime module's wrapper `call` on this
+    /// loop.
+    pub(crate) fn hook(
+        &self,
+        event: HookEvent,
+        call: &Arc<Py<PyAny>>,
+        secrets: &Redactions,
+    ) -> pgorm::Hook {
+        let callable = Callable {
+            call: call.clone(),
+            locals: self.locals.clone(),
+            owner: self.owner.clone(),
         };
-        PoolShape {
-            max_size: self.max_size,
-            wait_timeout: self.wait_timeout,
-            create_timeout: self.create_timeout,
-            recycle_timeout: self.recycle_timeout,
-            queue_mode: self.queue_mode,
-            post_create: hook(HookEvent::PostCreate, &self.post_create),
-            pre_recycle: hook(HookEvent::PreRecycle, &self.pre_recycle),
-            post_recycle: hook(HookEvent::PostRecycle, &self.post_recycle),
-        }
+        hooks::hook(event, callable, secrets.clone())
     }
 }
 

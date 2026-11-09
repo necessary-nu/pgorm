@@ -1,30 +1,24 @@
 //! pgorm-migration's runner, run from Python.
 //!
-//! A Python program's migrations are pgorm-migration's: a `SqlMigration` is
-//! the crate's own, and a migration written in Python is a `MigrationTrait`
-//! whose `up` awaits the Python object's `up` in the batch's transaction. The
-//! list is a `pgorm_migration::Migrations`, so the ledger, the lock, the
-//! checksums, `commits_after` and the statement-cache clear and notification
-//! are the runner's alone.
+//! A Python program's migrations are pgorm-bindings' list of them, whose
+//! written migrations' `up` awaits the Python object's `up` in the batch's
+//! transaction.
 
-use std::{
-    fmt,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{fmt, path::PathBuf, sync::Arc};
 
-use pgorm::{DatabaseTransaction, Error, Name};
-use pgorm_migration::{MigrationName, MigrationTrait, Migrations, MigratorTrait, SqlMigration};
+use pgorm_bindings::migrations::{Entry, Failed, Host, Listed};
+use pgorm_migration::{MigrationName, MigrationTrait, SqlMigration};
 use pyo3::{exceptions::PyTypeError, intern, prelude::*, types::PyString};
 use pyo3_async_runtimes::TaskLocals;
 
+use crate::{errors::Raise, runtime::Owned};
 use crate::{
-    errors::{ConstructionError, InternalError, database_error},
+    errors::{ConstructionError, InternalError},
     execution::Executor,
     panics::future_into_py,
-    runtime::{NativePool, PoolState},
+    runtime::{Loop, NativePool, PoolState},
     transactions::{
-        Lent, lend,
+        NativeTransaction,
         work::{Ledger, Output, Work},
     },
 };
@@ -110,130 +104,87 @@ impl PySqlMigration {
     }
 }
 
-/// A migration written in Python: what the runner reads of it once, as the
-/// migrator is built, and the object whose `up` it awaits.
-struct Written {
-    name: String,
-    checksum: Option<String>,
-    commits_after: bool,
-    object: Py<PyAny>,
-}
+/// A migration written in Python: the object whose `up` is awaited.
+type Written = pgorm_bindings::migrations::Written<Py<PyAny>>;
 
-impl Written {
-    // [spec:pgorm:req:bindings.migrations]    name, checksum and commits_after read once
-    fn read(object: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let py = object.py();
-        let name = object
-            .getattr(intern!(py, "name"))
-            .ok()
-            .and_then(|name| name.extract::<String>().ok())
-            .ok_or_else(|| PyTypeError::new_err("a migration has a str name"))?;
-        if !object
-            .getattr(intern!(py, "up"))
-            .is_ok_and(|up| up.is_callable())
-        {
-            return Err(PyTypeError::new_err(format!(
-                "migration {name:?} has no up method"
-            )));
-        }
-        let checksum = match object.getattr_opt(intern!(py, "checksum"))? {
-            Some(checksum) if !checksum.is_none() => Some(
-                checksum
-                    .cast::<PyString>()
-                    .map_err(|_| {
-                        PyTypeError::new_err(format!("migration {name:?}'s checksum is a str"))
-                    })?
-                    .to_string(),
-            ),
-            _ => None,
-        };
-        let commits_after = match object.getattr_opt(intern!(py, "commits_after"))? {
-            Some(commits_after) => commits_after.extract::<bool>().map_err(|_| {
-                PyTypeError::new_err(format!("migration {name:?}'s commits_after is a bool"))
-            })?,
-            None => false,
-        };
-        Ok(Self {
-            name,
-            checksum,
-            commits_after,
-            object: object.clone().unbind(),
-        })
+/// What the runner reads of a migration written in Python, once, as the
+/// list is built.
+// [spec:pgorm:req:bindings.migrations]    name, checksum and commits_after read once
+fn written(object: &Bound<'_, PyAny>) -> PyResult<Written> {
+    let py = object.py();
+    let name = object
+        .getattr(intern!(py, "name"))
+        .ok()
+        .and_then(|name| name.extract::<String>().ok())
+        .ok_or_else(|| PyTypeError::new_err("a migration has a str name"))?;
+    if !object
+        .getattr(intern!(py, "up"))
+        .is_ok_and(|up| up.is_callable())
+    {
+        return Err(PyTypeError::new_err(format!(
+            "migration {name:?} has no up method"
+        )));
     }
-}
-
-enum Entry {
-    Sql(SqlMigration),
-    Written(Arc<Written>),
+    let checksum = match object.getattr_opt(intern!(py, "checksum"))? {
+        Some(checksum) if !checksum.is_none() => Some(
+            checksum
+                .cast::<PyString>()
+                .map_err(|_| {
+                    PyTypeError::new_err(format!("migration {name:?}'s checksum is a str"))
+                })?
+                .to_string(),
+        ),
+        _ => None,
+    };
+    let commits_after = match object.getattr_opt(intern!(py, "commits_after"))? {
+        Some(commits_after) => commits_after.extract::<bool>().map_err(|_| {
+            PyTypeError::new_err(format!("migration {name:?}'s commits_after is a bool"))
+        })?,
+        None => false,
+    };
+    Ok(Written {
+        name,
+        checksum,
+        commits_after,
+        object: object.clone().unbind(),
+    })
 }
 
 /// What one `up` call's Python migrations run with: the pool their
-/// transaction handles report through, the event loop and context the call
-/// was made in, and the exception a migration raised, which `up` raises in
-/// place of the runner's account of it.
+/// transaction handles report through, and the event loop and context the
+/// call was made in.
 struct Call {
     pool: Arc<PoolState>,
     locals: TaskLocals,
-    raised: Mutex<Option<PyErr>>,
 }
 
-/// A Python migration as the runner holds it: `call` is `None` for a
-/// migrator built to read the ledger, which never runs a migration.
-struct Hosted {
-    written: Arc<Written>,
-    call: Option<Arc<Call>>,
-}
+impl Host for Call {
+    type Object = Py<PyAny>;
+    type Owner = Loop;
+    type Raised = PyErr;
 
-impl MigrationName for Hosted {
-    fn name(&self) -> &str {
-        &self.written.name
+    fn pool(&self) -> &Arc<PoolState> {
+        &self.pool
     }
-}
 
-#[pgorm_migration::async_trait::async_trait]
-impl MigrationTrait for Hosted {
-    // [spec:pgorm:req:bindings.migrations]    `up` awaited in the batch's transaction
-    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
-        let Some(call) = &self.call else {
-            return Err(Error::Custom(format!(
-                "migration '{}' was read to report a status, not to run",
-                self.written.name
-            )));
-        };
-        let lent = lend(call.pool.clone(), tx, |native| {
-            Python::attach(|py| {
-                let awaitable = py
-                    .import(intern!(py, "pgorm.schema.migrations"))?
-                    .getattr(intern!(py, "_run_up"))?
-                    .call1((self.written.object.clone_ref(py), native))?;
-                pyo3_async_runtimes::into_future_with_locals(&call.locals, awaitable)
-            })
-        })
-        .await;
-        match lent {
-            Lent::Ran(Ok(_)) => Ok(()),
-            Lent::Ran(Err(raised)) => {
-                if let Ok(mut slot) = call.raised.lock() {
-                    slot.get_or_insert(raised);
-                }
-                Err(Error::Custom(format!(
-                    "migration '{}' raised",
-                    self.written.name
-                )))
-            }
-            Lent::Discarded => Err(Error::Custom(format!(
-                "migration '{}' lost a command's outcome, so its transaction is in a state nobody knows",
-                self.written.name
-            ))),
+    async fn up(
+        self: &Arc<Self>,
+        written: &Arc<Written>,
+        state: Arc<pgorm_bindings::transaction::State<Loop>>,
+    ) -> Result<(), Failed<PyErr>> {
+        let running = Python::attach(|py| {
+            let native = NativeTransaction { state };
+            let awaitable = py
+                .import(intern!(py, "pgorm.schema.migrations"))?
+                .getattr(intern!(py, "_run_up"))?
+                .call1((written.object.clone_ref(py), native))?;
+            pyo3_async_runtimes::into_future_with_locals(&self.locals, awaitable)
+        });
+        match running {
+            Ok(running) => running.await.map(drop),
+            Err(raised) => Err(raised),
         }
-    }
-
-    fn checksum(&self) -> Option<String> {
-        self.written.checksum.clone()
-    }
-
-    fn commits_after(&self) -> bool {
-        self.written.commits_after
+        .map_err(|raised| Failed::With(raised, "raised"))
     }
 }
 
@@ -241,43 +192,17 @@ impl MigrationTrait for Hosted {
 /// ledger placed and its channel named as given.
 // [spec:pgorm:req:bindings.migrations]
 #[pyclass(name = "_Migrations", module = "pgorm._native", frozen)]
-pub(crate) struct NativeMigrations {
-    entries: Vec<Entry>,
-    table_name: Option<String>,
-    table_schema: Option<String>,
-    channel: Option<String>,
-}
+pub(crate) struct NativeMigrations(Listed<Py<PyAny>>);
 
 impl fmt::Debug for NativeMigrations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NativeMigrations")
-            .field("migrations", &self.entries.len())
+            .field("migrations", &self.0.len())
             .finish_non_exhaustive()
     }
 }
 
 impl NativeMigrations {
-    /// The runner's migrator over this list, its Python migrations run in
-    /// `call` when there is one.
-    fn migrator(&self, call: Option<&Arc<Call>>) -> Migrations {
-        let migrations = self.entries.iter().map(|entry| match entry {
-            Entry::Sql(migration) => Box::new(migration.clone()) as Box<dyn MigrationTrait>,
-            Entry::Written(written) => Box::new(Hosted {
-                written: written.clone(),
-                call: call.cloned(),
-            }),
-        });
-        let mut migrator =
-            Migrations::new(migrations).with_statement_cache_channel(self.channel.clone());
-        if let Some(name) = &self.table_name {
-            migrator = migrator.with_migration_table_name(Name::runtime(name));
-        }
-        if let Some(schema) = &self.table_schema {
-            migrator = migrator.with_migration_table_schema(Name::runtime(schema));
-        }
-        migrator
-    }
-
     fn ledger<'py>(
         &self,
         py: Python<'py>,
@@ -285,7 +210,7 @@ impl NativeMigrations {
         ledger: Ledger,
     ) -> PyResult<Bound<'py, PyAny>> {
         let executor = Executor::extract(py, executor)?;
-        let work = Work::Ledger(Box::new(self.migrator(None)), ledger);
+        let work = Work::Ledger(Box::new(self.0.ledger::<Call>()), ledger);
         future_into_py(py, async move {
             match executor.run(work).await? {
                 Output::Migrations(migrations) => Ok(Some(migrations)),
@@ -310,15 +235,15 @@ impl NativeMigrations {
             .iter()
             .map(|migration| match migration.cast::<PySqlMigration>() {
                 Ok(sql) => Ok(Entry::Sql(sql.get().inner.clone())),
-                Err(_) => Written::read(migration).map(|written| Entry::Written(Arc::new(written))),
+                Err(_) => written(migration).map(|written| Entry::Written(Arc::new(written))),
             })
             .collect::<PyResult<_>>()?;
-        Ok(Self {
+        Ok(Self(Listed::new(
             entries,
-            table_name: migration_table_name,
-            table_schema: migration_table_schema,
-            channel: statement_cache_channel,
-        })
+            migration_table_name,
+            migration_table_schema,
+            statement_cache_channel,
+        )))
     }
 
     /// Apply the pending migrations through pgorm-migration's `up`, on
@@ -339,20 +264,16 @@ impl NativeMigrations {
             .state
             .clone();
         pool.check_owner(py)?;
-        pool.ensure_open()?;
-        let call = Arc::new(Call {
-            pool: pool.clone(),
+        pool.ensure_open().py()?;
+        let call = Call {
+            pool,
             locals: TaskLocals::with_running_loop(py)?.copy_context(py)?,
-            raised: Mutex::new(None),
-        });
-        let migrator = self.migrator(Some(&call));
+        };
+        let up = self.0.up(call, steps);
         future_into_py(py, async move {
-            let result = migrator.up(pool.pool.clone(), steps).await;
-            let raised = call.raised.lock().ok().and_then(|mut slot| slot.take());
-            match (result, raised) {
-                (Ok(()), _) => Ok(()),
-                (Err(_), Some(raised)) => Err(raised),
-                (Err(error), None) => Err(database_error(error, &pool.secrets)),
+            match up.await.py()? {
+                None => Ok(()),
+                Some(raised) => Err(raised),
             }
         })
     }
@@ -376,7 +297,7 @@ impl NativeMigrations {
     }
 
     fn __repr__(&self) -> String {
-        format!("<pgorm native migrations of {}>", self.entries.len())
+        format!("<pgorm native migrations of {}>", self.0.len())
     }
 }
 

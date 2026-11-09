@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use pgorm::pgorm_query::{Name, Value, Values};
 use serde_json::Value as Json;
 
-use crate::values::value_tag;
+use crate::values::Tag;
 
 /// A name the binding would take as an identifier: 1–63 bytes without NUL.
 pub(crate) fn n(name: &str) -> Name {
@@ -32,7 +32,7 @@ pub(crate) fn n(name: &str) -> Name {
 /// A value as the golden file writes it: its kind, and a text the JavaScript
 /// suite writes the same way from the `Value` it inspects.
 fn canonical(value: &Value) -> [String; 2] {
-    [value_tag(value).name().to_owned(), text(value)]
+    [Tag::of_value(value).name().to_owned(), text(value)]
 }
 
 fn text(value: &Value) -> String {

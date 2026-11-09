@@ -205,6 +205,18 @@ platforms (
         }
     }
     {
+        // What both bindings do alike lives once, in pgorm-bindings
+        // (bindings.shared-runtime): a block of identical tokens the two
+        // bindings' production sources share past the scan's bound fails.
+        platform "bindings-duplication"
+        files (pgorm-python/src/**/*.rs pgorm-napi/src/**/*.rs pgorm-bindings/tests/duplication.rs)
+        checks {
+            scan {
+                cmd "cargo test -p pgorm-bindings --test duplication"
+            }
+        }
+    }
+    {
         platform "napi-application"
         files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock pgorm-napi/tests/application-binding/Cargo.toml pgorm-napi/tests/application-binding/Cargo.lock pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {

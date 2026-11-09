@@ -70,5 +70,11 @@ pub(super) fn schema_from_entity(entity: &Bound<'_, PyAny>) -> PyResult<PyEntity
     entity
         .backend
         .schema()
+        .map(|schema| PyEntitySchema {
+            table: schema.table,
+            enums: schema.enums,
+            indexes: schema.indexes,
+            comments: schema.comments,
+        })
         .map_err(|error| ConstructionError::new_err(error.to_string()))
 }

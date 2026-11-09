@@ -99,7 +99,7 @@ async def main() -> None:
             refused = [result for result in results if isinstance(result, pgorm.LifecycleError)]
             assert len(ran) == 1 and ran[0]["one"] == 1
             assert len(refused) == 1
-            assert str(refused[0]) == "connection already has an active operation"
+            assert str(refused[0]) == "the connection is busy: an operation, a transaction or a stream holds it"
 
 
 asyncio.run(main())
@@ -185,7 +185,7 @@ async def main() -> None:
     try:
         await pool.one(RawSQL("SELECT 1 AS one"))
     except pgorm.LifecycleError as error:
-        assert str(error) == "pool is closed"
+        assert str(error) == "the pool is closed"
     else:
         raise AssertionError("a closed pool runs nothing")
 

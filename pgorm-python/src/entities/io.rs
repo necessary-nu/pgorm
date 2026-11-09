@@ -1,12 +1,11 @@
 use crate::panics::future_into_py;
 use pyo3::{IntoPyObjectExt, prelude::*};
 
-use super::{
-    PyEntityModel,
-    backend::{Active, Select, Terminal, Write, Written},
-};
+use pgorm_bindings::entity::{Active, Read as Terminal, Select, Write, Written};
+
+use super::PyEntityModel;
 use crate::{
-    errors::{ConstructionError, InternalError},
+    errors::{InternalError, Raise},
     execution::{Executor, listed},
     transactions::work::{Output, Work},
 };
@@ -17,11 +16,7 @@ pub(crate) fn select<'py>(
     query: Select,
     terminal: Terminal,
 ) -> PyResult<Bound<'py, PyAny>> {
-    if query.compile(terminal).1.0.len() > 65535 {
-        return Err(ConstructionError::new_err(
-            "PostgreSQL supports at most 65535 query parameters",
-        ));
-    }
+    pgorm_bindings::parameter_count(query.compile(terminal).1.0.len()).py()?;
     models(py, connection, Work::Entity(query, terminal), terminal)
 }
 

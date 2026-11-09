@@ -6,7 +6,11 @@ use pyo3::{
 };
 
 use super::common;
-use crate::{errors::ConstructionError, expressions::Compiled, values::PyValue};
+use crate::{
+    errors::{ConstructionError, Raise},
+    expressions::Compiled,
+    values::PyValue,
+};
 
 // [spec:pgorm:req:python.raw]
 /// Explicit application SQL text with separately owned Rust parameters.
@@ -42,11 +46,7 @@ impl RawSQL {
                     .collect::<PyResult<_>>()?
             }
         };
-        if values.len() > 65535 {
-            return Err(ConstructionError::new_err(
-                "raw SQL exceeds PostgreSQL's parameter limit",
-            ));
-        }
+        pgorm_bindings::parameter_count(values.len()).py()?;
         Ok(Self {
             template,
             values: Values(values),

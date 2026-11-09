@@ -23,19 +23,14 @@ macro_rules! text {
     };
 }
 
-mod adapter;
 mod convert;
-mod graph;
 mod graph_reads;
 mod graphs;
-mod info;
 mod inserts;
-mod keysets;
 pub(crate) mod reads;
 mod registry;
 mod select_reads;
 mod selected;
-mod sources;
 mod versions;
 
 use std::sync::Arc;
@@ -43,18 +38,19 @@ use std::sync::Arc;
 use neon::{prelude::*, types::Finalize};
 use pgorm::{ActiveValue, pgorm_query::Condition};
 
-use adapter::{Active, Between, Change, Comparison, Members, Read, Select, Write};
-pub(crate) use adapter::{EntityBackend, EntitySchema, Model, PipelineColumn};
 use convert::column_array;
-use convert::{ModelHandle, Records, Wrote, entity_failure, names};
+use convert::{ModelHandle, Records, Wrote, names};
 pub(crate) use convert::{column_value, record};
-pub use graph::{GraphBindings, GraphModel, GraphSlots, RegisteredSlot, Source};
-pub(crate) use info::registration_name;
+use pgorm_bindings::entity::{Active, Between, Change, Comparison, Members, Read, Select, Write};
+pub(crate) use pgorm_bindings::entity::{EntityBackend, EntitySchema, Model, PipelineColumn};
+pub use pgorm_bindings::entity::{
+    GraphBindings, GraphSlots, RegisteredSlot, Source, SourceBindings, SourceTypes,
+};
 pub use registry::{RegistrationError, Registry};
-pub use sources::{SourceBindings, SourceModel, SourceTypes};
 
 use crate::{
     codec::Codec,
+    connect::DIALECT,
     connect::job::{JobHandle, Output},
     errors::{Failure, throw},
     rows,
@@ -202,7 +198,8 @@ fn entity_names(mut cx: FunctionContext) -> JsResult<JsValue> {
     strings(
         &mut cx,
         registry
-            .entities
+            .0
+            .entities()
             .keys()
             .cloned()
             .collect::<Vec<_>>()
@@ -215,7 +212,7 @@ fn entity_names(mut cx: FunctionContext) -> JsResult<JsValue> {
 fn entity_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     let registry = held!(cx, RegistryHandle, 0);
     let name = text!(cx, 1);
-    match registry.entities.get(&name) {
+    match registry.0.entities().get(&name) {
         Some(entity) => Ok(cx.boxed(EntityHandle(entity.clone())).upcast()),
         None => throw(
             &mut cx,
@@ -229,11 +226,9 @@ fn entity_get(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `entityDescribe(entity)`: the registration as JSON text.
 fn entity_describe(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
-    let described = entity
-        .info()
-        .describe()
-        .or_else(|failure| throw(&mut cx, failure))?;
-    Ok(cx.string(described.to_string()).upcast())
+    Ok(cx
+        .string(entity.info().describe(DIALECT).to_string())
+        .upcast())
 }
 
 /// `entitySchema(entity)`: `[table, enums, indexes, comments]`, each
@@ -508,7 +503,7 @@ fn read_terminal(cx: &mut FunctionContext, index: usize) -> NeonResult<Read> {
     match cx.argument::<JsString>(index)?.value(cx).as_str() {
         "all" => Ok(Read::All),
         "one" => Ok(Read::One),
-        "optional" => Ok(Read::OneOpt),
+        "optional" => Ok(Read::Optional),
         _ => cx.throw_type_error("a read terminal is all, one or optional"),
     }
 }
@@ -531,7 +526,7 @@ fn select_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let models = select
                 .run(db, read)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Records(select.info().clone(), models)) as Output)
         })
     });
@@ -670,7 +665,7 @@ fn active_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let written = active
                 .run(db, write)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Wrote(written)) as Output)
         })
     });

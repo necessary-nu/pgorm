@@ -7,14 +7,13 @@ use pyo3::{prelude::*, types::PyList};
 
 use crate::{
     errors::InternalError,
-    metrics::Metrics,
     panics::future_into_py,
     transactions::work::{Output, Work},
 };
 
 /// What an operation runs on: a connection or a transaction, plain or, from
 /// an instrumented pool, pgorm's metrics wrapper around one.
-pub(crate) type Database<'a> = pgorm::DatabaseRef<'a, Metrics>;
+pub(crate) use pgorm_bindings::Database;
 
 /// Run `work` on `target` and give the rows `rows` takes from its output as
 /// Python reads them, each made by `each`: a list, or with `single` the first

@@ -64,12 +64,11 @@ mod native;
 mod pump;
 mod to;
 
-pub(crate) use from::CopyFrom;
 pub use from::PyCopyFrom;
+pub(crate) use pgorm_bindings::{CopyFrom, CopyTo, DataFormat};
 pub(crate) use pump::{
     Columns, Described, Message, Piece, Unopened, describe, drive_in, drive_out, open_in, open_out,
 };
-pub(crate) use to::CopyTo;
 pub use to::PyCopyTo;
 
 use pgorm::pgorm_query::TableName;
@@ -79,18 +78,11 @@ use serde_json::{Map, Value, json};
 use crate::{errors::ConstructionError, identifiers::Identifier, statements::PyTable};
 
 /// COPY's data format, as Python names it.
-#[derive(Clone, Copy, Debug)]
-enum Format {
-    Text,
-    Csv,
-    Binary,
-}
-
-fn format(value: &Bound<'_, PyAny>) -> PyResult<Format> {
+fn format(value: &Bound<'_, PyAny>) -> PyResult<DataFormat> {
     match value.extract::<String>().as_deref() {
-        Ok("text") => Ok(Format::Text),
-        Ok("csv") => Ok(Format::Csv),
-        Ok("binary") => Ok(Format::Binary),
+        Ok("text") => Ok(DataFormat::Text),
+        Ok("csv") => Ok(DataFormat::Csv),
+        Ok("binary") => Ok(DataFormat::Binary),
         _ => Err(PyTypeError::new_err(
             "COPY format must be \"text\", \"csv\" or \"binary\"",
         )),

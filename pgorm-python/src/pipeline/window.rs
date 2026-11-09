@@ -1,7 +1,12 @@
+use crate::errors::Raise as _;
 use pgorm::pipeline as pl;
 use pyo3::{prelude::*, types::PyTuple};
 
-use super::{construct::integer, expression::PyPipelineExpr, scope::Plan};
+use super::{
+    construct::integer,
+    expression::PyPipelineExpr,
+    scope::{self, Plan},
+};
 use crate::errors::ConstructionError;
 
 /// A real Rust Over specification; binder expressions cannot enter it.
@@ -17,7 +22,7 @@ pub struct PyOver {
 }
 
 pub(super) fn plan(values: &Bound<'_, PyTuple>) -> PyResult<Plan> {
-    Plan::plain(
+    scope::plain(
         values
             .iter()
             .map(|value| PyPipelineExpr::coerce(&value))
@@ -36,7 +41,7 @@ fn keys(values: &Bound<'_, PyTuple>) -> PyResult<Vec<pl::Expr<'static>>> {
             "a window's partition and ordering take no value: write a literal() or a column",
         ));
     }
-    plan.unbound()
+    plan.plain().py()
 }
 
 #[pymethods]

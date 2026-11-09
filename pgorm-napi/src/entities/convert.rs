@@ -3,19 +3,17 @@
 //! each job's outcome — records, a count, row versions, graph rows — as the
 //! arrays `lib/entities.js` makes records of.
 
+use crate::errors::FailureJs as _;
 use neon::{prelude::*, types::Finalize};
-use pgorm::pgorm_query::{ArrayType, Value};
+use pgorm::pgorm_query::Value;
+use pgorm_bindings::entity::{ColumnInfo, EntityInfo, Model, Versions, Written};
 
-use super::{
-    adapter::{Model, Versions, Written},
-    info::{ColumnInfo, EntityInfo},
-};
 use crate::{
     codec::Codec,
     connect::job::Settled,
-    errors::{Failure, Redactions, failure, throw},
+    errors::{Failure, throw},
     rows,
-    values::{Tag, Tagged, read, value_tag},
+    values::{Tag, Tagged, read},
 };
 
 /// A model as JavaScript holds it: the real `E::Model` behind a record.
@@ -74,24 +72,12 @@ pub(crate) fn column_array<'cx>(
     Ok(Some(tagged.datum))
 }
 
-/// A column's value with the kind it reads as: the column's own where it
-/// names a type — an enum's, a created range's — that the value, a string,
-/// does not carry, and otherwise the value's.
+/// A column's value with the kind it reads as, `ColumnInfo::tag_of`.
 pub(crate) fn tagged(column: &ColumnInfo, value: Value) -> Result<Tagged, Failure> {
-    let named = match (&column.tag, &value) {
-        (Some(tag @ (Tag::Enum(_) | Tag::Created(_))), Value::String(_)) => Some(tag.clone()),
-        (Some(tag @ Tag::Array(element)), Value::Array(ArrayType::String, _))
-            if matches!(**element, Tag::Enum(_) | Tag::Created(_)) =>
-        {
-            Some(tag.clone())
-        }
-        _ => None,
-    };
-    let tag = match named {
-        Some(tag) => tag,
-        None => value_tag(&value),
-    };
-    Ok(Tagged { tag, datum: value })
+    Ok(Tagged {
+        tag: column.tag_of(&value)?,
+        datum: value,
+    })
 }
 
 /// A model's columns as plain JavaScript values, in column order.
@@ -145,35 +131,6 @@ pub(crate) fn list<'cx, T>(
         array.set(cx, u32::try_from(index).unwrap_or(u32::MAX), item)?;
     }
     Ok(array)
-}
-
-/// A registered entity's failure. A PostgreSQL error anywhere in its causes
-/// is the error `napi.errors` classifies it as; otherwise a terminal finding
-/// no row where it needs one is a `DecodeError`, and a write its ActiveModel
-/// or its hooks refuse is a `ConstructionError`.
-// [spec:pgorm:req:bindings.entity-writes+1]
-pub(crate) fn entity_failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
-    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
-    while let Some(cause) = source {
-        if cause.downcast_ref::<tokio_postgres::Error>().is_some() {
-            return failure(error, secrets);
-        }
-        source = cause.source();
-    }
-    let message = error.to_string();
-    match error {
-        pgorm::Error::RecordNotFound
-        | pgorm::Error::RecordNotInserted
-        | pgorm::Error::UnpackInsertId
-        | pgorm::Error::Verify(_) => Failure::Decode(message),
-        pgorm::Error::NothingToSet
-        | pgorm::Error::PrimaryKeyNotSet
-        | pgorm::Error::AttrNotSet(_)
-        | pgorm::Error::QueryBuilder(_)
-        | pgorm::Error::Query(_)
-        | pgorm::Error::Custom(_) => Failure::Construction(message),
-        _ => failure(error, secrets),
-    }
 }
 
 /// The records a read or a write gave: `[columns, [values, model][]]`.

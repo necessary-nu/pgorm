@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use neon::prelude::*;
 
+use pgorm_bindings::entity::{EntityInfo, GraphQuery, Model};
+
 use super::{
-    convert::{entity_failure, list, names, record},
-    graph::Groups,
-    info::EntityInfo,
+    convert::{list, names, record},
     reads::{CursorHandle, DecoderHandle, PagesHandle, page_size},
     select_reads::columns_at,
 };
@@ -27,7 +27,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-fn query(cx: &mut FunctionContext) -> NeonResult<super::graph::Query> {
+fn query(cx: &mut FunctionContext) -> NeonResult<GraphQuery> {
     Ok(cx
         .argument::<JsBox<super::graphs::GraphQueryHandle>>(0)?
         .0
@@ -45,19 +45,11 @@ fn query_cursor(mut cx: FunctionContext) -> JsResult<JsValue> {
     let Ok(source) = usize::try_from(source) else {
         return read::refuse(&mut cx, "the graph has no such source");
     };
-    let Some(found) = query.info().bindings.sources.get(source) else {
-        return read::refuse(&mut cx, format!("the graph has no source {source}"));
-    };
-    for column in &columns {
-        if let Err(failure) = found.entity.column(column) {
-            return crate::errors::throw(&mut cx, failure);
-        }
-    }
     match query.keyset(source, &columns) {
         Ok(keyset) => Ok(cx
             .boxed(CursorHandle(keyset, pgorm::CursorPlan::default()))
             .upcast()),
-        Err(reason) => read::refuse(&mut cx, reason),
+        Err(failure) => crate::errors::throw(&mut cx, failure),
     }
 }
 
@@ -86,7 +78,7 @@ fn query_stream(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// A grouped read's answer as JavaScript reads it: `[rootColumns,
 /// slotColumns, [[root, [slot, ..]], ..]]`.
-struct Grouped(Arc<EntityInfo>, Arc<EntityInfo>, Groups);
+struct Grouped(Arc<EntityInfo>, Arc<EntityInfo>, Vec<(Model, Vec<Model>)>);
 
 impl Settled for Grouped {
     fn into_js<'cx>(self: Box<Self>, cx: &mut Cx<'cx>) -> JsResult<'cx, JsValue> {
@@ -114,11 +106,9 @@ impl Settled for Grouped {
 // [spec:pgorm:req:bindings.entity-graphs+4]
 fn query_grouped_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let query = query(&mut cx)?;
-    let Some(grouped) = query.grouped() else {
-        return read::refuse(
-            &mut cx,
-            "allGrouped reads a graph of one Opt slot, as Rust's does",
-        );
+    let grouped = match query.grouped() {
+        Ok(grouped) => grouped,
+        Err(failure) => return crate::errors::throw(&mut cx, failure),
     };
     let sources = query.pages().sources.clone();
     let (root, slot) = (sources[0].clone(), sources[1].clone());
@@ -126,7 +116,7 @@ fn query_grouped_job(mut cx: FunctionContext) -> JsResult<JsValue> {
         Box::pin(async move {
             let groups = grouped(db)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Grouped(root, slot, groups)) as Output)
         })
     });

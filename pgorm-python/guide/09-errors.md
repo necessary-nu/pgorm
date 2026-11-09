@@ -482,7 +482,8 @@ Here Python differs from Rust: Rust reports every failure to connect as
 the `DatabaseError` it is, with its SQLSTATE, such as `3D000` for a database
 that does not exist or `28P01` for a wrong password. A server that cannot be
 reached at all, or a connection that breaks, raises `ConnectionError`, whose
-text says only that the connection failed:
+text says that the connection failed and the driver's account of why, its
+credentials redacted as everywhere:
 
 ```python
 import asyncio
@@ -528,7 +529,7 @@ async def main() -> None:
         async with Pool(changed(url, port=1), connect_timeout=2):
             pass
     except pgorm.ConnectionError as error:
-        assert str(error) == "PostgreSQL connection or protocol failure"
+        assert str(error).startswith("PostgreSQL connection or protocol failure: ")
     else:
         raise AssertionError("nothing listens on port 1")
 

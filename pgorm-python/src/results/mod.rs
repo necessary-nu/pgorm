@@ -3,7 +3,6 @@
 mod codecs;
 mod decode;
 mod execute;
-mod json;
 mod ranges;
 mod record;
 mod stream;

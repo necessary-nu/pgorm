@@ -74,6 +74,27 @@ impl Refusal {
     }
 }
 
+/// The meaning `value` spells among `choices`, given as `(spelling,
+/// meaning)`; refused, naming every spelling, when it spells none or is no
+/// string, `what` naming the argument.
+// [spec:pgorm:req:bindings.argument-errors+1]
+pub fn pick<T: Clone>(
+    value: Option<&str>,
+    what: &str,
+    choices: &[(&str, T)],
+) -> Result<T, Refusal> {
+    match value.and_then(|value| choices.iter().find(|(spelling, _)| *spelling == value)) {
+        Some((_, meaning)) => Ok(meaning.clone()),
+        None => {
+            let quoted: Vec<String> = choices
+                .iter()
+                .map(|(spelling, _)| format!("{spelling:?}"))
+                .collect();
+            Err(Refusal(format!("{what} is one of {}", quoted.join(", "))))
+        }
+    }
+}
+
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.message())
@@ -85,6 +106,23 @@ impl std::error::Error for Refusal {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // [spec:pgorm:req:bindings.argument-errors+1/test]    a choice outside the closed set, or
+    // no string at all, is refused naming every spelling
+    #[test]
+    fn a_choice_is_one_of_its_spellings() {
+        let modes = [("fifo", 1), ("lifo", 2)];
+        assert_eq!(pick(Some("lifo"), "queue_mode", &modes), Ok(2));
+        let refused = "queue_mode is one of \"fifo\", \"lifo\"";
+        assert_eq!(
+            pick(Some("lru"), "queue_mode", &modes).map_err(Refusal::into_message),
+            Err(refused.to_owned())
+        );
+        assert_eq!(
+            pick(None, "queue_mode", &modes).map_err(Refusal::into_message),
+            Err(refused.to_owned())
+        );
+    }
 
     #[test]
     fn options_are_spelled_by_each_bindings_rule() {

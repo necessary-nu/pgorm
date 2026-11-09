@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one platform's addon",
-  "cargo_lock_sha256": "ba2f9cf889e31eed41e0a53f227f056109d914f707dd8129b6dc1dddcc0bd9fc",
+  "cargo_lock_sha256": "850c3c5f737fac65b7178e0e35b824883c67c7e2568f89e1c75db07fbca8fcad",
   "javascript_runtime_dependencies": [],
   "packages": [
     {

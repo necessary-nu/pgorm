@@ -5,13 +5,9 @@
 use std::sync::Arc;
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::pgorm_query::{Expr, Name};
+use pgorm_bindings::entity::{GraphBackend, GraphChange as Change, GraphQuery as Query};
 
-use super::{
-    convert::{GraphRows, entity_failure},
-    graph::{Change, Factory, Query},
-    inspected, strings, throw,
-};
+use super::{convert::GraphRows, inspected, strings, throw};
 use crate::{
     connect::job::{Job, JobHandle, Output},
     errors::Failure,
@@ -20,7 +16,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct GraphHandle(Arc<dyn Factory>);
+struct GraphHandle(Arc<dyn GraphBackend>);
 
 impl Finalize for GraphHandle {}
 
@@ -47,7 +43,8 @@ fn graph_names(mut cx: FunctionContext) -> JsResult<JsValue> {
     strings(
         &mut cx,
         registry
-            .graphs
+            .0
+            .graphs()
             .keys()
             .cloned()
             .collect::<Vec<_>>()
@@ -60,7 +57,7 @@ fn graph_names(mut cx: FunctionContext) -> JsResult<JsValue> {
 fn graph_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     let registry = held!(cx, super::RegistryHandle, 0);
     let name = text!(cx, 1);
-    match registry.graphs.get(&name) {
+    match registry.0.graphs().get(&name) {
         Some(factory) => Ok(cx.boxed(GraphHandle(factory.clone())).upcast()),
         None => throw(
             &mut cx,
@@ -74,51 +71,24 @@ fn graph_describe(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(cx.string(graph.info().describe().to_string()).upcast())
 }
 
-/// The aliases a graph's slots are joined under: the ones given, one per
-/// slot, each an identifier, none repeated nor the root's table; or else
-/// `g1`, `g2`, .., a name the root's table takes skipped.
-fn aliases(cx: &mut FunctionContext, factory: &dyn Factory) -> NeonResult<Vec<String>> {
-    let sources = &factory.info().bindings.sources;
-    let root = sources
-        .first()
-        .map(|source| source.entity.table.clone())
-        .unwrap_or_default();
-    let slots = sources.len().saturating_sub(1);
+/// The aliases at argument 1, one per slot, or `null` for the defaults,
+/// as `GraphInfo::aliases` takes them.
+fn aliases(cx: &mut FunctionContext, factory: &dyn GraphBackend) -> NeonResult<Vec<String>> {
     let given = cx.argument::<JsValue>(1)?;
-    if given.is_a::<JsNull, _>(cx) || given.is_a::<JsUndefined, _>(cx) {
-        let mut names = Vec::with_capacity(slots);
-        let mut next = 1;
-        while names.len() < slots {
-            let name = format!("g{next}");
-            next += 1;
-            if name != root {
-                names.push(name);
-            }
+    let given = if given.is_a::<JsNull, _>(cx) || given.is_a::<JsUndefined, _>(cx) {
+        None
+    } else {
+        let list = given.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx)?;
+        let mut names = Vec::with_capacity(list.len());
+        for item in list {
+            names.push(read::text(cx, item, "an alias")?);
         }
-        return Ok(names);
-    }
-    let list = given.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx)?;
-    if list.len() != slots {
-        return read::refuse(
-            cx,
-            format!(
-                "the graph joins {slots} slots, and {} aliases were given",
-                list.len()
-            ),
-        );
-    }
-    let mut names = Vec::with_capacity(slots);
-    for item in list {
-        let name = read::text(cx, item, "an alias")?;
-        if name.is_empty() || name.len() > 63 || name.contains('\0') {
-            return read::refuse(cx, "an alias is 1–63 UTF-8 bytes without NUL");
-        }
-        if name == root || names.contains(&name) {
-            return read::refuse(cx, format!("the alias {name:?} names a source twice"));
-        }
-        names.push(name);
-    }
-    Ok(names)
+        Some(names)
+    };
+    factory
+        .info()
+        .aliases(given)
+        .or_else(|failure| throw(cx, failure))
 }
 
 /// `graphFind(graph, aliases)`: the graph built by its factory under the
@@ -155,24 +125,15 @@ fn query_col(mut cx: FunctionContext) -> JsResult<JsValue> {
     let query = held!(cx, GraphQueryHandle, 0);
     let source = cx.argument::<JsNumber>(1)?.value(&mut cx);
     let column = text!(cx, 2);
-    let sources = &query.info().bindings.sources;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let index = source as usize;
-    let Some(found) = (source.fract() == 0.0 && source >= 0.0)
-        .then(|| sources.get(index))
-        .flatten()
-    else {
+    let index = (source.fract() == 0.0 && source >= 0.0).then_some(source as usize);
+    let Some(index) = index else {
         return read::refuse(&mut cx, format!("the graph has no source {source}"));
     };
-    if let Err(failure) = found.entity.column(&column) {
-        return throw(&mut cx, failure);
+    match query.column(index, &column) {
+        Ok(expr) => Ok(cx.boxed(Node::Expr(expr)).upcast()),
+        Err(failure) => throw(&mut cx, failure),
     }
-    let qualifier = match index {
-        0 => found.entity.table.clone(),
-        _ => query.aliases()[index - 1].clone(),
-    };
-    let expr = Expr::col((Name::runtime(qualifier), Name::runtime(column)));
-    Ok(cx.boxed(Node::Expr(expr.into())).upcast())
 }
 
 fn query_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
@@ -180,27 +141,6 @@ fn query_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
     let optional = cx.argument::<JsBoolean>(1)?.value(&mut cx);
     let compiled = query.compile(optional);
     inspected(&mut cx, compiled)
-}
-
-/// Each row's models, out of the graph's own wrapper.
-fn unwrapped(rows: Vec<super::graph::Row>) -> Vec<Vec<Option<super::adapter::Model>>> {
-    rows.into_iter()
-        .map(|row| {
-            row.into_iter()
-                .map(|model| model.map(|model| model.0))
-                .collect()
-        })
-        .collect()
-}
-
-fn sources(query: &Query) -> Vec<Arc<super::info::EntityInfo>> {
-    query
-        .info()
-        .bindings
-        .sources
-        .iter()
-        .map(|source| source.entity.clone())
-        .collect()
 }
 
 /// `graphQueryJob(query, optional)`: `all`, or `one_opt` with its `LIMIT 1`.
@@ -212,8 +152,8 @@ fn query_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let rows = query
                 .run(db, optional)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
-            Ok(Box::new(GraphRows(sources(&query), unwrapped(rows))) as Output)
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
+            Ok(Box::new(GraphRows(query.info().bindings.entities(), rows)) as Output)
         })
     });
     Ok(cx.boxed(JobHandle::new(job)).upcast())

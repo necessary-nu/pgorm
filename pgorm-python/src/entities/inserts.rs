@@ -21,13 +21,14 @@ use pyo3::{
     types::{PyList, PyTuple},
 };
 
+use pgorm_bindings::entity::{Active, EntityBackend, Insertion, Insertions};
+
 use super::{
-    PyActiveModel,
-    backend::{Active, EntityBackend, Insertion, Insertions},
+    PyActiveModel, input,
     versions::{model, owned, upserted},
 };
 use crate::{
-    errors::{ConstructionError, InternalError},
+    errors::{ConstructionError, InternalError, Raise},
     execution::Executor,
     statements::conflict_clause,
     transactions::work::{Output, Work},
@@ -281,7 +282,7 @@ fn key(py: Python<'_>, entity: &dyn EntityBackend, values: ValueTuple) -> PyResu
         .primary_key
         .iter()
         .zip(values)
-        .map(|(name, value)| info.column(name)?.input.tagged(value)?.to_python(py))
+        .map(|(name, value)| input::tagged(info.column(name).py()?, value)?.to_python(py))
         .collect::<PyResult<Vec<_>>>()?;
     if parts.len() == 1
         && let Some(part) = parts.pop()

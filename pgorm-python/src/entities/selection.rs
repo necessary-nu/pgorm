@@ -5,11 +5,14 @@ use std::sync::Arc;
 
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use super::{
-    backend::{EntityBackend, Select, Terminal},
-    reads_py::{compiled, stream},
+use pgorm_bindings::entity::{EntityBackend, Read as Terminal, Select};
+
+use super::reads_py::{compiled, stream};
+use crate::{
+    errors::{ConstructionError, Raise},
+    execution::Executor,
+    expressions::Compiled,
 };
-use crate::{errors::ConstructionError, execution::Executor, expressions::Compiled};
 
 /// A relation a registered entity's `Relation` enum declares, by its
 /// variant's name, for a query to join.
@@ -55,11 +58,7 @@ pub struct PyEntitySelection {
 
 impl PyEntitySelection {
     pub(crate) fn statement(&self, terminal: Terminal) -> PyResult<Compiled> {
-        compiled(
-            self.select
-                .projected(&self.columns, terminal)
-                .map_err(|error| ConstructionError::new_err(error.to_string()))?,
-        )
+        compiled(self.select.projected(&self.columns, terminal).py()?.build())
     }
 
     fn fetch<'py>(

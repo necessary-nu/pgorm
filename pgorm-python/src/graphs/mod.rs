@@ -1,26 +1,23 @@
 //! Concrete SelectGraph registrations with the Rust slot and decode shape intact.
 
-pub(crate) mod backend;
 mod cursor;
-mod generic;
 mod io;
-mod keysets;
 mod query;
 mod registration;
-mod slots;
 
 pub use cursor::PyEntityGraphCursor;
+pub use pgorm_bindings::entity::{GraphBindings, GraphSlots};
 pub use query::PyEntityGraphQuery;
-pub use slots::{GraphBindings, GraphSlots};
 
-use crate::{errors::ConstructionError, identifiers::validate_name};
+use crate::errors::Raise;
+use pgorm_bindings::entity::GraphBackend;
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyString};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 #[pyclass(name = "EntityGraph", module = "pgorm", frozen, from_py_object)]
 pub struct PyEntityGraph {
-    pub(crate) factory: Arc<dyn backend::Factory>,
+    pub(crate) factory: Arc<dyn GraphBackend>,
 }
 
 #[pymethods]
@@ -37,44 +34,20 @@ impl PyEntityGraph {
 
     #[pyo3(signature = (*, aliases=None))]
     fn find(&self, aliases: Option<&Bound<'_, PyAny>>) -> PyResult<PyEntityGraphQuery> {
-        let sources = &self.factory.info().bindings.sources;
-        let root = &sources[0].entity.table;
         let aliases = match aliases.filter(|value| !value.is_none()) {
             Some(value) if !value.is_instance_of::<PyString>() => {
-                value.extract::<Vec<String>>().map_err(|_| {
+                Some(value.extract::<Vec<String>>().map_err(|_| {
                     PyTypeError::new_err("aliases require a sequence of joined-source names")
-                })?
+                })?)
             }
             Some(_) => {
                 return Err(PyTypeError::new_err(
                     "aliases require a sequence, not one string",
                 ));
             }
-            None => (1..sources.len())
-                .map(|at| {
-                    let alias = format!("g{at}");
-                    if &alias == root {
-                        format!("_g{at}")
-                    } else {
-                        alias
-                    }
-                })
-                .collect(),
+            None => None,
         };
-        if aliases.len() + 1 != sources.len() {
-            return Err(ConstructionError::new_err(
-                "alias count must match the registered joined-slot count",
-            ));
-        }
-        let mut seen = std::collections::HashSet::from([root.clone()]);
-        for alias in &aliases {
-            validate_name(alias)?;
-            if !seen.insert(alias.clone()) {
-                return Err(ConstructionError::new_err(
-                    "graph source aliases must be distinct",
-                ));
-            }
-        }
+        let aliases = self.factory.info().aliases(aliases).py()?;
         Ok(PyEntityGraphQuery {
             inner: self.factory.find(aliases),
         })

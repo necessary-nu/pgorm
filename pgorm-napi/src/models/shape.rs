@@ -1,14 +1,9 @@
 //! A declared model's table as pgorm's `TableShape`, which its schema and a
 //! disjoint model's tables are written from.
 
-use std::sync::Arc;
-
 use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{ColumnType, Expr, GeneratedKind, Name, TableName, TypeName};
-use pgorm::{
-    CaseStyle, ColumnDef, ColumnPairs, ColumnTypeTrait, RelationDef, Schema, TableColumn,
-    TableShape,
-};
+use pgorm::{CaseStyle, ColumnDef, ColumnTypeTrait, Schema, TableColumn, TableShape};
 
 use crate::{
     codec::Codec,
@@ -30,58 +25,6 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("modelCastComparesAsEnum", cast_compares_as_enum)?;
     cx.export_function("modelCastComparedArray", cast_compared_array)?;
     Ok(())
-}
-
-/// The column type a model column of `tag` is written with: its
-/// `columnType` where it declares one, made an array where the column is;
-/// otherwise a scalar kind's own (`ArrayType::column_type`), an enum of the
-/// labels `values` lists, a created range over its subtype's, and an array of
-/// its element's.
-// [spec:pgorm:req:bindings.schema-from-model]
-pub(crate) fn column_type(
-    tag: &Tag,
-    values: &[String],
-    declared: Option<&ColumnType>,
-) -> Result<ColumnType, Failure> {
-    if let Some(declared) = declared {
-        return Ok(match tag {
-            Tag::Array(_) => ColumnType::Array(Arc::new(declared.clone())),
-            _ => declared.clone(),
-        });
-    }
-    Ok(match tag {
-        Tag::Scalar(kind) => kind.column_type().ok_or_else(|| {
-            Failure::Construction(format!(
-                "no column decodes as `{}`, so a model's column cannot be one",
-                kind.kind_name()
-            ))
-        })?,
-        Tag::Enum(name) => ColumnType::Enum {
-            name: Name::runtime(&name.name),
-            schema: name.schema.as_ref().map(Name::runtime),
-            variants: values.iter().map(Name::runtime).collect(),
-        },
-        Tag::Created(kind) => {
-            let subtype = Arc::new(column_type(&Tag::Scalar(kind.subtype.clone()), &[], None)?);
-            let (name, schema) = (
-                Name::runtime(&kind.name.name),
-                kind.name.schema.as_ref().map(Name::runtime),
-            );
-            match kind.multirange {
-                true => ColumnType::CreatedMultirange {
-                    name,
-                    schema,
-                    subtype,
-                },
-                false => ColumnType::CreatedRange {
-                    name,
-                    schema,
-                    subtype,
-                },
-            }
-        }
-        Tag::Array(element) => ColumnType::Array(Arc::new(column_type(element, values, None)?)),
-    })
 }
 
 pub(crate) fn property<'cx>(
@@ -228,11 +171,11 @@ pub(crate) fn column_of<'cx>(
     let declared = property(cx, column, "columnType")?;
     let declared = declared_type(cx, declared)?;
     if let Some(declared) = &declared
-        && let Err(failure) = refuse_declared(&kind, declared)
+        && let Err(failure) = kind.refuse_declared(declared, crate::connect::DIALECT)
     {
         return throw(cx, failure);
     }
-    let mut def = match column_type(&kind, &values, declared.as_ref()) {
+    let mut def = match kind.column_type(&values, declared.as_ref()) {
         Ok(column_type) => column_type.def(),
         Err(failure) => return throw(cx, failure),
     };
@@ -252,36 +195,6 @@ pub(crate) fn column_of<'cx>(
     let default = property(cx, column, "default")?;
     let unstated = flag(cx, default)?;
     Ok((name, def, unstated))
-}
-
-/// Refuse a `columnType` the kind cannot be written as: a created range's
-/// is its own, and an enum's is a domain over that enum alone, which the
-/// column is read and compared as.
-// [spec:pgorm:req:bindings.model-casts]
-fn refuse_declared(tag: &Tag, declared: &ColumnType) -> Result<(), Failure> {
-    let element = match tag {
-        Tag::Array(element) => element,
-        other => other,
-    };
-    match element {
-        Tag::Created(_) => Err(Failure::Construction(
-            "a created range column's type is its kind's own: it takes no columnType".to_owned(),
-        )),
-        Tag::Enum(name) => {
-            let mut enum_type = TypeName::new(Name::runtime(&name.name));
-            if let Some(schema) = &name.schema {
-                enum_type = enum_type.schema(Name::runtime(schema));
-            }
-            let column = TableColumn::new("column", declared.clone().def());
-            match column.compares_as() == Some(enum_type) {
-                true => Ok(()),
-                false => Err(Failure::Construction(
-                    "an enum column's columnType is a domain over its enum".to_owned(),
-                )),
-            }
-        }
-        _ => Ok(()),
-    }
 }
 
 /// A unique key a described table gives: `{ name, columns,
@@ -413,32 +326,27 @@ fn with_relation<'cx>(
     let to = property(cx, relation, "to")?;
     let to = names(cx, to, "relation's columns")?;
     let target = table_name(cx, relation)?;
-    let (Some(first_from), Some(first_to)) = (from.first(), to.first()) else {
-        return read::refuse(cx, "a relation pairs at least one column");
-    };
-    let mut pairs = ColumnPairs::new(Name::runtime(first_from), Name::runtime(first_to));
-    for (from, to) in from.iter().zip(&to).skip(1) {
-        pairs.push(Name::runtime(from), Name::runtime(to));
-    }
-    let label = format!("{}({})", target.table().to_string(), from.join(", "));
-    let mut def = RelationDef::belongs_to(shape.table().clone(), target, pairs);
-    for (key, what) in [
+    let mut actions = [None, None];
+    for (action, (key, what)) in actions.iter_mut().zip([
         ("onDelete", "an ON DELETE action"),
         ("onUpdate", "an ON UPDATE action"),
-    ] {
-        let action = property(cx, relation, key)?;
-        let action = match missing(cx, action) {
-            true => None,
-            false => Some(pick(cx, action, what, FOREIGN_KEY_ACTIONS)?),
-        };
-        match key {
-            "onDelete" => def.on_delete = action,
-            _ => def.on_update = action,
+    ]) {
+        let value = property(cx, relation, key)?;
+        if !missing(cx, value) {
+            *action = Some(pick(cx, value, what, FOREIGN_KEY_ACTIONS)?);
         }
     }
+    let [on_delete, on_update] = actions;
     let fk_name = property(cx, relation, "fkName")?;
-    def.fk_name = optional_text(cx, fk_name, "foreign key's name")?;
-    refused(cx, shape.with_relation(label, def))
+    let relation = pgorm_bindings::BelongsTo {
+        from,
+        to,
+        target,
+        on_delete,
+        on_update,
+        fk_name: optional_text(cx, fk_name, "foreign key's name")?,
+    };
+    pgorm_bindings::with_relation(shape, relation).or_else(|failure| throw(cx, failure))
 }
 
 /// `modelTable(table)`: the table a model declares, checked as pgorm's

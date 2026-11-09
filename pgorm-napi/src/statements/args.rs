@@ -366,15 +366,9 @@ pub(crate) fn pick<'cx, T: Clone>(
     } else {
         None
     };
-    match text.and_then(|text| choices.iter().find(|(spelling, _)| *spelling == text)) {
-        Some((_, meaning)) => Ok(meaning.clone()),
-        None => {
-            let quoted: Vec<String> = choices
-                .iter()
-                .map(|(spelling, _)| format!("{spelling:?}"))
-                .collect();
-            cx.throw_type_error(format!("{what} is one of {}", quoted.join(", ")))
-        }
+    match pgorm_bindings::pick(text.as_deref(), what, choices) {
+        Ok(meaning) => Ok(meaning),
+        Err(refusal) => cx.throw_type_error(refusal.into_message()),
     }
 }
 

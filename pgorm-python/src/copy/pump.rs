@@ -24,12 +24,8 @@ where
     C: CopyTrait + Send,
 {
     match statement {
-        Described::From(CopyFrom::Text(statement)) => db.copy_in_columns(statement).await,
-        Described::From(CopyFrom::Csv(statement)) => db.copy_in_columns(statement).await,
-        Described::From(CopyFrom::Binary(statement)) => db.copy_in_columns(statement).await,
-        Described::To(CopyTo::Text(statement)) => db.copy_out_columns(statement).await,
-        Described::To(CopyTo::Csv(statement)) => db.copy_out_columns(statement).await,
-        Described::To(CopyTo::Binary(statement)) => db.copy_out_columns(statement).await,
+        Described::From(statement) => statement.columns(db).await,
+        Described::To(statement) => statement.columns(db).await,
     }
 }
 
@@ -87,19 +83,10 @@ where
     C: CopyTrait + Send,
 {
     if let Some(rows) = rows {
-        let columns = match statement {
-            CopyFrom::Text(statement) => db.copy_in_columns(statement).await,
-            CopyFrom::Csv(statement) => db.copy_in_columns(statement).await,
-            CopyFrom::Binary(statement) => db.copy_in_columns(statement).await,
-        };
+        let columns = statement.columns(db).await;
         let _ = rows.set(columns.map_err(Unopened::Undescribed)?);
     }
-    match statement {
-        CopyFrom::Text(statement) => db.copy_in(statement).await,
-        CopyFrom::Csv(statement) => db.copy_in(statement).await,
-        CopyFrom::Binary(statement) => db.copy_in(statement).await,
-    }
-    .map_err(Unopened::Refused)
+    statement.open(db).await.map_err(Unopened::Refused)
 }
 
 // [spec:pgorm:req:bindings.copy-rows+2]
@@ -112,19 +99,10 @@ where
     C: CopyTrait + Send,
 {
     if let Some(rows) = rows {
-        let columns = match statement {
-            CopyTo::Text(statement) => db.copy_out_columns(statement).await,
-            CopyTo::Csv(statement) => db.copy_out_columns(statement).await,
-            CopyTo::Binary(statement) => db.copy_out_columns(statement).await,
-        };
+        let columns = statement.columns(db).await;
         let _ = rows.set(columns.map_err(Unopened::Undescribed)?);
     }
-    match statement {
-        CopyTo::Text(statement) => db.copy_out(statement).await,
-        CopyTo::Csv(statement) => db.copy_out(statement).await,
-        CopyTo::Binary(statement) => db.copy_out(statement).await,
-    }
-    .map_err(Unopened::Refused)
+    statement.open(db).await.map_err(Unopened::Refused)
 }
 
 /// Write each chunk into `sink` until `Finish` completes the COPY with its

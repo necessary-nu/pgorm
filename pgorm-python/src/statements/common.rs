@@ -9,7 +9,7 @@ use pyo3::{
 };
 
 use crate::{
-    errors::ConstructionError,
+    errors::{ConstructionError, Raise},
     expressions::{Aliased, Compiled, OrderBy, PyCondition, require_expr},
     identifiers::Identifier,
 };
@@ -94,11 +94,7 @@ pub(super) fn unsigned(value: &Bound<'_, PyAny>) -> PyResult<u64> {
 }
 
 pub(super) fn compiled((sql, values): (String, Values)) -> PyResult<Compiled> {
-    if values.0.len() > 65535 {
-        return Err(ConstructionError::new_err(
-            "statement exceeds PostgreSQL's 65535-parameter limit",
-        ));
-    }
+    pgorm_bindings::parameter_count(values.0.len()).py()?;
     Ok(Compiled { sql, values })
 }
 

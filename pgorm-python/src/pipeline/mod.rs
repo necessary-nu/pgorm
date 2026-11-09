@@ -1,6 +1,5 @@
 //! Public pipeline construction through pgorm's existing branded builders.
 
-mod bound;
 mod builder;
 mod capabilities;
 mod construct;
@@ -8,17 +7,15 @@ mod expression;
 mod recipe;
 mod scope;
 mod selected;
-pub(crate) mod selected_backend;
 mod selected_io;
-mod slots;
 mod source;
 mod window;
 
 pub use builder::{PyGrouped, PyPipeline};
 pub(crate) use capabilities::operations as capabilities;
 pub use expression::PyPipelineExpr;
+pub use pgorm_bindings::entity::{SourceBindings, SourceTypes};
 pub use selected::{PySelectedSources, PySourceSelection};
-pub use slots::{SourceBindings, SourceTypes};
 pub use source::PySource;
 
 use pyo3::prelude::*;

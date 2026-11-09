@@ -12,9 +12,7 @@ use std::sync::{Mutex as SyncMutex, PoisonError};
 use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
 
-use super::{
-    Operation, abort_argument, connection, metrics::Metrics, on_connection, on_pool, pool,
-};
+use super::{Operation, abort_argument, connection, on_connection, on_pool, pool};
 use crate::{
     errors::{Failure, Redactions},
     settle,
@@ -28,7 +26,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
 
 /// The executor a job runs on: a connection, or a transaction on one,
 /// plain or, from an instrumented pool, pgorm's metrics wrapper around one.
-pub(crate) type Database<'a> = pgorm::DatabaseRef<'a, Metrics>;
+pub(crate) use pgorm_bindings::Database;
 
 /// What a job hands back, made into JavaScript on the JavaScript thread.
 pub(crate) trait Settled: Send {

@@ -7,12 +7,13 @@ use pyo3::{
 };
 use std::sync::Arc;
 
-use super::{
-    backend::{Between, Comparison, EntityBackend, Members},
-    metadata::EntityInfo,
-};
+use pgorm_bindings::entity::{Between, Comparison, EntityBackend, EntityInfo, Members};
+
+use super::input;
 use crate::{
-    errors::ConstructionError, expressions::PyExpr, identifiers::Identifier,
+    errors::{ConstructionError, Raise},
+    expressions::PyExpr,
+    identifiers::Identifier,
     statements::PyQuantified,
 };
 
@@ -35,9 +36,7 @@ impl PyEntityColumn {
         entity: Arc<dyn EntityBackend>,
         name: String,
     ) -> PyResult<PyClassInitializer<Self>> {
-        let expression = entity
-            .expression(&name)
-            .map_err(|error| ConstructionError::new_err(error.to_string()))?;
+        let expression = entity.column(&name).py()?;
         Ok(PyClassInitializer::from(PyExpr::from_rust(expression))
             .add_subclass(Self { entity, name }))
     }
@@ -64,7 +63,7 @@ impl PyEntityColumn {
         self.entity
             .between(&self.name, between, lower, upper)
             .map(PyExpr::from_rust)
-            .map_err(|error| ConstructionError::new_err(error.to_string()))
+            .py()
     }
 
     /// `value` converted to the column's declared kind as a comparison takes
@@ -76,13 +75,7 @@ impl PyEntityColumn {
                 self.name
             )));
         }
-        Ok(self
-            .entity
-            .info()
-            .column(&self.name)?
-            .input
-            .coerce(value)?
-            .inner)
+        Ok(input::coerce(self.entity.info().column(&self.name).py()?, value)?.inner)
     }
 
     /// A comparison, a distinctness test or a range operator through the
@@ -98,13 +91,13 @@ impl PyEntityColumn {
         if let Ok(quantified) = value.extract::<PyRef<'_, PyQuantified>>()
             && let Some(listed) = quantified.listed.as_ref().filter(|_| op.quantifiable())
         {
-            let input = &self.entity.info().column(&self.name)?.input;
-            if let Some(array) = input.array_of(listed.values.bind(value.py()))? {
+            let column = self.entity.info().column(&self.name).py()?;
+            if let Some(array) = input::array_of(column, listed.values.bind(value.py()))? {
                 return self
                     .entity
                     .quantified(&self.name, op, listed.all, array)
                     .map(PyExpr::from_rust)
-                    .map_err(|error| ConstructionError::new_err(error.to_string()));
+                    .py();
             }
         }
         if value.is_instance_of::<PyExpr>() || value.is_instance_of::<PyQuantified>() {
@@ -114,7 +107,7 @@ impl PyEntityColumn {
         self.entity
             .compare(&self.name, op, value)
             .map(PyExpr::from_rust)
-            .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))
+            .py()
     }
 
     /// Membership through the column's `ColumnTrait`: `is_in` / `is_not_in`
@@ -142,10 +135,10 @@ impl PyEntityColumn {
         let members = if let Some(select) = crate::statements::subquery(values)? {
             Members::Subquery(Box::new(select))
         } else if listed {
-            let input = &self.entity.info().column(&self.name)?.input;
+            let column = self.entity.info().column(&self.name).py()?;
             let values = values
                 .try_iter()?
-                .map(|value| Ok(input.coerce(&value?)?.inner));
+                .map(|value| Ok(input::coerce(column, &value?)?.inner));
             Members::Values(values.collect::<PyResult<_>>()?)
         } else {
             return Err(PyTypeError::new_err(
@@ -155,7 +148,7 @@ impl PyEntityColumn {
         self.entity
             .membership(&self.name, negated, members)
             .map(PyExpr::from_rust)
-            .map_err(|error| ConstructionError::new_err(error.to_string()))
+            .py()
     }
 }
 
@@ -167,10 +160,7 @@ impl PyEntityColumn {
     }
 
     fn expr(&self) -> PyResult<PyExpr> {
-        self.entity
-            .expression(&self.name)
-            .map(PyExpr::from_rust)
-            .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))
+        self.entity.column(&self.name).map(PyExpr::from_rust).py()
     }
 
     fn eq(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
@@ -287,6 +277,6 @@ pub(crate) fn name(input: &Bound<'_, PyAny>, owner: &Arc<EntityInfo>) -> PyResul
     } else {
         Identifier::new(input)?.name
     };
-    owner.column(&name)?;
+    owner.column(&name).py()?;
     Ok(name)
 }

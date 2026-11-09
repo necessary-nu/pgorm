@@ -93,7 +93,7 @@ class RowStream(Generic[T]):
 
     async def __aenter__(self) -> "RowStream[T]":
         if self.closed:
-            raise _native.LifecycleError("stream is closed")
+            raise _native.LifecycleError("the stream is closed")
         return self
 
     async def __aexit__(self, *exc: Any) -> None:

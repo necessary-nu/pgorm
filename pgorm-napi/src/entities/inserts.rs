@@ -9,20 +9,17 @@
 //! Rust, so no `ActiveModelBehavior` hook runs around them.
 
 use neon::prelude::*;
+use pgorm::TryInsertResult;
 use pgorm::pgorm_query::OnConflict;
-use pgorm::{EntityTrait, Error, IntoActiveModel, TryInsertResult};
+use pgorm_bindings::entity::{EntityInfo, Insertion, Insertions, Model, Versions};
 use pgorm_bindings::{
     InsertConflict, InsertTerminal, InsertWrite, Inserted as Written, TryInsertTerminal,
 };
 
-use super::{
-    adapter::{EntityAdapter, Insertion, Insertions, Model, Versions, concrete, model_of},
-    convert::{Records, VersionRows, count, entity_failure, tagged},
-    info::EntityInfo,
-};
+use super::convert::{Records, VersionRows, count, tagged};
 use crate::{
     codec::Codec,
-    connect::job::{Database, Job, JobHandle, Output, Settled},
+    connect::job::{Job, JobHandle, Output, Settled},
     errors::throw,
     rows,
     statements::{self, Node},
@@ -31,30 +28,6 @@ use crate::{
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("entityInsertJob", insert_job)?;
     Ok(())
-}
-
-impl<E> EntityAdapter<E>
-where
-    E: EntityTrait + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    // [spec:pgorm:req:bindings.entity-inserts]
-    // [spec:pgorm:req:bindings.entity-try-inserts]
-    pub(super) async fn write_insert(
-        &self,
-        db: Database<'_>,
-        insertion: Insertion,
-    ) -> Result<Insertions, Error> {
-        pgorm_bindings::insert(
-            self.entity,
-            &db,
-            insertion.try_map(concrete::<E>)?,
-            |model| model_of::<E>(model, &self.info),
-            |row| self.upserted(row),
-        )
-        .await
-    }
 }
 
 /// What an insert's terminal gave, as `lib/entity-inserts.js` reads it: a
@@ -209,7 +182,7 @@ fn insert_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
             let inserted = entity
                 .insert(db, insertion)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Inserted(entity.info().clone(), inserted, attempt)) as Output)
         })
     });

@@ -1,13 +1,8 @@
 //! A declared model's table as pgorm's `TableShape`, which its schema and a
 //! disjoint model's tables are written from.
 
-use std::sync::Arc;
-
 use pgorm::pgorm_query::{ColumnType, Expr, GeneratedKind, Name, TableName, TypeName};
-use pgorm::{
-    CaseStyle, ColumnDef, ColumnPairs, ColumnTypeTrait, RelationDef, Schema, TableColumn,
-    TableShape,
-};
+use pgorm::{CaseStyle, ColumnDef, ColumnTypeTrait, Schema, TableColumn, TableShape};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
 
 use super::{
@@ -15,16 +10,13 @@ use super::{
     args::{ACTIONS, choice},
 };
 use crate::{
-    errors::ConstructionError,
+    errors::{ConstructionError, Raise},
     expressions::{self, PyExpr},
-    values::{PyValue, Tag},
+    values::{PyValue, Tag, TagPy},
 };
 
-/// The column type a model column of `tag` is written with: its
-/// `column_type` where it declares one, made an array where the column is;
-/// otherwise a scalar kind's own (`ArrayType::column_type`), an enum of the
-/// labels `values` lists, a created range over its subtype's, and an array of
-/// its element's.
+/// The column type a model column of `tag` is written with, its declared
+/// `column_type` refused where the kind cannot be written as one.
 // [spec:pgorm:req:bindings.schema-from-model]
 pub(crate) fn column_type(
     tag: &Tag,
@@ -32,79 +24,9 @@ pub(crate) fn column_type(
     declared: Option<&ColumnType>,
 ) -> PyResult<ColumnType> {
     if let Some(declared) = declared {
-        refuse_declared(tag, declared)?;
-        return Ok(match tag {
-            Tag::Array(_) => ColumnType::Array(Arc::new(declared.clone())),
-            _ => declared.clone(),
-        });
+        tag.refuse_declared(declared, crate::config::DIALECT).py()?;
     }
-    Ok(match tag {
-        Tag::Scalar(kind) => kind.column_type().ok_or_else(|| {
-            ConstructionError::new_err(format!(
-                "no column decodes as `{}`, so a model's column cannot be one",
-                kind.kind_name()
-            ))
-        })?,
-        Tag::Enum(name) => ColumnType::Enum {
-            name: Name::runtime(&name.name),
-            schema: name.schema.as_ref().map(Name::runtime),
-            variants: values
-                .unwrap_or_default()
-                .iter()
-                .map(Name::runtime)
-                .collect(),
-        },
-        Tag::Created(kind) => {
-            let subtype = Arc::new(column_type(&Tag::Scalar(kind.subtype.clone()), None, None)?);
-            let (name, schema) = (
-                Name::runtime(&kind.name.name),
-                kind.name.schema.as_ref().map(Name::runtime),
-            );
-            match kind.multirange {
-                true => ColumnType::CreatedMultirange {
-                    name,
-                    schema,
-                    subtype,
-                },
-                false => ColumnType::CreatedRange {
-                    name,
-                    schema,
-                    subtype,
-                },
-            }
-        }
-        Tag::Array(element) => ColumnType::Array(Arc::new(column_type(element, values, None)?)),
-    })
-}
-
-/// Refuse a `column_type` the kind cannot be written as: a created range's
-/// is its own, and an enum's is a domain over that enum alone, which the
-/// column is read and compared as.
-// [spec:pgorm:req:bindings.model-casts]
-fn refuse_declared(tag: &Tag, declared: &ColumnType) -> PyResult<()> {
-    let element = match tag {
-        Tag::Array(element) => element,
-        other => other,
-    };
-    match element {
-        Tag::Created(_) => Err(ConstructionError::new_err(
-            "a created range column's type is its kind's own: it takes no column_type",
-        )),
-        Tag::Enum(name) => {
-            let mut enum_type = TypeName::new(Name::runtime(&name.name));
-            if let Some(schema) = &name.schema {
-                enum_type = enum_type.schema(Name::runtime(schema));
-            }
-            let column = TableColumn::new("column", declared.clone().def());
-            match column.compares_as() == Some(enum_type) {
-                true => Ok(()),
-                false => Err(ConstructionError::new_err(
-                    "an enum column's column_type is a domain over its enum",
-                )),
-            }
-        }
-        _ => Ok(()),
-    }
+    tag.column_type(values.unwrap_or_default(), declared).py()
 }
 
 pub(crate) fn item<'py>(table: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyAny>> {
@@ -262,28 +184,21 @@ pub(crate) fn shape_of(table: &Bound<'_, PyAny>) -> PyResult<TableShape> {
 /// actions and its constraint's name.
 // [spec:pgorm:req:bindings.schema-from-model]
 fn with_relation(shape: TableShape, relation: &Bound<'_, PyAny>) -> PyResult<TableShape> {
-    let refused = |error: pgorm::Error| ConstructionError::new_err(error.to_string());
     let described = relation.cast::<PyDict>()?;
     let from: Vec<String> = item(described, "from")?.extract()?;
     let to: Vec<String> = item(described, "to")?.extract()?;
     let target = table_name(described)?;
-    let (Some(first_from), Some(first_to)) = (from.first(), to.first()) else {
-        return Err(ConstructionError::new_err(
-            "a relation pairs at least one column",
-        ));
-    };
-    let mut pairs = ColumnPairs::new(Name::runtime(first_from), Name::runtime(first_to));
-    for (from, to) in from.iter().zip(&to).skip(1) {
-        pairs.push(Name::runtime(from), Name::runtime(to));
-    }
-    let label = format!("{}({})", target.table().to_string(), from.join(", "));
-    let mut def = RelationDef::belongs_to(shape.table().clone(), target, pairs);
     let on_delete: Option<String> = item(described, "on_delete")?.extract()?;
-    def.on_delete = choice(on_delete.as_deref(), "an ON DELETE action", ACTIONS)?;
     let on_update: Option<String> = item(described, "on_update")?.extract()?;
-    def.on_update = choice(on_update.as_deref(), "an ON UPDATE action", ACTIONS)?;
-    def.fk_name = item(described, "fk_name")?.extract()?;
-    shape.with_relation(label, def).map_err(refused)
+    let relation = pgorm_bindings::BelongsTo {
+        from,
+        to,
+        target,
+        on_delete: choice(on_delete.as_deref(), "an ON DELETE action", ACTIONS)?,
+        on_update: choice(on_update.as_deref(), "an ON UPDATE action", ACTIONS)?,
+        fk_name: item(described, "fk_name")?.extract()?,
+    };
+    pgorm_bindings::with_relation(shape, relation).py()
 }
 
 /// `_model_table(table)`: the table a model declares, checked as pgorm's

@@ -308,30 +308,32 @@ pub(crate) fn capabilities<'py>(module: &Bound<'py, PyModule>) -> PyResult<Bound
     manifest["registrations"]["entities"] = registry.0.describe().into();
     manifest["registrations"]["graphs"] = registry
         .0
-        .graphs
+        .0
+        .graphs()
         .values()
         .map(|graph| graph.info().describe())
         .collect::<Vec<_>>()
         .into();
     manifest["registrations"]["disjoints"] = registry
         .0
-        .disjoints
-        .by_name
+        .0
+        .disjoints()
         .values()
         .map(|disjoint| disjoint.description.clone())
         .collect::<Vec<_>>()
         .into();
     manifest["registrations"]["one_ofs"] = registry
         .0
-        .one_ofs
-        .by_name
+        .0
+        .one_ofs()
         .values()
         .map(|one_of| one_of.description.clone())
         .collect::<Vec<_>>()
         .into();
     manifest["registrations"]["sources"] = registry
         .0
-        .sources
+        .0
+        .source_tuples()
         .values()
         .map(|source| source.info().describe())
         .collect::<Vec<_>>()

@@ -21,12 +21,12 @@ use pyo3::{
 
 use crate::errors::ConstructionError;
 pub use classes::{PyMultirange, PyRange};
-pub(crate) use created::{CreatedKind, extract as created_kind};
+pub(crate) use created::{CreatedKind, CreatedKindPy, extract as created_kind};
 pub use created::{PyCreatedMultirange, PyCreatedRange};
 pub use interval::PyInterval;
-pub(crate) use ranges::{column_type as range_column_type, kind_names as range_kind_names};
+pub(crate) use ranges::kind_names as range_kind_names;
 pub use types::PyTypeName;
-pub(crate) use types::{Tag, unrepresented};
+pub(crate) use types::{Tag, TagPy, TypeName, unrepresented};
 
 // [spec:pgorm:req:bindings.value-tags+1]
 /// Immutable owned Rust value plus qualified enum/array identity.
@@ -41,9 +41,15 @@ impl PyValue {
     /// Wrap a Rust value without changing its variant or payload.
     pub fn from_rust(inner: Value) -> Self {
         Self {
-            tag: types::rust_tag(&inner),
+            tag: Tag::of_value(&inner),
             inner,
         }
+    }
+
+    /// `inner` carrying the kind `tag`, which a column it was read from
+    /// says it is.
+    pub(crate) fn with_tag(inner: Value, tag: Tag) -> Self {
+        Self { inner, tag }
     }
 
     /// Borrow the value for Rust builder and parameter APIs.
@@ -52,7 +58,7 @@ impl PyValue {
     }
 
     /// Retain a PostgreSQL enum's qualified identity alongside its Rust payload.
-    pub(crate) fn from_enum(inner: Value, name: PyTypeName, array: bool) -> Self {
+    pub(crate) fn from_enum(inner: Value, name: TypeName, array: bool) -> Self {
         let tag = Tag::Enum(name);
         Self {
             inner,
@@ -278,8 +284,8 @@ impl PyValue {
             tag => tag,
         };
         match tag {
-            Tag::Enum(name) => Some(name.clone()),
-            Tag::Created(kind) => Some(kind.name.clone()),
+            Tag::Enum(name) => Some(PyTypeName(name.clone())),
+            Tag::Created(kind) => Some(PyTypeName(kind.name.clone())),
             _ => None,
         }
     }

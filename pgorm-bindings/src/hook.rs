@@ -11,7 +11,13 @@
 use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 
 use pgorm::{Hook, HookConnection, HookError};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
+
+use crate::Failure;
+
+/// What a statement sent to a hook's connection after the hook returned is
+/// refused with.
+const RETURNED: &str = "the hook has returned, so its connection is the pool's";
 
 /// A statement a binding's callback runs on its hook's connection: called
 /// once, with the connection, on the runtime.
@@ -49,6 +55,37 @@ impl HookJobs {
     {
         let job: HookJob = Box::new(run);
         self.0.send(job).is_ok()
+    }
+
+    /// Refuse once the hook has returned.
+    pub fn ensure_open(&self) -> Result<(), Failure> {
+        match self.0.is_closed() {
+            true => Err(Failure::Lifecycle(RETURNED.to_owned())),
+            false => Ok(()),
+        }
+    }
+
+    /// Run `work` on the hook's connection, which serves it before the hook
+    /// returns, and answer what it does; refused once the hook has returned.
+    // [spec:pgorm:req:bindings.pool-hooks]
+    pub async fn run<T, F>(&self, work: F) -> Result<T, Failure>
+    where
+        T: Send + 'static,
+        F: for<'a> FnOnce(&'a HookConnection<'a>) -> Pin<Box<dyn Future<Output = T> + Send + 'a>>
+            + Send
+            + 'static,
+    {
+        let returned = || Failure::Lifecycle(RETURNED.to_owned());
+        let (reply, answer) = oneshot::channel();
+        let sent = self.submit(move |db| {
+            Box::pin(async move {
+                drop(reply.send(work(db).await));
+            })
+        });
+        if !sent {
+            return Err(returned());
+        }
+        answer.await.map_err(|_| returned())
     }
 }
 
@@ -97,4 +134,25 @@ where
             }
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // [spec:pgorm:req:bindings.pool-hooks/test]    a statement sent once the hook has returned
+    // is refused, never run on the pool's connection
+    #[tokio::test]
+    async fn a_returned_hook_refuses_its_statements() {
+        let (sender, receiver) = mpsc::unbounded_channel::<HookJob>();
+        let jobs = HookJobs(sender);
+        assert_eq!(jobs.ensure_open(), Ok(()));
+        drop(receiver);
+        let returned = Failure::Lifecycle(RETURNED.to_owned());
+        assert_eq!(jobs.ensure_open(), Err(returned.clone()));
+        let ran = jobs
+            .run(|_| Box::pin(async { unreachable!("the job never runs") }))
+            .await;
+        assert_eq!(ran, Err::<(), _>(returned));
+    }
 }

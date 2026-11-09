@@ -2,12 +2,11 @@
 //! codec.
 
 use pgorm::QueryResult;
-use pgorm::pgorm_query::ColumnType;
+use pgorm_bindings::entity::{DisjointCore, RowCodec};
 use pyo3::{prelude::*, types::PyTuple};
 use tokio_postgres::Row;
 
-use super::{Codec, Core};
-use crate::{entities::PyEntityModel, errors::DecodeError, results::PyRecord, values::PyTypeName};
+use crate::{entities::PyEntityModel, errors::Raise, results::PyRecord, values::Tag};
 
 /// One decoded row: a model's `Record` beside the index of its kind and the
 /// decoded source its kind's row is under, which Python views by field, or a
@@ -69,102 +68,37 @@ impl Item {
     }
 }
 
-impl Core {
-    /// Judge `row` by its kind and read it back.
-    // [spec:pgorm:req:bindings.disjoint+2]
-    pub(crate) fn decode(&self, row: Row) -> PyResult<Item> {
-        match &self.codec {
-            Codec::Models => {
-                let mut record = PyRecord::decode(&row)?;
-                let shape = &self.shape;
-                read_enums(shape, &mut record);
-                let key = || {
-                    let prefix = pgorm::source_prefix(0);
-                    shape
-                        .base()
-                        .key()
-                        .map(|column| {
-                            record
-                                .value(&pgorm::result_column_name(
-                                    &prefix,
-                                    &column.name().to_string(),
-                                ))
-                                .map(|value| value.rust_value().to_string())
-                                .unwrap_or_default()
-                        })
-                        .collect()
-                };
-                let judged = shape
-                    .judge(&QueryResult::from(row), key)
-                    .map_err(|error| DecodeError::new_err(error.to_string()))?;
-                Ok(Item::Record {
-                    record,
-                    kind: judged.kind,
-                    source: judged.source,
-                })
-            }
-            Codec::Entities { base, kinds } => {
-                let shape = &self.shape;
-                let result = QueryResult::from(row);
-                let model = base
-                    .decode(&result, &pgorm::source_prefix(0))
-                    .map_err(|error| DecodeError::new_err(error.to_string()))?;
-                let key = || {
-                    shape
-                        .base()
-                        .key()
-                        .map(|column| {
-                            model
-                                .get(&column.name().to_string())
-                                .map(|value| value.to_string())
-                                .unwrap_or_default()
-                        })
-                        .collect()
-                };
-                let judged = shape
-                    .judge(&result, key)
-                    .map_err(|error| DecodeError::new_err(error.to_string()))?;
-                let row = match (judged.source, &kinds[judged.kind]) {
-                    (Some(source), Some(entity)) => Some(PyEntityModel {
-                        inner: entity
-                            .decode(&result, &pgorm::source_prefix(source))
-                            .map_err(|error| DecodeError::new_err(error.to_string()))?,
-                    }),
-                    _ => None,
-                };
-                Ok(Item::Entity {
-                    base: PyEntityModel { inner: model },
-                    kind: shape.kinds()[judged.kind].value().to_owned(),
-                    row,
-                })
-            }
+/// Judge `row` by its kind and read it back.
+// [spec:pgorm:req:bindings.disjoint+2]
+pub(crate) fn decode(core: &DisjointCore, row: Row) -> PyResult<Item> {
+    if matches!(core.codec, RowCodec::Entities { .. }) {
+        let row = core.entity_row(&QueryResult::from(row)).py()?;
+        return Ok(Item::Entity {
+            base: PyEntityModel { inner: row.base },
+            kind: row.kind,
+            row: row.row.map(|inner| PyEntityModel { inner }),
+        });
+    }
+    let mut record = PyRecord::decode(&row)?;
+    for (name, tag) in core.enum_columns() {
+        let (array, tag) = match tag {
+            Tag::Array(element) => (true, *element),
+            tag => (false, tag),
+        };
+        if let Tag::Enum(name_of_type) = tag {
+            record.read_as_enum(&name, name_of_type, array);
         }
     }
-}
-
-/// Read each enum column of every source as its enum: the read projects one
-/// as its text, as pgorm's `ColumnTrait::select_as` reads an entity's, and a
-/// model's field is the enum its column names.
-fn read_enums(shape: &pgorm::DisjointShape, record: &mut PyRecord) {
-    let tables = std::iter::once((0, shape.base()))
-        .chain(shape.sources().map(|(source, _, table)| (source, table)));
-    for (source, table) in tables {
-        let names = shape.result_names(source).unwrap_or_default();
-        for (column, result_name) in table.columns().iter().zip(&names) {
-            let (column_type, array) = match column.def().get_column_type() {
-                ColumnType::Array(element) => (element.as_ref(), true),
-                column_type => (column_type, false),
-            };
-            if let ColumnType::Enum { name, schema, .. } = column_type {
-                record.read_as_enum(
-                    result_name,
-                    PyTypeName {
-                        name: name.to_string(),
-                        schema: schema.as_ref().map(|schema| schema.to_string()),
-                    },
-                    array,
-                );
-            }
-        }
-    }
+    let judged = core
+        .judge(&QueryResult::from(row), |name| {
+            record
+                .value(name)
+                .map(|value| value.rust_value().to_string())
+        })
+        .py()?;
+    Ok(Item::Record {
+        record,
+        kind: judged.kind,
+        source: judged.source,
+    })
 }

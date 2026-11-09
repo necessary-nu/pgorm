@@ -1424,12 +1424,18 @@ dependencies = [
 name = "pgorm-bindings"
 version = "0.2.0"
 dependencies = [
+ "fallible-iterator",
+ "futures-util",
  "pgorm",
+ "pgorm-migration",
+ "postgres-protocol",
  "rustls",
  "rustls-native-certs",
+ "serde_json",
  "tokio",
  "tokio-postgres",
  "tokio-postgres-rustls",
+ "tokio-util",
 ]
 
 [[package]]
@@ -1510,7 +1516,6 @@ name = "pgorm-python"
 version = "0.2.0"
 dependencies = [
  "bytes",
- "fallible-iterator",
  "futures-util",
  "jiff",
  "pgorm",

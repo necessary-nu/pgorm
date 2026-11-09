@@ -4,12 +4,14 @@
 //! `exec_returning_change` and `UpdateMany`'s `exec_returning_changes`. An
 //! insert's, its upserts' among them, are in `inserts`.
 
+use crate::errors::FailureJs as _;
 use neon::prelude::*;
 
+use pgorm_bindings::entity::{Active, Assignment, VersionWrite};
+
 use super::{
-    adapter::{Active, Assignment, VersionWrite},
     condition,
-    convert::{VersionRows, column_value, entity_failure},
+    convert::{VersionRows, column_value},
 };
 use crate::{
     connect::job::{Job, JobHandle, Output},
@@ -32,7 +34,7 @@ fn versions_job(
             let versions = entity
                 .versions(db, write)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(VersionRows(entity.info().clone(), versions)) as Output)
         })
     });

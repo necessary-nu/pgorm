@@ -14,10 +14,8 @@
 use std::num::NonZeroU32;
 
 use neon::prelude::*;
-use pgorm::pgorm_query::{
-    CopyBinary, CopyCsv, CopyFromStatement, CopyIgnore, CopyLogVerbosity, CopySource, CopyText,
-    CopyToStatement, IntoCopySource,
-};
+use pgorm::pgorm_query::{CopyIgnore, CopyLogVerbosity, CopySource, IntoCopySource};
+use pgorm_bindings::DataFormat;
 
 use super::{
     Node,
@@ -52,21 +50,7 @@ pub(super) const EXPORTS: &[(&str, super::Build)] = &[
 /// The formats a COPY is made in, as JavaScript names them.
 const FORMATS: &[&str] = &["text", "csv", "binary"];
 
-/// A `COPY … FROM STDIN`, in its format.
-#[derive(Debug, Clone)]
-pub(crate) enum CopyFrom {
-    Text(CopyFromStatement<CopyText>),
-    Csv(CopyFromStatement<CopyCsv>),
-    Binary(CopyFromStatement<CopyBinary>),
-}
-
-/// A `COPY … TO STDOUT`, in its format.
-#[derive(Debug, Clone)]
-pub(crate) enum CopyTo {
-    Text(CopyToStatement<CopyText>),
-    Csv(CopyToStatement<CopyCsv>),
-    Binary(CopyToStatement<CopyBinary>),
-}
+pub(crate) use pgorm_bindings::{CopyFrom, CopyTo};
 
 /// The COPY one JavaScript builder owns.
 // [spec:pgorm:req:bindings.copy]
@@ -86,22 +70,15 @@ impl CopyStatement {
 
     fn format(&self) -> &'static str {
         match self {
-            Self::CopyFrom(CopyFrom::Text(_)) | Self::CopyTo(CopyTo::Text(_)) => "text",
-            Self::CopyFrom(CopyFrom::Csv(_)) | Self::CopyTo(CopyTo::Csv(_)) => "csv",
-            Self::CopyFrom(CopyFrom::Binary(_)) | Self::CopyTo(CopyTo::Binary(_)) => "binary",
+            Self::CopyFrom(copy) => copy.format(),
+            Self::CopyTo(copy) => copy.format(),
         }
     }
 
-    /// pgorm-query's one rendering of the statement, every value in it an
-    /// escaped literal.
     fn rendered(&self) -> String {
         match self {
-            Self::CopyFrom(CopyFrom::Text(copy)) => copy.to_string(),
-            Self::CopyFrom(CopyFrom::Csv(copy)) => copy.to_string(),
-            Self::CopyFrom(CopyFrom::Binary(copy)) => copy.to_string(),
-            Self::CopyTo(CopyTo::Text(copy)) => copy.to_string(),
-            Self::CopyTo(CopyTo::Csv(copy)) => copy.to_string(),
-            Self::CopyTo(CopyTo::Binary(copy)) => copy.to_string(),
+            Self::CopyFrom(copy) => copy.rendered(),
+            Self::CopyTo(copy) => copy.rendered(),
         }
     }
 
@@ -248,17 +225,22 @@ macro_rules! apply {
     };
 }
 
+/// The format the second argument names, one of [`FORMATS`].
+fn data_format(cx: &mut FunctionContext) -> NeonResult<DataFormat> {
+    Ok(match choice(cx, 1, "a COPY's format", FORMATS)? {
+        "text" => DataFormat::Text,
+        "csv" => DataFormat::Csv,
+        _ => DataFormat::Binary,
+    })
+}
+
 /// `copyFromNew(table, format)`: COPY into `table` from the client.
 // [spec:pgorm:req:bindings.copy]
 fn copy_from_new(cx: &mut FunctionContext) -> NeonResult<Node> {
     let table = arg(cx, 0);
     let table = relation(cx, table)?;
-    let copy = match choice(cx, 1, "a COPY's format", FORMATS)? {
-        "text" => CopyFrom::Text(CopyFromStatement::new(table, CopyText)),
-        "csv" => CopyFrom::Csv(CopyFromStatement::new(table, CopyCsv)),
-        _ => CopyFrom::Binary(CopyFromStatement::new(table, CopyBinary)),
-    };
-    Ok(CopyStatement::CopyFrom(copy).into())
+    let format = data_format(cx)?;
+    Ok(CopyStatement::CopyFrom(CopyFrom::new(table, format)).into())
 }
 
 /// What a COPY TO reads: a table, named as a DDL statement names one, or
@@ -310,12 +292,8 @@ fn source<'cx>(
 fn copy_to_new(cx: &mut FunctionContext) -> NeonResult<Node> {
     let value = arg(cx, 0);
     let source = source(cx, value)?;
-    let copy = match choice(cx, 1, "a COPY's format", FORMATS)? {
-        "text" => CopyTo::Text(CopyToStatement::new(source, CopyText)),
-        "csv" => CopyTo::Csv(CopyToStatement::new(source, CopyCsv)),
-        _ => CopyTo::Binary(CopyToStatement::new(source, CopyBinary)),
-    };
-    Ok(CopyStatement::CopyTo(copy).into())
+    let format = data_format(cx)?;
+    Ok(CopyStatement::CopyTo(CopyTo::new(source, format)).into())
 }
 
 /// `copyColumns(copy, columns)`: the columns each row supplies, added to

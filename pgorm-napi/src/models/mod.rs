@@ -13,18 +13,17 @@
 mod parity;
 mod shape;
 
-pub(crate) use shape::{
-    CastsHandle, column_type, columns, flag, names, property, table_name, text, unique_keys,
-};
-
 use neon::prelude::*;
 use pgorm::pgorm_query::{Asterisk, Expr, Func, Name, Query, SelectStatement, Value};
 
 use crate::{
     codec::Codec,
-    errors::{Failure, throw},
     statements::{self, Node},
-    values::{Tag, Tagged, TypeName, read, write},
+    values::{Tag, Tagged, read, write},
+};
+
+pub(crate) use shape::{
+    CastsHandle, columns, flag, names, property, table_name, text, unique_keys,
 };
 
 pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -34,37 +33,6 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("modelResultName", result_name)?;
     cx.export_function("modelCount", count)?;
     shape::export(cx)
-}
-
-/// A kind as one string, the same for a declared column and a decoded one:
-/// a scalar kind's name (`i32`, `tstzrange`), an enum's type as SQL quotes
-/// it, a created range's type and subtype, and an array's element followed
-/// by `[]`.
-// [spec:pgorm:req:bindings.model-records+1]
-pub(crate) fn kind_key(tag: &Tag) -> Result<String, Failure> {
-    Ok(match tag {
-        Tag::Scalar(kind) => kind.kind_name().to_owned(),
-        Tag::Enum(name) => format!("enum {}", quoted(name)),
-        Tag::Created(kind) => format!(
-            "{} {} of {}",
-            if kind.multirange {
-                "multirange"
-            } else {
-                "range"
-            },
-            quoted(&kind.name),
-            kind.subtype.kind_name()
-        ),
-        Tag::Array(element) => format!("{}[]", kind_key(element)?),
-    })
-}
-
-fn quoted(name: &TypeName) -> String {
-    let part = |part: &str| format!("\"{}\"", part.replace('"', "\"\""));
-    match &name.schema {
-        Some(schema) => format!("{}.{}", part(schema), part(&name.name)),
-        None => part(&name.name),
-    }
 }
 
 /// `modelKindKey(kind, array)`: the key of a declared column's kind, an
@@ -79,8 +47,7 @@ fn kind_key_of_kind(mut cx: FunctionContext) -> JsResult<JsString> {
     } else {
         tag
     };
-    let key = kind_key(&tag).or_else(|failure| throw(&mut cx, failure))?;
-    Ok(cx.string(key))
+    Ok(cx.string(tag.key()))
 }
 
 /// `modelValueKey(value)`: the key of the kind a `Value` declares.
@@ -88,10 +55,7 @@ fn kind_key_of_value(mut cx: FunctionContext) -> JsResult<JsString> {
     let value = cx.argument::<JsValue>(0)?;
     let codec = Codec::get(&mut cx)?;
     match read::infer(&mut cx, codec, value)? {
-        Some(tagged) => {
-            let key = kind_key(&tagged.tag).or_else(|failure| throw(&mut cx, failure))?;
-            Ok(cx.string(key))
-        }
+        Some(tagged) => Ok(cx.string(tagged.tag.key())),
         None => read::refuse(&mut cx, "null declares no kind"),
     }
 }

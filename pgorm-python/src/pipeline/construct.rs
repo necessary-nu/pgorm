@@ -14,7 +14,7 @@ use crate::{
     entities::PyEntityColumn,
     errors::ConstructionError,
     schema::{PyModelColumnCasts, column_type},
-    values::{PyValue, Tag},
+    values::{PyValue, Tag, TagPy},
 };
 use std::sync::Arc;
 

@@ -114,6 +114,40 @@ option.
 > the runtime: an operation that does I/O is awaited in the language's own
 > asynchronous form (`python.runtime`, `napi.promises`).
 
+> [spec:pgorm:req:bindings.shared-runtime]
+> What both bindings do alike MUST be written once, in the unpublished
+> workspace crate pgorm-bindings, which both depend on and which names
+> neither language: how a pgorm error is classified and redacted, and a
+> panic reported (`bindings.errors`), what a metrics hook is told
+> (`bindings.metrics`), how a pool is built from its options and lends, runs
+> on and closes its connections (`bindings.connections`), how a hook's
+> statements reach its connection (`bindings.pool-hooks`), how a
+> transaction's frames, savepoints and retried attempts are served
+> (`bindings.transactions`, `bindings.transaction-retry`), how a stream and a
+> listener hold their connections (`bindings.streams`, `bindings.listen`), how
+> pgorm-migration's runner runs a migration the language wrote
+> (`bindings.migrations`), how a pipeline's expressions are recorded, bound
+> and lowered into its stages (`bindings.pipeline-binder`), what `call()`
+> and `window_function` reach (`bindings.expressions`, `bindings.windows`),
+> which built-in types a `DataType` names (`bindings.schema`), how a declared
+> model's foreign key is written (`bindings.schema-from-model`), how a COPY
+> statement is described and started (`bindings.copy`, `bindings.copy-rows`),
+> how a JSON column's numbers and an array's shape are read
+> (`bindings.values`), how a closed choice and a statement's parameter count
+> are refused (`bindings.argument-errors`), and the type-erased backends a
+> registration is reached through (`bindings.entities`). Each binding keeps only its language's glue:
+> reading its language's values into pgorm-bindings' types, settling its
+> awaitables or promises, and raising what pgorm-bindings refuses as its own
+> error classes. A refusal's text is pgorm-bindings' own in both bindings, an
+> option or a choice it names spelled as the binding spells it
+> (`python.naming`, `napi.naming`), and the same misuse is refused in the same
+> words by both, each family of refusal in one style: `the pool is closed`,
+> `the connection is busy: an operation, a transaction or a stream holds it`,
+> `the COPY has ended`, `no connection came free within the pool's
+> acquire_timeout`. A test over both bindings' production sources MUST fail
+> when they share a run of identical tokens longer than a fixed bound, so that
+> logic copied from one binding into the other is found rather than kept.
+
 > [spec:pgorm:req:bindings.errors+6]
 > Each binding MUST report a failure as an instance of its own error classes,
 > all derived from one base class of the binding and from the language's own

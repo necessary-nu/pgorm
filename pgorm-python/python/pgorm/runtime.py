@@ -409,7 +409,7 @@ class Connection(RowCopies, RawStatements):
 
     async def __aenter__(self) -> "Connection":
         if self.closed:
-            raise _native.LifecycleError("connection is closed")
+            raise _native.LifecycleError("the connection is closed")
         return self
 
     async def __aexit__(self, *exc: Any) -> None:

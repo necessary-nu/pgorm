@@ -2,14 +2,14 @@
 
 use std::sync::Arc;
 
-use pgorm::pgorm_query::{Name, TypeName};
-use pgorm::{DisjointColumn, DisjointShape, DisjointTable};
+use pgorm::{DisjointColumn, DisjointTable};
+use pgorm_bindings::entity::{DisjointCore, Kinded};
 use pyo3::{prelude::*, types::PyDict};
-use serde_json::json;
 
-use super::{Codec, Core, NativeDisjoint};
+use super::NativeDisjoint;
 use crate::{
-    errors::ConstructionError,
+    config::DIALECT,
+    errors::{ConstructionError, Raise},
     schema::{DescribedKey, column_of, item, table_name},
     values::PyTypeName,
 };
@@ -74,52 +74,24 @@ pub(crate) fn disjoint_model(
     kinds: Vec<(String, Option<Described<'_>>)>,
 ) -> PyResult<NativeDisjoint> {
     let (base_name, base) = base;
-    let mut described = Vec::with_capacity(kinds.len());
     let mut tables = Vec::with_capacity(kinds.len());
     for (value, table) in kinds {
-        match table {
-            Some((model, table)) => {
-                described.push(json!({"value": value, "model": model}));
-                tables.push((value, Some(table_of(&table)?)));
-            }
-            None => {
-                described.push(json!({"value": value, "model": null}));
-                tables.push((value, None));
-            }
-        }
+        tables.push((
+            value,
+            match table {
+                Some((model, table)) => Some((model, table_of(&table)?)),
+                None => None,
+            },
+        ));
     }
-    let base = table_of(&base)?;
-    let (shape, kind_field, kind_type) = match &kinded {
-        Some((kind_column, kind_field, kind_type)) => {
-            let mut type_name = TypeName::new(Name::runtime(&kind_type.name));
-            if let Some(schema) = &kind_type.schema {
-                type_name = type_name.schema(Name::runtime(schema));
-            }
-            (
-                DisjointShape::new(base, kind_column, type_name, tables),
-                Some(kind_field.as_str()),
-                json!({"schema": kind_type.schema, "name": kind_type.name}),
-            )
-        }
-        None => (
-            DisjointShape::unkinded(base, tables),
-            None,
-            json!({"schema": null, "name": null}),
-        ),
-    };
-    let shape = shape.map_err(|error| ConstructionError::new_err(error.to_string()))?;
+    let kinded = kinded.map(|(column, field, kind_type)| Kinded {
+        column,
+        field,
+        kind_type: kind_type.0.clone(),
+    });
+    let core =
+        DisjointCore::model(DIALECT, name, (base_name, table_of(&base)?), kinded, tables).py()?;
     Ok(NativeDisjoint {
-        core: Arc::new(Core {
-            shape,
-            codec: Codec::Models,
-            description: json!({
-                "name": name,
-                "base": base_name,
-                "kind_field": kind_field,
-                "kind_type": kind_type,
-                "kinds": described,
-            }),
-            rust: None,
-        }),
+        core: Arc::new(core),
     })
 }

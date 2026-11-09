@@ -1,6 +1,7 @@
 //! How an operation's outcome crosses from the runtime back to JavaScript.
 
-use std::{any::Any, future::Future};
+use crate::errors::FailureJs as _;
+use std::future::Future;
 
 use neon::prelude::*;
 
@@ -32,10 +33,9 @@ where
     runtime.spawn(async move {
         let outcome = match runtime.spawn(work).await {
             Ok(outcome) => outcome,
-            Err(error) if error.is_panic() => Err(Failure::Internal(format!(
-                "pgorm panicked: {}",
-                panic_message(error.into_panic().as_ref())
-            ))),
+            Err(error) if error.is_panic() => {
+                Err(pgorm_bindings::panicked(error.into_panic().as_ref()))
+            }
             Err(_) => Err(Failure::Internal("pgorm's task was cancelled".to_owned())),
         };
         // A send fails only once the instance is being torn down — the
@@ -63,27 +63,4 @@ pub(crate) fn rejected<'cx>(
     let error = failure.into_js(cx)?;
     deferred.reject(cx, error);
     Ok(promise)
-}
-
-fn panic_message(payload: &(dyn Any + Send)) -> &str {
-    payload
-        .downcast_ref::<&str>()
-        .copied()
-        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
-        .unwrap_or("a panic with no message")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn panic_messages_read_from_both_payload_types() {
-        let literal: Box<dyn Any + Send> = Box::new("literal");
-        let formatted: Box<dyn Any + Send> = Box::new(String::from("formatted"));
-        let opaque: Box<dyn Any + Send> = Box::new(7_u8);
-        assert_eq!(panic_message(literal.as_ref()), "literal");
-        assert_eq!(panic_message(formatted.as_ref()), "formatted");
-        assert_eq!(panic_message(opaque.as_ref()), "a panic with no message");
-    }
 }

@@ -4,8 +4,8 @@
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{
-    BinOper, ColumnRef, Condition, Expr, ExprTrait, Func, FunctionCall, Name, NullOrdering, Order,
-    SimpleExpr, SubQueryStatement,
+    BinOper, ColumnRef, Condition, Expr, ExprTrait, Func, Name, NullOrdering, Order, SimpleExpr,
+    SubQueryStatement,
 };
 
 use super::{
@@ -91,52 +91,6 @@ fn literal(cx: &mut FunctionContext) -> NeonResult<Node> {
     Ok(Node::Expr(expr))
 }
 
-/// The functions `call` reaches, each through its pgorm-query constructor
-/// and taking the argument counts the constructor does.
-fn function(name: &str, args: &[SimpleExpr]) -> Option<FunctionCall> {
-    Some(match (name, args) {
-        ("lower", [value]) => Func::lower(value.clone()),
-        ("upper", [value]) => Func::upper(value.clone()),
-        ("abs", [value]) => Func::abs(value.clone()),
-        ("char_length", [value]) => Func::char_length(value.clone()),
-        ("count", [value]) => Func::count(value.clone()),
-        ("count_distinct", [value]) => Func::count_distinct(value.clone()),
-        ("sum", [value]) => Func::sum(value.clone()),
-        ("avg", [value]) => Func::avg(value.clone()),
-        ("min", [value]) => Func::min(value.clone()),
-        ("max", [value]) => Func::max(value.clone()),
-        ("round", [value]) => Func::round(value.clone()),
-        ("round", [value, precision]) => {
-            Func::round_with_precision(value.clone(), precision.clone())
-        }
-        ("coalesce", [_, ..]) => Func::coalesce(args.to_vec()),
-        ("random", []) => Func::random(),
-        ("gen_random_uuid", []) => Func::gen_random_uuid(),
-        ("uuidv4", []) => Func::uuidv4(),
-        ("uuidv7", []) => Func::uuidv7(),
-        ("uuidv7", [shift]) => Func::uuidv7_shifted(shift.clone()),
-        ("uuid_extract_timestamp", [value]) => Func::uuid_extract_timestamp(value.clone()),
-        ("uuid_extract_version", [value]) => Func::uuid_extract_version(value.clone()),
-        ("generate_series", [start, stop]) => Func::generate_series(start.clone(), stop.clone()),
-        ("generate_series", [start, stop, step]) => {
-            Func::generate_series_step(start.clone(), stop.clone(), step.clone())
-        }
-        ("unnest", [array]) => Func::unnest(array.clone()),
-        ("json_to_record", [json]) => Func::json_to_record(json.clone()),
-        ("jsonb_to_record", [jsonb]) => Func::jsonb_to_record(jsonb.clone()),
-        ("json_to_recordset", [json]) => Func::json_to_recordset(json.clone()),
-        ("jsonb_to_recordset", [jsonb]) => Func::jsonb_to_recordset(jsonb.clone()),
-        ("to_tsvector", [text]) => Func::to_tsvector(text.clone(), None),
-        ("to_tsquery", [text]) => Func::to_tsquery(text.clone(), None),
-        ("plainto_tsquery", [text]) => Func::plainto_tsquery(text.clone(), None),
-        ("phraseto_tsquery", [text]) => Func::phraseto_tsquery(text.clone(), None),
-        ("websearch_to_tsquery", [text]) => Func::websearch_to_tsquery(text.clone(), None),
-        ("ts_rank", [vector, query]) => Func::ts_rank(vector.clone(), query.clone()),
-        ("ts_rank_cd", [vector, query]) => Func::ts_rank_cd(vector.clone(), query.clone()),
-        _ => return None,
-    })
-}
-
 /// `exprCall(name, args)`: a call to one of the functions pgorm-query has a
 /// constructor for. Another name or argument count is refused: the name
 /// selects a constructor and never reaches SQL.
@@ -145,29 +99,9 @@ fn call(cx: &mut FunctionContext) -> NeonResult<Node> {
     let value = arg(cx, 0);
     let name = crate::values::read::text(cx, value, "a function's name")?;
     let args = operands_at(cx, 1)?;
-    if let ("grouping", [first, rest @ ..]) = (name.as_str(), args.as_slice()) {
-        let grouping = rest
-            .iter()
-            .fold(Func::grouping(first.clone()), |grouping, arg| {
-                grouping.arg(arg.clone())
-            });
-        return Ok(Node::Expr(grouping.into()));
-    }
-    match function(&name, &args) {
-        Some(call) => Ok(Node::Expr(call.into())),
-        None => refuse(
-            cx,
-            format!(
-                "call() has no {name:?} taking {} argument(s); it reaches lower, upper, abs, \
-                 char_length, count, count_distinct, sum, avg, min, max, round, coalesce, random, \
-                 gen_random_uuid, uuidv4, uuidv7, uuid_extract_timestamp, \
-                 uuid_extract_version, generate_series, unnest, json_to_record, \
-                 jsonb_to_record, json_to_recordset, jsonb_to_recordset, grouping, \
-                 to_tsvector, to_tsquery, plainto_tsquery, phraseto_tsquery, \
-                 websearch_to_tsquery, ts_rank and ts_rank_cd; func() calls any other by name",
-                args.len()
-            ),
-        ),
+    match pgorm_bindings::call(&name, &args) {
+        Ok(call) => Ok(Node::Expr(call)),
+        Err(refusal) => refuse(cx, refusal.into_message()),
     }
 }
 

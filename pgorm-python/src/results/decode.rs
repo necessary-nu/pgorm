@@ -14,12 +14,12 @@ use tokio_postgres::{
 use uuid::Uuid;
 
 use super::codecs::{CheckedArray, EnumLabel, Inet, Mac};
-use super::json::ExactJson;
 use crate::{
     errors::DecodeError,
-    values::{PyTypeName, PyValue},
+    values::{PyValue, TypeName},
 };
 use pgorm::ExactDecimal;
+use pgorm_bindings::ExactJson;
 
 /// Where a column's value is read from: a result row, or one field of a
 /// binary COPY's row, its bytes and the column the server describes for it.
@@ -128,7 +128,7 @@ pub(crate) fn value(field: Field<'_>) -> PyResult<PyValue> {
         })?;
         return Ok(PyValue::from_enum(
             inner,
-            PyTypeName {
+            TypeName {
                 name: ty.name().to_owned(),
                 schema: Some(ty.schema().to_owned()),
             },

@@ -1,13 +1,16 @@
-use super::{State, work::Output};
+use super::State;
 use crate::panics::future_into_py;
 use crate::{
-    errors::{ConstructionError, InternalError},
+    errors::{ConstructionError, Raise},
     execution::{Executor, Target},
     results,
+    runtime::{Loop, Owned},
 };
 use pgorm::{IsolationLevel, TransactionMode};
+use pgorm_bindings::transaction::Retrying;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use std::{fmt, sync::Arc};
+use tokio_util::sync::CancellationToken;
 
 pub(crate) fn mode(mode: &str, isolation: Option<&str>) -> PyResult<TransactionMode> {
     let isolation = isolation
@@ -51,64 +54,54 @@ impl fmt::Debug for NativeTransaction {
 #[pymethods]
 impl NativeTransaction {
     fn abort<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.state.connection.pool.check_owner(py)?;
-        self.state.root.aborted.cancel();
+        self.state.connection().pool.check_owner(py)?;
+        self.state.abort();
         let state = self.state.clone();
         future_into_py(py, async move {
-            state.root.finished.cancelled().await;
+            state.finished().await;
             Ok(())
         })
     }
 
     fn owner_matches(&self, parent: &Bound<'_, PyAny>) -> bool {
-        if self.state.lent {
+        if self.state.is_lent() {
             return parent.is_none();
         }
-        if let Some(expected) = &self.state.parent {
-            let Ok(parent) = parent.extract::<PyRef<'_, NativeTransaction>>() else {
-                return false;
-            };
-            expected
-                .upgrade()
-                .is_some_and(|expected| Arc::ptr_eq(&expected, &parent.state))
-        } else {
-            let Ok(parent) = parent.extract::<PyRef<'_, crate::runtime::NativeConnection>>() else {
-                return false;
-            };
-            Arc::ptr_eq(&self.state.connection, &parent.state)
+        if let Ok(parent) = parent.extract::<PyRef<'_, NativeTransaction>>() {
+            return self.state.is_child_of(&parent.state);
         }
+        let Ok(parent) = parent.extract::<PyRef<'_, crate::runtime::NativeConnection>>() else {
+            return false;
+        };
+        !self.state.is_savepoint() && Arc::ptr_eq(self.state.connection(), &parent.state)
     }
 
     fn wait_closed<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.state.connection.pool.check_owner(py)?;
+        self.state.connection().pool.check_owner(py)?;
         let state = self.state.clone();
         future_into_py(py, async move {
-            tokio::select! {
-                _ = state.released.cancelled() => (),
-                _ = state.root.finished.cancelled() => (),
-            }
+            state.wait_closed().await;
             Ok(())
         })
     }
 
     fn begin<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.state.check(py)?;
+        self.state.check_owner(py)?;
         let state = self.state.clone();
         future_into_py(py, async move {
+            let lock = state.lock().py()?;
             Ok(Self {
-                state: state.begin().await?,
+                state: state.begin(lock, &CancellationToken::new()).await.py()?,
             })
         })
     }
 
     fn finish<'py>(&self, py: Python<'py>, commit: bool) -> PyResult<Bound<'py, PyAny>> {
-        self.state.check(py)?;
+        self.state.check_owner(py)?;
         let state = self.state.clone();
         future_into_py(py, async move {
-            match state.request(None, commit, false).await? {
-                Output::Finished => Ok(()),
-                _ => Err(InternalError::new_err("unexpected transaction completion")),
-            }
+            let lock = state.lock().py()?;
+            state.finish(lock, commit).await.py()
         })
     }
 
@@ -123,19 +116,16 @@ impl NativeTransaction {
         commit: bool,
         retryable: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.state.check(py)?;
+        self.state.check_owner(py)?;
         let state = self.state.clone();
         future_into_py(py, async move {
-            match state.request(None, commit, retryable).await? {
-                Output::Retrying => Ok(true),
-                Output::Finished => Ok(false),
-                _ => Err(InternalError::new_err("unexpected transaction completion")),
-            }
+            let lock = state.lock().py()?;
+            state.finish_attempt(lock, commit, retryable).await.py()
         })
     }
 
     fn closed(&self, py: Python<'_>) -> PyResult<bool> {
-        self.state.connection.pool.check_owner(py)?;
+        self.state.connection().pool.check_owner(py)?;
         Ok(self.state.closed())
     }
 
@@ -196,7 +186,7 @@ impl NativeTransaction {
 
 impl Drop for NativeTransaction {
     fn drop(&mut self) {
-        self.state.abandoned.cancel();
+        self.state.abandon();
     }
 }
 
@@ -204,7 +194,7 @@ impl Drop for NativeTransaction {
 /// handing Python each attempt's frame in turn.
 #[pyclass(name = "_Retrying", module = "pgorm._native", frozen)]
 pub(crate) struct NativeRetrying {
-    pub(crate) inner: Arc<super::retry::Retrying>,
+    pub(crate) inner: Arc<Retrying<Loop>>,
 }
 
 impl fmt::Debug for NativeRetrying {
@@ -221,7 +211,7 @@ impl NativeRetrying {
         let inner = self.inner.clone();
         future_into_py(py, async move {
             Ok(NativeTransaction {
-                state: inner.attempt().await?,
+                state: inner.attempt(&CancellationToken::new()).await.py()?,
             })
         })
     }

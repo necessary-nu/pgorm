@@ -14,31 +14,24 @@ mod registered;
 
 use std::{fmt, sync::Arc};
 
-use pgorm::{DdlStatement, Error, OneOfShape, pgorm_query::Value};
+use pgorm::{DdlStatement, pgorm_query::Value};
+use pgorm_bindings::entity::OneOfCore;
 use pyo3::prelude::*;
 
 use crate::{
-    errors::{ConstructionError, DecodeError},
+    errors::{Raise, raised},
     expressions::PyExpr,
     values::PyValue,
 };
 
-pub(crate) use registered::{Registered, one_of_entities, one_of_entity};
-
-/// One reference or registration: its shape and its description.
-pub(crate) struct Core {
-    pub(crate) shape: OneOfShape,
-    pub(crate) description: serde_json::Value,
-    /// The registered enum's type, which no second registration may name.
-    pub(crate) rust: Option<std::any::TypeId>,
-}
+pub(crate) use registered::{one_of_entities, one_of_entity};
 
 /// A one-of reference or a registered one-of enum, as Python's `OneOf` and
 /// `OneOfEntity` hold it.
 // [spec:pgorm:req:bindings.one-of+1]
 #[pyclass(name = "_OneOf", module = "pgorm._native", frozen)]
 pub struct NativeOneOf {
-    pub(crate) core: Arc<Core>,
+    pub(crate) core: Arc<OneOfCore>,
 }
 
 impl fmt::Debug for NativeOneOf {
@@ -54,16 +47,6 @@ fn values(values: &[PyRef<'_, PyValue>]) -> Vec<Value> {
     values.iter().map(|value| value.inner.clone()).collect()
 }
 
-/// What the shape refuses as a reference is used: a row against its
-/// declaration, read back, is a `DecodeError`, and anything else, refused
-/// before anything is sent, a `ConstructionError`.
-fn refused(error: Error) -> PyErr {
-    match error {
-        Error::Query(_) => DecodeError::new_err(error.to_string()),
-        error => ConstructionError::new_err(error.to_string()),
-    }
-}
-
 #[pymethods]
 impl NativeOneOf {
     /// The reference or registration as data, under the keys `describe()`
@@ -77,21 +60,14 @@ impl NativeOneOf {
     /// Where the target `value` stands among the reference's.
     // [spec:pgorm:req:bindings.one-of+1]
     fn target(&self, value: &str) -> PyResult<usize> {
-        self.core
-            .shape
-            .target(value)
-            .map(|(index, _)| index)
-            .map_err(refused)
+        self.core.target(value).py()
     }
 
     /// The target a row references, given its key and, for each target,
     /// whether its column is set, or `None` for a row referencing none.
     // [spec:pgorm:req:bindings.one-of+1]
     fn referenced(&self, row: Vec<PyRef<'_, PyValue>>, set: Vec<bool>) -> PyResult<Option<usize>> {
-        self.core
-            .shape
-            .referenced(&values(&row), &set)
-            .map_err(refused)
+        self.core.referenced(&values(&row), &set).py()
     }
 
     /// For each target, whether a write of a reference to `target` sets its
@@ -99,17 +75,16 @@ impl NativeOneOf {
     // [spec:pgorm:req:bindings.one-of+1]
     #[pyo3(signature = (target=None))]
     fn assigned(&self, target: Option<usize>) -> PyResult<Vec<bool>> {
-        self.core.shape.assigned(target).map_err(refused)
+        self.core.assigned(target).py()
     }
 
     /// The condition the rows of the target at `target` are loaded by.
     // [spec:pgorm:req:bindings.one-of+1]
     fn load_condition(&self, target: usize, keys: Vec<PyRef<'_, PyValue>>) -> PyResult<PyExpr> {
         self.core
-            .shape
             .load_condition(target, values(&keys))
             .map(PyExpr::from_rust)
-            .map_err(refused)
+            .py()
     }
 
     /// The `DecodeError` for the row of key `row` referencing a row of the
@@ -121,18 +96,13 @@ impl NativeOneOf {
         row: Vec<PyRef<'_, PyValue>>,
         key: PyRef<'_, PyValue>,
     ) -> PyErr {
-        DecodeError::new_err(
-            self.core
-                .shape
-                .absent(target, &values(&row), &key.inner)
-                .to_string(),
-        )
+        raised(self.core.absent(target, &values(&row), &key.inner))
     }
 
     /// The `ALTER TABLE` adding the reference's `CHECK`.
     // [spec:pgorm:req:bindings.one-of+1]
     fn statement<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        crate::schema::ddl_object(py, DdlStatement::AlterTable(self.core.shape.check()))
+        crate::schema::ddl_object(py, DdlStatement::AlterTable(self.core.check()))
     }
 }
 

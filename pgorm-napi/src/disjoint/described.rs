@@ -3,13 +3,13 @@
 use std::sync::Arc;
 
 use neon::prelude::*;
-use pgorm::pgorm_query::{Name, TypeName as QueryTypeName};
-use pgorm::{DisjointColumn, DisjointShape, DisjointTable};
-use serde_json::json;
+use pgorm::{DisjointColumn, DisjointTable};
+use pgorm_bindings::entity::{DisjointCore, Kinded};
 
-use super::{Core, DisjointHandle, RowCodec};
+use super::DisjointHandle;
 use crate::{
     codec::Codec,
+    connect::DIALECT,
     errors::{Failure, throw},
     models::{columns, flag, names, property, table_name, text, unique_keys},
     values::{Tag, read},
@@ -95,7 +95,11 @@ pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
             let Tag::Enum(kind_type) = read::kind(&mut cx, codec, kind_type)? else {
                 return cx.throw_type_error("a disjoint model's kind type is a TypeName");
             };
-            Some((column, field, kind_type))
+            Some(Kinded {
+                column,
+                field,
+                kind_type,
+            })
         }
         Err(_) if kinded.is_a::<JsNull, _>(&mut cx) => None,
         Err(_) => {
@@ -104,7 +108,6 @@ pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
         }
     };
     let kinds = cx.argument::<JsArray>(3)?.to_vec(&mut cx)?;
-    let mut descriptions = Vec::with_capacity(kinds.len());
     let mut tables = Vec::with_capacity(kinds.len());
     for kind in kinds {
         let Ok(kind) = kind.downcast::<JsArray, _>(&mut cx) else {
@@ -114,47 +117,13 @@ pub(crate) fn disjoint_model(mut cx: FunctionContext) -> JsResult<JsValue> {
         let value = text(&mut cx, value, "kind value")?;
         let table: Handle<JsValue> = kind.get(&mut cx, 1)?;
         if table.is_a::<JsNull, _>(&mut cx) {
-            descriptions.push(json!({"value": value, "model": null}));
             tables.push((value, None));
         } else {
-            let (model, table) = described(&mut cx, table)?;
-            descriptions.push(json!({"value": value, "model": model}));
-            tables.push((value, Some(table)));
+            tables.push((value, Some(described(&mut cx, table)?)));
         }
     }
-    let (shape, kind_field, kind_type) = match kinded {
-        Some((kind_column, kind_field, kind_type)) => {
-            let mut type_name = QueryTypeName::new(Name::runtime(&kind_type.name));
-            if let Some(schema) = &kind_type.schema {
-                type_name = type_name.schema(Name::runtime(schema));
-            }
-            (
-                DisjointShape::new(base, &kind_column, type_name, tables),
-                Some(kind_field),
-                json!({"schema": kind_type.schema, "name": kind_type.name}),
-            )
-        }
-        None => (
-            DisjointShape::unkinded(base, tables),
-            None,
-            json!({"schema": null, "name": null}),
-        ),
-    };
-    let shape = match shape {
-        Ok(shape) => shape,
-        Err(error) => return throw(&mut cx, Failure::Construction(error.to_string())),
-    };
-    let core = Core {
-        shape,
-        codec: RowCodec::Models,
-        description: json!({
-            "name": name,
-            "base": base_name,
-            "kindField": kind_field,
-            "kindType": kind_type,
-            "kinds": descriptions,
-        }),
-        rust: None,
-    };
-    Ok(cx.boxed(DisjointHandle(Arc::new(core))).upcast())
+    match DisjointCore::model(DIALECT, &name, (base_name, base), kinded, tables) {
+        Ok(core) => Ok(cx.boxed(DisjointHandle(Arc::new(core))).upcast()),
+        Err(failure) => throw(&mut cx, failure),
+    }
 }

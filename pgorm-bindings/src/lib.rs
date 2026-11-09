@@ -1,30 +1,60 @@
 //! What pgorm's two language bindings, pgorm-python and pgorm-napi, share
-//! beyond pgorm itself.
+//! beyond pgorm itself: everything both do alike, so that each binding is
+//! only its language's glue.
 //!
 //! Each binding reads its language's arguments into the types here, calls
-//! them, and raises what they refuse as its own errors, so a pool, its TLS
-//! and its hooks behave the same from Python and from JavaScript because one
-//! piece of Rust decides them. Nothing here names either language: where a
-//! refusal names an option or quotes a choice, [`Dialect`] spells it as the
-//! binding does.
+//! them, and raises what they refuse as its own errors, so a pool and its
+//! TLS, a lent connection, a transaction's frames and retries, a stream, a
+//! listener, a metrics hook and a failure's class behave the same from Python
+//! and from JavaScript because one piece of Rust decides them. Nothing here
+//! names either language: where a refusal names an option or quotes a
+//! choice, [`Dialect`] spells it as the binding does.
+// [spec:pgorm:req:bindings.shared-runtime]
 
+mod array;
+mod connection;
 mod copy;
 mod dialect;
+pub mod entity;
+mod expr;
+mod failure;
 mod hook;
 mod insert;
+mod json;
+mod kind;
+mod listen;
+mod metrics;
+pub mod migrations;
+mod model;
+mod panic;
+pub mod pipeline;
 mod pool;
+mod stream;
 mod tls;
+pub mod transaction;
+mod types;
 mod verify;
 
-pub use copy::{builtin_type, copy_column};
-pub use dialect::{Dialect, Refusal};
+pub use array::one_dimensional;
+pub use connection::{Closed, ConnectionState, Held, Operation, PoolState, cancellable};
+pub use copy::{CopyFrom, CopyTo, DataFormat, builtin_type, copy_column};
+pub use dialect::{Dialect, Refusal, pick};
+pub use expr::{call, window_function};
+pub use failure::{
+    Class, Diagnostics, Failure, MAX_PARAMETERS, Redactions, classify, parameter_count,
+};
 pub use hook::{HookCall, HookEvent, HookJob, HookJobs, hook};
 pub use insert::{
     InsertConflict, InsertTerminal, InsertWrite, Inserted, Insertion, TryInsertTerminal, insert,
 };
-pub use pool::{
-    PoolFailure, PoolSettings, PoolShape, connect_listener, listener_config, multi_pool,
-    pool_failure,
-};
+pub use json::{ExactJson, MAX_DEPTH as JSON_MAX_DEPTH};
+pub use kind::{CreatedKind, Tag, TypeName, labels};
+pub use listen::{ListenRequest, ListenerState, Received};
+pub use metrics::{Database, Hook, Metrics, Report, Reporter};
+pub use model::{BelongsTo, with_relation};
+pub use panic::panicked;
+pub use pool::{Built, PoolOptions, PoolSettings, connect_listener, listener_config};
+pub use stream::StreamState;
 pub use tls::{Connector, TlsMode, TlsSettings};
+pub use types::{builtin_column, created_column, enum_column, sized_named_type, unknown_type};
 pub use verify::describe;

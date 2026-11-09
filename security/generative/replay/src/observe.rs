@@ -150,7 +150,7 @@ where
 /// Only an enum needs this: `Value::String` is the Rust representation of both
 /// a text column and an enum label, and the campaign's hostile enum names make
 /// the distinction load-bearing. Everything else is tagged by its own variant,
-/// exactly as the binding's `InputKind::tagged` decides.
+/// exactly as pgorm-bindings' `ColumnInfo::tag_of` decides.
 fn declared(kind: &ColumnType, value: Value) -> Result<Tagged, FormatError> {
     match kind {
         ColumnType::Enum { name, schema, .. } => enumerated(name, schema.as_ref(), value, false),

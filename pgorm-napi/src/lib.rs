@@ -1,8 +1,9 @@
 //! pgorm from Node.js and Deno, through Node-API.
 //!
 //! The addon is a Neon cdylib that both runtimes load as a `.node` file;
-//! `lib/index.js` loads it, defines the error and value classes, and is what
-//! JavaScript imports. pgorm's asynchronous work runs on one tokio runtime per
+//! `lib/pgorm.js` loads it and hands it the error and value classes, and
+//! `lib/index.js`, which re-exports that module, is what JavaScript imports.
+//! pgorm's asynchronous work runs on one tokio runtime per
 //! process ([`runtime`]), and each result crosses back to JavaScript by
 //! settling a promise on the instance's JavaScript thread.
 
@@ -30,7 +31,7 @@ use neon::prelude::*;
 
 pub use entities::{GraphSlots, RegistrationError, Registry};
 
-/// The addon's own module, with no registered entity: what `lib/index.js`
+/// The addon's own module, with no registered entity: what `lib/pgorm.js`
 /// loads unless an application builds a module of its own around
 /// [`install`].
 // [spec:pgorm:def:napi.api+1]

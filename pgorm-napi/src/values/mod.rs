@@ -10,10 +10,7 @@ pub(crate) mod write;
 use neon::prelude::{
     Context, FunctionContext, JsArray, JsResult, ModuleContext, NeonResult, Object,
 };
-use pgorm::{
-    CreatedRangeCodec,
-    pgorm_query::{ArrayType, Value},
-};
+use pgorm::pgorm_query::{ArrayType, Value};
 
 use crate::errors::Failure;
 
@@ -41,39 +38,7 @@ pub(crate) fn unrepresented() -> Failure {
     Failure::Internal("a kind of pgorm value pgorm-napi does not represent".to_owned())
 }
 
-/// A PostgreSQL type named by identifier: an enum, or a range type a schema
-/// created.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct TypeName {
-    pub(crate) name: String,
-    pub(crate) schema: Option<String>,
-}
-
-/// A range or multirange type a schema created: its name, the value kind of
-/// its subtype, and which of the two it is.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct CreatedKind {
-    pub(crate) name: TypeName,
-    pub(crate) subtype: ArrayType,
-    pub(crate) multirange: bool,
-}
-
-impl CreatedKind {
-    /// pgorm's codec of this kind's values, `None` for a subtype no
-    /// `RangeSubtype` is, which no kind the binding makes has.
-    pub(crate) fn codec(&self) -> Option<CreatedRangeCodec> {
-        CreatedRangeCodec::new(&self.subtype, self.multirange)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Tag {
-    /// A kind with no type name: one of pgorm's `Value` variants.
-    Scalar(ArrayType),
-    Enum(TypeName),
-    Created(CreatedKind),
-    Array(Box<Tag>),
-}
+pub(crate) use pgorm_bindings::{CreatedKind, Tag, TypeName};
 
 /// A value and its kind. An enum label and a created range's text form are
 /// `Value::String`, as pgorm's own `ActiveEnum` and
@@ -86,48 +51,19 @@ pub(crate) struct Tagged {
 
 impl neon::types::Finalize for Tagged {}
 
-/// The kind a pgorm value declares itself.
-pub(crate) fn value_tag(value: &Value) -> Tag {
-    let kind = Tag::Scalar(value.array_type());
-    if value.is_array() {
-        Tag::Array(Box::new(kind))
-    } else {
-        kind
-    }
-}
-
-impl Tag {
-    /// The kind's name: a scalar's own, or `enum`, `created_range`,
-    /// `created_multirange` or `array`.
-    pub(crate) fn name(&self) -> &'static str {
-        match self {
-            Self::Scalar(kind) => kind.kind_name(),
-            Self::Enum(_) => "enum",
-            Self::Created(kind) if kind.multirange => "created_multirange",
-            Self::Created(_) => "created_range",
-            Self::Array(_) => "array",
-        }
-    }
-}
-
 impl Tagged {
-    /// SQL NULL of a scalar kind.
+    /// SQL NULL of a kind.
     pub(crate) fn null(tag: Tag) -> Self {
-        let datum = match &tag {
-            Tag::Scalar(kind) => kind.null(),
-            Tag::Enum(_) | Tag::Created(_) => Value::String(None),
-            Tag::Array(element) => match element.as_ref() {
-                Tag::Scalar(kind) => Value::Array(kind.clone(), None),
-                _ => Value::Array(ArrayType::String, None),
-            },
-        };
-        Self { datum, tag }
+        Self {
+            datum: tag.null(),
+            tag,
+        }
     }
 
     /// A pgorm value, tagged with the kind it declares itself.
     pub(crate) fn value(value: Value) -> Self {
         Self {
-            tag: value_tag(&value),
+            tag: Tag::of_value(&value),
             datum: value,
         }
     }

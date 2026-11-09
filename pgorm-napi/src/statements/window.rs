@@ -5,7 +5,7 @@
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{
-    ExtendedWindow, FrameClause, FrameExclusion, FrameType, Func, FunctionCall, JsonArrayAgg,
+    ExtendedWindow, FrameClause, FrameExclusion, FrameType, FunctionCall, JsonArrayAgg,
     JsonObjectAgg, Name, OverStatement, SelectStatement, SimpleExpr, SqlJson, WindowDefinition,
     WindowFunction, WindowStatement,
 };
@@ -347,23 +347,8 @@ fn window_function(cx: &mut FunctionContext) -> NeonResult<Node> {
     let name = arg(cx, 0);
     let name = read::text(cx, name, "a window function's name")?;
     let arguments = operands_at(cx, 1)?;
-    let accepted = match name.as_str() {
-        "row_number" | "rank" | "dense_rank" | "percent_rank" | "cume_dist" => Some(0..=0),
-        "ntile" | "first_value" | "last_value" => Some(1..=1),
-        "nth_value" => Some(2..=2),
-        "lag" | "lead" => Some(1..=3),
-        _ => None,
-    };
-    if !accepted.is_some_and(|counts| counts.contains(&arguments.len())) {
-        return refuse(
-            cx,
-            format!(
-                "windowFunction() has no {name:?} taking {} argument(s)",
-                arguments.len()
-            ),
-        );
+    match pgorm_bindings::window_function(&name, arguments, crate::connect::DIALECT) {
+        Ok(function) => Ok(Node::WindowFunction(function)),
+        Err(refusal) => refuse(cx, refusal.into_message()),
     }
-    Ok(Node::WindowFunction(
-        Func::named(Name::runtime(name)).args(arguments),
-    ))
 }

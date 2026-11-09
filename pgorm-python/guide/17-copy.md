@@ -147,7 +147,7 @@ async def main() -> None:
                 yield b"Dusk\tBodo\n"
 
             assert await connection.copy_in(copy, bakeries()) == 2
-            assert refused == ["connection already has an active operation"]
+            assert refused == ["the connection is busy: an operation, a transaction or a stream holds it"]
 
             # Once the COPY ends, the connection runs statements again.
             row = await connection.one(RawSQL("SELECT count(*) AS bakeries FROM bakery"))
@@ -652,7 +652,7 @@ async def main() -> None:
             try:
                 await connection.one(RawSQL("SELECT 1 AS one"))
             except pgorm.LifecycleError as error:
-                assert str(error) == "connection is closed"
+                assert str(error) == "the connection is closed"
             else:
                 raise AssertionError("the connection was closed")
 

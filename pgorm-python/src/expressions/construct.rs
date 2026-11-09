@@ -222,60 +222,9 @@ pub(crate) fn require_expr(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
 #[pyo3(signature = (name, *arguments))]
 pub(crate) fn call(name: &str, arguments: &Bound<'_, PyTuple>) -> PyResult<PyExpr> {
     let args = sequence(arguments.as_any())?;
-    if let ("grouping", [first, rest @ ..]) = (name, args.as_slice()) {
-        let grouping = rest
-            .iter()
-            .fold(Func::grouping(first.clone()), |grouping, arg| {
-                grouping.arg(arg.clone())
-            });
-        return Ok(PyExpr::from_rust(grouping.into()));
-    }
-    let expr = match (name, args.as_slice()) {
-        ("lower", [value]) => Func::lower(value.clone()),
-        ("upper", [value]) => Func::upper(value.clone()),
-        ("abs", [value]) => Func::abs(value.clone()),
-        ("char_length", [value]) => Func::char_length(value.clone()),
-        ("count", [value]) => Func::count(value.clone()),
-        ("count_distinct", [value]) => Func::count_distinct(value.clone()),
-        ("sum", [value]) => Func::sum(value.clone()),
-        ("avg", [value]) => Func::avg(value.clone()),
-        ("min", [value]) => Func::min(value.clone()),
-        ("max", [value]) => Func::max(value.clone()),
-        ("round", [value]) => Func::round(value.clone()),
-        ("round", [value, precision]) => {
-            Func::round_with_precision(value.clone(), precision.clone())
-        }
-        ("coalesce", [_, ..]) => Func::coalesce(args),
-        ("random", []) => Func::random(),
-        ("gen_random_uuid", []) => Func::gen_random_uuid(),
-        ("uuidv4", []) => Func::uuidv4(),
-        ("uuidv7", []) => Func::uuidv7(),
-        ("uuidv7", [shift]) => Func::uuidv7_shifted(shift.clone()),
-        ("uuid_extract_timestamp", [value]) => Func::uuid_extract_timestamp(value.clone()),
-        ("uuid_extract_version", [value]) => Func::uuid_extract_version(value.clone()),
-        ("generate_series", [start, stop]) => Func::generate_series(start.clone(), stop.clone()),
-        ("generate_series", [start, stop, step]) => {
-            Func::generate_series_step(start.clone(), stop.clone(), step.clone())
-        }
-        ("unnest", [array]) => Func::unnest(array.clone()),
-        ("json_to_record", [json]) => Func::json_to_record(json.clone()),
-        ("jsonb_to_record", [jsonb]) => Func::jsonb_to_record(jsonb.clone()),
-        ("json_to_recordset", [json]) => Func::json_to_recordset(json.clone()),
-        ("jsonb_to_recordset", [jsonb]) => Func::jsonb_to_recordset(jsonb.clone()),
-        ("to_tsvector", [text]) => Func::to_tsvector(text.clone(), None),
-        ("to_tsquery", [text]) => Func::to_tsquery(text.clone(), None),
-        ("plainto_tsquery", [text]) => Func::plainto_tsquery(text.clone(), None),
-        ("phraseto_tsquery", [text]) => Func::phraseto_tsquery(text.clone(), None),
-        ("websearch_to_tsquery", [text]) => Func::websearch_to_tsquery(text.clone(), None),
-        ("ts_rank", [vector, query]) => Func::ts_rank(vector.clone(), query.clone()),
-        ("ts_rank_cd", [vector, query]) => Func::ts_rank_cd(vector.clone(), query.clone()),
-        _ => {
-            return Err(crate::UnsupportedCapabilityError::new_err(
-                "unsupported function or argument count",
-            ));
-        }
-    };
-    Ok(PyExpr::from_rust(expr.into()))
+    pgorm_bindings::call(name, &args)
+        .map(PyExpr::from_rust)
+        .map_err(|refusal| crate::UnsupportedCapabilityError::new_err(refusal.into_message()))
 }
 
 /// A call of the function `name`, any function the server has, with each

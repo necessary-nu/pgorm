@@ -1,6 +1,7 @@
 //! The binding's values as plain JavaScript values: each kind as the one type
 //! the declarations name for it, and SQL NULL as `null`.
 
+use crate::errors::FailureJs as _;
 use std::ops::Bound;
 
 use neon::{prelude::*, types::JsBigInt};

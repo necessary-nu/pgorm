@@ -115,7 +115,7 @@ export declare class InternalError extends PgormError {}
  */
 export declare class LifecycleError extends PgormError {}
 
-/** No connection became free within the pool's `acquireTimeout`. */
+/** No connection came free within the pool's `acquireTimeout`. */
 export declare class TimeoutError extends PgormError {}
 
 /** The diagnostic fields of an error PostgreSQL reported. */

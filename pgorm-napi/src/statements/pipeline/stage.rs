@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use neon::prelude::*;
 use pgorm::{
-    pgorm_query::{TableName, TypeName, Value},
+    pgorm_query::{TableName, TypeName},
     pipeline as pl,
 };
 
@@ -18,10 +18,10 @@ use super::{
     },
     Part, PlExpr, Relation, Source,
     expr::operand,
-    recipe::{Lowering, Recipe},
     scope::{Scope, lifecycle, scope_at},
 };
-use crate::{errors::Failure, models::CastsHandle};
+use crate::{errors::throw, models::CastsHandle};
+use pgorm_bindings::pipeline::{self as stages, Plan, Stage};
 
 pub(super) const EXPORTS: &[(&str, super::super::Build)] = &[
     ("pipelineSource", source),
@@ -43,55 +43,6 @@ pub(super) const EXPORTS: &[(&str, super::super::Build)] = &[
     ("pipelineOverFrame", over_frame),
 ];
 
-/// The most expressions a bound list stage takes: pgorm's `_with` closures
-/// return a fixed-size array, which the binding dispatches up to this size.
-const BOUND_LIST: usize = 32;
-
-/// A stage's expressions, the values its `With` function bound, and whether
-/// lowering them binds at all.
-struct Plan {
-    recipes: Vec<Arc<Recipe>>,
-    values: Vec<Value>,
-}
-
-impl Plan {
-    fn binds(&self) -> bool {
-        !self.values.is_empty() || self.recipes.iter().any(|recipe| recipe.binds())
-    }
-
-    /// The expressions, lowered with no binder: `None` if any binds.
-    fn plain(&self) -> Option<Vec<pl::Expr<'static>>> {
-        let mut with = Lowering {
-            binder: None,
-            bound: &[],
-        };
-        self.recipes
-            .iter()
-            .map(|recipe| recipe.lower(&mut with))
-            .collect()
-    }
-
-    /// The expressions, lowered in a stage's binder closure: the `With`
-    /// function's values bound first, in the order it bound them, then each
-    /// operand's own value as the expression reaches it. `None` only if a
-    /// placeholder outran its values, which one scope minting both rules out.
-    fn bound<'brand>(&self, binder: &mut pl::Binder<'brand>) -> Option<Vec<pl::Expr<'brand>>> {
-        let bound: Vec<pl::Expr<'brand>> = self
-            .values
-            .iter()
-            .map(|value| binder.bind(value.clone()))
-            .collect();
-        let mut with = Lowering {
-            binder: Some(binder),
-            bound: &bound,
-        };
-        self.recipes
-            .iter()
-            .map(|recipe| recipe.lower(&mut with))
-            .collect()
-    }
-}
-
 /// The plan for `expressions`, taken by a stage whose `With` function had
 /// `scope`, or by a plain stage when it is `None`: a placeholder from any
 /// other scope is refused, as pgorm's brand refuses it.
@@ -107,11 +58,7 @@ fn plan<'cx>(
         };
         let ours = scope.as_ref().is_some_and(|ours| Arc::ptr_eq(ours, theirs));
         if !ours {
-            return lifecycle(
-                cx,
-                "a placeholder belongs to the stage its binder's function returns it to: not a \
-                 plain stage, a window, another function's stage or another pipeline's",
-            );
+            return lifecycle(cx, pgorm_bindings::pipeline::MISPLACED);
         }
     }
     let values = match &scope {
@@ -151,91 +98,6 @@ fn plan_at<'cx>(cx: &mut FunctionContext<'cx>, index: usize) -> NeonResult<Plan>
     let expressions = expressions_at(cx, index)?;
     let scope = optional_scope(cx, index + 1)?;
     plan(cx, expressions, scope)
-}
-
-/// A lowering that could not finish, which no input should cause.
-fn unlowered<'cx, T>(cx: &mut Cx<'cx>) -> NeonResult<T> {
-    let error =
-        Failure::Internal("a pipeline expression could not be lowered".to_owned()).into_js(cx)?;
-    cx.throw(error)
-}
-
-/// The plan's expressions as the `[Expr; N]` a `_with` closure returns,
-/// noting in `failed` a lowering that could not finish.
-fn lower_n<'brand, const N: usize>(
-    plan: &Plan,
-    binder: &mut pl::Binder<'brand>,
-    failed: &mut bool,
-) -> [pl::Expr<'brand>; N] {
-    match plan
-        .bound(binder)
-        .and_then(|all| <[_; N]>::try_from(all).ok())
-    {
-        Some(array) => array,
-        None => {
-            *failed = true;
-            std::array::from_fn(|_| pl::null())
-        }
-    }
-}
-
-/// The list-taking stages that give a pipeline back.
-enum List {
-    Derive,
-    Select,
-    Sort,
-    Window(pl::Over),
-}
-
-fn list_n<const N: usize>(
-    pipeline: pl::Pipeline,
-    stage: List,
-    plan: &Plan,
-    failed: &mut bool,
-) -> pl::Pipeline {
-    match stage {
-        List::Derive => pipeline.derive_with(|binder| lower_n::<N>(plan, binder, failed)),
-        List::Select => pipeline.select_with(|binder| lower_n::<N>(plan, binder, failed)),
-        List::Sort => pipeline.sort_with(|binder| lower_n::<N>(plan, binder, failed)),
-        List::Window(over) => {
-            pipeline.window_with(over, |binder| lower_n::<N>(plan, binder, failed))
-        }
-    }
-}
-
-fn group_n<const N: usize>(pipeline: pl::Pipeline, plan: &Plan, failed: &mut bool) -> pl::Grouped {
-    pipeline.group_with(|binder| lower_n::<N>(plan, binder, failed))
-}
-
-fn aggregate_n<const N: usize>(
-    grouped: pl::Grouped,
-    plan: &Plan,
-    failed: &mut bool,
-) -> pl::Pipeline {
-    grouped.aggregate_with(|binder| lower_n::<N>(plan, binder, failed))
-}
-
-/// `$call::<N>(..)` for the plan's length `N`, up to the bound the binding
-/// dispatches; `None` past it.
-macro_rules! arity {
-    ($len:expr, $call:ident, $arguments:tt) => {
-        arity!(@sizes $len, $call, $arguments; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-            15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32)
-    };
-    (@sizes $len:expr, $call:ident, $arguments:tt; $($size:literal),+) => {
-        match $len {
-            $($size => Some($call::<$size> $arguments),)+
-            _ => None,
-        }
-    };
-}
-
-/// A bound list's refusal past the dispatched bound.
-fn too_long<'cx, T>(cx: &mut Cx<'cx>, count: usize) -> NeonResult<T> {
-    refuse(
-        cx,
-        format!("a stage that binds takes at most {BOUND_LIST} expressions, not {count}"),
-    )
 }
 
 fn pipeline_at<'cx>(cx: &mut FunctionContext<'cx>, index: usize) -> NeonResult<pl::Pipeline> {
@@ -326,21 +188,9 @@ fn filter(cx: &mut FunctionContext) -> NeonResult<Node> {
     let predicate = operand(cx, predicate)?;
     let scope = optional_scope(cx, 2)?;
     let plan = plan(cx, vec![predicate], scope)?;
-    if !plan.binds() {
-        let Some([predicate]) = plan.plain().and_then(|all| <[_; 1]>::try_from(all).ok()) else {
-            return unlowered(cx);
-        };
-        return Ok(pipeline.filter(predicate).into());
-    }
-    let mut failed = false;
-    let filtered = pipeline.filter_with(|binder| {
-        let [predicate] = lower_n::<1>(&plan, binder, &mut failed);
-        predicate
-    });
-    if failed {
-        return unlowered(cx);
-    }
-    Ok(filtered.into())
+    stages::filter(pipeline, plan)
+        .or_else(|failure| throw(cx, failure))
+        .map(Into::into)
 }
 
 /// A list stage: `stage` over the expressions at `index` and the scope after
@@ -348,31 +198,13 @@ fn filter(cx: &mut FunctionContext) -> NeonResult<Node> {
 fn list_stage(
     cx: &mut FunctionContext,
     pipeline: pl::Pipeline,
-    stage: List,
+    stage: Stage,
     index: usize,
 ) -> NeonResult<Node> {
     let plan = plan_at(cx, index)?;
-    if !plan.binds() {
-        let Some(plain) = plan.plain() else {
-            return unlowered(cx);
-        };
-        return Ok((match stage {
-            List::Derive => pipeline.derive(plain),
-            List::Select => pipeline.select(plain),
-            List::Sort => pipeline.sort(plain),
-            List::Window(over) => pipeline.window(plain, over),
-        })
-        .into());
-    }
-    let mut failed = false;
-    let count = plan.recipes.len();
-    let Some(staged) = arity!(count, list_n, (pipeline, stage, &plan, &mut failed)) else {
-        return too_long(cx, count);
-    };
-    if failed {
-        return unlowered(cx);
-    }
-    Ok(staged.into())
+    stages::list(pipeline, stage, plan)
+        .or_else(|failure| throw(cx, failure))
+        .map(Into::into)
 }
 
 /// `pipelineList(pipeline, "derive" | "select" | "sort", expressions, scope)`.
@@ -381,9 +213,9 @@ fn list(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let stage = super::super::args::choice(cx, 1, "a stage", &["derive", "select", "sort"])?;
     let stage = match stage {
-        "derive" => List::Derive,
-        "select" => List::Select,
-        _ => List::Sort,
+        "derive" => Stage::Derive,
+        "select" => Stage::Select,
+        _ => Stage::Sort,
     };
     list_stage(cx, pipeline, stage, 2)
 }
@@ -392,7 +224,7 @@ fn list(cx: &mut FunctionContext) -> NeonResult<Node> {
 fn window(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let over = over_at(cx, 1)?;
-    list_stage(cx, pipeline, List::Window(over), 2)
+    list_stage(cx, pipeline, Stage::Window(over), 2)
 }
 
 /// `pipelineGroup(pipeline, keys, scope)`: a grouping, no relation until it
@@ -401,22 +233,7 @@ fn window(cx: &mut FunctionContext) -> NeonResult<Node> {
 fn group(cx: &mut FunctionContext) -> NeonResult<Node> {
     let pipeline = pipeline_at(cx, 0)?;
     let plan = plan_at(cx, 1)?;
-    let grouped = if plan.binds() {
-        let mut failed = false;
-        let count = plan.recipes.len();
-        let Some(grouped) = arity!(count, group_n, (pipeline, &plan, &mut failed)) else {
-            return too_long(cx, count);
-        };
-        if failed {
-            return unlowered(cx);
-        }
-        grouped
-    } else {
-        let Some(plain) = plan.plain() else {
-            return unlowered(cx);
-        };
-        pipeline.group(plain)
-    };
+    let grouped = stages::group(pipeline, plan).or_else(|failure| throw(cx, failure))?;
     Ok(Part::Grouped(grouped).into())
 }
 
@@ -440,21 +257,9 @@ fn aggregate(cx: &mut FunctionContext) -> NeonResult<Node> {
         }
     };
     let plan = plan_at(cx, 1)?;
-    if !plan.binds() {
-        let Some(plain) = plan.plain() else {
-            return unlowered(cx);
-        };
-        return Ok(grouped.aggregate(plain).into());
-    }
-    let mut failed = false;
-    let count = plan.recipes.len();
-    let Some(aggregated) = arity!(count, aggregate_n, (grouped, &plan, &mut failed)) else {
-        return too_long(cx, count);
-    };
-    if failed {
-        return unlowered(cx);
-    }
-    Ok(aggregated.into())
+    stages::aggregate(grouped, plan)
+        .or_else(|failure| throw(cx, failure))
+        .map(Into::into)
 }
 
 /// A row count for `take`: an integer number or `bigint` within `bigint`.
@@ -495,21 +300,9 @@ fn join(cx: &mut FunctionContext) -> NeonResult<Node> {
     let on = operand(cx, on)?;
     let scope = optional_scope(cx, 4)?;
     let plan = plan(cx, vec![on], scope)?;
-    if !plan.binds() {
-        let Some([on]) = plan.plain().and_then(|all| <[_; 1]>::try_from(all).ok()) else {
-            return unlowered(cx);
-        };
-        return Ok(pipeline.join(side, joined, on).into());
-    }
-    let mut failed = false;
-    let result = pipeline.join_with(side, joined, |binder| {
-        let [on] = lower_n::<1>(&plan, binder, &mut failed);
-        on
-    });
-    if failed {
-        return unlowered(cx);
-    }
-    Ok(result.into())
+    stages::join(pipeline, side, joined, plan)
+        .or_else(|failure| throw(cx, failure))
+        .map(Into::into)
 }
 
 /// `pipelineSet(pipeline, "append" | "intersect" | "remove", source)`.
@@ -634,9 +427,7 @@ fn over_keys(cx: &mut FunctionContext) -> NeonResult<Node> {
             "a window's partition and ordering take no value: write a literal() or a column",
         );
     }
-    let Some(keys) = plan.plain() else {
-        return unlowered(cx);
-    };
+    let keys = plan.plain().or_else(|failure| throw(cx, failure))?;
     Ok(Part::Over(if which == "by" {
         over.by(keys)
     } else {

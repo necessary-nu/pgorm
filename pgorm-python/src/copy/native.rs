@@ -3,6 +3,8 @@
 //! pump for a Connection, the scope task for a Transaction — and the handle
 //! talks to that task through bounded channels.
 
+use crate::errors::Raise as _;
+use crate::runtime::Owned as _;
 use std::{
     fmt,
     sync::{
@@ -84,7 +86,7 @@ fn described(columns: &Columns) -> PyResult<&[pgorm::CopyColumn]> {
     columns
         .get()
         .map(Vec::as_slice)
-        .ok_or_else(|| LifecycleError::new_err("COPY has not started"))
+        .ok_or_else(|| LifecycleError::new_err("the COPY has not started"))
 }
 
 fn lock<T>(mutex: &StdMutex<T>) -> PyResult<MutexGuard<'_, T>> {
@@ -132,14 +134,14 @@ impl Settle {
                     result
                 }
                 Err(_) => {
-                    connection.ensure_open()?;
-                    return Err(LifecycleError::new_err("COPY ended without completing"));
+                    connection.ensure_open().py()?;
+                    return Err(LifecycleError::new_err("the COPY has ended"));
                 }
             },
             Self::Transaction(lease, settled) => {
                 let result = settled
                     .await
-                    .map_err(|_| LifecycleError::new_err("transaction is closed"))?;
+                    .map_err(|_| LifecycleError::new_err("the transaction is closed"))?;
                 lease.complete();
                 result
             }
@@ -161,8 +163,8 @@ async fn pump_in(
 ) {
     let mut opened = Some(opened);
     let outcome = tokio::select! {
-        _ = state.cancelled.cancelled() => return,
-        _ = state.pool.cancelled.cancelled() => return,
+        _ = state.closed.cancelled() => return,
+        _ = state.pool.closed.cancelled() => return,
         outcome = async {
             let Ok(connection) = operation.connection_mut() else {
                 return Outcome::Abandoned;
@@ -216,8 +218,8 @@ async fn pump_out(
 ) {
     let mut opened = Some(opened);
     let outcome = tokio::select! {
-        _ = state.cancelled.cancelled() => return,
-        _ = state.pool.cancelled.cancelled() => return,
+        _ = state.closed.cancelled() => return,
+        _ = state.pool.closed.cancelled() => return,
         outcome = async {
             let Ok(connection) = operation.connection_mut() else {
                 return Outcome::Abandoned;
@@ -274,7 +276,7 @@ pub(crate) fn copy_in<'py>(
         let (connection, settle) = match target {
             Target::Hook(_) => return Err(PyTypeError::new_err(HOOKS_COPY_NOTHING)),
             Target::Connection(state) => {
-                let operation = Operation::begin(state.clone())?;
+                let operation = Operation::begin(state.clone()).py()?;
                 let (opened, open) = oneshot::channel();
                 let (settled, settle) = oneshot::channel();
                 tokio::spawn(pump_in(
@@ -290,14 +292,19 @@ pub(crate) fn copy_in<'py>(
                     Ok(Ok(())) => (state, Settle::Connection(settle)),
                     Ok(Err(error)) => return Err(database_error(error, &state.pool.secrets)),
                     Err(_) => {
-                        state.ensure_open()?;
-                        return Err(LifecycleError::new_err("COPY ended before it started"));
+                        state.ensure_open().py()?;
+                        return Err(LifecycleError::new_err("the COPY ended before it started"));
                     }
                 }
             }
             Target::Transaction(state) => {
-                let (lease, settle) = state.copy_in(statement, columns.clone(), receiver).await?;
-                (state.connection.clone(), Settle::Transaction(lease, settle))
+                let (lease, settle) =
+                    crate::transactions::copy_in(&state, statement, columns.clone(), receiver)
+                        .await?;
+                (
+                    state.connection().clone(),
+                    Settle::Transaction(lease, settle),
+                )
             }
         };
         Ok(NativeCopyIn {
@@ -331,7 +338,7 @@ pub(crate) fn copy_out<'py>(
         let (connection, transaction, holder) = match target {
             Target::Hook(_) => return Err(PyTypeError::new_err(HOOKS_COPY_NOTHING)),
             Target::Connection(state) => {
-                let operation = Operation::begin(state.clone())?;
+                let operation = Operation::begin(state.clone()).py()?;
                 let (opened, open) = oneshot::channel();
                 let stopped = CancellationToken::new();
                 let pump = pump_out(
@@ -351,15 +358,17 @@ pub(crate) fn copy_out<'py>(
                     Ok(Ok(())) => (state, None, Holder::Connection(stopped)),
                     Ok(Err(error)) => return Err(database_error(error, &state.pool.secrets)),
                     Err(_) => {
-                        state.ensure_open()?;
-                        return Err(LifecycleError::new_err("COPY ended before it started"));
+                        state.ensure_open().py()?;
+                        return Err(LifecycleError::new_err("the COPY ended before it started"));
                     }
                 }
             }
             Target::Transaction(state) => {
-                let lease = state.copy_out(statement, columns.clone(), pieces).await?;
+                let lease =
+                    crate::transactions::copy_out(&state, statement, columns.clone(), pieces)
+                        .await?;
                 (
-                    state.connection.clone(),
+                    state.connection().clone(),
                     Some(state.clone()),
                     Holder::Transaction(lease, state),
                 )
@@ -496,7 +505,7 @@ impl NativeCopyIn {
         let data = chunk(data)?;
         let messages = lock(&self.messages)?
             .clone()
-            .ok_or_else(|| LifecycleError::new_err("COPY has ended"))?;
+            .ok_or_else(|| LifecycleError::new_err("the COPY has ended"))?;
         future_into_py(py, async move {
             Ok(messages.send(Message::Data(data)).await.is_ok())
         })
@@ -533,7 +542,7 @@ impl NativeCopyIn {
         data.extend_from_slice(&out);
         let messages = lock(&self.messages)?
             .clone()
-            .ok_or_else(|| LifecycleError::new_err("COPY has ended"))?;
+            .ok_or_else(|| LifecycleError::new_err("the COPY has ended"))?;
         let data = data.freeze();
         future_into_py(py, async move {
             Ok(messages.send(Message::Data(data)).await.is_ok())
@@ -545,7 +554,7 @@ impl NativeCopyIn {
         let messages = lock(&self.messages)?.take();
         let settle = lock(&self.settle)?
             .take()
-            .ok_or_else(|| LifecycleError::new_err("COPY has ended"))?;
+            .ok_or_else(|| LifecycleError::new_err("the COPY has ended"))?;
         let connection = self.connection.clone();
         let tail = self.rows.as_ref().map(|rows| {
             let mut tail = BytesMut::new();
@@ -631,7 +640,7 @@ impl Active {
             Holder::Connection(stopped) => stopped.cancelled().await,
             Holder::Transaction(lease, state) => {
                 drop(lease);
-                state.released().await;
+                state.finished().await;
             }
         }
     }
@@ -751,9 +760,9 @@ impl OutState {
     fn ensure_open(&self) -> PyResult<()> {
         match &self.transaction {
             Some(transaction) if transaction.closed() => {
-                Err(LifecycleError::new_err("transaction is closed"))
+                Err(LifecycleError::new_err("the transaction is closed"))
             }
-            _ => self.connection.ensure_open(),
+            _ => self.connection.ensure_open().py(),
         }
     }
 }
@@ -786,7 +795,7 @@ impl NativeCopyOut {
                 return Ok(None);
             }
             let mut slot = state.active.clone().try_lock_owned().map_err(|_| {
-                LifecycleError::new_err("copy stream already has an active next operation")
+                LifecycleError::new_err("the COPY stream is busy: one chunk is pulled at a time")
             })?;
             let Some(active) = slot.as_mut() else {
                 return Ok(None);
@@ -794,7 +803,7 @@ impl NativeCopyOut {
             let piece = match active.stashed.take() {
                 Some(piece) => Some(piece),
                 None => tokio::select! {
-                    _ = state.closing.cancelled() => return Err(LifecycleError::new_err("copy stream is closed")),
+                    _ = state.closing.cancelled() => return Err(LifecycleError::new_err("the COPY stream is closed")),
                     piece = active.pieces.recv() => piece,
                 },
             };
@@ -820,7 +829,7 @@ impl NativeCopyOut {
                     drop(slot.take());
                     state.finished.cancel();
                     state.ensure_open()?;
-                    Err(LifecycleError::new_err("COPY ended without completing"))
+                    Err(LifecycleError::new_err("the COPY has ended"))
                 }
             }
         })
@@ -847,7 +856,7 @@ impl NativeCopyOut {
                 return Ok(None);
             }
             let mut slot = state.active.clone().try_lock_owned().map_err(|_| {
-                LifecycleError::new_err("copy stream already has an active next operation")
+                LifecycleError::new_err("the COPY stream is busy: one row is pulled at a time")
             })?;
             let rows_state = state
                 .rows
@@ -860,7 +869,7 @@ impl NativeCopyOut {
                 let piece = match active.stashed.take() {
                     Some(piece) => Some(piece),
                     None => tokio::select! {
-                        _ = state.closing.cancelled() => return Err(LifecycleError::new_err("copy stream is closed")),
+                        _ = state.closing.cancelled() => return Err(LifecycleError::new_err("the COPY stream is closed")),
                         piece = active.pieces.recv() => piece,
                     },
                 };
@@ -902,7 +911,7 @@ impl NativeCopyOut {
                         drop(slot.take());
                         state.finished.cancel();
                         state.ensure_open()?;
-                        return Err(LifecycleError::new_err("COPY ended without completing"));
+                        return Err(LifecycleError::new_err("the COPY has ended"));
                     }
                 }
             }
