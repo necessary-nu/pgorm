@@ -1,4 +1,4 @@
-//! Decoded rows handed to JavaScript, where `lib/index.js` makes each an
+//! Decoded rows handed to JavaScript, where `lib/operations.js` makes each an
 //! object keyed by column name.
 
 use neon::prelude::*;

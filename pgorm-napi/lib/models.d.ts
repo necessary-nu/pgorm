@@ -1086,3 +1086,7 @@ export declare class Linked<From extends Model<any> = Model<any>, To extends Mod
   /** The rows at the far end the chain reaches from `row`, keyed by the starting model's primary key. */
   find(row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
 }
+
+// A declaration file with no `export {}` exports every declaration in it, so
+// the helpers above without `export` would be the package's exports too.
+export {};

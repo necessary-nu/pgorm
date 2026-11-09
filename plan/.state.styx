@@ -3187,6 +3187,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id bindings.verify, version 0}
     )}
+    {id napi.lib-imports-checked, covered_rules (
+        napi.linking
+    ), covered_claims (
+        {impl_name javascript, rule napi.linking}
+    )}
     {id orm.binding-types, covered_rules (
         exec.cursor.binding-coerce
         sql.render.cast-param-type

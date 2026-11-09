@@ -272,13 +272,18 @@ platforms (
     }
     {
         platform "napi-types"
-        files (pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/**/*.ts pgorm-napi/guide/*.ts pgorm-napi/scripts/**/*.mjs pgorm-napi/deno.json pgorm-napi/package.json)
+        files (pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/**/*.ts pgorm-napi/guide/*.ts pgorm-napi/scripts/**/*.mjs pgorm-napi/checks/**/*.js pgorm-napi/codegen/**/*.js pgorm-napi/deno.json pgorm-napi/package.json)
         checks {
             // Deno type-checks every module under the package, the
             // declarations, the suite and the guide's examples included,
-            // from the package's own configuration.
+            // from the package's own configuration, whose checkJs holds each
+            // JavaScript module's imports to the exports they name, so an
+            // import that would fail to link fails here (napi.linking). A
+            // check's command runs without a shell: `cd pgorm-napi && deno
+            // check` would run macOS's /usr/bin/cd, which exits 0 without
+            // reaching Deno, so env -C changes the directory instead.
             typing {
-                cmd "cd pgorm-napi && deno check"
+                cmd "env -C pgorm-napi deno check"
             }
         }
     }

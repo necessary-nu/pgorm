@@ -4,16 +4,16 @@
 //! A query fails on a runtime thread, where no JavaScript value can be made, so
 //! its failure is captured as a [`Failure`] and turned into an error object in
 //! the closure that settles the promise. The error classes are JavaScript's:
-//! `lib/index.js` defines them and hands the addon a factory that builds one,
-//! so an error the addon rejects with is an instance of the class the
-//! declarations name.
+//! `lib/errors.js` defines them and `lib/pgorm.js` hands the addon a factory
+//! that builds one, so an error the addon rejects with is an instance of the
+//! class the declarations name.
 
 use std::sync::{Mutex, PoisonError};
 
 use neon::{prelude::*, thread::LocalKey};
 use pgorm_bindings::{Class, Dialect};
 
-/// The factory `lib/index.js` registers: `(kind, message, details) => Error`.
+/// The factory `lib/pgorm.js` registers: `(kind, message, details) => Error`.
 ///
 /// Instance-local because a class belongs to one JavaScript realm: a worker
 /// thread loading the addon registers its own.
@@ -23,7 +23,7 @@ pub(crate) use pgorm_bindings::{Failure, Redactions};
 
 /// A failure as the error object a promise rejects with.
 pub(crate) trait FailureJs {
-    /// The class name `lib/index.js` maps the failure to.
+    /// The class name `lib/errors.js` maps the failure to.
     fn kind(&self) -> &'static str;
     /// The error object a promise rejects with.
     fn into_js<'cx>(self, cx: &mut Cx<'cx>) -> JsResult<'cx, JsValue>;
@@ -117,7 +117,7 @@ impl FailureJs for Failure {
                 .arg(self.message())?
                 .arg(details)?
                 .call(),
-            // The addon loaded without `lib/index.js`: a plain `Error` named
+            // The addon loaded without `lib/pgorm.js`: a plain `Error` named
             // for the class, carrying the same fields.
             None => {
                 let error = cx.error(self.message())?;
@@ -145,7 +145,7 @@ pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
 }
 
 /// `setErrorFactory(factory)`: register the function failures are built
-/// with. `lib/index.js` calls it once as it loads; a later call replaces it.
+/// with. `lib/pgorm.js` calls it once as it loads; a later call replaces it.
 pub(crate) fn set_error_factory(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let factory = cx.argument::<JsFunction>(0)?.root(&mut cx);
     let slot = ERROR_FACTORY.get_or_init(&mut cx, Default::default);
