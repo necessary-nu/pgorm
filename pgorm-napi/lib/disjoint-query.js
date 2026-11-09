@@ -6,7 +6,7 @@
 // [spec:pgorm:req:bindings.disjoint+2]
 
 import { arg, TRUSTED } from "./builder.js";
-import { disjointStream, runJob } from "./connections.js";
+import { decodedStream, runJob } from "./runs.js";
 import { predicateOf } from "./entities.js";
 import { ConstructionError } from "./errors.js";
 import { OrderBy } from "./expressions.js";
@@ -253,7 +253,7 @@ export class DisjointQuery {
    */
   stream(db, options) {
     const owner = this.#owner;
-    const stream = disjointStream(db, arg(this.#select), handleOf(owner), terminalOptions(options));
+    const stream = decodedStream(db, arg(this.#select), handleOf(owner), terminalOptions(options), "a disjoint read", true);
     return decodedWith(stream, (_names, pulled) => viewOf(owner).rows(pulled)[0]);
   }
 
@@ -427,17 +427,20 @@ export class DisjointPaginator {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async numPages(db, options) {
-    return (await this.numItemsAndPages(db, options))[1];
+    return (await this.numItemsAndPages(db, options)).pages;
   }
 
   /**
+   * The rows the pages hold and the pages, the last one rounded up, as a
+   * model query's paginator gives them.
+   *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
-   * @returns {Promise<[number, number]>}
+   * @returns {Promise<{ readonly items: number, readonly pages: number }>}
    */
   async numItemsAndPages(db, options) {
     const items = await this.numItems(db, options);
-    return [items, Math.ceil(items / this.#pageSize)];
+    return Object.freeze({ items, pages: Math.ceil(items / this.#pageSize) });
   }
 
   /**

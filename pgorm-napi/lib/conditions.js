@@ -2,7 +2,7 @@
 
 // Conditions and CASE: boolean combinations of predicates, and the two forms
 // of `CASE`, which exist only once they have an arm.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:bindings.case]
 
 import { arg, args, Builder, trusted, TRUSTED } from "./builder.js";
@@ -36,6 +36,17 @@ export class Condition extends Builder {
   /** @param {Expr | Condition} item */
   add(item) {
     return new Condition(native.conditionAdd(arg(this), arg(item)), TRUSTED);
+  }
+
+  /**
+   * The condition with `item` added, or as it is when `item` is null or
+   * undefined, as Rust's `Condition::add_option` adds an optional condition.
+   *
+   * @param {Expr | Condition | null | undefined} item
+   */
+  // [spec:pgorm:req:bindings.condition-option]
+  addOption(item) {
+    return new Condition(native.conditionAddOption(arg(this), item == null ? null : arg(item)), TRUSTED);
   }
 
   not() {

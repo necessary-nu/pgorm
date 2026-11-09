@@ -211,13 +211,14 @@ none.
 
 ### Ties and secondary keys
 
-Here Python differs from Rust: a model query's cursor has no
-`add_secondary_order_by`. Rust appends a column there after the key, of the
-queried table or a joined one, so that `after` and `before` can take the key
-alone while `after_with` and `before_with` take the whole ordering. In
-Python, a model query's key is the fields `cursor` names, all of the queried
-model, and a boundary takes a value for each: write the tiebreak into the key.
-Ordering a cursor by a joined table's column is not available in Python yet.
+`add_secondary_order_by(model, field)` appends a column of the queried model
+or a joined one to the cursor's ordering, after the key, which is how a cursor
+over a join is made total; the model names the table as the query names it,
+an aliased model its alias, as Rust's `add_secondary_order_by(table, column)`
+names it. `after` and `before` still take the key alone, and so resume past
+every row sharing the boundary's key. `after_with` and `before_with` take the
+whole ordering, the appended columns included, and resume from exactly one
+row:
 
 ```python
 import asyncio
@@ -232,14 +233,16 @@ from bakery import Cake
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
         # By bakery, then by id within each bakery.
-        by_bakery = Cake.find().cursor("bakery_id", "id")
+        by_bakery = Cake.find().cursor("bakery_id").add_secondary_order_by(Cake, "id")
 
         first = cast(list[ModelRecord], await by_bakery.first(2).all(pool))
         assert [cake["id"] for cake in first] == [1, 2]
 
-        # Bakery 1 has a third cake, which a boundary of the bakery alone would skip.
-        rest = cast(list[ModelRecord], await by_bakery.after(1, 2).first(2).all(pool))
+        # Bakery 1 has a third cake, which `after(1)` would skip.
+        rest = cast(list[ModelRecord], await by_bakery.after_with(1, 2).first(2).all(pool))
         assert [cake["id"] for cake in rest] == [5, 3]
+        skipped = cast(list[ModelRecord], await by_bakery.after(1).first(2).all(pool))
+        assert [cake["id"] for cake in skipped] == [3, 4]
 
 
 asyncio.run(main())
@@ -285,45 +288,57 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Here Python differs from Rust: a graph's cursor orders by fields of its root
-only. Rust's `cursor_by_on`, ordering by the columns of one of the related
-tables, is not available in Python yet.
+A graph's `cursor_on(source, *fields)` orders by fields of one of its slots
+instead, the first slot `1`, as Rust's `cursor_by_on` does, and
+[Relations](07-relations.md#limits-pages-and-cursors) shows one.
 
 ## Paginating raw SQL
 
-Here Python differs from Rust: a paginator over SQL written by hand is not
-available in Python yet. Rust's `SelectorRaw::paginate` and `count` wrap a
-`SELECT` as a subquery, after checking with PostgreSQL's own parser that it is
-one. A Python `RawSQL` runs as it is written, through `query`, `one` and
-`optional` on a pool, a connection or a transaction, and `stream` on a pool
-or a connection, so a page of it is written into the SQL, its limit and
-offset bound like any other value, and so is a count:
+A query written as SQL paginates and counts too, as Rust's
+`SelectorRaw::paginate` and `count` do: `from_statement(statement)` holds a
+`RawSQL` whose rows are records, and a model's `find_by_statement` one whose
+rows are its records ([Raw SQL](10-raw-sql.md#decoding-rows-into-models)).
+Either's `paginate(page_size)` gives the `Paginator` a model query gives,
+and `count(db)` counts. Both read the statement as a subquery, so its own
+`ORDER BY` still decides the pages. pgorm reads the statement with
+PostgreSQL's own parser to do so, and refuses anything but a single `SELECT`
+(a `WITH .. SELECT`, a `VALUES` list and a `UNION` count as one) with
+`ConstructionError`, as `paginate` is called:
 
 ```python
 import asyncio
 import os
 from decimal import Decimal
+from typing import cast
 
-from pgorm import Pool, RawSQL
+from pgorm import ConstructionError, ModelRecord, Pool, RawSQL, Record, from_statement
 
-SQL = "SELECT name, price FROM cake WHERE bakery_id = $1 ORDER BY price"
-PAGE_SIZE = 2
+from bakery import Cake
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        counted = await pool.one(RawSQL(f"SELECT count(*) AS items FROM ({SQL}) AS page", [1]))
-        assert counted["items"] == 3
-
-        first = await pool.query(RawSQL(f"{SQL} LIMIT $2 OFFSET $3", [1, PAGE_SIZE, 0]))
+        priced = from_statement(RawSQL("SELECT name, price FROM cake WHERE bakery_id = $1 ORDER BY price", [1]))
+        pages = priced.paginate(2)
+        assert await pages.num_items(pool) == 3
+        first = cast(list[Record], await pages.fetch_page(pool, 0))
         assert dict(first[0]) == {"name": "Lemon Drizzle", "price": Decimal("3.20")}
+        assert await priced.count(pool) == 3
+
+        cakes = Cake.find_by_statement(RawSQL("SELECT * FROM cake ORDER BY id")).paginate(2)
+        third = cast(list[ModelRecord], await cakes.fetch_page(pool, 2))
+        assert [cake["name"] for cake in third] == ["Chocolate Torte"]
+
+        try:
+            from_statement(RawSQL("DELETE FROM cake")).paginate(2)
+        except ConstructionError as error:
+            assert "pagination needs a SELECT" in str(error)
+        else:
+            raise AssertionError("a DELETE has no pages")
 
 
 asyncio.run(main())
 ```
-
-Nothing checks that such SQL is a single `SELECT`: SQL written by hand is
-the program's own, as [Raw SQL](10-raw-sql.md) describes.
 
 ## Streams
 
@@ -385,13 +400,17 @@ connection it reads from until it ends:
   stream ends.
 - A connection's stream reserves that connection. Any other statement on it
   meanwhile raises `LifecycleError`, rather than waiting.
-- A transaction has no stream. Streaming the rows of a transaction is not
-  available in Python yet.
+- A transaction's stream reserves the transaction, as Rust's `query_raw`
+  inside one reads from it. Any other statement on it meanwhile raises
+  `LifecycleError`, and the block ending while the stream is open discards
+  the transaction.
 
-A stream read to its last row frees its connection for reuse. A stream closed
-before its last row, by `aclose()` or by leaving its `async with` block, or
-abandoned to the garbage collector, discards its connection instead, since the
-connection is still in the middle of the statement's rows. Here Python
+A stream read to its last row frees its connection, or its transaction, for
+reuse. A stream closed before its last row, by `aclose()` or by leaving its
+`async with` block, or abandoned to the garbage collector, discards its
+connection instead, since the connection is still in the middle of the
+statement's rows; a transaction's stream discards the transaction with it,
+nothing committed. Here Python
 differs from Rust, where dropping a stream early leaves the connection usable
 while the server runs the query to its end. In Python a connection's stream
 closed early leaves that connection closed, and the pool opens a new one when

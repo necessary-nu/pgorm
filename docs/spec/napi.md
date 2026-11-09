@@ -188,14 +188,25 @@ first rule: a value reaches JavaScript exactly or not at all.
 
 ## Connections
 
-> [spec:pgorm:req:napi.lifecycle+2]
+> [spec:pgorm:req:napi.lifecycle+3]
 > `new Pool(connectionString, options)` builds a pool, and `connect` resolves
-> with one whose server answered. The options are `tls` (`"verify-full"` or
-> `"disable"`), `ca`, PEM certificates as a string or `Uint8Array`,
-> `maxSize`, `connectTimeout` and `acquireTimeout` in milliseconds,
-> `statementCacheSize`, `recycle` (`"verified"` or `"fast"`) and
-> `statementCacheChannel`. Each pool, connection, stream and listener MUST be
-> closable by `close()` and by `await using`. A stream is an async iterator
+> with one whose server answered. The options are `tls` (`"disable"`,
+> `"prefer"`, `"require"`, `"verify-ca"` or `"verify-full"`), and `ca`, `cert`
+> and `key`, PEM as a string or `Uint8Array` (`bindings.tls`); `maxSize`;
+> `connectTimeout`, `acquireTimeout`, `waitTimeout`, `createTimeout` and
+> `recycleTimeout` in milliseconds; `queueMode` (`"fifo"` or `"lifo"`);
+> `statementCacheSize`; `recycle` (`"verified"`, `"fast"` or `"clean"`) or
+> `recycleSql`; `statementCacheChannel`; `tag`; and the hooks `postCreate`,
+> `preRecycle` and `postRecycle`, functions given a `HookConnection`
+> (`bindings.pool-hooks`). `new MultiPool(connectionString, pools, options)`
+> takes per pool the options Rust's `PoolBuilder` closure sets, from
+> `maxSize` to the hooks, and shared the rest but `tag`
+> (`bindings.multi-pool`); `connectListener(connectionString, options)`
+> takes the connection and TLS options and a listener's `capacity`. An option
+> a pool, a multi-pool or a pool's shape does not take is a `TypeError`
+> naming it (`bindings.argument-errors`). Each pool,
+> multi-pool, connection, stream and listener MUST be closable by `close()`
+> and by `await using`. A stream is an async iterator
 > whose `next()` pulls one row and whose `return()`, which a `for await` loop
 > leaving early calls, closes it as `close()` does. What each holds MUST be
 > released by that close, never left to garbage collection or Neon's drop
@@ -335,6 +346,20 @@ built library (`bindings.codegen`).
 > neither nullable, defaulted nor generated and refusing a field generated
 > always; `UpdateOf`; and `KeyOf`. A COPY statement's format is a type
 > parameter, `CopyFrom<"binary">` or `CopyTo<"binary">` for the row COPY.
+
+> [spec:pgorm:req:napi.linking]
+> An import that would fail to link when a module of the package loads — a
+> name its module does not export, or a module that does not exist — MUST
+> fail `deno check`, not only the suites that load the addon. The package's
+> configuration type-checks all of its JavaScript (`checkJs`), whether or not
+> a file asks for it with `// @ts-check`. Deno reads `lib/index.js`'s types
+> from `lib/index.d.ts` and resolves none of that module's own imports, so it
+> holds nothing but `export * from "./pgorm.js"`, and what it re-exports is
+> made in `lib/pgorm.js`, whose imports `deno check` resolves. The values
+> the declarations name, the `pipeline` namespace's included, MUST be exactly
+> the ones `lib/pgorm.js` exports, which a type-level check under `deno check`
+> holds: an application's import of a declared value the module does not make
+> type-checks against the declarations and fails only as it links.
 
 > [spec:pgorm:req:napi.runtimes+1]
 > The binding targets runtimes that carry `Temporal` as a global, which its

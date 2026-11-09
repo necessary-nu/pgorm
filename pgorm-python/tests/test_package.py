@@ -26,6 +26,12 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(manifest["transport"], "in-process")
         self.assertEqual(json.loads(json.dumps(manifest)), manifest)
 
+    # [spec:pgorm:req:bindings.postgres-target/test]
+    def test_postgres_target_follows_the_pg_19_feature(self):
+        expected = 19 if "pg-19" in pgorm.capabilities()["features"] else 18
+        self.assertEqual(pgorm.POSTGRES_TARGET, expected)
+        self.assertIs(type(pgorm.POSTGRES_TARGET), int)
+
     # [spec:pgorm:req:python.capabilities+2/test]
     def test_capability_queries_are_isolated_and_fail_closed(self):
         manifest = pgorm.capabilities()
@@ -43,8 +49,8 @@ class PackageTests(unittest.TestCase):
             self.assertNotIn("security/", str(path))
             self.assertNotIn("fixtures/", str(path))
 
-    # [spec:pgorm:req:bindings.entities+5/test]
-    # [spec:pgorm:req:bindings.entity-graphs+3/test]
+    # [spec:pgorm:req:bindings.entities+6/test]
+    # [spec:pgorm:req:bindings.entity-graphs+4/test]
     def test_standalone_registry_has_no_application_entities(self):
         self.assertEqual(pgorm.capabilities()["registrations"]["entities"], [])
         self.assertEqual(

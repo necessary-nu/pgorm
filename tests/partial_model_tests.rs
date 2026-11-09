@@ -6,9 +6,9 @@ pub use common::{TestContext, bakery_chain::*, setup::*};
 use entity::{Column, Entity};
 use pgorm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, Error, FromQueryResult, ModelTrait, PartialModel,
-    QueryOrder, set,
+    QueryFilter, QueryOrder, set,
 };
-use pgorm_query::{Expr, Name};
+use pgorm_query::{Expr, ExprTrait, Func, Name};
 
 mod entity {
     use pgorm::prelude::*;
@@ -69,6 +69,8 @@ struct PartialBakery {
     title: String,
     #[pgorm(from_expr = Expr::col(bakery::Column::ProfitMargin).mul(2.0))]
     double_margin: f64,
+    #[pgorm(from_expr = Func::upper(Expr::col(bakery::Column::Name)))]
+    shout: String,
 }
 
 #[derive(Debug, PartialEq, PartialModel)]
@@ -86,8 +88,54 @@ struct IntScaledBakery {
     double_margin: f64,
 }
 
-// [spec:pgorm:def:exec.crud+1/test]    `Select::into_partial_model` re-targets
+/// A bakery with a field no column fills: `cached` names no column of the
+/// table, so the projection must not select it.
+#[derive(Debug, PartialEq, PartialModel)]
+#[pgorm(entity = bakery::Entity)]
+struct SkipsAField {
+    id: i32,
+    #[pgorm(skip)]
+    cached: String,
+}
+
+// [spec:pgorm:sem:macros.derive.partial-model+7/test]    a skipped field selects nothing and decodes as its default
+#[pgorm_macros::test]
+async fn partial_model_skip_selects_nothing() -> Result<(), Error> {
+    use pgorm::{PartialModelTrait, QuerySelect, QueryTrait};
+
+    let select = SkipsAField::select_cols(bakery::Entity::find().select_only());
+    assert_eq!(select.build().0, r#"SELECT "bakery"."id" FROM "bakery""#);
+
+    let ctx = TestContext::new("partial_model_skip").await;
+    create_tables(&ctx.db).await?;
+    let db = ctx.db.get().await?;
+    bakery::ActiveModel {
+        name: set("SeaSide Bakery"),
+        profit_margin: set(10.5),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await?;
+    let rows = bakery::Entity::find()
+        .into_partial_model::<SkipsAField>()
+        .all(&db)
+        .await?;
+    assert_eq!(
+        rows,
+        [SkipsAField {
+            id: 1,
+            cached: String::new(),
+        }]
+    );
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:def:exec.crud+2/test]    `Select::into_partial_model` re-targets
 // the decoded type, and `one` / `all` run through the same selector
+// [spec:pgorm:def:query.build.query-trait+2/test]    a field read from a bare
+// function call, `from_expr = Func::upper(..)`
 #[pgorm_macros::test]
 async fn partial_model_select() -> Result<(), Error> {
     let ctx = TestContext::new("partial_model_select").await;
@@ -123,11 +171,13 @@ async fn partial_model_select() -> Result<(), Error> {
                 id: 1,
                 title: "SeaSide Bakery".to_owned(),
                 double_margin: 21.0,
+                shout: "SEASIDE BAKERY".to_owned(),
             },
             PartialBakery {
                 id: 2,
                 title: "Top Bakery".to_owned(),
                 double_margin: 9.0,
+                shout: "TOP BAKERY".to_owned(),
             },
         ]
     );
@@ -160,7 +210,11 @@ async fn integer_operand_against_float_column() -> Result<(), Error> {
     .insert(&db)
     .await?;
 
+    // The comparison's placeholder is typed by the `float8` column and the
+    // integer written as one; the product's integer carries its own `int4`,
+    // which PostgreSQL widens.
     let bakeries = bakery::Entity::find()
+        .filter(bakery::Column::ProfitMargin.gt(10))
         .order_by_asc(bakery::Column::Id)
         .into_partial_model::<IntScaledBakery>()
         .all(&db)

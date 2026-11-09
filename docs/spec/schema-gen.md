@@ -98,6 +98,70 @@ executes SQL.
 > always names a table, so the comment target needs no conversion and the
 > stream has no failure mode.
 
+## Tables described as data
+
+> [spec:pgorm:sem:schema.from-shape]
+> A `TableShape` MUST describe a table as data — its `TableName`, its
+> columns in order, each a name and an ORM `ColumnDef`, its primary key, a
+> one-column key's serial family (`auto_increment`), a temporal key's
+> `WITHOUT OVERLAPS`, its unique keys, its belongs-to relations and its
+> comment — and `Schema::create_table_from_shape`,
+> `create_enum_from_shape`, `create_index_from_shape` and
+> `create_comments_from_shape` MUST write from it exactly the statements
+> `schema.from-entity`, `schema.from-entity.enum` and
+> `schema.from-entity.index` describe, in the same order, under the same
+> derived names and with the same refusals. `TableShape::of::<E>()`
+> describes an entity, and the four entity methods MUST be those four over
+> it, so an entity's statements and a shape's come from one writer.
+> `TableShape::new` describes a table known only at run time, as a language
+> binding's model is: a column `with_unstated_default`, which the database
+> fills by a default the description does not state, has no `DEFAULT` to
+> write, so `create_table_from_shape` MUST refuse its table with
+> `Error::Type` naming the column, as the disjoint schema refuses one
+> (`[spec:pgorm:sem:disjoint.schema]`).
+>
+> What a shape cannot describe MUST be refused as it is described, with
+> `Error::Type`: two columns of one name; a primary key of no column, of a
+> column the table lacks or of one column twice; a unique key as
+> `schema.from-entity` refuses one, or over a `VIRTUAL` generated column,
+> which PostgreSQL cannot key (`0A000`), or named as another of the table's
+> keys is, its composite primary key's `pk-{table}` included (`42P07`); and
+> a relation that is an owner (`has_one`, `has_many`), which holds no key of
+> the table, or pairs a column the table lacks. A relation's foreign key is
+> written as its `RelationDef` converts (`[spec:pgorm:req:entity.relation.fk]`),
+> and refused as `schema.from-entity` refuses a key over a domain over an
+> enum, from the types its `ColumnPairs` records.
+
+> [spec:pgorm:sem:schema.shape-casts+1]
+> A `TableColumn` MUST read, write and compare as an entity's column of its
+> type does when it declares no cast of its own
+> (`[spec:pgorm:sem:entity.traits.column.enum-cast]`), from its
+> definition's `ColumnType`: `select` is `select_as`'s default — `money`
+> read as `numeric`, an enum, a domain over one and a created multirange as
+> their text, an array of each as the array of it, and none where the column
+is read as it stands — `save` is `save_as`'s —
+> a value cast to `money`, to an enum or a domain, a created range's text
+> cast to its type — and `compared_column` and `compared_value` are the two
+> sides of a value predicate, both cast to the enum where the column's type
+> is a domain over one, which PostgreSQL resolves no comparison operator
+> for, and otherwise the column as it is beside the value as `save` writes
+> it. `with_select_as(type)` and `with_save_as(type)` replace the read's and
+> the write's cast with a cast to that type, as an entity column's
+> `select_as` and `save_as` attributes do, and `compared_value` then writes
+> the value through the `save_as` cast too, unless the column compares as an
+> enum. `compares_as` names the enum a domain-over-enum column compares as.
+> `compared_array` is the one-array operand `= ANY` and `<> ALL` compare the
+> column with, as an entity column's `eq_any` and `ne_all` take it
+> (`save_array_as`): the enum's array where the column compares as an enum,
+> the array of the `save_as` type where it names one, and otherwise the array
+> its type writes, `money[]`, an enum's array, a created range's array through
+> its text, or as it is. `read_cast` names the type `select` casts to and
+> `compared_value_cast` the type `compared_value` casts to, each `None` where
+> the column is read, or its value written, as it stands or not by a cast of
+> it alone, so a pipeline can write the casts itself. So a table described at
+> run time, a binding's model's, is read, written and compared by pgorm's own
+> casts.
+
 ## Secondary indexes
 
 > [spec:pgorm:sem:schema.from-entity.index+2]

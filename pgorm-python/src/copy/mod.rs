@@ -57,15 +57,18 @@ macro_rules! csv_only {
     };
 }
 
+mod codec;
+mod columns;
 mod from;
 mod native;
 mod pump;
 mod to;
 
-pub(crate) use from::CopyFrom;
 pub use from::PyCopyFrom;
-pub(crate) use pump::{Columns, Message, Piece, Unopened, drive_in, drive_out, open_in, open_out};
-pub(crate) use to::CopyTo;
+pub(crate) use pgorm_bindings::{CopyFrom, CopyTo, DataFormat};
+pub(crate) use pump::{
+    Columns, Described, Message, Piece, Unopened, describe, drive_in, drive_out, open_in, open_out,
+};
 pub use to::PyCopyTo;
 
 use pgorm::pgorm_query::TableName;
@@ -75,18 +78,11 @@ use serde_json::{Map, Value, json};
 use crate::{errors::ConstructionError, identifiers::Identifier, statements::PyTable};
 
 /// COPY's data format, as Python names it.
-#[derive(Clone, Copy, Debug)]
-enum Format {
-    Text,
-    Csv,
-    Binary,
-}
-
-fn format(value: &Bound<'_, PyAny>) -> PyResult<Format> {
+fn format(value: &Bound<'_, PyAny>) -> PyResult<DataFormat> {
     match value.extract::<String>().as_deref() {
-        Ok("text") => Ok(Format::Text),
-        Ok("csv") => Ok(Format::Csv),
-        Ok("binary") => Ok(Format::Binary),
+        Ok("text") => Ok(DataFormat::Text),
+        Ok("csv") => Ok(DataFormat::Csv),
+        Ok("binary") => Ok(DataFormat::Binary),
         _ => Err(PyTypeError::new_err(
             "COPY format must be \"text\", \"csv\" or \"binary\"",
         )),
@@ -144,25 +140,35 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<native::NativeCopyOut>()?;
     module.add_function(wrap_pyfunction!(native::copy_in, module)?)?;
     module.add_function(wrap_pyfunction!(native::copy_out, module)?)?;
+    module.add_class::<columns::PyCopyColumn>()?;
+    module.add_class::<codec::PyCopyRowEncoder>()?;
+    module.add_class::<codec::PyCopyRowDecoder>()?;
+    module.add_function(wrap_pyfunction!(columns::copy_columns, module)?)?;
     Ok(())
 }
 
 // [spec:pgorm:req:python.capabilities+2]
 // [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 pub(crate) fn capabilities() -> Map<String, Value> {
     let builders = [
         (
             "copy_from",
             "pgorm_query::CopyFromStatement::new with CopyText, CopyCsv or CopyBinary",
         ),
-        ("copy_from.columns", "pgorm_query::CopyFromStatement::columns"),
+        (
+            "copy_from.columns",
+            "pgorm_query::CopyFromStatement::columns",
+        ),
         (
             "copy_from.where",
             "pgorm_query::ConditionalStatement::cond_where for CopyFromStatement",
         ),
         ("copy_from.freeze", "pgorm_query::CopyFromStatement::freeze"),
-        ("copy_from.delimiter", "pgorm_query::CopyFromStatement::delimiter"),
+        (
+            "copy_from.delimiter",
+            "pgorm_query::CopyFromStatement::delimiter",
+        ),
         (
             "copy_from.null_string",
             "pgorm_query::CopyFromStatement::null_string",
@@ -176,7 +182,10 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "copy_from.header_match",
             "pgorm_query::CopyFromStatement::header_match",
         ),
-        ("copy_from.encoding", "pgorm_query::CopyFromStatement::encoding"),
+        (
+            "copy_from.encoding",
+            "pgorm_query::CopyFromStatement::encoding",
+        ),
         (
             "copy_from.on_error_ignore",
             "pgorm_query::CopyFromStatement::on_error_ignore, CopyIgnore, CopyLogVerbosity",
@@ -199,7 +208,10 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "copy_to",
             "pgorm_query::CopyToStatement::new with IntoCopySource or CopySource::try_from, and CopyText, CopyCsv or CopyBinary",
         ),
-        ("copy_to.delimiter", "pgorm_query::CopyToStatement::delimiter"),
+        (
+            "copy_to.delimiter",
+            "pgorm_query::CopyToStatement::delimiter",
+        ),
         (
             "copy_to.null_string",
             "pgorm_query::CopyToStatement::null_string",
@@ -213,9 +225,7 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "pgorm_query::CopyToStatement::{force_quote, force_quote_all}",
         ),
         ("copy_to.inspect", "pgorm_query::CopyToStatement as Display"),
-    ]
-    .into_iter()
-    .map(|(name, api)| (name.to_owned(), json!({"rust_api": api, "features": []})));
+    ];
     let execution = [
         (
             "connection.copy_in",
@@ -249,15 +259,44 @@ pub(crate) fn capabilities() -> Map<String, Value> {
             "transaction.copy_out_rows",
             "pgorm::CopyTrait::{copy_out_columns, copy_out} for DatabaseTransaction, CopyRowDecoder",
         ),
-    ]
-    .into_iter()
-    .map(|(name, api)| {
         (
-            name.to_owned(),
-            json!({"rust_api": api, "features": []}),
-        )
-    });
-    builders.chain(execution).collect()
+            "connection.copy_in_columns",
+            "pgorm::CopyTrait::copy_in_columns for DatabaseConnection, CopyColumn",
+        ),
+        (
+            "connection.copy_out_columns",
+            "pgorm::CopyTrait::copy_out_columns for DatabaseConnection, CopyColumn",
+        ),
+        (
+            "transaction.copy_in_columns",
+            "pgorm::CopyTrait::copy_in_columns for DatabaseTransaction, CopyColumn",
+        ),
+        (
+            "transaction.copy_out_columns",
+            "pgorm::CopyTrait::copy_out_columns for DatabaseTransaction, CopyColumn",
+        ),
+        (
+            "copy_row_sink",
+            "pgorm::CopyRowEncoder over the described columns, per row, as CopyRowSink::send and send_model",
+        ),
+        (
+            "copy_row_stream.models",
+            "pgorm::CopyRowStream::models, read as a model's records",
+        ),
+        (
+            "copy_row_encoder",
+            "pgorm::CopyRowEncoder::{new, header, encode, trailer}",
+        ),
+        (
+            "copy_row_decoder",
+            "pgorm::CopyRowDecoder::{new, push, next_fields, finish}",
+        ),
+        (
+            "copy_column",
+            "pgorm::CopyColumn::{new, with_money_places}, a built-in type by name",
+        ),
+    ];
+    crate::capabilities::plain(builders.into_iter().chain(execution))
 }
 
 pub(crate) fn policy() -> Value {

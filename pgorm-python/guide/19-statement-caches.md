@@ -21,12 +21,12 @@ SQL text up there, and is prepared on a miss: a model's queries and writes,
 built statements, schema statements and `RawSQL` alike. A COPY is the
 exception: it is prepared afresh each time ([COPY](17-copy.md)).
 
-Here Python differs from Rust: Rust's `batch_execute` runs a script of
-several statements through the simple-query protocol, preparing nothing. It
-is not available in Python yet. Every statement a Python program sends is
-prepared, DDL included, and so a `RawSQL` holds one statement: the server
-refuses one holding several, with SQLSTATE `42601`, *cannot insert multiple
-commands into a prepared statement*. Send a script statement by statement.
+`batch_execute` is the other exception, as Rust's is: it runs a script of
+several statements through the simple-query protocol, preparing nothing, so
+nothing it sends is cached. Every other statement is prepared, DDL included,
+and so a `RawSQL` holds one statement: the server refuses one holding
+several, with SQLSTATE `42601`, *cannot insert multiple commands into a
+prepared statement* ([Raw SQL](10-raw-sql.md)).
 
 The cache is bounded. One query can be many texts, such as an `IN` list
 rendered at every length it is used with, and each cached statement is a live
@@ -188,12 +188,11 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-In Rust, pgorm-migration's runner calls the same clear on the pool it was
-given once a batch that applied a migration commits, so a program that
-migrates through its own pool needs nothing more. The runner is not available
-in Python ([Migrations](22-migrations.md)): a Python program that changes its
-schema with its own DDL calls `clear_statement_caches` itself once that DDL
-has committed.
+pgorm-migration's runner calls the same clear on the pool it was given once
+a batch that applied a migration commits, so a program that migrates through
+`Migrations.up` needs nothing more ([Migrations](22-migrations.md#statement-caches)).
+A Python program that changes its schema with DDL of its own outside the
+runner calls `clear_statement_caches` itself once that DDL has committed.
 
 ## Clearing other processes' caches
 
@@ -268,5 +267,5 @@ checked out for its whole life keeps its statements until it returns it. An
 empty channel name, or one longer than 63 bytes, which no notification could
 reach, raises `ConstructionError` when the pool is built. Here Python differs
 from Rust in spelling: the channel is a keyword argument of `Pool`, where Rust
-sets `ManagerConfig::statement_cache_channel`. Rust's metrics layer does not
-see these clears; Python has no metrics layer yet ([Metrics](21-metrics.md)).
+sets `ManagerConfig::statement_cache_channel`. The metrics layer does not see
+these clears ([Metrics](21-metrics.md)).

@@ -16,7 +16,7 @@ impl MigrationName for Pinned {
 
 #[async_trait::async_trait]
 impl MigrationTrait for Pinned {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.execute(&format!("CREATE TABLE \"{}\" (id INT)", self.name), &[])
             .await?;
         Ok(())
@@ -35,7 +35,7 @@ pub struct Duplicated;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Duplicated {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(Pinned {
                 name: REPEATED,
@@ -58,7 +58,7 @@ pub struct Checksummed;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Checksummed {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(Pinned {
             name: REPEATED,
             checksum: Some("digest-one"),
@@ -71,7 +71,7 @@ pub struct Edited;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Edited {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(Pinned {
             name: REPEATED,
             checksum: Some("digest-two"),
@@ -84,7 +84,7 @@ pub struct Unchecked;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Unchecked {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(Pinned {
             name: REPEATED,
             checksum: None,

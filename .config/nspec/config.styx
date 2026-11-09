@@ -7,6 +7,7 @@ specs ({
             languages (@rust @python),
             include (
                 src/**/*.rs
+                pgorm-case-style/src/**/*.rs
                 pgorm-macros/src/**/*.rs
                 pgorm-codegen/src/**/*.rs
                 pgorm-migration/src/**/*.rs
@@ -14,9 +15,11 @@ specs ({
                 pgorm-query/src/**/*.rs
                 pgorm-query/pgorm-query-attr/src/**/*.rs
                 pgorm-query/pgorm-query-derive/src/**/*.rs
+                pgorm-sql-check/src/**/*.rs
                 pgorm-sql-macro/src/**/*.rs
                 pgorm-test-support/src/**/*.rs
                 pgorm-guide-support/src/**/*.rs
+                pgorm-bindings/src/**/*.rs
                 security/sqlmap/adapter/src/**/*.rs
                 .github/workflows/sqlmap*.yml
                 security/sqlmap/acceptance/*.md
@@ -40,6 +43,7 @@ specs ({
                 pgorm-sql-macro/tests/**/*.rs
                 pgorm-test-support/tests/**/*.rs
                 pgorm-guide-support/tests/**/*.rs
+                pgorm-bindings/tests/**/*.rs
                 security/sqlmap/adapter/tests/**/*.rs
                 security/generative/tests/**/*.py
                 security/generative/bridge/tests/**/*.rs

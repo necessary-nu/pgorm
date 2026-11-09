@@ -22,7 +22,7 @@ def int4multirange(*ranges):
     return p.Value(p.Multirange([p.Range(lower, upper) for lower, upper in ranges]), "int4multirange")
 
 
-# [spec:pgorm:req:bindings.expressions+3/test]    every operator method selects what PostgreSQL's
+# [spec:pgorm:req:bindings.expressions+4/test]    every operator method selects what PostgreSQL's
 # [spec:pgorm:req:bindings.ranges/test]
 # own operator selects, on rows where it holds and rows where it does not
 class OperatorTests(unittest.IsolatedAsyncioTestCase):
@@ -99,7 +99,7 @@ class OperatorTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(ids, await self.written(written))
                 self.assertEqual(ids, expected)
 
-    # [spec:pgorm:req:bindings.expressions+3/test]    at and slice subscript an array as
+    # [spec:pgorm:req:bindings.expressions+4/test]    at and slice subscript an array as
     # PostgreSQL's own subscripts do, an index past the bounds NULL and a slice cut to them
     async def test_subscripts_answer_as_postgres_does(self):
         cases = [
@@ -115,7 +115,7 @@ class OperatorTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(ids, await self.written(written))
                 self.assertEqual(ids, expected)
 
-    # [spec:pgorm:req:bindings.quantifiers+3/test]    EXISTS, a scalar subquery, IN a Select, and
+    # [spec:pgorm:req:bindings.quantifiers+4/test]    EXISTS, a scalar subquery, IN a Select, and
     # any_ and all_ after each comparison over an array or a subquery's rows answer as the SQL
     # written by hand, an empty array false under ANY and true under ALL
     async def test_subqueries_and_quantifiers_answer_as_postgres_does(self):
@@ -154,7 +154,7 @@ class OperatorTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 refused()
 
-    # [spec:pgorm:req:bindings.quantifiers+3/test]    any_ and all_ after LIKE's and ILIKE's
+    # [spec:pgorm:req:bindings.quantifiers+4/test]    any_ and all_ after LIKE's and ILIKE's
     # family, the regular-expression matches, containment, the range positions, @@ and @?, over a
     # bound array or a subquery's rows, answer as the SQL written by hand
     async def test_quantifiers_beyond_comparisons_answer_as_postgres_does(self):

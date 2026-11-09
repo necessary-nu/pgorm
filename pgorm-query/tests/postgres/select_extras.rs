@@ -203,7 +203,7 @@ fn a_exprs(sql: &str) -> Vec<(i64, String)> {
         .collect()
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    both forms, the pattern bound and an ESCAPE
+// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    both forms, the pattern bound and an ESCAPE
 // inline, and the grammar reads them as SIMILAR TO
 // [spec:pgorm:def:sql.render.operators+8/test]
 #[test]
@@ -243,7 +243,7 @@ fn similar_to_binds_its_pattern() {
     assert_eq!(patterns, [1, 2]);
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    `no_escape` renders `ESCAPE ''` after LIKE,
+// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    `no_escape` renders `ESCAPE ''` after LIKE,
 // ILIKE and SIMILAR TO's bound pattern, and the grammar reads an empty escape there
 // [spec:pgorm:def:sql.render.operators+8/test]
 #[test]
@@ -295,7 +295,7 @@ fn no_escape_renders_an_empty_escape() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    SIMILAR TO ranks with LIKE: bare under the
+// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    SIMILAR TO ranks with LIKE: bare under the
 // logical operators and NOT, an arithmetic operand bare inside it
 // [spec:pgorm:def:sql.render.precedence+14/test]
 #[test]
@@ -390,7 +390,7 @@ fn range_functions(sql: &str) -> Vec<serde_json::Value> {
     parsed_nodes(sql, "RangeFunction")
 }
 
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]    `WITH ORDINALITY` on one call, with
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]    `WITH ORDINALITY` on one call, with
 // column names in the alias
 // [spec:pgorm:req:sql.render.table-function+2/test]
 #[test]
@@ -418,7 +418,7 @@ fn ordinality_numbers_one_function() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]    `ROWS FROM` over several calls, a lone
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]    `ROWS FROM` over several calls, a lone
 // `rows_from`, and the plain call that `alias` returns as `FromItem::FunctionCall`
 // [spec:pgorm:req:sql.render.table-function+2/test]
 #[test]
@@ -699,7 +699,7 @@ fn tablesample_binds_percentage_and_seed() {
     assert_eq!(realiased.qualifier().to_string(), "s");
 }
 
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]    the set-returning constructors, their
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]    the set-returning constructors, their
 // arguments bound
 // [spec:pgorm:def:sql.ast.func+12/test]
 #[test]
@@ -714,7 +714,7 @@ fn set_returning_constructors_bind_arguments() {
         .build();
     assert_eq!(
         sql,
-        r#"SELECT * FROM ROWS FROM (GENERATE_SERIES($1, $2, $3), UNNEST("tags")) AS "t""#
+        r#"SELECT * FROM ROWS FROM (GENERATE_SERIES($1::int4, $2::int4, $3::int4), UNNEST("tags")) AS "t""#
     );
     assert_eq!(values.0, vec![10.into(), 1.into(), (-3).into()]);
 

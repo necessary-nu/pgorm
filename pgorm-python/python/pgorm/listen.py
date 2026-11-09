@@ -7,7 +7,7 @@ from types import TracebackType
 from . import _native
 
 
-# [spec:pgorm:req:bindings.listen+2]
+# [spec:pgorm:req:bindings.listen+3]
 # [spec:pgorm:req:bindings.cancellation]
 class Listener:
     """A connection of its own that receives LISTEN notifications.
@@ -83,7 +83,7 @@ class Listener:
 
     async def __aenter__(self) -> Listener:
         if self.closed:
-            raise _native.LifecycleError("listener is closed")
+            raise _native.LifecycleError("the listener is closed")
         return self
 
     async def __aexit__(
@@ -94,7 +94,7 @@ class Listener:
     ) -> None:
         await self.aclose()
 
-    # [spec:pgorm:req:python.truth-testing+4]
+    # [spec:pgorm:req:python.truth-testing+5]
     def __bool__(self) -> bool:
         raise _native.ConstructionError("listeners cannot be tested as Python booleans")
 

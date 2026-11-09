@@ -15,27 +15,18 @@ mod registered;
 use std::sync::Arc;
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{Error, OneOfShape, pgorm_query::Value};
+use pgorm::pgorm_query::Value;
+use pgorm_bindings::entity::OneOfCore;
 
 use crate::{
     codec::Codec,
-    errors::{Failure, throw},
+    errors::throw,
     statements::{Ddl, Node},
     values::read,
 };
 
-pub(crate) use registered::Registered;
-
-/// One reference or registration: its shape and its description.
-pub(crate) struct Core {
-    pub(crate) shape: OneOfShape,
-    pub(crate) description: serde_json::Value,
-    /// The registered enum's type, which no second registration may name.
-    pub(crate) rust: Option<std::any::TypeId>,
-}
-
 /// A one-of reference or registration as JavaScript holds it.
-pub(crate) struct OneOfHandle(pub(crate) Arc<Core>);
+pub(crate) struct OneOfHandle(pub(crate) Arc<OneOfCore>);
 
 impl std::fmt::Debug for OneOfHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -69,18 +60,8 @@ const EXPORTS: &[(&str, Export)] = &[
     ("oneOfStatement", statement),
 ];
 
-fn core(cx: &mut FunctionContext) -> NeonResult<Arc<Core>> {
+fn core(cx: &mut FunctionContext) -> NeonResult<Arc<OneOfCore>> {
     Ok(cx.argument::<JsBox<OneOfHandle>>(0)?.0.clone())
-}
-
-/// What the shape refuses as a reference is used: a row against its
-/// declaration, read back, is a `DecodeError`, and anything else, refused
-/// before anything is sent, a `ConstructionError`.
-fn refused(error: Error) -> Failure {
-    match error {
-        Error::Query(_) => Failure::Decode(error.to_string()),
-        error => Failure::Construction(error.to_string()),
-    }
 }
 
 /// The `Value`s the array argument `index` holds.
@@ -119,9 +100,9 @@ fn describe(mut cx: FunctionContext) -> JsResult<JsValue> {
 fn target(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = core(&mut cx)?;
     let value = cx.argument::<JsString>(1)?.value(&mut cx);
-    match core.shape.target(&value) {
-        Ok((index, _)) => Ok(cx.number(index as f64).upcast()),
-        Err(error) => throw(&mut cx, refused(error)),
+    match core.target(&value) {
+        Ok(index) => Ok(cx.number(index as f64).upcast()),
+        Err(failure) => throw(&mut cx, failure),
     }
 }
 
@@ -140,10 +121,10 @@ fn referenced(mut cx: FunctionContext) -> JsResult<JsValue> {
                 .value(&mut cx))
         })
         .collect::<NeonResult<Vec<bool>>>()?;
-    match core.shape.referenced(&row, &set) {
+    match core.referenced(&row, &set) {
         Ok(Some(index)) => Ok(cx.number(index as f64).upcast()),
         Ok(None) => Ok(cx.null().upcast()),
-        Err(error) => throw(&mut cx, refused(error)),
+        Err(failure) => throw(&mut cx, failure),
     }
 }
 
@@ -153,9 +134,9 @@ fn referenced(mut cx: FunctionContext) -> JsResult<JsValue> {
 fn assigned(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = core(&mut cx)?;
     let target = place(&mut cx, 1)?;
-    let assigned = match core.shape.assigned(target) {
+    let assigned = match core.assigned(target) {
         Ok(assigned) => assigned,
-        Err(error) => return throw(&mut cx, refused(error)),
+        Err(failure) => return throw(&mut cx, failure),
     };
     let array = JsArray::new(&mut cx, assigned.len());
     for (index, set) in assigned.into_iter().enumerate() {
@@ -172,9 +153,9 @@ fn load_condition(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = core(&mut cx)?;
     let target = place(&mut cx, 1)?.unwrap_or_default();
     let keys = values_at(&mut cx, 2)?;
-    match core.shape.load_condition(target, keys) {
+    match core.load_condition(target, keys) {
         Ok(condition) => Ok(cx.boxed(Node::Expr(condition)).upcast()),
-        Err(error) => throw(&mut cx, refused(error)),
+        Err(failure) => throw(&mut cx, failure),
     }
 }
 
@@ -190,8 +171,8 @@ fn absent(mut cx: FunctionContext) -> JsResult<JsValue> {
     let Some(key) = read::infer(&mut cx, codec, key)? else {
         return cx.throw_type_error("a one-of reference's keys are Values");
     };
-    let error = core.shape.absent(target, &row, &key.datum);
-    Ok(cx.string(error.to_string()).upcast())
+    let failure = core.absent(target, &row, &key.datum);
+    Ok(cx.string(failure.message()).upcast())
 }
 
 /// `oneOfStatement(oneOf)`: the `ALTER TABLE` adding the reference's
@@ -199,7 +180,7 @@ fn absent(mut cx: FunctionContext) -> JsResult<JsValue> {
 // [spec:pgorm:req:bindings.one-of+1]
 fn statement(mut cx: FunctionContext) -> JsResult<JsValue> {
     let core = core(&mut cx)?;
-    let check = core.shape.check();
+    let check = core.check();
     let table = check.get_table_name().clone();
     Ok(cx.boxed(Node::from(Ddl::AlterTable(table, check))).upcast())
 }

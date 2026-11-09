@@ -767,7 +767,7 @@ for file in &files {
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(sql_migration!("docs/guide/migrations/m20260201_000001_create_payment.sql")),
             Box::new(sql_migration!("docs/guide/migrations/m20260301_000001_add_voucher_1.sql")),
@@ -777,7 +777,7 @@ impl MigratorTrait for Migrator {
 }
 
 # let scratch = pgorm_guide_support::Scratch::empty("disjoint_frozen").await;
-Migrator::up(scratch.pool.clone(), None).await?;
+Migrator.up(scratch.pool.clone(), None).await?;
 
 let db = scratch.pool.get().await?;
 let (_, voucher) = Payment::insert(

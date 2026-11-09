@@ -1,133 +1,49 @@
-use std::{
-    fmt,
-    sync::{Arc, Mutex as RegistryMutex, Weak},
-    time::Duration,
-};
+use crate::errors::Raise as _;
+use std::{collections::BTreeMap, sync::Arc};
 
-use pgorm::ConnectionTrait;
+use crate::panics::future_into_py;
+use pgorm::{ConnectionTrait, metric::InstrumentedPool};
+use pgorm_bindings::Metrics;
 use pyo3::prelude::*;
-use pyo3_async_runtimes::tokio::future_into_py;
-use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    config::PoolConfig,
-    errors::{InternalError, LifecycleError, Redactions, TimeoutError, database_error},
-    listen::ListenerState,
+    config::{self, DIALECT, NativePoolShape, Owner, seconds},
+    errors::LifecycleError,
 };
 
-pub(crate) struct PoolState {
-    pub(crate) pool: pgorm::DatabasePool,
-    pub(crate) secrets: Redactions,
-    pub(crate) cancelled: CancellationToken,
-    owner: Py<PyAny>,
-    acquire_timeout: Duration,
-    connections: RegistryMutex<Vec<Weak<ConnectionState>>>,
-    listeners: RegistryMutex<Vec<Weak<ListenerState>>>,
+/// The event loop a pool, and everything it lends, belongs to.
+pub(crate) type Loop = Arc<Py<PyAny>>;
+pub(crate) type PoolState = pgorm_bindings::PoolState<Loop>;
+pub(crate) type ConnectionState = pgorm_bindings::ConnectionState<Loop>;
+pub(crate) type Operation = pgorm_bindings::Operation<Loop>;
+pub(crate) use pgorm_bindings::Held;
+
+/// What is used from its pool's event loop alone.
+pub(crate) trait Owned {
+    /// Refuse to run from any event loop but the pool's.
+    fn check_owner(&self, py: Python<'_>) -> PyResult<()>;
 }
 
-impl fmt::Debug for PoolState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PoolState")
-            .field("closed", &self.cancelled.is_cancelled())
-            .finish_non_exhaustive()
-    }
-}
-
-impl PoolState {
-    pub(crate) fn check_owner(&self, py: Python<'_>) -> PyResult<()> {
-        let current = running_loop(py)?;
-        if !self.owner.bind(py).is(&current) {
-            return Err(LifecycleError::new_err(
-                "pool belongs to another asyncio event loop",
-            ));
-        }
-        Ok(())
-    }
-
-    pub(crate) fn ensure_open(&self) -> PyResult<()> {
-        if self.cancelled.is_cancelled() {
-            Err(LifecycleError::new_err("pool is closed"))
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Record `listener` so that closing the pool closes it; a listener
-    /// opened while the pool closed is closed here instead.
-    // [spec:pgorm:req:bindings.listen+2]
-    pub(crate) fn register_listener(&self, listener: &Arc<ListenerState>) -> PyResult<()> {
-        let mut registry = self
-            .listeners
-            .lock()
-            .map_err(|_| InternalError::new_err("listener registry lock failed"))?;
-        if self.cancelled.is_cancelled() {
-            listener.close_now();
-            return Err(LifecycleError::new_err("pool is closed"));
-        }
-        registry.retain(|item| item.strong_count() > 0);
-        registry.push(Arc::downgrade(listener));
-        Ok(())
-    }
-
-    fn close_listeners(&self) {
-        if let Ok(mut registry) = self.listeners.lock() {
-            crate::listen::close_all(&registry);
-            registry.clear();
-        }
-    }
-
-    /// Check a connection out within the acquire timeout, for its borrower
-    /// alone, and record it so that closing the pool closes it.
-    pub(crate) async fn lend(self: Arc<Self>) -> PyResult<Arc<ConnectionState>> {
-        let connection = tokio::select! {
-            _ = self.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-            result = tokio::time::timeout(self.acquire_timeout, self.pool.get()) => {
-                self.ensure_open()?;
-                result.map_err(|_| TimeoutError::new_err("pool acquisition timed out"))?
-                    .map_err(|error| database_error(error, &self.secrets))?
-            }
-        };
-        if self.cancelled.is_cancelled() {
-            connection.discard();
-            return Err(LifecycleError::new_err("pool is closed"));
-        }
-        let state = Arc::new(ConnectionState {
-            pool: self.clone(),
-            cancelled: CancellationToken::new(),
-            slot: Arc::new(Mutex::new(Some(connection))),
-        });
-        let mut registry = self
-            .connections
-            .lock()
-            .map_err(|_| InternalError::new_err("connection registry lock failed"))?;
-        if self.cancelled.is_cancelled() {
-            state.close_now();
-            return Err(LifecycleError::new_err("pool is closed"));
-        }
-        registry.retain(|item| item.strong_count() > 0);
-        registry.push(Arc::downgrade(&state));
-        Ok(state)
-    }
-
-    fn close_now(&self) -> PyResult<Vec<Arc<ConnectionState>>> {
-        self.cancelled.cancel();
-        self.pool.close();
-        self.close_listeners();
-        let mut registry = self
-            .connections
-            .lock()
-            .map_err(|_| InternalError::new_err("connection registry lock failed"))?;
-        let connections: Vec<_> = registry.iter().filter_map(Weak::upgrade).collect();
-        registry.clear();
-        for connection in &connections {
-            connection.close_now();
-        }
-        Ok(connections)
+impl Owned for PoolState {
+    fn check_owner(&self, py: Python<'_>) -> PyResult<()> {
+        check_loop(py, &self.owner, "pool")
     }
 }
 
-fn running_loop(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
+/// Refuse to run from any event loop but `owner`, the one the pool or
+/// listener `what` names was built on.
+pub(crate) fn check_loop(py: Python<'_>, owner: &Py<PyAny>, what: &str) -> PyResult<()> {
+    let current = running_loop(py)?;
+    if !owner.bind(py).is(&current) {
+        return Err(LifecycleError::new_err(format!(
+            "{what} belongs to another asyncio event loop"
+        )));
+    }
+    Ok(())
+}
+
+pub(crate) fn running_loop(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     py.import("asyncio")?
         .call_method0("get_running_loop")
         .map_err(|_| {
@@ -135,81 +51,228 @@ fn running_loop(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
         })
 }
 
-// [spec:pgorm:req:python.runtime+1]
-// [spec:pgorm:req:bindings.connections+2]
+/// Closes its pool once the last native pool over it is gone: a pool and
+/// every instrumented pool wrapping it share one.
+#[derive(Debug)]
+struct Closer(Arc<PoolState>);
+
+impl Drop for Closer {
+    fn drop(&mut self) {
+        // Cleanup may run after the Python event loop has stopped.
+        drop(self.0.close_now());
+    }
+}
+
+// [spec:pgorm:req:python.runtime+2]
+// [spec:pgorm:req:bindings.connections+3]
 #[derive(Debug)]
 #[pyclass(name = "_Pool", module = "pgorm._native", frozen)]
 pub(crate) struct NativePool {
     pub(crate) state: Arc<PoolState>,
+    /// An instrumented pool's pgorm wrapper, which every connection this
+    /// pool lends is checked out through.
+    pub(crate) metered: Option<InstrumentedPool<Metrics>>,
+    closer: Arc<Closer>,
+}
+
+impl NativePool {
+    /// The native pool over `state`, which closes once the last native pool
+    /// over it is gone.
+    fn over(state: Arc<PoolState>) -> Self {
+        Self {
+            closer: Arc::new(Closer(state.clone())),
+            state,
+            metered: None,
+        }
+    }
+}
+
+/// The options every pool built from one connection string shares, read
+/// into pgorm-bindings' settings.
+#[allow(clippy::too_many_arguments)]
+fn settings(
+    dsn: String,
+    tag: Option<String>,
+    tls: Option<&str>,
+    ca_pem: Option<Vec<u8>>,
+    cert_pem: Option<Vec<u8>>,
+    key_pem: Option<Vec<u8>>,
+    connect_timeout: f64,
+    statement_cache_size: usize,
+    recycle: &str,
+    recycle_sql: Option<String>,
+    statement_cache_channel: Option<String>,
+) -> PyResult<pgorm_bindings::PoolSettings> {
+    Ok(pgorm_bindings::PoolSettings {
+        dsn,
+        tls: config::tls(tls, ca_pem, cert_pem, key_pem)?,
+        connect_timeout: seconds(connect_timeout, "connect_timeout")?,
+        recycling_method: config::recycling(recycle, recycle_sql)?,
+        statement_cache_size,
+        statement_cache_channel,
+        tag,
+    })
 }
 
 #[pymethods]
 impl NativePool {
     #[new]
-    #[pyo3(signature = (dsn, *, tls=None, ca_pem=None, max_size=10, connect_timeout=10.0, acquire_timeout=30.0, statement_cache_size=128, recycle="verified", statement_cache_channel=None))]
+    #[pyo3(signature = (dsn, shape, *, tag=None, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=10.0, statement_cache_size=128, recycle="verified", recycle_sql=None, statement_cache_channel=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
         dsn: String,
+        shape: PyRef<'_, NativePoolShape>,
+        tag: Option<String>,
         tls: Option<String>,
         ca_pem: Option<Vec<u8>>,
-        max_size: usize,
+        cert_pem: Option<Vec<u8>>,
+        key_pem: Option<Vec<u8>>,
         connect_timeout: f64,
-        acquire_timeout: f64,
         statement_cache_size: usize,
         recycle: &str,
+        recycle_sql: Option<String>,
         statement_cache_channel: Option<String>,
     ) -> PyResult<Self> {
-        let owner = running_loop(py)?.unbind();
-        let (pool, secrets, acquire_timeout) = PoolConfig {
+        let owner = Owner::current(py)?;
+        let settings = settings(
             dsn,
-            tls,
+            tag,
+            tls.as_deref(),
             ca_pem,
-            max_size,
+            cert_pem,
+            key_pem,
             connect_timeout,
-            acquire_timeout,
             statement_cache_size,
-            recycle: recycle.to_owned(),
+            recycle,
+            recycle_sql,
             statement_cache_channel,
+        )?;
+        let built = settings
+            .pool(
+                &shape.0,
+                |event, call, secrets| owner.hook(event, call, secrets),
+                DIALECT,
+            )
+            .py()?;
+        Ok(Self::over(PoolState::new(built, owner.owner, DIALECT)))
+    }
+
+    /// One pool per entry of `shapes`, each tagged with its key, sharing the
+    /// connection, TLS and manager configuration, in the tags' order.
+    // [spec:pgorm:req:bindings.multi-pool]
+    #[staticmethod]
+    #[pyo3(signature = (dsn, shapes, *, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=10.0, statement_cache_size=128, recycle="verified", recycle_sql=None, statement_cache_channel=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn multi(
+        py: Python<'_>,
+        dsn: String,
+        shapes: BTreeMap<String, PyRef<'_, NativePoolShape>>,
+        tls: Option<String>,
+        ca_pem: Option<Vec<u8>>,
+        cert_pem: Option<Vec<u8>>,
+        key_pem: Option<Vec<u8>>,
+        connect_timeout: f64,
+        statement_cache_size: usize,
+        recycle: &str,
+        recycle_sql: Option<String>,
+        statement_cache_channel: Option<String>,
+    ) -> PyResult<Vec<(String, Self)>> {
+        let owner = Owner::current(py)?;
+        let settings = settings(
+            dsn,
+            None,
+            tls.as_deref(),
+            ca_pem,
+            cert_pem,
+            key_pem,
+            connect_timeout,
+            statement_cache_size,
+            recycle,
+            recycle_sql,
+            statement_cache_channel,
+        )?;
+        let options = shapes
+            .iter()
+            .map(|(tag, shape)| (tag.clone(), shape.0.clone()))
+            .collect();
+        let pools = settings
+            .pools(
+                &options,
+                |event, call, secrets| owner.hook(event, call, secrets),
+                DIALECT,
+            )
+            .py()?;
+        Ok(pools
+            .into_iter()
+            .map(|(tag, built)| {
+                let state = PoolState::new(built, owner.owner.clone(), DIALECT);
+                (tag, Self::over(state))
+            })
+            .collect())
+    }
+
+    /// The pool's tag, or the `default-N` pgorm named it.
+    fn tag(&self) -> String {
+        self.state.pool.tag().to_string()
+    }
+
+    /// This pool, sharing its connections and its closing, reporting to the
+    /// collector whose seven hooks `hooks` holds in `METRICS_HOOKS`' order —
+    /// `None` for one never to run — each run on this pool's event loop by
+    /// `dispatch`.
+    // [spec:pgorm:req:bindings.metrics]
+    fn instrumented(
+        &self,
+        py: Python<'_>,
+        hooks: Vec<Option<Py<PyAny>>>,
+        dispatch: Py<PyAny>,
+    ) -> PyResult<Self> {
+        self.state.check_owner(py)?;
+        if self.metered.is_some() {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "an InstrumentedPool wraps a pool that is not instrumented",
+            ));
         }
-        .build()?;
+        let hooks: [Option<Py<PyAny>>; pgorm_bindings::Hook::ALL.len()] = hooks
+            .try_into()
+            .map_err(|_| pyo3::exceptions::PyTypeError::new_err("a collector has seven hooks"))?;
+        let metrics = crate::metrics::metrics(
+            self.state.owner.clone_ref(py),
+            dispatch,
+            hooks,
+            self.state.secrets.clone(),
+        );
         Ok(Self {
-            state: Arc::new(PoolState {
-                pool,
-                secrets,
-                owner,
-                acquire_timeout,
-                cancelled: CancellationToken::new(),
-                connections: RegistryMutex::new(Vec::new()),
-                listeners: RegistryMutex::new(Vec::new()),
-            }),
+            state: self.state.clone(),
+            metered: Some(InstrumentedPool::new(self.state.pool.clone(), metrics)),
+            closer: self.closer.clone(),
         })
     }
 
     fn acquire<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.state.check_owner(py)?;
-        self.state.ensure_open()?;
+        self.state.ensure_open().py()?;
         let pool = self.state.clone();
+        let metered = self.metered.clone();
         future_into_py(py, async move {
             Ok(NativeConnection {
-                state: pool.lend().await?,
+                state: pool.lend(metered.as_ref()).await.py()?,
             })
         })
     }
 
     fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.state.check_owner(py)?;
-        let connections = self.state.close_now()?;
+        let closed = self.state.close_now();
         future_into_py(py, async move {
-            for connection in connections {
-                drop(connection.slot.lock().await.take());
-            }
+            closed.released().await;
             Ok(())
         })
     }
 
     fn closed(&self) -> bool {
-        self.state.cancelled.is_cancelled()
+        self.state.closed.is_cancelled()
     }
 
     /// Open a dedicated listening connection with this pool's configuration.
@@ -221,7 +284,7 @@ impl NativePool {
     /// Mark every connection's cached prepared statements stale, as
     /// `DatabasePool::clear_statement_caches` does. Nothing is sent, so a
     /// closed pool or another event loop is no reason to refuse it.
-    // [spec:pgorm:req:bindings.connections+2]
+    // [spec:pgorm:req:bindings.connections+3]
     // [spec:pgorm:req:conn.pool.statement-cache.clear+1]
     fn clear_statement_caches(&self) {
         self.state.pool.clear_statement_caches();
@@ -243,104 +306,6 @@ impl NativePool {
     }
 }
 
-impl Drop for NativePool {
-    fn drop(&mut self) {
-        // Cleanup may run after the Python event loop has stopped.
-        self.state.cancelled.cancel();
-        self.state.pool.close();
-        self.state.close_listeners();
-        if let Ok(registry) = self.state.connections.lock() {
-            for state in registry.iter().filter_map(Weak::upgrade) {
-                state.close_now();
-            }
-        }
-    }
-}
-
-pub(crate) struct ConnectionState {
-    pub(crate) pool: Arc<PoolState>,
-    pub(crate) cancelled: CancellationToken,
-    pub(crate) slot: Arc<Mutex<Option<pgorm::DatabaseConnection>>>,
-}
-
-impl fmt::Debug for ConnectionState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ConnectionState")
-            .field("closed", &self.cancelled.is_cancelled())
-            .finish_non_exhaustive()
-    }
-}
-
-impl ConnectionState {
-    fn close_now(&self) {
-        self.cancelled.cancel();
-        if let Ok(mut slot) = self.slot.try_lock() {
-            drop(slot.take());
-        }
-    }
-
-    pub(crate) fn ensure_open(&self) -> PyResult<()> {
-        self.pool.ensure_open()?;
-        if self.cancelled.is_cancelled() {
-            Err(LifecycleError::new_err("connection is closed"))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-/// Cancellation drops the active connection instead of returning unknown state.
-pub(crate) struct Operation {
-    slot: OwnedMutexGuard<Option<pgorm::DatabaseConnection>>,
-    connection: Option<pgorm::DatabaseConnection>,
-    state: Arc<ConnectionState>,
-}
-
-impl Operation {
-    pub(crate) fn begin(state: Arc<ConnectionState>) -> PyResult<Self> {
-        state.ensure_open()?;
-        let mut slot =
-            state.slot.clone().try_lock_owned().map_err(|_| {
-                LifecycleError::new_err("connection already has an active operation")
-            })?;
-        let connection = slot
-            .take()
-            .ok_or_else(|| LifecycleError::new_err("connection is closed"))?;
-        Ok(Self {
-            slot,
-            connection: Some(connection),
-            state,
-        })
-    }
-
-    pub(crate) fn connection(&self) -> PyResult<&pgorm::DatabaseConnection> {
-        self.connection
-            .as_ref()
-            .ok_or_else(|| InternalError::new_err("operation has no connection"))
-    }
-
-    pub(crate) fn connection_mut(&mut self) -> PyResult<&mut pgorm::DatabaseConnection> {
-        self.connection
-            .as_mut()
-            .ok_or_else(|| InternalError::new_err("operation has no connection"))
-    }
-
-    pub(crate) fn restore(mut self) {
-        if self.state.ensure_open().is_ok() {
-            *self.slot = self.connection.take();
-        }
-    }
-}
-
-impl Drop for Operation {
-    fn drop(&mut self) {
-        if let Some(connection) = self.connection.take() {
-            self.state.cancelled.cancel();
-            connection.discard();
-        }
-    }
-}
-
 #[derive(Debug)]
 #[pyclass(name = "_Connection", module = "pgorm._native", frozen)]
 pub(crate) struct NativeConnection {
@@ -357,12 +322,34 @@ impl NativeConnection {
         isolation: Option<&str>,
     ) -> PyResult<Bound<'py, PyAny>> {
         self.state.pool.check_owner(py)?;
-        self.state.ensure_open()?;
+        self.state.ensure_open().py()?;
         let mode = crate::transactions::mode(mode, isolation)?;
         let state = self.state.clone();
         future_into_py(py, async move {
             Ok(crate::transactions::NativeTransaction {
                 state: crate::transactions::begin(state, mode).await?,
+            })
+        })
+    }
+
+    /// Open a transaction pgorm runs again from `BEGIN`, up to `retries`
+    /// times, while an attempt fails with a serialization failure or a
+    /// deadlock.
+    #[pyo3(signature=(retries, *, mode="default", isolation=None))]
+    fn begin_retrying<'py>(
+        &self,
+        py: Python<'py>,
+        retries: u32,
+        mode: &str,
+        isolation: Option<&str>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.state.pool.check_owner(py)?;
+        self.state.ensure_open().py()?;
+        let mode = crate::transactions::mode(mode, isolation)?;
+        let state = self.state.clone();
+        future_into_py(py, async move {
+            Ok(crate::transactions::NativeRetrying {
+                inner: crate::transactions::begin_retrying(state, mode, retries)?,
             })
         })
     }
@@ -396,19 +383,19 @@ impl NativeConnection {
     }
 
     /// A stream of `query`'s rows, each a `Record`, or what `decoder`, a
-    /// disjoint read's, decodes it as.
+    /// disjoint read's or a registered read's, decodes it as.
     #[pyo3(signature = (query, decoder=None))]
     fn stream<'py>(
         &self,
         py: Python<'py>,
         query: &Bound<'_, PyAny>,
-        decoder: Option<PyRef<'_, crate::disjoint::NativeDisjoint>>,
+        decoder: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         crate::results::open(
             py,
-            self.state.clone(),
+            crate::results::Source::Connection(self.state.clone()),
             query,
-            decoder.map(|decoder| decoder.row_decode()),
+            crate::results::row_decoder(decoder)?,
         )
     }
 
@@ -430,16 +417,18 @@ impl NativeConnection {
         self.state.pool.check_owner(py)?;
         let state = self.state.clone();
         future_into_py(py, async move {
-            let operation = Operation::begin(state.clone())?;
-            let result = tokio::select! {
-                _ = state.cancelled.cancelled() => return Err(LifecycleError::new_err("connection is closed")),
-                _ = state.pool.cancelled.cancelled() => return Err(LifecycleError::new_err("pool is closed")),
-                result = operation.connection()?.query_one("SELECT TRUE", &[]) => result,
-            };
-            operation.restore();
-            let row = result.map_err(|error| database_error(error, &state.pool.secrets))?;
-            row.try_get::<_, bool>(0)
-                .map_err(|error| database_error(error.into(), &state.pool.secrets))
+            let operation = Operation::begin(state.clone()).py()?;
+            ConnectionState::run(operation, &CancellationToken::new(), async |db| {
+                let row = db
+                    .database()
+                    .query_one("SELECT TRUE", &[])
+                    .await
+                    .map_err(|error| state.pool.failure(&error))?;
+                row.try_get::<_, bool>(0)
+                    .map_err(|error| state.pool.failure(&pgorm::Error::from(error)))
+            })
+            .await
+            .py()
         })
     }
 
@@ -448,13 +437,27 @@ impl NativeConnection {
         self.state.close_now();
         let state = self.state.clone();
         future_into_py(py, async move {
-            drop(state.slot.lock().await.take());
+            state.released().await;
+            Ok(())
+        })
+    }
+
+    /// Close the connection and discard it, as `DatabaseConnection::discard`
+    /// does, so the pool opens a fresh one in its place; an instrumented
+    /// pool's is discarded through the connection it wraps.
+    // [spec:pgorm:req:bindings.connections+3]
+    fn discard<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.state.pool.check_owner(py)?;
+        self.state.discard_now();
+        let state = self.state.clone();
+        future_into_py(py, async move {
+            state.discarded().await;
             Ok(())
         })
     }
 
     fn closed(&self) -> bool {
-        self.state.cancelled.is_cancelled() || self.state.pool.cancelled.is_cancelled()
+        self.state.is_closed()
     }
 
     fn __repr__(&self) -> String {
@@ -469,10 +472,13 @@ impl Drop for NativeConnection {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    // [spec:pgorm:req:bindings.connections+2]    the channel pgorm-migration's runner notifies
+    // [spec:pgorm:req:bindings.connections+3]    the channel pgorm-migration's runner notifies
     module.add("STATEMENT_CACHE_CHANNEL", pgorm::STATEMENT_CACHE_CHANNEL)?;
     module.add_class::<NativePool>()?;
+    module.add_class::<NativePoolShape>()?;
+    module.add_class::<crate::hooks::NativeHookConnection>()?;
     module.add_class::<NativeConnection>()?;
     module.add_class::<crate::transactions::NativeTransaction>()?;
+    module.add_class::<crate::transactions::NativeRetrying>()?;
     Ok(())
 }

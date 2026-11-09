@@ -165,7 +165,7 @@ platforms (
     }
     {
         platform "python-application"
-        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/tests/application-binding/Cargo.toml pgorm-python/tests/application-binding/Cargo.lock)
+        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/tests/application-binding/Cargo.toml pgorm-python/tests/application-binding/Cargo.lock pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-python/tests/application-binding/Cargo.toml --all -- --check"
@@ -178,7 +178,7 @@ platforms (
     }
     {
         platform "python-native"
-        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/checks/unit.py)
+        files (pgorm-python/**/*.rs pgorm-python/Cargo.toml pgorm-python/Cargo.lock pgorm-python/checks/unit.py pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-python/Cargo.toml --all -- --check"
@@ -205,8 +205,20 @@ platforms (
         }
     }
     {
+        // What both bindings do alike lives once, in pgorm-bindings
+        // (bindings.shared-runtime): a block of identical tokens the two
+        // bindings' production sources share past the scan's bound fails.
+        platform "bindings-duplication"
+        files (pgorm-python/src/**/*.rs pgorm-napi/src/**/*.rs pgorm-bindings/tests/duplication.rs)
+        checks {
+            scan {
+                cmd "cargo test -p pgorm-bindings --test duplication"
+            }
+        }
+    }
+    {
         platform "napi-application"
-        files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock pgorm-napi/tests/application-binding/Cargo.toml pgorm-napi/tests/application-binding/Cargo.lock)
+        files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock pgorm-napi/tests/application-binding/Cargo.toml pgorm-napi/tests/application-binding/Cargo.lock pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-napi/tests/application-binding/Cargo.toml --all -- --check"
@@ -232,7 +244,7 @@ platforms (
     }
     {
         platform "napi-native"
-        files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock)
+        files (pgorm-napi/**/*.rs pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock pgorm-bindings/**/*.rs pgorm-bindings/Cargo.toml)
         checks {
             format {
                 cmd "cargo fmt --manifest-path pgorm-napi/Cargo.toml --all -- --check"
@@ -240,6 +252,10 @@ platforms (
             }
             check {
                 cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target"
+            }
+            // The build that targets PostgreSQL 19, whose module reports it.
+            check-pg-19 {
+                cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --features pg-19"
             }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
@@ -256,13 +272,18 @@ platforms (
     }
     {
         platform "napi-types"
-        files (pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/**/*.ts pgorm-napi/guide/*.ts pgorm-napi/scripts/**/*.mjs pgorm-napi/deno.json pgorm-napi/package.json)
+        files (pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/**/*.ts pgorm-napi/guide/*.ts pgorm-napi/scripts/**/*.mjs pgorm-napi/checks/**/*.js pgorm-napi/codegen/**/*.js pgorm-napi/deno.json pgorm-napi/package.json)
         checks {
             // Deno type-checks every module under the package, the
             // declarations, the suite and the guide's examples included,
-            // from the package's own configuration.
+            // from the package's own configuration, whose checkJs holds each
+            // JavaScript module's imports to the exports they name, so an
+            // import that would fail to link fails here (napi.linking). A
+            // check's command runs without a shell: `cd pgorm-napi && deno
+            // check` would run macOS's /usr/bin/cd, which exits 0 without
+            // reaching Deno, so env -C changes the directory instead.
             typing {
-                cmd "cd pgorm-napi && deno check"
+                cmd "env -C pgorm-napi deno check"
             }
         }
     }
@@ -282,7 +303,7 @@ platforms (
     }
     {
         platform "rust"
-        files (src/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs tests/**/*.rs)
+        files (src/**/*.rs pgorm-case-style/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-check/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs pgorm-bindings/**/*.rs tests/**/*.rs)
         checks {
             format {
                 cmd "cargo fmt --all -- --check"
@@ -309,7 +330,7 @@ platforms (
         // manifests are in scope because a feature edge moving is as likely a
         // cause as a source change.
         platform "rust-features"
-        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-macros/Cargo.toml pgorm-macros/src/**/*.rs pgorm-pool/Cargo.toml pgorm-pool/src/**/*.rs pgorm-query/Cargo.toml pgorm-query/src/**/*.rs pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-attr/src/**/*.rs pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive/src/**/*.rs pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-query/pgorm-query-derive-internals/src/**/*.rs pgorm-sql-macro/Cargo.toml pgorm-sql-macro/src/**/*.rs)
+        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-case-style/Cargo.toml pgorm-case-style/src/**/*.rs pgorm-macros/Cargo.toml pgorm-macros/src/**/*.rs pgorm-pool/Cargo.toml pgorm-pool/src/**/*.rs pgorm-query/Cargo.toml pgorm-query/src/**/*.rs pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-attr/src/**/*.rs pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive/src/**/*.rs pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-query/pgorm-query-derive-internals/src/**/*.rs pgorm-sql-check/Cargo.toml pgorm-sql-check/src/**/*.rs pgorm-sql-macro/Cargo.toml pgorm-sql-macro/src/**/*.rs)
         checks {
             minimal {
                 cmd "cargo check -p pgorm --lib --no-default-features"
@@ -331,7 +352,7 @@ platforms (
         // that code cannot rot unseen. The live suite under it needs a 19
         // server and stays out of the gate as nextest does.
         platform "rust-pg-19"
-        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs tests/**/*.rs pgorm-macros/Cargo.toml pgorm-codegen/Cargo.toml pgorm-migration/Cargo.toml pgorm-pool/Cargo.toml pgorm-query/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-sql-macro/Cargo.toml pgorm-test-support/Cargo.toml pgorm-guide-support/Cargo.toml)
+        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-case-style/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-check/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs tests/**/*.rs pgorm-case-style/Cargo.toml pgorm-macros/Cargo.toml pgorm-codegen/Cargo.toml pgorm-migration/Cargo.toml pgorm-pool/Cargo.toml pgorm-query/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-sql-check/Cargo.toml pgorm-sql-macro/Cargo.toml pgorm-test-support/Cargo.toml pgorm-guide-support/Cargo.toml)
         checks {
             check {
                 cmd "cargo check --workspace --all-targets --features pg-19"

@@ -13,7 +13,7 @@ impl ColumnDef {
     /// replaces the first rather than adding one, because PostgreSQL refuses a
     /// column with two `COLLATE` clauses. Every comparison and sort the column
     /// takes part in then uses it unless an expression names another — see
-    /// [`Expr::collate`](crate::Expr::collate).
+    /// [`ExprTrait::collate`](crate::ExprTrait::collate).
     ///
     /// In [`modify_column`](crate::TableAlterStatement::modify_column) the
     /// collation rides on the retype, `ALTER COLUMN "c" TYPE <type> COLLATE

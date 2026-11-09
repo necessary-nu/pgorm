@@ -31,24 +31,27 @@ Database = Pool | Connection | Transaction
 FLAVOR = TypeName("flavor", schema="public")
 FLAVORS = ["chocolate", "vanilla", "lemon", "carrot"]
 
+# The bakery's money: decimal(10, 2), as the Rust entities' column_type says.
+MONEY = s.DataType("numeric", precision=10, scale=2)
+
 Bakery = Model("bakery", {
-    "id": Column("i32", primary_key=True, default=True),
-    "name": Column("text"),
-    "city": Column("text"),
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "name": Column("text", column_type="varchar"),
+    "city": Column("text", column_type="varchar"),
 })
 
 Baker = Model("baker", {
-    "id": Column("i32", primary_key=True, default=True),
-    "name": Column("text"),
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "name": Column("text", column_type="varchar"),
     "hired_on": Column("date"),
     "bakery_id": Column("i32"),
 })
 
 Cake = Model("cake", {
-    "id": Column("i32", primary_key=True, default=True),
-    "name": Column("text"),
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "name": Column("text", column_type="varchar"),
     "flavor": Column(FLAVOR, values=FLAVORS),
-    "price": Column("decimal"),
+    "price": Column("decimal", column_type=MONEY),
     "gluten_free": Column("bool"),
     "bakery_id": Column("i32"),
 })
@@ -59,28 +62,29 @@ CakeBaker = Model("cake_baker", {
 })
 
 Customer = Model("customer", {
-    "id": Column("i32", primary_key=True, default=True),
-    "name": Column("text"),
-    "email": Column("text"),
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "name": Column("text", column_type="varchar"),
+    "email": Column("text", column_type="varchar"),
     "notes": Column("text", nullable=True),
 }, unique_keys=[{"fields": ("email",)}])
 
 Order = Model("order", {
-    "id": Column("i32", primary_key=True, default=True),
+    "id": Column("i32", primary_key=True, auto_increment=True),
     "customer_id": Column("i32"),
     "bakery_id": Column("i32"),
     "placed_at": Column("datetime_utc"),
 })
 
 OrderLine = Model("order_line", {
-    "id": Column("i32", primary_key=True, default=True),
+    "id": Column("i32", primary_key=True, auto_increment=True),
     "order_id": Column("i32"),
     "cake_id": Column("i32"),
     "quantity": Column("i32"),
-    "price": Column("decimal"),
+    "price": Column("decimal", column_type=MONEY),
 })
 
-# Each relation is named for where it starts and what it reaches.
+# Each relation is named for where it starts and what it reaches. A
+# belongs_to relation is a foreign key of the table it starts at.
 bakery_bakers = Bakery.has_many(Baker, from_="id", to="bakery_id")
 bakery_cakes = Bakery.has_many(Cake, from_="id", to="bakery_id")
 bakery_orders = Bakery.has_many(Order, from_="id", to="bakery_id")
@@ -88,64 +92,38 @@ baker_bakery = Baker.belongs_to(Bakery, from_="bakery_id", to="id")
 cake_bakery = Cake.belongs_to(Bakery, from_="bakery_id", to="id")
 cake_order_lines = Cake.has_many(OrderLine, from_="id", to="cake_id")
 cake_bakers = Cake.has_many(CakeBaker, from_="id", to="cake_id")
-cake_baker_cake = CakeBaker.belongs_to(Cake, from_="cake_id", to="id")
-cake_baker_baker = CakeBaker.belongs_to(Baker, from_="baker_id", to="id")
+cake_baker_cake = CakeBaker.belongs_to(Cake, from_="cake_id", to="id", on_delete="cascade")
+cake_baker_baker = CakeBaker.belongs_to(Baker, from_="baker_id", to="id", on_delete="cascade")
+baker_cake_bakers = Baker.has_many(CakeBaker, from_="id", to="baker_id")
 customer_orders = Customer.has_many(Order, from_="id", to="customer_id")
 order_customer = Order.belongs_to(Customer, from_="customer_id", to="id")
 order_bakery = Order.belongs_to(Bakery, from_="bakery_id", to="id")
 order_lines = Order.has_many(OrderLine, from_="id", to="order_id")
-order_line_order = OrderLine.belongs_to(Order, from_="order_id", to="id")
+order_line_order = OrderLine.belongs_to(Order, from_="order_id", to="id", on_delete="cascade")
 order_line_cake = OrderLine.belongs_to(Cake, from_="cake_id", to="id")
 
+# A cake's bakers through the cake_baker junction, the path the Rust cake's
+# Related<baker::Entity> declares.
+cake_related_bakers = Cake.related(cake_baker_baker, via=cake_bakers)
 
-def _key(name: str) -> s.ColumnDef:
-    return s.ColumnDef(name, "integer").not_null()
-
-
-def _id() -> s.ColumnDef:
-    return s.ColumnDef("id", "integer").not_null().auto_increment()
-
-
-def _text(name: str) -> s.ColumnDef:
-    return s.ColumnDef(name, "varchar").not_null()
-
-
-def _money(name: str) -> s.ColumnDef:
-    return s.ColumnDef(name, s.DataType("numeric", precision=10, scale=2)).not_null()
+# Each model with the belongs_to relations whose foreign keys its table holds,
+# in the order the tables are created: a table before those that point at it.
+TABLES = [
+    (Bakery, []),
+    (Baker, [baker_bakery]),
+    (Cake, [cake_bakery]),
+    (CakeBaker, [cake_baker_cake, cake_baker_baker]),
+    (Customer, []),
+    (Order, [order_customer, order_bakery]),
+    (OrderLine, [order_line_order, order_line_cake]),
+]
 
 
 def statements() -> list[s.DDL]:
-    """The enum type and the tables, in the order they are created."""
-    return [
-        s.create_type("flavor").as_enum().values(FLAVORS),
-        s.create_table("bakery").column(_id()).column(_text("name")).column(_text("city"))
-        .primary_key("id"),
-        s.create_table("baker").column(_id()).column(_text("name"))
-        .column(s.ColumnDef("hired_on", "date").not_null()).column(_key("bakery_id"))
-        .primary_key("id")
-        .foreign_key("bakery_id", "bakery", "id", name="fk-baker-bakery_id"),
-        s.create_table("cake").column(_id()).column(_text("name"))
-        .column(s.ColumnDef("flavor", TypeName("flavor")).not_null()).column(_money("price"))
-        .column(s.ColumnDef("gluten_free", "boolean").not_null()).column(_key("bakery_id"))
-        .primary_key("id")
-        .foreign_key("bakery_id", "bakery", "id", name="fk-cake-bakery_id"),
-        s.create_table("cake_baker").column(_key("cake_id")).column(_key("baker_id"))
-        .primary_key(["cake_id", "baker_id"], name="pk-cake_baker")
-        .foreign_key("cake_id", "cake", "id", name="fk-cake_baker-cake_id", on_delete="cascade")
-        .foreign_key("baker_id", "baker", "id", name="fk-cake_baker-baker_id", on_delete="cascade"),
-        s.create_table("customer").column(_id()).column(_text("name")).column(_text("email"))
-        .column(s.ColumnDef("notes", "text")).primary_key("id").unique("email"),
-        s.create_table("order").column(_id()).column(_key("customer_id"))
-        .column(_key("bakery_id")).column(s.ColumnDef("placed_at", "timestamptz").not_null())
-        .primary_key("id")
-        .foreign_key("customer_id", "customer", "id", name="fk-order-customer_id")
-        .foreign_key("bakery_id", "bakery", "id", name="fk-order-bakery_id"),
-        s.create_table("order_line").column(_id()).column(_key("order_id"))
-        .column(_key("cake_id")).column(s.ColumnDef("quantity", "integer").not_null())
-        .column(_money("price")).primary_key("id")
-        .foreign_key("order_id", "order", "id", name="fk-order_line-order_id", on_delete="cascade")
-        .foreign_key("cake_id", "cake", "id", name="fk-order_line-cake_id"),
-    ]
+    """The enum type and the tables, in the order they are created, each
+    table written from its model."""
+    schemas = [s.from_model(model, relations=relations) for model, relations in TABLES]
+    return [*schemas[2].enums, *(schema.table for schema in schemas)]
 
 
 async def create(db: Database) -> None:

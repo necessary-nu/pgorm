@@ -10,13 +10,13 @@ from pgorm import _native, schema as s
 # The release the native module targets: PostgreSQL 19 when pgorm was built
 # with its pg-19 feature, 18 otherwise. Where the two servers answer a
 # statement differently, a test holds the answer of the release targeted.
-# [spec:pgorm:req:sql.target+1/test]
+# [spec:pgorm:req:sql.target+2/test]
 PG_19 = "pg-19" in p.capabilities()["features"]
 
 
 class SchemaConstruction(unittest.TestCase):
     # [spec:pgorm:req:bindings.schema/test]
-    # [spec:pgorm:req:bindings.schema-api+2/test]
+    # [spec:pgorm:req:bindings.schema-api+3/test]
     def test_capabilities_and_detached_builders(self):
         manifest = p.capabilities()
         self.assertFalse(manifest["schema_policy"]["automatic_ddl"])
@@ -94,7 +94,7 @@ class SchemaConstruction(unittest.TestCase):
             with self.subTest(action=action), self.assertRaises(TypeError):
                 action()
 
-    # [spec:pgorm:req:python.truth-testing+4/test]    every schema builder and pending ALTER
+    # [spec:pgorm:req:python.truth-testing+5/test]    every schema builder and pending ALTER
     # refuses truth testing too
     def test_schema_objects_refuse_truth_testing(self):
         table, query = p.Table("test"), p.select(p.col("id")).from_(p.Table("source"))
@@ -110,6 +110,8 @@ class SchemaConstruction(unittest.TestCase):
             s.alter_sequence("ticket").restart(), s.DisjointGap("bike", table),
             s.DisjointStep((), None), s.DisjointChange(()),
             s.migration_file("m20260101_000001_create_test", [s.create_table(table)]),
+            s.SqlMigration("m20260101_000001_create_test", "CREATE TABLE test (id integer)"),
+            s.Migrations([]), s.MigrationStatus.Pending,
         ]
         for sample in [*samples, s.create_table(table).inspect()]:
             with self.subTest(sample=sample), self.assertRaises(p.ConstructionError):
@@ -117,11 +119,13 @@ class SchemaConstruction(unittest.TestCase):
         # Every class the native schema module defines or the package exports
         # needs a sample above, so a new one fails here until it refuses too.
         # EntitySchema needs a registered entity: registered_schema.py tests it.
+        # A migrator's status row and the protocol a program's migration
+        # satisfies keep Python's truth, as test_truth_testing.py exempts them.
         native = {kind for kind in vars(_native).values()
                   if isinstance(kind, type) and kind.__module__ == "pgorm.schema"}
         exported = {kind for kind in map(vars(s).get, s.__all__) if isinstance(kind, type)}
         unsampled = (native | exported) - {type(sample) for sample in samples}
-        self.assertEqual(unsampled, {s.EntitySchema})
+        self.assertEqual(unsampled, {s.EntitySchema, s.Migration, s.MigrationTrait})
         self.assertIn("__bool__", vars(s.EntitySchema))
 
     # [spec:pgorm:req:bindings.schema-indexes/test]    an access method is any identifier,
@@ -204,7 +208,7 @@ class SchemaDatabase(unittest.IsolatedAsyncioTestCase):
             await connection.execute(s.drop_table(renamed))
             await connection.execute(s.drop_table(renamed, if_exists=True))
 
-    # [spec:pgorm:req:bindings.expressions+3/test]
+    # [spec:pgorm:req:bindings.expressions+4/test]
     async def test_uuidv7_default_keys_rows_in_write_order(self):
         table = p.Table("minted", schema=self.namespace)
         ddl = s.create_table(table).column(s.ColumnDef("id", "uuid").default(p.call("uuidv7"))).primary_key("id")

@@ -4,8 +4,8 @@
 // operand that is not an expression is a value, bound as a parameter; that of
 // an operator PostgreSQL reads a quantifier after may also be `any(..)` or
 // `all(..)`.
-// [spec:pgorm:req:bindings.expressions+3]
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.expressions+4]
+// [spec:pgorm:req:bindings.quantifiers+4]
 
 import { arg, Builder, made } from "./builder.js";
 import { native } from "./operations.js";
@@ -213,6 +213,71 @@ export class Operand extends Builder {
    */
   pathExists(path) {
     return made.expr(native.exprPathExists(arg(this), arg(path)));
+  }
+
+  /**
+   * `->`: the field `key` names, or the array element an integer index does,
+   * as `jsonb`; the key is bound unless it is an expression.
+   * [spec:pgorm:req:bindings.json-operators]
+   *
+   * @param {unknown} key
+   */
+  getJsonField(key) {
+    return made.expr(native.exprJson(arg(this), "getJsonField", arg(key)));
+  }
+
+  /**
+   * `->>`: the field or element as `text`.
+   *
+   * @param {unknown} key
+   */
+  castJsonField(key) {
+    return made.expr(native.exprJson(arg(this), "castJsonField", arg(key)));
+  }
+
+  /**
+   * `#>`: the value at `path`, keys bound as one `text[]`.
+   *
+   * @param {readonly string[]} path
+   */
+  getJsonPath(path) {
+    return made.expr(native.exprJson(arg(this), "getJsonPath", path));
+  }
+
+  /**
+   * `#>>`: the value at `path` as `text`.
+   *
+   * @param {readonly string[]} path
+   */
+  castJsonPath(path) {
+    return made.expr(native.exprJson(arg(this), "castJsonPath", path));
+  }
+
+  /**
+   * `?`: whether `key` is a top-level key, or a string element.
+   *
+   * @param {string} key
+   */
+  hasJsonKey(key) {
+    return made.expr(native.exprJson(arg(this), "hasJsonKey", key));
+  }
+
+  /**
+   * `?|`: whether any of `keys` is a top-level key or a string element.
+   *
+   * @param {readonly string[]} keys
+   */
+  hasAnyJsonKeys(keys) {
+    return made.expr(native.exprJson(arg(this), "hasAnyJsonKeys", keys));
+  }
+
+  /**
+   * `?&`: whether every one of `keys` is.
+   *
+   * @param {readonly string[]} keys
+   */
+  hasAllJsonKeys(keys) {
+    return made.expr(native.exprJson(arg(this), "hasAllJsonKeys", keys));
   }
 
   /** @param {unknown} other */

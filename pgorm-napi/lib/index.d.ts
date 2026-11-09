@@ -11,13 +11,26 @@ import type { Merge } from "./merge.d.ts";
 import type { Delete, Insert, Update } from "./writes.d.ts";
 import type { DDL } from "./schema.d.ts";
 import type { Pipeline } from "./pipeline.d.ts";
-import type { CopyFrom, CopyOutStream, CopyRows, CopyRowStream, CopySource, CopyTo } from "./copy.d.ts";
+import type {
+  CopyColumn,
+  CopyFrom,
+  CopyOutStream,
+  CopyRows,
+  CopyRowSink,
+  CopyRowStream,
+  CopySource,
+  CopyTo,
+} from "./copy.d.ts";
 import type { Listener, ListenerOptions } from "./listen.d.ts";
+import type { Paginator } from "./graphs.d.ts";
+import type { Model } from "./models.d.ts";
 
 export * from "./expressions.d.ts";
 export * from "./json.d.ts";
 export * from "./merge.d.ts";
 export * from "./schema.d.ts";
+export * from "./migrations.d.ts";
+export * from "./codegen.d.ts";
 export * as pipeline from "./pipeline.d.ts";
 export * from "./windows.d.ts";
 export * from "./select.d.ts";
@@ -29,11 +42,12 @@ export * from "./disjoint.d.ts";
 export * from "./one-of.d.ts";
 export * from "./copy.d.ts";
 export * from "./listen.d.ts";
+export * from "./metrics.d.ts";
 
 /** The addon's version, which is the pgorm release it is built from. */
 export declare const version: string;
 
-// [spec:pgorm:req:bindings.connections+2]
+// [spec:pgorm:req:bindings.connections+3]
 /**
  * The channel pgorm-migration's runner notifies once a batch that applied a
  * migration commits: give it as {@link PoolOptions.statementCacheChannel} for
@@ -41,17 +55,52 @@ export declare const version: string;
  */
 export declare const STATEMENT_CACHE_CHANNEL: string;
 
+// [spec:pgorm:req:bindings.postgres-target]
+/**
+ * The PostgreSQL release this build targets: 18, unless the addon was built
+ * with its `pg-19` feature, which forwards pgorm's and makes it 19. It is
+ * Rust's `pgorm_query::POSTGRES_TARGET`.
+ */
+export declare const POSTGRES_TARGET: 18 | 19;
+
 /** The base class of every error pgorm-napi rejects with. */
-export declare class PgormError extends Error {}
+export declare class PgormError extends Error {
+  /**
+   * Whether the transaction this failure ended is worth running again, as
+   * pgorm's `Error::is_retryable` answers: a serialization failure (`40001`)
+   * or a deadlock (`40P01`). Only a `DatabaseError` can be.
+   */
+  get isRetryable(): boolean;
+}
 
 /** The server could not be reached, or the connection to it broke. */
 export declare class ConnectionError extends PgormError {}
 
-/** An argument could not become the value pgorm sends. */
-export declare class ConstructionError extends PgormError {}
+/**
+ * An argument could not become the value pgorm sends. One the driver refused
+ * as it encoded a parameter, pgorm's `BindRefusal`, carries which `$N` it was
+ * and why; any other carries `null` for both.
+ */
+export declare class ConstructionError extends PgormError {
+  constructor(message: string, details?: { parameter?: number; reason?: string | null });
+  /** The one-based `$N` of the parameter the driver refused. */
+  readonly parameter: number | null;
+  /** The codec's refusal of the value. */
+  readonly reason: string | null;
+}
 
-/** A result could not be decoded into the JavaScript value asked for. */
-export declare class DecodeError extends PgormError {}
+/**
+ * A result could not be decoded into the JavaScript value asked for. One the
+ * driver could not read, pgorm's `DecodeRefusal`, carries what it was reading
+ * and why; any other carries `null` for both.
+ */
+export declare class DecodeError extends PgormError {
+  constructor(message: string, details?: { reading?: string; reason?: string | null });
+  /** What the driver was reading, e.g. `"error deserializing column 0"`. */
+  readonly reading: string | null;
+  /** The decoder's refusal of the value. */
+  readonly reason: string | null;
+}
 
 /**
  * pgorm or the binding failed in a way no input should cause, such as a panic
@@ -66,7 +115,7 @@ export declare class InternalError extends PgormError {}
  */
 export declare class LifecycleError extends PgormError {}
 
-/** No connection became free within the pool's `acquireTimeout`. */
+/** No connection came free within the pool's `acquireTimeout`. */
 export declare class TimeoutError extends PgormError {}
 
 /** The diagnostic fields of an error PostgreSQL reported. */
@@ -83,6 +132,8 @@ export interface DatabaseErrorDetails {
   /** The domain whose `CHECK` or `NOT NULL` refused a value. */
   readonly datatype: string | null;
   readonly constraint: string | null;
+  /** Whether pgorm's `Error::is_retryable` says the transaction is worth running again. */
+  readonly isRetryable?: boolean;
 }
 
 /**
@@ -421,27 +472,89 @@ export declare class Value {
   toString(): string;
 }
 
-// [spec:pgorm:req:napi.lifecycle+2]
+// [spec:pgorm:req:napi.lifecycle+3]
 /** How a {@link Pool} connects. Durations are in milliseconds. */
-export interface PoolOptions {
+// [spec:pgorm:req:bindings.tls]
+/**
+ * How a connection uses TLS, named as libpq's `sslmode` names it:
+ * `"verify-full"` verifies the server's certificate chain and host name;
+ * `"verify-ca"` its chain to a `ca` the program gives, whatever host it names;
+ * `"require"` is TLS with no certificate verified; `"prefer"` TLS when the
+ * server offers it and plaintext when it does not, nothing verified; and
+ * `"disable"` plaintext. libpq's `allow` is not offered.
+ */
+export type TlsMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full";
+
+// [spec:pgorm:req:bindings.tls]
+/** How a pool or a listener of its own reaches its server, and over what TLS. */
+export interface ConnectionOptions {
   /**
-   * `"verify-full"`, the default unless the connection string says
-   * `sslmode=disable`, verifies the server's certificate and host name and
-   * never falls back to plaintext; `"disable"` connects in plaintext.
+   * The TLS mode. Without it the connection string's `sslmode` decides:
+   * `disable` is plaintext, and `prefer`, `require` or none is
+   * `"verify-full"`, which never falls back to plaintext. A mode that verifies
+   * less is only ever this option's.
    */
-  readonly tls?: "verify-full" | "disable";
-  /** PEM certificates to trust instead of the platform's trust store. */
+  readonly tls?: TlsMode;
+  /** PEM certificates a verifying mode trusts, in place of the platform's trust store; `"verify-ca"` needs it. */
   readonly ca?: string | Uint8Array;
+  /** A PEM client certificate chain, shown to a server that asks for one; given with its {@link key}. */
+  readonly cert?: string | Uint8Array;
+  /** The {@link cert}'s PEM private key: PKCS #8, PKCS #1 or SEC1, unencrypted. */
+  readonly key?: string | Uint8Array;
+  /** How long opening a connection may take, in milliseconds; 10 000 by default. */
+  readonly connectTimeout?: number;
+}
+
+// [spec:pgorm:req:bindings.pool-hooks]
+/**
+ * A pool's hook: called on this thread with the connection it is about, it
+ * may return a promise, which the hook waits for. One that throws or rejects
+ * refuses the connection.
+ */
+export type PoolHook = (connection: HookConnection) => void | Promise<void>;
+
+// [spec:pgorm:req:bindings.connections+3]
+/** What one pool takes of its own: the options Rust's `PoolBuilder` closure sets, and how long acquiring waits. */
+export interface PoolShapeOptions {
   /** Connections the pool keeps at most; 10 by default. */
   readonly maxSize?: number;
-  /** How long opening a connection may take; 10 000 by default. */
-  readonly connectTimeout?: number;
-  /** How long `acquire` waits for a free connection before a {@link TimeoutError}; 30 000 by default. */
+  /**
+   * How long acquiring a connection may take in all, in milliseconds, before a
+   * {@link TimeoutError}; 30 000 by default.
+   */
   readonly acquireTimeout?: number;
+  /** How long acquiring waits for a free connection, in milliseconds; unbounded unless given. */
+  readonly waitTimeout?: number;
+  /** How long opening a new connection may take, in milliseconds; unbounded unless given. */
+  readonly createTimeout?: number;
+  /** How long checking a returned connection may take, in milliseconds; unbounded unless given. */
+  readonly recycleTimeout?: number;
+  /** Lend the idle connection returned first (`"fifo"`, the default) or last (`"lifo"`). */
+  readonly queueMode?: "fifo" | "lifo";
+  /** Run on each connection as it opens, before the pool lends it. */
+  readonly postCreate?: PoolHook;
+  /** Run on a returned connection before the pool checks it for reuse. */
+  readonly preRecycle?: PoolHook;
+  /** Run on a returned connection once it passed its check, before the pool lends it again. */
+  readonly postRecycle?: PoolHook;
+}
+
+// [spec:pgorm:req:bindings.connections+3]
+/** What every pool built from one connection string shares. */
+export interface SharedPoolOptions extends ConnectionOptions {
   /** Prepared statements each connection caches; 0 disables the cache; 128 by default. */
   readonly statementCacheSize?: number;
-  /** How a returned connection is checked before reuse: `"verified"` (the default) or `"fast"`. */
-  readonly recycle?: "verified" | "fast";
+  /**
+   * How a returned connection is checked before reuse: `"verified"` (the
+   * default) runs an empty query, `"fast"` sends nothing, and `"clean"` also
+   * resets the session — Rust's `RecyclingMethod::Clean`.
+   */
+  readonly recycle?: "verified" | "fast" | "clean";
+  /**
+   * SQL of the program's own, run on each returned connection before reuse:
+   * Rust's `RecyclingMethod::Custom`. A `TypeError` beside {@link recycle}.
+   */
+  readonly recycleSql?: string;
   /**
    * A channel of 1 to 63 bytes the pool listens on, through a connection of
    * its own opened by its first acquisition and closed with the pool. Every
@@ -452,6 +565,12 @@ export interface PoolOptions {
    * pgorm-migration's runner notifies.
    */
   readonly statementCacheChannel?: string;
+}
+
+/** How a {@link Pool} is built. */
+export interface PoolOptions extends SharedPoolOptions, PoolShapeOptions {
+  /** The pool's name, which {@link Pool.tag} reports; pgorm names an untagged pool `default-N`. */
+  readonly tag?: string;
 }
 
 /** A snapshot of a pool's capacity and use. */
@@ -497,12 +616,61 @@ export interface TransactionOptions extends OperationOptions {
   readonly isolation?: "readUncommitted" | "readCommitted" | "repeatableRead" | "serializable" | null;
 }
 
+/** How a retrying transaction opens, and how many times it runs again. */
+export interface RetryOptions extends TransactionOptions {
+  /** How many more times the transaction may run after its first attempt. */
+  readonly retries: number;
+}
+
 // [spec:pgorm:req:bindings.statements]
 /**
  * A statement a builder made, which a terminal runs as `inspect()` builds it,
  * its values bound.
  */
 export type Statement = Select | Insert | Update | Delete | Merge | DDL | Pipeline;
+
+// [spec:pgorm:req:bindings.sql-check]
+/**
+ * `text`, held to PostgreSQL 18's grammar and returned unchanged, as Rust's
+ * `sql!` holds a literal while its crate compiles; a script is held to it
+ * statement by statement. What the grammar rejects is a
+ * {@link ConstructionError} whose message reprints the line with a caret
+ * under the token the parser stopped at. Call it once, where a module
+ * defines its statements.
+ */
+export declare function sql<T extends string>(text: T): T;
+
+// [spec:pgorm:req:bindings.prql-text]
+/**
+ * `text`, PRQL, compiled to PostgreSQL SQL held to the grammar, with `values`
+ * for its placeholders in order, as Rust's `prql!` expands: one value per
+ * distinct placeholder. The pair runs as SQL text and its array do.
+ */
+export declare function prql(text: string, values?: readonly Param[]): { readonly sql: string; readonly values: readonly Param[] };
+
+// [spec:pgorm:req:bindings.raw-models]
+/**
+ * A raw statement whose rows decode into a declared model's records, as
+ * Rust's `SelectorRaw` decodes them — each field read from the column of its
+ * SQL name and held to its declared kind, other columns left unread — or,
+ * from {@link fromStatement}, are plain rows. pgorm adds nothing to the SQL,
+ * so `one` and `optional` add no `LIMIT`. `paginate` and `count` read the
+ * statement as a subquery, a {@link ConstructionError} unless it is one
+ * row-returning `SELECT`, as Rust's `SelectorRaw::paginate` refuses one.
+ */
+export declare class SelectorRaw<R> {
+  private constructor();
+  inspect(): { readonly sql: string; readonly values: readonly Param[] };
+  all(db: Queryable, options?: OperationOptions): Promise<R[]>;
+  one(db: Queryable, options?: OperationOptions): Promise<R>;
+  optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
+  stream(db: Queryable, options?: OperationOptions): RowStream<R>;
+  paginate(pageSize: number): Paginator<R>;
+  count(db: Queryable, options?: OperationOptions): Promise<number>;
+}
+
+/** SQL text and its parameters as a raw statement of plain rows, which pages and counts. */
+export declare function fromStatement(sql: string, params?: readonly Param[]): SelectorRaw<Row>;
 
 /**
  * What a pool, a connection and a transaction run bound SQL through: SQL text
@@ -546,7 +714,7 @@ export declare abstract class Queryable {
    * own.
    */
   copyOut(statement: CopyTo, options?: OperationOptions): Promise<CopyOutStream>;
-  // [spec:pgorm:req:bindings.copy-rows+1]
+  // [spec:pgorm:req:bindings.copy-rows+2]
   /**
    * Run a binary `COPY … FROM STDIN` whose rows are arrays of values, one for
    * each column the server describes for the statement, in order, and
@@ -558,12 +726,29 @@ export declare abstract class Queryable {
    */
   copyInRows(statement: CopyFrom<"binary">, rows: CopyRows, options?: OperationOptions): Promise<number>;
   /**
+   * With no rows, resolve once the server accepts the COPY with a
+   * {@link CopyRowSink} the program writes a row at a time, which holds the
+   * connection or transaction until it finishes or closes; a pool's holds a
+   * connection of its own. The signal, if any, abandons the COPY whenever it
+   * fires before the COPY finishes.
+   */
+  copyInRows(statement: CopyFrom<"binary">, rows?: undefined, options?: OperationOptions): Promise<CopyRowSink>;
+  /**
+   * The columns a `COPY … FROM STDIN` in any format takes, in order, as the
+   * server describes them, without starting it. A table or column that does
+   * not exist is the server's {@link DatabaseError}, which leaves the
+   * connection or transaction as a failed statement does.
+   */
+  copyInColumns(statement: CopyFrom, options?: OperationOptions): Promise<readonly CopyColumn[]>;
+  /** The columns a `COPY … TO STDOUT` in any format gives, in order, as the server describes them, without starting it. */
+  copyOutColumns(statement: CopyTo, options?: OperationOptions): Promise<readonly CopyColumn[]>;
+  /**
    * Run a binary `COPY … TO STDOUT` and resolve, once the server accepts it,
    * with its rows as a {@link CopyRowStream} of arrays of values, each field
    * decoded by its column's type as a result column of that type is.
    */
   copyOutRows(statement: CopyTo<"binary">, options?: OperationOptions): Promise<CopyRowStream>;
-  // [spec:pgorm:req:bindings.listen+2]
+  // [spec:pgorm:req:bindings.listen+3]
   /**
    * Send `payload` on `channel` through `SELECT pg_notify($1, $2)`, both
    * bound; the channel is exact, as {@link Listener.listen} names it. In a
@@ -573,6 +758,22 @@ export declare abstract class Queryable {
    * `22023`.
    */
   notify(channel: string, payload: string, options?: OperationOptions): Promise<void>;
+  // [spec:pgorm:req:bindings.batch-execute]
+  /**
+   * Run `script`, statements separated by `;` with no parameters, as Rust's
+   * `batch_execute` does: sent as it is through the simple-query protocol,
+   * nothing prepared. It is for DDL and fixed scripts, never for values a
+   * user supplied.
+   */
+  batchExecute(script: string, options?: OperationOptions): Promise<void>;
+  // [spec:pgorm:req:bindings.verify]
+  /**
+   * Check `model` against the result the server describes for `statement`,
+   * without running it, as Rust's `verify` does: every field's column
+   * returned, of a type the field's kind reads, or a {@link DecodeError}
+   * naming the field. The statement's values are neither bound nor checked.
+   */
+  verify(sql: string, model: Model<any>, options?: OperationOptions): Promise<void>;
 }
 
 /**
@@ -585,6 +786,8 @@ export declare abstract class Queryable {
 export declare class Pool extends Queryable implements AsyncDisposable {
   constructor(dsn: string, options?: PoolOptions);
   readonly closed: boolean;
+  /** The pool's {@link PoolOptions.tag}, or the `default-N` pgorm named it. */
+  readonly tag: string;
   status(): PoolStatus;
   /**
    * Drop every connection's cached prepared statements, so each statement is
@@ -599,6 +802,8 @@ export declare class Pool extends Queryable implements AsyncDisposable {
   connection<T>(use: (connection: Connection) => Promise<T>, options?: OperationOptions): Promise<T>;
   /** Run `use` in a transaction on a connection of its own: committed when it resolves, rolled back when it throws. */
   transaction<T>(use: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
+  /** {@link Connection.transactionWithRetry} on a connection of its own. */
+  transactionWithRetry<T>(use: (transaction: Transaction) => Promise<T>, options: RetryOptions): Promise<T>;
   /** The rows of a statement, one per pull, over a connection the stream holds until it ends. */
   stream<O extends QueryOptions = QueryOptions>(statement: Statement, options?: O): RowStream<RowFor<O>>;
   stream<O extends QueryOptions = QueryOptions>(sql: string, params?: readonly Param[], options?: O): RowStream<RowFor<O>>;
@@ -632,6 +837,16 @@ export declare class Connection extends Queryable implements AsyncDisposable {
    * ROLLBACK failed; a failed commit or ROLLBACK discards the connection.
    */
   transaction<T>(use: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
+  // [spec:pgorm:req:bindings.transaction-retry]
+  /**
+   * Run `use` in a transaction, and again from `BEGIN`, up to `retries` more
+   * times, while it fails with a serialization failure or a deadlock, as
+   * Rust's `transaction_with_retry` does: `use` rejecting with an error whose
+   * {@link PgormError.isRetryable} is true, or a `COMMIT` failing so. `use`
+   * receives each attempt's {@link Transaction}, and may run more than once,
+   * so whatever it does outside the database happens again each time.
+   */
+  transactionWithRetry<T>(use: (transaction: Transaction) => Promise<T>, options: RetryOptions): Promise<T>;
   /**
    * The rows of `sql`, one per pull. The stream holds the connection until its
    * last row, which frees it, or until it is closed early, which discards it.
@@ -640,6 +855,68 @@ export declare class Connection extends Queryable implements AsyncDisposable {
   stream<O extends QueryOptions = QueryOptions>(sql: string, params?: readonly Param[], options?: O): RowStream<RowFor<O>>;
   ping(options?: OperationOptions): Promise<boolean>;
   /** Return the connection to its pool, ending a transaction or stream that holds it; resolves once released. */
+  close(): Promise<void>;
+  // [spec:pgorm:req:bindings.connections+3]
+  /**
+   * Close the connection and discard it rather than return it to its pool, as
+   * Rust's `DatabaseConnection::discard` does: for one whose session state the
+   * next borrower should not find. The pool opens a fresh one in its place.
+   */
+  discard(): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>;
+}
+
+// [spec:pgorm:req:bindings.pool-hooks]
+/**
+ * The connection a pool's hook is about, while the hook runs. Its statements
+ * run on that connection, through pgorm's statement cache, as a
+ * {@link Connection}'s do; once the hook has returned they reject with a
+ * {@link LifecycleError}.
+ */
+export declare class HookConnection {
+  private constructor();
+  /** Milliseconds since the connection opened. */
+  readonly age: number;
+  /** How many times the pool has recycled the connection. */
+  readonly recycleCount: number;
+  /** Whether the hook has returned. */
+  readonly closed: boolean;
+  /** Run a statement and resolve with the number of rows it affected. */
+  execute(statement: Statement): Promise<number>;
+  execute(sql: string, params?: readonly Param[]): Promise<number>;
+  /** Every row. */
+  query<O extends { readonly tagged?: boolean } = {}>(statement: Statement, options?: O): Promise<RowFor<O>[]>;
+  query<O extends { readonly tagged?: boolean } = {}>(sql: string, params?: readonly Param[], options?: O): Promise<RowFor<O>[]>;
+  /** Exactly one row; any other count is a {@link DecodeError}. */
+  one<O extends { readonly tagged?: boolean } = {}>(statement: Statement, options?: O): Promise<RowFor<O>>;
+  one<O extends { readonly tagged?: boolean } = {}>(sql: string, params?: readonly Param[], options?: O): Promise<RowFor<O>>;
+  /** At most one row, or `null`; more is a {@link DecodeError}. */
+  optional<O extends { readonly tagged?: boolean } = {}>(statement: Statement, options?: O): Promise<RowFor<O> | null>;
+  optional<O extends { readonly tagged?: boolean } = {}>(
+    sql: string,
+    params?: readonly Param[],
+    options?: O,
+  ): Promise<RowFor<O> | null>;
+}
+
+// [spec:pgorm:req:bindings.multi-pool]
+/**
+ * Several pools against one server, one per property of `pools`, each tagged
+ * with its key and shaped by its options, every one sharing `options`, as
+ * Rust's `connect_multi_with` builds them. Building one sends nothing; which
+ * pool a statement runs on is the program's choice.
+ */
+export declare class MultiPool implements AsyncDisposable {
+  constructor(dsn: string, pools: Readonly<Record<string, PoolShapeOptions>>, options?: SharedPoolOptions);
+  /** Whether every pool is closed. */
+  readonly closed: boolean;
+  /** The pool tagged `tag`, or `null`. */
+  get(tag: string): Pool | null;
+  /** Every pool with its tag, in the tags' order. */
+  entries(): [string, Pool][];
+  /** Each pool's status, by tag. */
+  status(): Record<string, PoolStatus>;
+  /** Close every pool. */
   close(): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
 }
@@ -654,16 +931,28 @@ export declare class Connection extends Queryable implements AsyncDisposable {
 export declare class Transaction extends Queryable {
   private constructor();
   readonly closed: boolean;
-  /** The connection, or for a savepoint the transaction, this one borrows. */
-  readonly parent: Connection | Transaction;
+  /**
+   * The connection, or for a savepoint the transaction, this one borrows;
+   * `null` for the transaction a migration's `up` is lent, which
+   * pgorm-migration's runner opened.
+   */
+  readonly parent: Connection | Transaction | null;
   /**
    * Run `use` in a savepoint, which holds this transaction until `use`
    * settles: released when it resolves, rolled back to when it throws.
    */
   transaction<T>(use: (transaction: Transaction) => Promise<T>, options?: OperationOptions): Promise<T>;
+  // [spec:pgorm:req:bindings.streams+1]
+  /**
+   * The rows of `sql`, one per pull. The stream holds the transaction until
+   * its last row, refusing other work meanwhile; closed before then, it
+   * discards the transaction with its connection.
+   */
+  stream<O extends QueryOptions = QueryOptions>(statement: Statement, options?: O): RowStream<RowFor<O>>;
+  stream<O extends QueryOptions = QueryOptions>(sql: string, params?: readonly Param[], options?: O): RowStream<RowFor<O>>;
 }
 
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 /**
  * A statement's rows as an async iterator, one row per pull. Its connection
  * is released at the last row, by `close()`, or when a `for await` loop leaves

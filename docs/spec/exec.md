@@ -169,6 +169,23 @@ These rules capture what the code does today, including known gaps.
 > None of the three has a `Vec<T>` array impl: `exec.decode.array` does
 > not cover them.
 
+> [spec:pgorm:req:exec.decode.decimal-exact]
+> A `numeric` decoded into a `Decimal` MUST be the value the server sent or a
+> decode error, never a rounded neighbour. rust_decimal's own `FromSql` rounds a
+> value with more than 28 fractional digits and keeps no coefficient past 96
+> bits, so every path that decodes a `Decimal` reads through `ExactDecimal`,
+> which decodes, writes the result back and refuses one that does not compare
+> equal, its scale included: the `TryGetable` for `Decimal` and for
+> `Vec<Decimal>`, and so every read that decodes through `TryGetable` — an
+> entity's model, a partial model, `into_tuple`, `into_values`, the graph's
+> slots and the pipeline's terminals; a `Range<Decimal>`'s and a
+> `Multirange<Decimal>`'s bounds and their arrays (`exec.decode.range`); a range
+> type a schema created over `numeric` (`sql.value.created-range`); a binary
+> COPY's rows (`conn.copy.rows`); and the language bindings' values. A value
+> that fails is the driver's conversion error for its column, `Error::Postgres`
+> carrying `ExactDecimal`'s reason, as a value of another type is. NaN and the
+> infinities, which no `Decimal` holds, are refused the same way.
+
 > [spec:pgorm:sem:exec.decode.u32-oid]
 > `u32` implements `TryGetable` by decoding a `tokio_postgres::types::Oid`,
 > so it reads Postgres `OID` columns, not `INT4`. Likewise `Vec<u32>`
@@ -214,7 +231,7 @@ These rules capture what the code does today, including known gaps.
 > column's field qualifier, carrying the qualifier in the column's
 > definition (`[spec:pgorm:sem:codegen.entity.types]`).
 
-> [spec:pgorm:def:exec.decode.range+4]
+> [spec:pgorm:def:exec.decode.range+5]
 > `Range<T>` and `Multirange<T>` (`[spec:pgorm:def:sql.value.range]`)
 > implement `TryGetable` for each built-in subtype: `i32`, `i64` and
 > `Decimal` unconditionally, and `jiff::civil::Date`,
@@ -232,6 +249,12 @@ These rules capture what the code does today, including known gaps.
 > `InetSql`. Giving pgorm-query `postgres-protocol` instead would
 > change the dependency set every detached workspace locks, for an impl only
 > pgorm calls.
+>
+> The `TryGetable` impls, and `try_get_created_ranges` behind the
+> `CreatedRange` derive's arrays, read each subtype's bounds through the
+> subtype's `BoundSql::Wire`: the subtype itself, except `Decimal`'s, whose
+> bounds read through `ExactDecimal`, so a `numrange` bound no `Decimal`
+> holds fails as a `numeric` column does (`exec.decode.decimal-exact`).
 >
 > `RangeSql<T>` accepts a type whose kind is a range over a type `T`
 > accepts, so it reads a range type a schema created over that subtype as
@@ -305,7 +328,7 @@ These rules capture what the code does today, including known gaps.
 
 ## Statement verification (`exec.verify`)
 
-> [spec:pgorm:def:exec.verify]
+> [spec:pgorm:def:exec.verify+1]
 > `VerifyStatement::verify::<M>(sql)` (`src/executor/verify.rs`) prepares
 > `sql` on the connection and checks the result columns PostgreSQL
 > describes against the columns `M` reports. It is implemented for
@@ -322,7 +345,13 @@ These rules capture what the code does today, including known gaps.
 > — one entry per column the type reads, in read order. An
 > `ExpectedColumn` carries the column `name`, the `rust_type` spelling of
 > the field decoding it, and that type's acceptance function
-> (`exec.verify.accepts`). Every reported name MUST appear among the
+> (`exec.verify.accepts`). A column read through a cast also carries its
+> read cast: `ExpectedColumn::selected_as(&column)` takes it off the entity
+> column's own `select_as` answer, by the probe the graph's writer uses
+> (`query.graph.writer`), and `read_cast()` reports it, `None` for a column
+> read as the server sends it. Verification ignores it — a raw statement
+> states its own casts — and a reader that writes the projection itself
+> applies it (`pipeline.terminal`). Every reported name MUST appear among the
 > statement's result columns, and each matched column's PostgreSQL type
 > MUST satisfy `accepts`. The first failure of either test is returned and
 > the remaining columns are not examined. Names are matched bare — the
@@ -334,6 +363,18 @@ These rules capture what the code does today, including known gaps.
 > does for one with data, which is the point. A statement the server
 > refuses to prepare at all fails as `Error::Postgres` before any column is
 > compared.
+
+> [spec:pgorm:def:exec.verify.describe]
+> `VerifyStatement::describe(sql)` prepares `sql` as `verify` does, through
+> `prepare` and not `prepare_cached`, and gives the result columns the
+> server describes, in order, each a `DescribedColumn` holding its name and
+> its PostgreSQL type, without running the statement. It is the description
+> `verify` checks a target against, offered for a decode target whose
+> columns are known only at run time: a language binding's declared model
+> checks its fields against it with the same test its row decode applies
+> (`bindings.verify`). A statement the server refuses to prepare is its
+> `Error::Postgres`, and a statement returning no rows, such as an `UPDATE`
+> without `RETURNING`, describes no columns.
 
 > [spec:pgorm:sem:exec.verify.accepts+1]
 > `TryGetable::accepts(ty)` answers whether a column of PostgreSQL type
@@ -402,7 +443,7 @@ These rules capture what the code does today, including known gaps.
 
 ## CRUD execution (`exec.crud`)
 
-> [spec:pgorm:def:exec.crud+1]
+> [spec:pgorm:def:exec.crud+2]
 > Statement execution is mediated by selector types: `Selector<S>` holds
 > a `SelectStatement` plus a `SelectorTrait` implementor, and
 > `SelectorRaw<S>` holds a raw SQL string plus `Values`. `SelectorTrait`
@@ -419,30 +460,49 @@ These rules capture what the code does today, including known gaps.
 > `exec.crud.selector-entry`. Executing a `Selector` first builds SQL
 > with the Postgres `QueryBuilder`, then binds each `Value` through the
 > `ValueHolder` `ToSql` adapter (see `exec.cursor.binding`).
+>
+> A `Selector` renders its statement as the builder it came from does: it
+> implements `QueryTrait` (`query.build.query-trait`), so `build`,
+> `as_query` and `into_query` answer the statement a decoded selector will
+> run, and a test or a log reads it without rebuilding the projection by
+> hand. What `build` answers is what `all` and `stream` send; `one` narrows
+> the limit first (`exec.crud.select`).
 
-> [spec:pgorm:sem:exec.crud.selector-entry+2]
+> [spec:pgorm:sem:exec.crud.selector-entry+3]
 > A caller who has built a `SelectStatement` outside the entity builders —
 > a CTE used as the driving table has no entity behind it at all — MUST
 > still be able to name a decode target without collapsing the statement to
-> a string. `Selector` therefore has one constructor per decode shape:
-> `from_select::<M>(SelectStatement)` for a `FromQueryResult` type,
-> `into_tuple::<T>(SelectStatement)` for an ordinal tuple, and
-> `with_columns::<T, C>(SelectStatement)` for a tuple named by an `SqlName`
-> enum. `SelectorRaw` mirrors the last two over `(String, Values)`:
-> `from_statement::<M>`, `into_tuple::<T>` and `with_columns::<T, C>`.
+> a string. `Selector` therefore has one constructor per decode shape, each
+> on the impl of the selector type it builds:
+> `Selector::<SelectModel<M>>::from_select(SelectStatement)` for a
+> `FromQueryResult` type, `Selector::<SelectGetableTuple<T>>::into_tuple`
+> for an ordinal tuple, and `Selector::<SelectGetableValue<T, C>>::with_columns`
+> for a tuple named by an `SqlName` enum. `SelectorRaw` mirrors the three over
+> a raw statement: `from_statement`, `into_tuple` and `with_columns` on
+> `SelectorRaw<SelectModel<M>>`, `SelectorRaw<SelectGetableTuple<T>>` and
+> `SelectorRaw<SelectGetableValue<T, C>>`. Because the impl is the selector
+> type, a call names its target once, as that type, and no type parameter it
+> names goes unused.
 >
-> Those constructors name the row type twice — `Selector<S>`'s `S` is not
-> constrained by the call, so the target appears once to pick the selector
-> type and once as the constructor's own parameter, before the statement is
-> mentioned at all. The statement-first spelling is therefore the trait pair
-> `DecodeSelect` and `DecodeRaw`, whose `into_model::<M>`, `into_tuple::<T>`
-> and `into_values::<T, C>` name it once and read in the order the rest of
-> the builder does. `DecodeSelect` is implemented for `SelectStatement`;
-> `DecodeRaw` for `(S, Values)` where `S: Into<String>`, which is what
-> `SelectStatement::build`, `Pipeline::into_sql` and the `prql!` macro all
-> hand back, so a compiled query flows into a decode without being taken
-> apart first. They delegate to the constructors and add no behaviour of
-> their own; both spellings remain, and both are in `entity::prelude`.
+> Every raw entry point takes the statement in one shape, the one
+> `ConnectionTrait` takes its text in (`[spec:pgorm:def:conn.sql-text]`):
+> `sql: &T` where `T: ?Sized + SqlText` — a `&str` or a `&String` — and the
+> statement's `Values`. That is the three `SelectorRaw` constructors,
+> `Select::from_raw_sql`, `FromQueryResult::find_by_statement` and
+> `TryGetableMany::find_by_statement`; each copies the text into the selector
+> it returns, which owns it.
+>
+> The statement-first spelling is the trait pair `DecodeSelect` and
+> `DecodeRaw`, whose `into_model::<M>`, `into_tuple::<T>` and
+> `into_values::<T, C>` take the statement as their receiver and name the
+> target after it, in the order the rest of the builder reads.
+> `DecodeSelect` is implemented for `SelectStatement`; `DecodeRaw` for
+> `(S, Values)` where `S` dereferences to `SqlText` — a `&'static str`, a
+> `String`, or a reference to one — which is what `SelectStatement::build`,
+> `Pipeline::into_sql` and the `prql!` macro all hand back, so a compiled
+> query flows into a decode without being taken apart first. They delegate
+> to the constructors and add no behaviour of their own; both spellings
+> remain, and both are in `entity::prelude`.
 >
 > The `Selector` constructors yield an ordinary `Selector`, so what they
 > build is not a lesser statement: `one` still injects `LIMIT 1`

@@ -25,7 +25,7 @@ pub(crate) fn subquery(value: &Bound<'_, PyAny>) -> PyResult<Option<SelectStatem
 /// one array value through Rust's `Expr::array`, which can be cast and
 /// compared as a value where a subquery's rows cannot. The subquery is read
 /// as any embedded one is, so it is checked as `embedded` checks it.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pyfunction(name = "array")]
 pub(crate) fn subquery_array(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
     Ok(PyExpr::from_rust(Expr::array(select.embedded()?)))
@@ -33,7 +33,7 @@ pub(crate) fn subquery_array(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
 
 /// `exists(select)`: `EXISTS (select)` through Rust's `Expr::exists`,
 /// whether the subquery yields a row.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pyfunction(name = "exists")]
 pub(crate) fn subquery_exists(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
     Ok(PyExpr::from_rust(Expr::exists(select.embedded()?)))
@@ -42,7 +42,7 @@ pub(crate) fn subquery_exists(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
 /// `scalar(select)`: `(select)`, a subquery read as the one value of its one
 /// row, NULL when it yields none. PostgreSQL refuses one of more than one
 /// column (`42601`) and, as it runs, one yielding more than one row (`21000`).
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pyfunction(name = "scalar")]
 pub(crate) fn subquery_scalar(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
     let select = SubQueryStatement::SelectStatement(select.embedded()?);
@@ -54,7 +54,7 @@ pub(crate) fn subquery_scalar(select: PyRef<'_, PySelect>) -> PyResult<PyExpr> {
 
 /// `ANY (..)` or `ALL (..)`: the right operand of an operator PostgreSQL
 /// reads one after and nothing else, so it has no SQL of its own to inspect.
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 #[pyclass(name = "Quantified", module = "pgorm", frozen, from_py_object)]
 #[derive(Clone, Debug)]
 pub struct PyQuantified {
@@ -101,7 +101,7 @@ impl PyQuantified {
     /// `ANY` or `ALL` of `source`: a `Select`'s rows, or an array. A list the
     /// array cannot be inferred from is kept, its refusal deferred to a use
     /// no registered column types.
-    // [spec:pgorm:req:bindings.quantifiers+3]
+    // [spec:pgorm:req:bindings.quantifiers+4]
     fn of(
         source: &Bound<'_, PyAny>,
         all: bool,
@@ -128,7 +128,18 @@ impl PyQuantified {
 
 #[pymethods]
 impl PyQuantified {
-    // [spec:pgorm:req:python.truth-testing+4]
+    /// `(all, values)` for a quantifier over a list of values, which a model's
+    /// declared column binds as an array of its own kind; `None` for one over
+    /// a `Select` or an expression.
+    // [spec:pgorm:req:bindings.model-columns+2]
+    #[getter]
+    fn _listed(&self, py: Python<'_>) -> Option<(bool, Py<PyAny>)> {
+        self.listed
+            .as_ref()
+            .map(|listed| (listed.all, listed.values.clone_ref(py)))
+    }
+
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "ANY and ALL cannot be tested as Python booleans",
@@ -143,7 +154,7 @@ impl PyQuantified {
 /// over an array, Rust's `Func::any`, the array bound unless it is an
 /// expression. The operator holds for some element or row; over none it is
 /// false.
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 #[pyfunction(name = "any_")]
 pub(crate) fn quantified_any(source: &Bound<'_, PyAny>) -> PyResult<PyQuantified> {
     PyQuantified::of(source, false, |array| Func::any(array).into(), Expr::any)
@@ -152,7 +163,7 @@ pub(crate) fn quantified_any(source: &Bound<'_, PyAny>) -> PyResult<PyQuantified
 /// `all_(source)`: `ALL (..)` over a `Select`'s rows, Rust's `Expr::all`, or
 /// over an array, Rust's `Func::all`. The operator holds for every element
 /// or row; over none it is true.
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 #[pyfunction(name = "all_")]
 pub(crate) fn quantified_all(source: &Bound<'_, PyAny>) -> PyResult<PyQuantified> {
     PyQuantified::of(source, true, |array| Func::all(array).into(), Expr::all)

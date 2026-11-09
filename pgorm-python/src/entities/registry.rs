@@ -1,78 +1,118 @@
-use std::{
-    any::TypeId,
-    collections::{BTreeMap, HashMap},
-    marker::PhantomData,
-    sync::Arc,
-};
+//! The build-time collection of an application's concrete registrations,
+//! pgorm-bindings' own, refusing as a `ConstructionError`, and the module
+//! functions Python finds them by. A module owns the installed registry;
+//! Python cannot add a generic instantiation, only use the ones compiled in.
 
-use pgorm::{EntityTrait, IntoActiveModel};
+use pgorm::{
+    Disjoint, EntityTrait, GraphItem, GraphRow, IntoActiveModel, OneOf, SelectGraph, SelectorTrait,
+    pipeline::SourceList,
+};
+use pgorm_bindings::entity::{GraphSlots, SourceTypes};
 use pyo3::prelude::*;
 
-use super::{PyEntity, backend::EntityBackend, generic::EntityAdapter, metadata::EntityInfo};
-use crate::{UnsupportedCapabilityError, errors::ConstructionError};
+use super::PyEntity;
+use crate::{UnsupportedCapabilityError, config::DIALECT, errors::Raise};
 
-/// Build-time collection of concrete Rust registrations for one native module.
-/// A module owns the installed registry; Python cannot append generic types.
-#[derive(Debug, Default)]
-pub struct Registry {
-    entries: BTreeMap<String, Arc<dyn EntityBackend>>,
-    types: HashMap<TypeId, String>,
-    pub(crate) graphs: BTreeMap<String, Arc<dyn crate::graphs::backend::Factory>>,
-    pub(crate) sources: BTreeMap<String, Arc<dyn crate::pipeline::selected_backend::Factory>>,
-    pub(crate) disjoints: crate::disjoint::Registered,
-    pub(crate) one_ofs: crate::one_of::Registered,
+/// The concrete Rust entities, graph shapes, source tuples, disjoint enums
+/// and one-of enums one native module carries, which Python reaches by
+/// name.
+#[derive(Debug)]
+pub struct Registry(pub(crate) pgorm_bindings::entity::Registry);
+
+impl Default for Registry {
+    fn default() -> Self {
+        Self(pgorm_bindings::entity::Registry::new(DIALECT))
+    }
 }
 
 impl Registry {
     /// Register the real entity, model, columns and ActiveModel implementation.
     /// Duplicate names or duplicate Rust entity types are rejected atomically.
-    // [spec:pgorm:req:bindings.entities+5]
+    /// Its statements name `E::default()`'s table.
+    // [spec:pgorm:req:bindings.entities+6]
     pub fn entity<E>(&mut self, name: &str) -> PyResult<&mut Self>
     where
         E: EntityTrait + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
-        if self.entries.contains_key(name) || self.types.contains_key(&TypeId::of::<E>()) {
-            return Err(ConstructionError::new_err(
-                "duplicate entity registration name or Rust type",
-            ));
-        }
-        let info = Arc::new(EntityInfo::of::<E>(name)?);
-        self.entries.insert(
-            name.to_owned(),
-            Arc::new(EntityAdapter::<E> {
-                info,
-                entity: PhantomData,
-            }),
-        );
-        self.types.insert(TypeId::of::<E>(), name.to_owned());
+        self.entity_in(name, E::default())
+    }
+
+    /// Register `entity`, an instance of an entity whose names are computed
+    /// at run time, under `name`: every statement of the registration names
+    /// the instance's table, as Rust's `_in` constructors do. A type may be
+    /// registered once for each table its instances name; a name, or a type
+    /// and table already registered, is rejected atomically.
+    // [spec:pgorm:req:bindings.entities+6]
+    pub fn entity_in<E>(&mut self, name: &str, entity: E) -> PyResult<&mut Self>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        self.0.entity_in(name, entity).py()?;
         Ok(self)
     }
 
-    /// The registered entity whose Rust type is `entity`.
-    pub(crate) fn backend_of(&self, entity: TypeId) -> Option<Arc<dyn EntityBackend>> {
-        self.types
-            .get(&entity)
-            .and_then(|name| self.entries.get(name))
-            .cloned()
+    /// Register a concrete SelectGraph shape and its application join factory.
+    /// The factory receives one validated alias for each declared joined slot,
+    /// in tuple order, and must use those aliases in the corresponding joins.
+    /// Register every source entity first. Python can vary aliases and builder
+    /// operations but cannot change this Rust tuple's entity or slot types.
+    // [spec:pgorm:req:bindings.entity-graphs+4]
+    pub fn graph<E, S, Build>(&mut self, name: &str, build: Build) -> PyResult<&mut Self>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        S: GraphSlots<E>,
+        GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
+        GraphItem<E, S>: Send + 'static,
+        Build: Fn(&[String]) -> SelectGraph<E, S> + Send + Sync + 'static,
+    {
+        self.0.graph(name, build).py()?;
+        Ok(self)
+    }
+
+    /// Register a concrete tuple of one to six entity types for select_sources.
+    /// Register each entity first; Python cannot invent Rust source types.
+    // [spec:pgorm:req:bindings.pipeline-sources+3]
+    pub fn sources<T: SourceTypes>(&mut self, name: &str) -> PyResult<&mut Self>
+    where
+        <T::Selection as SourceList>::Row: Send,
+    {
+        self.0.sources::<T>(name).py()?;
+        Ok(self)
+    }
+
+    /// Register the `#[derive(Disjoint)]` enum `D` under `name`, its base and
+    /// each kind's entity registered before it. A name or an enum registered
+    /// twice, an entity not registered, and a declaration `check_disjoint`
+    /// refuses are each a `ConstructionError` raised as it is registered. An
+    /// unkinded enum registers the same way and is read-only: its shape
+    /// refuses every write and its schema.
+    // [spec:pgorm:req:bindings.disjoint+2]
+    // [spec:pgorm:req:bindings.disjoint-unkinded]
+    pub fn disjoint<D: Disjoint + 'static>(&mut self, name: &str) -> PyResult<&mut Self> {
+        self.0.disjoint::<D>(name).py()?;
+        Ok(self)
+    }
+
+    /// Register the `#[derive(OneOf)]` enum `O` under `name`, its entity and
+    /// each target's registered before it. A name or an enum registered
+    /// twice, and an entity not registered, are each a `ConstructionError`
+    /// raised as it is registered.
+    // [spec:pgorm:req:bindings.one-of+1]
+    pub fn one_of<O: OneOf>(&mut self, name: &str) -> PyResult<&mut Self> {
+        self.0.one_of::<O>(name).py()?;
+        Ok(self)
     }
 
     pub(crate) fn describe(&self) -> Vec<serde_json::Value> {
-        self.entries.values().map(|e| e.info().describe()).collect()
-    }
-
-    pub(crate) fn registered<E: EntityTrait + 'static>(&self) -> PyResult<Arc<EntityInfo>> {
-        let entry = self
-            .types
-            .get(&TypeId::of::<E>())
-            .and_then(|name| self.entries.get(name));
-        entry.map(|entry| entry.info().clone()).ok_or_else(|| {
-            ConstructionError::new_err(format!(
-                "register entity {} before its graph or source tuple",
-                std::any::type_name::<E>()
-            ))
-        })
+        self.0
+            .entities()
+            .values()
+            .map(|entity| entity.info().describe(DIALECT))
+            .collect()
     }
 }
 
@@ -80,50 +120,59 @@ impl Registry {
 #[pyclass(name = "_Registry", module = "pgorm._native", frozen)]
 pub(crate) struct NativeRegistry(pub(crate) Registry);
 
-/// The names the module registers of one kind — entities, graph shapes or
-/// source tuples — in order.
+/// The registry `module` installed.
+pub(crate) fn installed<'py>(
+    module: &Bound<'py, PyModule>,
+) -> PyResult<PyRef<'py, NativeRegistry>> {
+    module
+        .getattr("_registry")?
+        .extract::<PyRef<'_, NativeRegistry>>()
+        .map_err(Into::into)
+}
+
+/// The names the module registers of one kind, entities, graph shapes or
+/// source tuples, in order.
 fn names(
     module: &Bound<'_, PyModule>,
-    kind: impl Fn(&Registry) -> Vec<String>,
+    kind: impl Fn(&pgorm_bindings::entity::Registry) -> Vec<String>,
 ) -> PyResult<Vec<String>> {
-    let registry_object = module.getattr("_registry")?;
-    let registry = registry_object.extract::<PyRef<'_, NativeRegistry>>()?;
-    Ok(kind(&registry.0))
+    Ok(kind(&installed(module)?.0.0))
 }
 
 /// `entities()`: the names of the entities this module registers.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 #[pyfunction(pass_module)]
 pub(crate) fn entities(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     names(module, |registry| {
-        registry.entries.keys().cloned().collect()
+        registry.entities().keys().cloned().collect()
     })
 }
 
 /// `graphs()`: the names of the graph shapes this module registers.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 #[pyfunction(pass_module)]
 pub(crate) fn graphs(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
-    names(module, |registry| registry.graphs.keys().cloned().collect())
+    names(module, |registry| {
+        registry.graphs().keys().cloned().collect()
+    })
 }
 
 /// `pipeline.source_tuples()`: the names of the source tuples this module
 /// registers.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 #[pyfunction(pass_module)]
 pub(crate) fn pipeline_source_tuples(module: &Bound<'_, PyModule>) -> PyResult<Vec<String>> {
     names(module, |registry| {
-        registry.sources.keys().cloned().collect()
+        registry.source_tuples().keys().cloned().collect()
     })
 }
 
 #[pyfunction(pass_module)]
 pub(crate) fn entity(module: &Bound<'_, PyModule>, name: &str) -> PyResult<PyEntity> {
-    let registry_object = module.getattr("_registry")?;
-    let registry = registry_object.extract::<PyRef<'_, NativeRegistry>>()?;
-    registry
+    installed(module)?
         .0
-        .entries
+        .0
+        .entities()
         .get(name)
         .cloned()
         .map(|backend| PyEntity { backend })

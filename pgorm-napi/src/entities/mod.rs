@@ -23,15 +23,14 @@ macro_rules! text {
     };
 }
 
-mod adapter;
 mod convert;
-mod graph;
+mod graph_reads;
 mod graphs;
-mod info;
 mod inserts;
+pub(crate) mod reads;
 mod registry;
+mod select_reads;
 mod selected;
-mod sources;
 mod versions;
 
 use std::sync::Arc;
@@ -39,18 +38,19 @@ use std::sync::Arc;
 use neon::{prelude::*, types::Finalize};
 use pgorm::{ActiveValue, pgorm_query::Condition};
 
-use adapter::{Active, Between, Change, Comparison, Members, Read, Select, Write};
-pub(crate) use adapter::{EntityBackend, Model, PipelineColumn};
 use convert::column_array;
-use convert::{ModelHandle, Records, Wrote, entity_failure, names};
+use convert::{ModelHandle, Records, Wrote, names};
 pub(crate) use convert::{column_value, record};
-pub use graph::{GraphBindings, GraphModel, GraphSlots, RegisteredSlot, Source};
-pub(crate) use info::registration_name;
+use pgorm_bindings::entity::{Active, Between, Change, Comparison, Members, Read, Select, Write};
+pub(crate) use pgorm_bindings::entity::{EntityBackend, EntitySchema, Model, PipelineColumn};
+pub use pgorm_bindings::entity::{
+    GraphBindings, GraphSlots, RegisteredSlot, Source, SourceBindings, SourceTypes,
+};
 pub use registry::{RegistrationError, Registry};
-pub use sources::{SourceBindings, SourceModel, SourceTypes};
 
 use crate::{
     codec::Codec,
+    connect::DIALECT,
     connect::job::{JobHandle, Output},
     errors::{Failure, throw},
     rows,
@@ -88,6 +88,9 @@ pub(crate) fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<
     inserts::export(cx)?;
     graphs::export(cx)?;
     selected::export(cx)?;
+    reads::export(cx)?;
+    select_reads::export(cx)?;
+    graph_reads::export(cx)?;
     let registry = cx.boxed(RegistryHandle(Arc::new(registry)));
     cx.export_value("registry", registry)?;
     Ok(())
@@ -117,6 +120,7 @@ const EXPORTS: &[(&str, Export)] = &[
     ("entityActiveName", active_name),
     ("entityActiveGet", active_get),
     ("entityActiveChange", active_change),
+    ("entityActiveChanged", active_changed),
     ("entityActiveJob", active_job),
 ];
 
@@ -194,7 +198,8 @@ fn entity_names(mut cx: FunctionContext) -> JsResult<JsValue> {
     strings(
         &mut cx,
         registry
-            .entities
+            .0
+            .entities()
             .keys()
             .cloned()
             .collect::<Vec<_>>()
@@ -203,11 +208,11 @@ fn entity_names(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `entityGet(registry, name)`: the entity registered as `name`.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 fn entity_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     let registry = held!(cx, RegistryHandle, 0);
     let name = text!(cx, 1);
-    match registry.entities.get(&name) {
+    match registry.0.entities().get(&name) {
         Some(entity) => Ok(cx.boxed(EntityHandle(entity.clone())).upcast()),
         None => throw(
             &mut cx,
@@ -221,11 +226,9 @@ fn entity_get(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `entityDescribe(entity)`: the registration as JSON text.
 fn entity_describe(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
-    let described = entity
-        .info()
-        .describe()
-        .or_else(|failure| throw(&mut cx, failure))?;
-    Ok(cx.string(described.to_string()).upcast())
+    Ok(cx
+        .string(entity.info().describe(DIALECT).to_string())
+        .upcast())
 }
 
 /// `entitySchema(entity)`: `[table, enums, indexes, comments]`, each
@@ -239,16 +242,23 @@ fn entity_schema(mut cx: FunctionContext) -> JsResult<JsValue> {
         Ok(schema) => schema,
         Err(error) => return throw(&mut cx, Failure::Construction(error.to_string())),
     };
+    Ok(schema_parts(&mut cx, schema)?.upcast())
+}
+
+/// `[table, enums, indexes, comments]`, the statements of `schema` as the
+/// nodes JavaScript builders own, which `EntitySchema` reads.
+// [spec:pgorm:req:bindings.schema-from-entity]
+pub(crate) fn schema_parts<'cx>(cx: &mut Cx<'cx>, schema: EntitySchema) -> JsResult<'cx, JsArray> {
     let table = cx.boxed(Node::from(Ddl::CreateTable(schema.table)));
-    let enums = ddl_list(&mut cx, schema.enums.into_iter().map(Ddl::CreateType))?;
-    let indexes = ddl_list(&mut cx, schema.indexes.into_iter().map(Ddl::CreateIndex))?;
-    let comments = ddl_list(&mut cx, schema.comments.into_iter().map(Ddl::Comment))?;
-    let parts = JsArray::new(&mut cx, 4);
-    parts.set(&mut cx, 0, table)?;
-    parts.set(&mut cx, 1, enums)?;
-    parts.set(&mut cx, 2, indexes)?;
-    parts.set(&mut cx, 3, comments)?;
-    Ok(parts.upcast())
+    let enums = ddl_list(cx, schema.enums.into_iter().map(Ddl::CreateType))?;
+    let indexes = ddl_list(cx, schema.indexes.into_iter().map(Ddl::CreateIndex))?;
+    let comments = ddl_list(cx, schema.comments.into_iter().map(Ddl::Comment))?;
+    let parts = JsArray::new(cx, 4);
+    parts.set(cx, 0, table)?;
+    parts.set(cx, 1, enums)?;
+    parts.set(cx, 2, indexes)?;
+    parts.set(cx, 3, comments)?;
+    Ok(parts)
 }
 
 /// DDL statements as an array of the nodes JavaScript builders own.
@@ -307,7 +317,7 @@ fn comparison_at(cx: &mut FunctionContext, index: usize) -> NeonResult<Compariso
 /// through its `ColumnTrait` method — a comparison, `IS [NOT] DISTINCT
 /// FROM` or a range operator — the value converted to the column's declared
 /// kind and written through its `save_as`.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 // [spec:pgorm:req:bindings.column-operators+3]
 fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
@@ -325,7 +335,7 @@ fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `ColumnTrait::compare_any` / `compare_all`, the values read as one array
 /// of the column's declared kind; `null` for a column of no scalar kind,
 /// whose quantifier is compared as written.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 fn entity_quantified(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -391,7 +401,7 @@ fn compared_value(
 /// values read as the column's declared kind, `in_subquery` /
 /// `not_in_subquery` over a subquery's rows — so a column whose domain is over
 /// an enum is a member as the enum, and so is what the subquery projects.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 fn entity_in(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -462,7 +472,7 @@ fn count_at(cx: &mut FunctionContext, index: usize) -> NeonResult<Option<u64>> {
 
 /// `entitySelectChange(select, step, argument)`: the query with one more
 /// step — `where`, `orderBy`, `limit` or `offset` — as `Select<E>` takes it.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 fn select_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let select = held!(cx, SelectHandle, 0);
     let change = step(&mut cx)?;
@@ -493,7 +503,7 @@ fn read_terminal(cx: &mut FunctionContext, index: usize) -> NeonResult<Read> {
     match cx.argument::<JsString>(index)?.value(cx).as_str() {
         "all" => Ok(Read::All),
         "one" => Ok(Read::One),
-        "optional" => Ok(Read::OneOpt),
+        "optional" => Ok(Read::Optional),
         _ => cx.throw_type_error("a read terminal is all, one or optional"),
     }
 }
@@ -516,7 +526,7 @@ fn select_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let models = select
                 .run(db, read)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Records(select.info().clone(), models)) as Output)
         })
     });
@@ -598,9 +608,18 @@ fn active_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(pair.upcast())
 }
 
+/// `entityActiveChanged(active)`: `ActiveModelTrait::is_changed`.
+// [spec:pgorm:req:bindings.entity-active-changes]
+fn active_changed(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let active = held!(cx, ActiveHandle, 0);
+    Ok(cx.boolean(active.is_changed()).upcast())
+}
+
 /// `entityActiveChange(active, step, column, value?)`: a new ActiveModel
-/// with one column `set` to a value, `notSet` or `reset`.
+/// with one column `set` to a value, `setIfNotEquals` it, `notSet` or
+/// `reset`.
 // [spec:pgorm:req:bindings.entity-writes+1]
+// [spec:pgorm:req:bindings.entity-active-changes]
 fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
     let step = text!(cx, 1);
@@ -614,6 +633,11 @@ fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
             let data = cx.argument::<JsValue>(3)?;
             let value = column_value(&mut cx, &info, data)?;
             active.set(&column, value)
+        }
+        "setIfNotEquals" => {
+            let data = cx.argument::<JsValue>(3)?;
+            let value = column_value(&mut cx, &info, data)?;
+            active.set_if_not_equals(&column, value)
         }
         "notSet" => active.not_set(&column),
         "reset" => active.reset(&column),
@@ -641,7 +665,7 @@ fn active_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let written = active
                 .run(db, write)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Wrote(written)) as Output)
         })
     });

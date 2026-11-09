@@ -1,0 +1,48 @@
+[package]
+name = "pgorm-bindings"
+version = "0.2.0"
+authors = []
+edition = "2024"
+rust-version = "1.89"
+description = "What pgorm's Python and JavaScript bindings share beyond pgorm itself: a pool and its TLS built from a binding's options, its hooks' statements served, and its refusals worded in the binding's own spelling"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# pgorm-python and pgorm-napi each depend on this crate by path, from
+# workspaces of their own ([spec:pgorm:req:bindings.optional]), so what both
+# need is written once here and both call it. Nothing here names Python or
+# JavaScript: each binding reads its language's values into these types and
+# raises what comes back as its own errors.
+[dependencies]
+pgorm = { version = "0.2.0", path = ".." }
+pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
+futures-util = "0.3.34"
+# fallible-iterator stays on 0.2: postgres-protocol 0.6.12 hands its array
+# iterators out through 0.2's `FallibleIterator`.
+fallible-iterator = "0.2.0"
+postgres-protocol = "0.6.12"
+serde_json = { version = "1.0.151", features = ["raw_value", "float_roundtrip"] }
+tokio = { version = "1.53", features = ["sync", "time", "rt", "macros"] }
+tokio-util = "0.7.20"
+tokio-postgres.workspace = true
+# TLS through rustls, verifying against the platform's trust store or a CA the
+# caller supplies; PEM is read through rustls' own pki-types.
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8.4"
+tokio-postgres-rustls = "0.14.0"
+
+[dev-dependencies]
+bytes = "1.12.1"
+tokio = { version = "1.53", features = ["macros", "rt"] }
+# The variants of pgorm-query's open enums, behind its hidden tests-cfg
+# feature, which the kind tests walk.
+pgorm-query = { path = "../pgorm-query", default-features = false, features = ["tests-cfg"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

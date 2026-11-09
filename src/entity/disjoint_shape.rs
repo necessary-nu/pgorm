@@ -11,11 +11,13 @@
 use std::{fmt, sync::Arc};
 
 use pgorm_query::{
-    ColumnType, FromItem, GeneratedKind, Name, NamedTable, TableCreateStatement, TableName,
-    TypeName, Value,
+    ColumnType, FromItem, Name, NamedTable, TableCreateStatement, TableName, TypeName, Value,
 };
 
-use super::{ColumnDefault, column_casts::ColumnCasts, compared_enum, key::ComparedPair};
+use super::{
+    ColumnDefault, ShapeKey, column_casts::ColumnCasts, compared_enum, key::ComparedPair, keyable,
+    table_label_of,
+};
 use crate::query::alias_apart;
 use crate::{
     ActiveModelTrait, ActiveValue, ColumnDef, ColumnTrait, Disjoint, EntityTrait, Error, Iterable,
@@ -139,21 +141,11 @@ pub struct DisjointTable {
     pub(crate) body: TableBody,
     /// The unique keys [`DisjointTable::with_unique_key`] gave the table,
     /// which its `CREATE TABLE` writes beside its body's.
-    pub(crate) unique_keys: Vec<DisjointUniqueKey>,
+    pub(crate) unique_keys: Vec<ShapeKey>,
     /// The unique keys a typed table's entity declares, which its body
     /// writes: `EntityName::unique_keys`, none for a table described at run
     /// time.
     pub(crate) declared_keys: &'static [crate::UniqueKey],
-}
-
-/// A unique key of a [`DisjointTable`]: the constraint's name, or `None` for
-/// PostgreSQL to choose one, its columns' names in key order, and whether
-/// nulls are equal under it.
-#[derive(Clone, Debug)]
-pub(crate) struct DisjointUniqueKey {
-    pub(crate) name: Option<String>,
-    pub(crate) columns: Vec<String>,
-    pub(crate) nulls_not_distinct: bool,
 }
 
 impl fmt::Debug for DisjointTable {
@@ -182,7 +174,7 @@ impl DisjointTable {
         columns: Vec<DisjointColumn>,
         key: &[&str],
     ) -> Result<Self, Error> {
-        let label = label_of(&table);
+        let label = table_label_of(&table);
         for (index, column) in columns.iter().enumerate() {
             let name = column.name.to_string();
             if columns[..index].iter().any(|c| c.name.to_string() == name) {
@@ -224,6 +216,17 @@ impl DisjointTable {
         })
     }
 
+    /// The table, a one-column key of which is drawn from the serial family
+    /// as an entity's is when its key's
+    /// [`auto_increment`](crate::PrimaryKeyTrait::auto_increment) is true: a
+    /// base's, which [`DisjointShape::check`] refuses on a kind's table.
+    #[must_use]
+    // [spec:pgorm:req:bindings.schema-from-model]
+    pub fn auto_increment(mut self) -> Self {
+        self.auto_increment = true;
+        self
+    }
+
     /// The table with a unique key over the columns `columns` names, in key
     /// order, named `name` or left for PostgreSQL to name, nulls equal under
     /// it where `nulls_not_distinct` says so: what an entity's
@@ -245,11 +248,6 @@ impl DisjointTable {
         nulls_not_distinct: bool,
     ) -> Result<Self, Error> {
         let label = &self.label;
-        if columns.is_empty() {
-            return Err(Error::Type(format!(
-                "`{label}` declares a unique key with no columns"
-            )));
-        }
         if let Some(name) = name {
             let primary = crate::schema::primary_key_name(&self);
             if self
@@ -263,25 +261,10 @@ impl DisjointTable {
                 )));
             }
         }
-        for (index, name) in columns.iter().enumerate() {
-            let Some((_, column)) = self.column(name) else {
-                return Err(Error::Type(format!(
-                    "`{label}` has no column `{name}` for a unique key"
-                )));
-            };
-            if columns[..index].contains(name) {
-                return Err(Error::Type(format!(
-                    "`{label}`.`{name}` is named twice in one unique key"
-                )));
-            }
-            if let Some(ColumnDefault::Generated(_, GeneratedKind::Virtual)) = column.def.default {
-                return Err(Error::Type(format!(
-                    "`{label}`.`{name}` is a VIRTUAL generated column, which PostgreSQL \
-                     cannot key"
-                )));
-            }
-        }
-        self.unique_keys.push(DisjointUniqueKey {
+        keyable(label, columns, |name| {
+            self.column(name).map(|(_, column)| &column.def)
+        })?;
+        self.unique_keys.push(ShapeKey {
             name: name.map(str::to_owned),
             columns: columns.iter().map(|&column| column.to_owned()).collect(),
             nulls_not_distinct,
@@ -968,14 +951,6 @@ pub(crate) fn no_such_kind<'k>(
         "`{value}` is no kind of the disjoint entity over `{base}`, whose kinds are {}",
         kinds.join(", ")
     ))
-}
-
-/// A table as an error names it, schema-qualified where it is.
-fn label_of(table: &TableName) -> String {
-    match table.schema() {
-        Some(schema) => format!("{}.{}", schema.to_string(), table.table().to_string()),
-        None => table.table().to_string(),
-    }
 }
 
 /// Column types as an error lists them.

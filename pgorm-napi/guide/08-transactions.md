@@ -74,8 +74,8 @@ what it rejects with:
 | Rejects with | What failed |
 | --- | --- |
 | what the callback threw | the callback, and the transaction was rolled back |
-| the failure itself, a [`DatabaseError`](../lib/index.d.ts) or [`ConnectionError`](../lib/index.d.ts) | the transaction itself: its `BEGIN` or its `COMMIT` |
-| a `SuppressedError` | the callback threw, and then the `ROLLBACK` failed: `error` is the rollback's failure and `suppressed` what the callback threw |
+| the failure itself, a [`DatabaseError`](../lib/index.d.ts) or [`ConnectionError`](../lib/index.d.ts) | the transaction itself: its `BEGIN` or its `COMMIT`, the `COMMIT` of a transaction a caught failure aborted among them ([A caught error still aborts](#a-caught-error-still-aborts)) |
+| a `SuppressedError` | the callback threw, and then the `ROLLBACK` failed: `error` is the rollback's failure and `suppressed` what the callback threw; or the `ROLLBACK` of a transaction a caught failure aborted failed, its `suppressed` the `25P02` `DatabaseError` |
 
 Here the second line names a cake that does not exist, so its insert fails,
 and the order written before it is rolled back with it:
@@ -97,8 +97,8 @@ await assert.rejects(
 assert.equal(await Order.find().count(pool), 2);
 ```
 
-A failed `COMMIT` or `ROLLBACK` means that nobody knows how the transaction
-ended, nor what state its connection is in. The binding discards that
+A failed `COMMIT` or `ROLLBACK`, an aborted transaction's apart, means that
+nobody knows how the transaction ended, nor what state its connection is in. The binding discards that
 connection itself, closing it rather than returning it to its pool, so
 nothing else is lent a connection in that state. Rust leaves the choice to the
 program, which gives such a connection back with `discard`; JavaScript has no
@@ -152,6 +152,50 @@ Without the savepoint, the failed insert would have aborted the whole
 transaction: PostgreSQL refuses every later statement in a transaction one
 statement has failed in, until it rolls back.
 
+## A caught error still aborts
+
+Catching a failed statement's error inside the callback does not undo what
+the failure did to the transaction. PostgreSQL has aborted it, and answers its
+`COMMIT` by rolling it back. pgorm asks before it commits, so a callback that
+returns after catching such an error does not resolve `transaction`: it
+rejects with a `DatabaseError` whose `sqlstate` is `25P02`, saying the
+transaction was rolled back, with nothing it wrote kept:
+
+```ts
+import assert from "node:assert/strict";
+import { DatabaseError, ForeignKeyViolationError } from "@necessary/pgorm";
+
+const placedAt = Temporal.Instant.from("2026-11-04T10:00:00Z");
+await assert.rejects(
+  pool.transaction(async (tx) => {
+    await Order.insert({ customerId: 1, bakeryId: 1, placedAt }).execute(tx);
+    try {
+      await Order.insert({ customerId: 99, bakeryId: 1, placedAt }).execute(tx);
+    } catch (error) {
+      // A mistake: the callback carries on.
+      if (!(error instanceof ForeignKeyViolationError)) throw error;
+    }
+  }),
+  (error) =>
+    error instanceof DatabaseError && error.sqlstate === "25P02" &&
+    error.message.startsWith("the transaction was rolled back, not committed"),
+);
+
+// Neither order was written.
+assert.equal(await Order.find().count(pool), 2);
+```
+
+The connection is in a known state, so it goes back to its pool as usual. A
+savepoint whose callback returns after catching an error rejects with the
+same `DatabaseError`, and the savepoint is rolled back to, so the transaction
+around it carries on unless the rejection leaves its callback too. Put the
+statement that may fail in a savepoint of its own, as above, and catch its
+error outside the savepoint's callback.
+
+Rust returns this as `TransactionError::Connection(Error::TransactionAborted)`;
+JavaScript rejects with the `DatabaseError` it carries, its message pgorm's
+account of the rollback rather than the server's.
+
 A savepoint borrows its transaction as a transaction borrows its connection.
 While the savepoint is open, its transaction refuses statements and other
 savepoints with a `LifecycleError`, and the refusal leaves both open:
@@ -185,8 +229,7 @@ in a mode PostgreSQL acts on. `mode` is one of:
 `"serializable"`, and goes only with `"readWrite"` or `"readOnly"`. These are
 Rust's `TransactionMode` and `IsolationLevel`, spelled as strings. A
 savepoint takes neither, so a transaction's own `transaction` has no such
-options, as Rust's `transaction_with` is a method of `DatabaseConnection`
-alone.
+options, as Rust's `transaction_with` is a method of a connection alone.
 
 ```ts
 import assert from "node:assert/strict";
@@ -215,52 +258,50 @@ Under `SERIALIZABLE` and `REPEATABLE READ`, PostgreSQL refuses a transaction
 whose result another concurrent transaction has made inconsistent, with a
 serialization failure (SQLSTATE `40001`), and expects the client to run it
 again. It does the same to one side of a deadlock (`40P01`).
+`transactionWithRetry(fn, options)` on a pool or a connection does that for
+you, through Rust's `transaction_with_retry`: it runs the whole transaction
+again, from `BEGIN`, while it fails with one of those two errors, up to the
+number of `retries` the options give. Its options are `transaction`'s, a
+`mode` and an `isolation`, with `retries` beside them.
 
-**Not available in JavaScript yet:** running a transaction again while it
-fails with one of those two errors, which Rust's `transaction_with_retry`
-does: from `BEGIN`, up to a number of retries the program gives, asking the
-error whether it is worth a retry (`RetryableError`, `Error::is_retryable`).
-
-Until it is, the program writes the loop itself, reading each failure's
-`sqlstate`. The callback may then run more than once, so anything it does
-outside the database happens again on each attempt. Here another connection
-changes the cake's price after the first attempt has read it, and the first
-attempt's update is refused; the second attempt reads the new price and
-succeeds:
+The callback may run more than once, each time on a `Transaction` of its own,
+and anything it does outside the database happens again on each attempt.
+Here another connection changes the cake's price after the first attempt has
+read it, and the first attempt's update is refused; the second attempt reads
+the new price and succeeds:
 
 ```ts
 import assert from "node:assert/strict";
-import { DatabaseError, Decimal } from "@necessary/pgorm";
-
-const retryable = (error: unknown) =>
-  error instanceof DatabaseError && (error.sqlstate === "40001" || error.sqlstate === "40P01");
+import { Decimal } from "@necessary/pgorm";
 
 await using other = await pool.acquire();
 let attempts = 0;
-let doubled: Decimal | undefined;
-for (let retries = 3; doubled === undefined; retries--) {
-  try {
-    doubled = await pool.transaction(async (tx) => {
-      attempts += 1;
-      const fudge = await Cake.findByKey({ id: 1 }).one(tx);
-      if (attempts === 1) {
-        // Someone else's change commits after this transaction read the row.
-        await other.execute("UPDATE cake SET price = price + 1 WHERE id = 1");
-      }
-      const price = new Decimal(String(Number(fudge.price.toString()) * 2));
-      const changed = await Cake.update({ price }).where(Cake.key({ id: 1 })).returning("price").one(tx);
-      return changed.price;
-    }, { mode: "readWrite", isolation: "serializable" });
-  } catch (error) {
-    if (!retryable(error) || retries === 0) throw error;
+const doubled = await pool.transactionWithRetry(async (tx) => {
+  attempts += 1;
+  const fudge = await Cake.findByKey({ id: 1 }).one(tx);
+  if (attempts === 1) {
+    // Someone else's change commits after this transaction read the row.
+    await other.execute("UPDATE cake SET price = price + 1 WHERE id = 1");
   }
-}
+  const price = new Decimal(String(Number(fudge.price.toString()) * 2));
+  const changed = await Cake.update({ price }).where(Cake.key({ id: 1 })).returning("price").one(tx);
+  return changed.price;
+}, { retries: 3, mode: "readWrite", isolation: "serializable" });
 assert.deepEqual([attempts, String(doubled)], [2, "11.00"]);
 ```
 
 `Number(..)` is safe here only because the prices have two places and are
 small; [Values and types](13-values.md) says why a `Decimal` never becomes a
 number by itself.
+
+Which failures are worth a retry is pgorm's to say, as Rust's
+`RetryableError` says it: an error's `isRetryable` is true for a serialization
+failure or a deadlock, and false for every other ([Errors](09-errors.md)). A
+callback that throws anything else, or fails past the last retry, ends the
+transaction as `transaction(fn)` does, rejecting with what it threw. A failed
+`COMMIT` that is retryable runs the callback again too, and an attempt whose
+`ROLLBACK` fails rejects with a `SuppressedError`, as Rust's ends the
+retrying with `RollbackFailed`.
 
 ## An aborted transaction rolls back
 
@@ -315,5 +356,6 @@ Two transactions on one connection cannot run at the same time: a second
 `transaction` on a connection is refused with a `LifecycleError` while the
 first holds it.
 
-Rust's [metrics](21-metrics.md) wrappers report every transaction to a
-collector; that chapter says what JavaScript has in their place.
+A transaction on an [instrumented pool](21-metrics.md), or on a connection
+it lent, reports its begin, its statements, its savepoints and its commit or
+rollback to the pool's collector, whatever its mode.

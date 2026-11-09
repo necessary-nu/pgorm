@@ -25,9 +25,24 @@ name = "pgorm_napi"
 # disables it and exports a module of its own that calls `install`.
 default = ["standalone-module"]
 standalone-module = []
+# Targets PostgreSQL 19 ([spec:pgorm:req:sql.target]), which the module's
+# `POSTGRES_TARGET` then reports; a build without it targets 18.
+pg-19 = ["pgorm/pg-19"]
 
 [dependencies]
-pgorm = { version = "0.2.0", path = ".." }
+# Query fingerprints for the metrics layer ([spec:pgorm:req:bindings.metrics]):
+# libpg_query is linked into every pgorm build, and a fingerprint is parsed
+# only when a hook asks for one.
+pgorm = { version = "0.2.0", path = "..", features = ["metrics-fingerprint"] }
+# The migration runner JavaScript's migrations run through ([spec:pgorm:req:bindings.migrations]).
+pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
+# What pgorm-python needs too: a pool and its TLS built from the binding's
+# options, and its hooks' statements served.
+pgorm-bindings = { version = "0.2.0", path = "../pgorm-bindings" }
+# The reader and the TypeScript writer `modelsFromSql` runs
+# ([spec:pgorm:req:bindings.models-from-sql]), without the Rust writer and
+# the syn, quote and prettyplease it is built with.
+pgorm-codegen = { version = "0.2.0", path = "../pgorm-codegen", default-features = false }
 neon = { version = "1.1.2", default-features = false, features = ["napi-6"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread"] }
 tokio-postgres = "0.7.18"
@@ -43,13 +58,9 @@ postgres-protocol = "0.6.12"
 rust_decimal = "1.43.0"
 serde_json = { version = "1.0.151", features = ["raw_value", "float_roundtrip"] }
 uuid = "1.27.0"
-# Connections: the cancellation pgorm-python's runtime uses, row streams and
-# COPY's sink, and TLS through rustls verifying against the platform's trust
-# store, or a CA the caller supplies.
+# Connections: the cancellation pgorm-python's runtime uses, and row streams
+# and COPY's sink.
 futures-util = { version = "0.3.34", features = ["sink"] }
-rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
-rustls-native-certs = "0.8.4"
-tokio-postgres-rustls = "0.14.0"
 tokio-util = "0.7.20"
 
 # The release addon's profile, which scripts/build.mjs --release and the

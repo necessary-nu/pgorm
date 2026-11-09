@@ -45,8 +45,8 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await self.pool.close()
 
     # [spec:pgorm:req:bindings.runtime/test]
-    # [spec:pgorm:req:python.lifecycle+3/test]
-    # [spec:pgorm:req:bindings.connections+2/test]
+    # [spec:pgorm:req:python.lifecycle+4/test]
+    # [spec:pgorm:req:bindings.connections+3/test]
     async def test_connection_reuse_and_context_cleanup(self):
         self.assertTrue(await self.pool.ping())
         self.assertEqual(self.pool.status().size, 1)
@@ -58,7 +58,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.pool.ping())
         self.assertEqual(self.pool.status().size, 1)
 
-    # [spec:pgorm:req:python.runtime+1/test]
+    # [spec:pgorm:req:python.runtime+2/test]
     async def test_acquisition_does_not_block_asyncio(self):
         async with self.pool.connection():
             waiting = asyncio.create_task(self.pool.acquire())
@@ -73,7 +73,19 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 await waiting
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:bindings.connections+2/test]
+    # [spec:pgorm:req:python.runtime+2/test]
+    # [spec:pgorm:req:bindings.errors+6/test]    a panic in native work is an InternalError, never left pending
+    async def test_native_panic_is_internal_error(self):
+        probe = getattr(pgorm._native, "_probe_panic", None)
+        if probe is None:
+            self.skipTest("the probe exists only in debug builds")
+        with self.assertRaises(pgorm.InternalError) as caught:
+            await asyncio.wait_for(probe(), 5)
+        self.assertIsInstance(caught.exception, pgorm.PgormError)
+        self.assertEqual(str(caught.exception), "pgorm panicked: the probe's deliberate panic")
+        self.assertTrue(await self.pool.ping())
+
+    # [spec:pgorm:req:bindings.connections+3/test]
     async def test_shutdown_releases_checked_out_resources_and_waiters(self):
         connection = await self.pool.acquire()
         waiting = asyncio.create_task(self.pool.acquire())
@@ -90,7 +102,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await self.pool.close()
         await connection.close()
 
-    # [spec:pgorm:req:python.runtime+1/test]
+    # [spec:pgorm:req:python.runtime+2/test]
     async def test_another_event_loop_is_rejected_without_deadlock(self):
         def foreign():
             return asyncio.run(self.pool.ping())
@@ -98,7 +110,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(asyncio.to_thread(foreign), 1)
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:bindings.errors+5/test]
+    # [spec:pgorm:req:bindings.errors+6/test]
     async def test_acquisition_timeout_is_distinct_from_cancellation(self):
         async with self.pool.connection():
             with self.assertRaises(pgorm.TimeoutError):
@@ -106,8 +118,8 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.pool.ping())
         self.assertIs(pgorm.CancelledError, asyncio.CancelledError)
 
-    # [spec:pgorm:req:bindings.errors+5/test]
-    # [spec:pgorm:req:bindings.connections+2/test]    an empty or overlong
+    # [spec:pgorm:req:bindings.errors+6/test]
+    # [spec:pgorm:req:bindings.connections+3/test]    an empty or overlong
     # statement_cache_channel is a ConstructionError, and one of another type a TypeError
     # [spec:pgorm:req:bindings.argument-errors+1/test]
     async def test_bad_configuration_is_an_explicit_construction_error(self):
@@ -138,7 +150,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             pgorm.Pool(f"unknown-key={secret}")
         self.assertNotIn(secret, str(caught.exception))
 
-    # [spec:pgorm:req:bindings.errors+5/test]    a value its parameter's type refuses is a
+    # [spec:pgorm:req:bindings.errors+6/test]    a value its parameter's type refuses is a
     # ConstructionError naming the parameter and carrying pgorm's refusal, as JavaScript reports it
     async def test_bind_refusal_names_parameter_and_reason(self):
         for sql, value, refusal in (
@@ -152,7 +164,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                     await self.pool.one(pgorm.RawSQL(sql, [value]))
                 self.assertEqual(str(refused.exception), f"parameter $1 cannot be bound: {refusal}")
 
-    # [spec:pgorm:req:bindings.errors+5/test]
+    # [spec:pgorm:req:bindings.errors+6/test]
     async def test_sqlstate_and_credential_redaction(self):
         parts = urlsplit(self.dsn)
         password = "deliberately-invalid-private-password"
@@ -170,7 +182,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await pool.close()
 
-    # [spec:pgorm:req:bindings.connections+2/test]
+    # [spec:pgorm:req:bindings.connections+3/test]
     async def test_tls_never_falls_back_to_plaintext(self):
         pool = pgorm.Pool(self.dsn, tls="verify-full")
         try:
@@ -179,7 +191,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await pool.close()
 
-    # [spec:pgorm:req:bindings.connections+2/test]
+    # [spec:pgorm:req:bindings.connections+3/test]
     async def test_platform_store_refuses_an_unknown_ca(self):
         # The test server's certificate is signed by a CA minted for this run,
         # which no platform store holds: without cafile it must be refused.
@@ -193,7 +205,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await pool.close()
 
-    # [spec:pgorm:req:bindings.connections+2/test]
+    # [spec:pgorm:req:bindings.connections+3/test]
     async def test_default_trust_is_the_certificate_store(self):
         # SSL_CERT_FILE replaces the platform's store, so naming the test CA
         # there and passing no cafile shows the default trust is the store's.
@@ -202,7 +214,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         async with pool:
             self.assertTrue(await pool.ping())
 
-    # [spec:pgorm:req:bindings.connections+2/test]
+    # [spec:pgorm:req:bindings.connections+3/test]
     async def test_rootless_store_fails_construction(self):
         with tempfile.TemporaryDirectory(prefix="pgorm-python-empty-store-") as directory:
             empty_file = Path(directory) / "none.pem"
@@ -226,8 +238,8 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 async with pgorm.Pool(self.dsn) as pool:
                     self.assertTrue(await pool.ping())
 
-    # [spec:pgorm:req:bindings.connections+2/test]
-    # [spec:pgorm:req:python.lifecycle+3/test]    the CA as PEM data or as a file
+    # [spec:pgorm:req:bindings.connections+3/test]
+    # [spec:pgorm:req:python.lifecycle+4/test]    the CA as PEM data or as a file
     async def test_verified_tls_accepts_the_configured_ca(self):
         async with pgorm.Pool(self.dsn, tls="verify-full", cafile=os.environ["PGORM_TEST_CA"]) as pool:
             self.assertTrue(await pool.ping())
@@ -237,7 +249,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 async with pgorm.Pool(self.dsn, tls="verify-full", ca=ca) as pool:
                     self.assertTrue(await pool.ping())
 
-    # [spec:pgorm:req:bindings.connections+2/test]
+    # [spec:pgorm:req:bindings.connections+3/test]
     async def test_verified_tls_binds_scram_to_the_certificate(self):
         # channel_binding=require refuses SCRAM unless it is bound to the TLS
         # session (SCRAM-SHA-256-PLUS over the server certificate's
@@ -256,7 +268,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await pool.close()
 
-    # [spec:pgorm:req:bindings.connections+2/test]
+    # [spec:pgorm:req:bindings.connections+3/test]
     async def test_certificate_hostname_is_verified(self):
         parts = urlsplit(self.dsn)
         netloc = f"{parts.username}:{quote(parts.password)}@wrong.test:{parts.port}"
@@ -299,7 +311,7 @@ class ConstraintViolationTests(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(pgorm.RawSQL(f"DROP SCHEMA {self.NAMESPACE} CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.errors+5/test]
+    # [spec:pgorm:req:bindings.errors+6/test]
     async def test_constraint_violations_raise_their_own_class(self):
         ns = self.NAMESPACE
         insert = f"INSERT INTO {ns}.gauge (id, reading, level, parent_id, span) VALUES "
@@ -346,7 +358,7 @@ class ConstraintViolationTests(unittest.IsolatedAsyncioTestCase):
                     } | names,
                 )
 
-    # [spec:pgorm:req:bindings.errors+5/test]
+    # [spec:pgorm:req:bindings.errors+6/test]
     async def test_other_errors_stay_plain_database_errors(self):
         with self.assertRaises(pgorm.DatabaseError) as caught:
             await self.pool.execute(pgorm.RawSQL("SELECT 1 / 0"))

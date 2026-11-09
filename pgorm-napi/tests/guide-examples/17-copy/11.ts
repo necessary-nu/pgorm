@@ -2,17 +2,25 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { copyFrom, DatabaseError, LifecycleError } from "@necessary/pgorm";
+import { ConstructionError, copyFrom, copyTo } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await using db = await pool.acquire();
-  await assert.rejects(db.copyIn(copyFrom("pastry", "text"), new Uint8Array()), DatabaseError);
+  const bakeries = copyFrom("bakery", "binary").columns(["name", "city"]);
+  const columns = await pool.copyInColumns(bakeries);
+  assert.deepEqual(columns.map(({ name, type }) => `${name} ${type.schema}.${type.name}`), [
+    "name pg_catalog.varchar",
+    "city pg_catalog.varchar",
+  ]);
 
-  // The connection is closed now.
-  await assert.rejects(db.one("SELECT 1 AS one"), LifecycleError);
+  const sink = await pool.copyInRows(bakeries);
+  await sink.send(["Daybreak", "Trondheim"]);
 
-  // The pool does not lend it again.
-  const { one } = await pool.one("SELECT 1 AS one");
-  assert.equal(one, 1);
+  // A row of the wrong width is refused, and the sink goes on taking rows.
+  await assert.rejects(sink.send(["Dusk"]), ConstructionError);
+  assert.equal(await sink.finish(), 1);
+
+  const rows = [];
+  for await (const row of await pool.copyOutRows(copyTo("bakery", "binary"))) rows.push(row);
+  assert.deepEqual(rows[2], [3, "Daybreak", "Trondheim"]);
 }

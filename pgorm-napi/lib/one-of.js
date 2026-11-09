@@ -12,7 +12,8 @@
 // [spec:pgorm:req:bindings.one-of+1]
 
 import { TRUSTED } from "./builder.js";
-import { described, modelOf } from "./disjoint.js";
+import { modelOf } from "./disjoint.js";
+import { described } from "./model-shape.js";
 import { ActiveModel, entity } from "./entities.js";
 import { ConstructionError, DecodeError } from "./errors.js";
 import { Expr } from "./expressions.js";

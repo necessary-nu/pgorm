@@ -21,21 +21,23 @@ T = TypeVar("T", default=Record)
 U = TypeVar("U")
 
 
-# [spec:pgorm:req:bindings.streams]
+# [spec:pgorm:req:bindings.streams+1]
 class RowStream(Generic[T]):
     """An async iterator owning an active native query and its connection.
 
     Use ``async with await pool.stream(query) as rows`` when iteration might
     stop early. EOF releases the lease; early close or cancellation discards
-    it. A stream from a Connection reserves that connection until EOF/close.
-    A model's stream yields each row decoded as its query decodes it.
+    it. A stream from a Connection reserves that connection until EOF/close,
+    and one from a Transaction that transaction, which an early close
+    discards with its connection. A model's stream yields each row decoded as
+    its query decodes it.
     """
 
     def __init__(
-        self, native: _native._Stream, connection: "Connection", *, release_connection: bool,
+        self, native: _native._Stream, connection: "Connection | None", *, release_connection: bool,
     ) -> None:
         if not isinstance(native, _native._Stream):
-            raise TypeError("streams must be opened by a pool or connection")
+            raise TypeError("streams must be opened by a pool, a connection or a transaction")
         self._native = native
         self._connection = connection
         self._release_connection = release_connection
@@ -84,20 +86,20 @@ class RowStream(Generic[T]):
         try:
             await pending
         finally:
-            if self._release_connection:
+            if self._release_connection and self._connection is not None:
                 await self._connection.close()
 
     close = aclose
 
     async def __aenter__(self) -> "RowStream[T]":
         if self.closed:
-            raise _native.LifecycleError("stream is closed")
+            raise _native.LifecycleError("the stream is closed")
         return self
 
     async def __aexit__(self, *exc: Any) -> None:
         await self.aclose()
 
-    # [spec:pgorm:req:python.truth-testing+4]
+    # [spec:pgorm:req:python.truth-testing+5]
     def __bool__(self) -> bool:
         raise _native.ConstructionError("result streams cannot be tested as Python booleans")
 

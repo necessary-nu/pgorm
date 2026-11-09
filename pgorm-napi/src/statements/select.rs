@@ -5,12 +5,15 @@
 use neon::prelude::*;
 use pgorm::pgorm_query::{
     Asterisk, FromItem, JoinType, LockBehavior, LockType, OrderedStatement, Query, SelectStatement,
-    UnionType,
+    SimpleExpr, UnionType,
 };
 
 use super::{
     Node,
-    args::{arg, choice, count, list, node, orderings_at, predicate_at, refuse, select_at, this},
+    args::{
+        arg, choice, count, expressions_at, list, node, orderings_at, predicate_at, refuse,
+        select_at, this,
+    },
     grouping, table, with,
 };
 
@@ -26,6 +29,7 @@ pub(super) const EXPORTS: &[(&str, super::Build)] = &[
     ("selectOrderBy", select_order_by),
     ("selectLimit", select_limit),
     ("selectDistinct", select_distinct),
+    ("selectDistinctOn", select_distinct_on),
     ("selectSetOperation", select_set_operation),
     ("selectLock", select_lock),
     ("selectWith", select_with),
@@ -224,6 +228,26 @@ fn select_limit(cx: &mut FunctionContext) -> NeonResult<Node> {
 fn select_distinct(cx: &mut FunctionContext) -> NeonResult<Node> {
     let mut select = receiver(cx)?;
     select.distinct();
+    Ok(Node::Select(select))
+}
+
+/// `selectDistinctOn(select, columns)`: `DISTINCT ON (..)`, the first row of
+/// each run of rows equal on the columns, replacing `distinct()` or an
+/// earlier list. Each is a column, as pgorm-query's `distinct_on` takes one.
+// [spec:pgorm:req:bindings.distinct-on]
+fn select_distinct_on(cx: &mut FunctionContext) -> NeonResult<Node> {
+    let mut select = receiver(cx)?;
+    let mut columns = Vec::new();
+    for item in expressions_at(cx, 1)? {
+        match item {
+            SimpleExpr::Column(column) => columns.push(column),
+            _ => return refuse(cx, "distinctOn takes columns, which an expression is not"),
+        }
+    }
+    if columns.is_empty() {
+        return refuse(cx, "distinctOn names at least one column");
+    }
+    select.distinct_on(columns);
     Ok(Node::Select(select))
 }
 

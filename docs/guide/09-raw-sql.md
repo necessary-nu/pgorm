@@ -176,8 +176,9 @@ why a query pgorm builds selects `CAST("cake"."flavor" AS text)`. SQL you
 write for such a model casts the column the same way, as the last query
 above does.
 
-The same raw statement can start from other places, each taking the SQL as a
-`String`:
+The same pair can start from the type the rows decode into instead, and
+every one of these takes it in the same shape: the SQL as text, a `&str` or a
+`&String` as a connection's own methods take it, and its `Values`:
 
 - [`Select::from_raw_sql`](crate::Select::from_raw_sql), on an entity's
   `find()`, decodes into the entity's `Model`:
@@ -185,7 +186,12 @@ The same raw statement can start from other places, each taking the SQL as a
 - [`FromQueryResult::find_by_statement`](crate::FromQueryResult::find_by_statement)
   decodes into the type it is called on: `Menu::find_by_statement(sql, values)`;
 - the constructors of [`SelectorRaw`](crate::SelectorRaw), the type all of
-  these return.
+  these return, one for each way of decoding a row, each named on the
+  selector it builds:
+  [`SelectorRaw::<SelectModel<M>>::from_statement`](crate::SelectorRaw::from_statement),
+  [`SelectorRaw::<SelectGetableTuple<T>>::into_tuple`](crate::SelectorRaw::into_tuple)
+  and
+  [`SelectorRaw::<SelectGetableValue<T, C>>::with_columns`](crate::SelectorRaw::with_columns).
 
 ```rust
 # use pgorm_guide_support::cake;
@@ -193,7 +199,7 @@ The same raw statement can start from other places, each taking the SQL as a
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_entry_points").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{Values, entity::prelude::*};
+use pgorm::{SelectGetableTuple, SelectorRaw, Values, entity::prelude::*};
 
 #[derive(Debug, PartialEq, FromQueryResult)]
 struct Named {
@@ -203,21 +209,26 @@ struct Named {
 let gluten_free = cake::Entity::find()
     .from_raw_sql(
         "SELECT id, name, flavor::text AS flavor, price, gluten_free, bakery_id
-         FROM cake WHERE gluten_free ORDER BY id"
-            .to_owned(),
+         FROM cake WHERE gluten_free ORDER BY id",
         Values(vec![]),
     )
     .all(&db)
     .await?;
 assert_eq!(gluten_free.len(), 3);
 
-let bakers = Named::find_by_statement(
-    "SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name",
-    vec![1.into()],
+let sql = String::from("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name");
+let bakers = Named::find_by_statement(&sql, Values(vec![1.into()]))
+    .all(&db)
+    .await?;
+assert_eq!(bakers, [Named { name: "Ada".to_owned() }, Named { name: "Bo".to_owned() }]);
+
+let hired: Vec<(String, Date)> = SelectorRaw::<SelectGetableTuple<(String, Date)>>::into_tuple(
+    "SELECT name, hired_on FROM baker ORDER BY hired_on LIMIT 1",
+    Values(vec![]),
 )
 .all(&db)
 .await?;
-assert_eq!(bakers, [Named { name: "Ada".to_owned() }, Named { name: "Bo".to_owned() }]);
+assert_eq!(hired, [("Ada".to_owned(), Date::constant(2019, 3, 1))]);
 # drop(db);
 # scratch.finish().await;
 # Ok(())
@@ -254,6 +265,27 @@ assert!(matches!(
 
 let fixed = "SELECT name, (price * 100)::bigint AS price_in_cents FROM cake WHERE bakery_id = $1";
 db.verify::<PriceList>(fixed).await?;
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+The description `verify` checks against is
+[`describe`](crate::VerifyStatement::describe), for a decode target known
+only when the program runs: each result column's name and PostgreSQL type,
+in order, from a statement prepared and never run.
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_describe").await;
+# let db = scratch.pool.get().await?;
+use pgorm::{VerifyStatement, types::Type};
+
+let columns = db.describe("SELECT name, price FROM cake WHERE id = $1").await?;
+let described: Vec<(&str, &Type)> = columns.iter().map(|column| (column.name(), column.type_())).collect();
+assert_eq!(described, [("name", &Type::VARCHAR), ("price", &Type::NUMERIC)]);
 # drop(db);
 # scratch.finish().await;
 # Ok(())
@@ -329,6 +361,21 @@ refuse. It takes no values: write `$1` placeholders in the SQL and pass the
 values where it runs. A literal holding a `;`-separated script is checked
 whole, for `batch_execute`.
 
+Text a program has only once it runs, such as a statement read from a file,
+is checked the same way at run time by
+[`sql_check::check_sql`](crate::sql_check::check_sql), the code `sql!` runs.
+Its refusal says where the parser stopped:
+
+```rust
+use pgorm::sql_check::check_sql;
+
+assert!(check_sql("SELECT name FROM baker WHERE bakery_id = $1").is_ok());
+
+let refused = check_sql("SELEC name FROM baker WHERE bakery_id = $1").unwrap_err();
+assert_eq!(refused.message(), r#"syntax error at or near "SELEC""#);
+assert_eq!((refused.token(), refused.offset()), (Some("SELEC"), Some(0)));
+```
+
 ## PRQL compiled at compile time
 
 [PRQL](https://prql-lang.org) is a query language that reads as a pipeline
@@ -362,6 +409,43 @@ assert_eq!(names, ["Carrot Cake", "Lemon Drizzle", "Vanilla Sponge"]);
 # }
 ```
 
+PRQL's `append`, `intersect` and `remove` are `UNION ALL`, `INTERSECT ALL`
+and `EXCEPT ALL`: they combine whole rows by position, as [the
+pipeline](crate::guide::pipeline)'s do, so neither relation needs its
+columns listed, and a step after one reads the whole result. Here pgorm's PRQL
+compiler departs from upstream PRQL on purpose, which defines `intersect` and
+`remove` as joins on the columns the two relations share. Sunrise's cakes that
+are not gluten-free:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_prql_remove").await;
+# let db = scratch.pool.get().await?;
+use pgorm::{entity::prelude::*, prql};
+
+let (sql, values) = prql!(
+    "from cake
+     filter bakery_id == 1
+     remove (from cake | filter gluten_free)
+     select {name}"
+);
+assert_eq!(
+    sql,
+    "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 \
+     EXCEPT ALL SELECT * FROM cake WHERE gluten_free) SELECT name FROM table_1"
+);
+let names: Vec<(String,)> = (sql, values).into_tuple().all(&db).await?;
+assert_eq!(names, [("Chocolate Fudge".to_owned(),)]);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+Two relations whose columns PRQL can see and that differ in number are
+refused at compile time, as a pipeline refuses them when it compiles.
+
 `prql!` refuses at compile time PRQL the compiler rejects, SQL the grammar
 rejects, a number of arguments that does not match the placeholders, and
 placeholders numbered with a gap:
@@ -373,4 +457,17 @@ let (sql, values) = pgorm::prql!("from cake | filter price < $1");
 
 Like `sql!`, it does not know the schema. For a query assembled from parts
 at run time, such as a filter a user chose, [the pipeline](crate::guide::pipeline)
-is the same compiler with a builder in front of it.
+is the same compiler with a builder in front of it. PRQL text a program has
+only once it runs compiles through
+[`sql_check::compile_prql`](crate::sql_check::compile_prql), which refuses
+what `prql!` refuses and counts the placeholders the values must match:
+
+```rust
+use pgorm::sql_check::compile_prql;
+
+let compiled = compile_prql("from cake | filter price < $1 | sort name | select {name, price}")?;
+assert_eq!(compiled.sql(), "SELECT name, price FROM cake WHERE price < $1 ORDER BY name");
+assert!(compiled.check_arity(1).is_ok());
+assert!(compiled.check_arity(2).is_err());
+# Ok::<(), pgorm::sql_check::PrqlRejection>(())
+```

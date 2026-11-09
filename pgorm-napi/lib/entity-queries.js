@@ -3,13 +3,15 @@
 // A registered entity's reads: its columns as expressions whose
 // comparisons are the column's own `ColumnTrait` methods, and its
 // `Select<E>` with Rust's terminals.
-// [spec:pgorm:req:bindings.entity-reads+3]
+// [spec:pgorm:req:bindings.entity-reads+4]
 
 import { arg, Handle, TRUSTED } from "./builder.js";
-import { runJob } from "./connections.js";
-import { predicateOf, recordsOf } from "./entities.js";
+import { decodedStream, runJob } from "./runs.js";
+import { predicateOf, recordsOf, rowsOf } from "./entities.js";
+import { EntityCursor, EntityPaginator, EntitySelection, READS, relationOf } from "./entity-reads.js";
 import { Expr, listedValues, OrderBy, Quantified } from "./expressions.js";
 import { native } from "./operations.js";
+import { decodedWith } from "./streams.js";
 
 /** Marks a construction from a registered entity. */
 export const QUERIES = Symbol("pgorm-napi entity query");
@@ -336,11 +338,12 @@ export class EntityQuery {
 
   /**
    * The SQL and values a terminal sends: `one` and `optional` with the
-   * `LIMIT 1` Rust's terminals add.
+   * `LIMIT 1` Rust's terminals add, `count` the paginator's count.
    *
-   * @param {"all" | "one" | "optional"} [terminal]
+   * @param {"all" | "one" | "optional" | "count"} [terminal]
    */
   inspect(terminal = "all") {
+    if (terminal === "count") return this.paginate(1).inspect("count");
     const [sql, values] = native.entitySelectInspect(this.#native, terminal);
     return Object.freeze({ sql, values: Object.freeze(values) });
   }
@@ -383,5 +386,71 @@ export class EntityQuery {
   async optional(db, options) {
     return (await this.#read("optional", db, options))[0] ?? null;
   }
-}
 
+  /**
+   * The relation's far end joined, by `QuerySelect::join`: the rows stay this
+   * entity's records, and the joined table's columns go in conditions and
+   * orderings through its own entity's `col`.
+   *
+   * @param {unknown} relation
+   * @param {{ kind?: "inner" | "left" | "right" | "full" }} [options]
+   */
+  join(relation, { kind = "inner" } = {}) {
+    const [entity, name] = relationOf(relation);
+    return new EntityQuery(native.entitySelectJoin(this.#native, entity, name, kind), this.#entity, QUERIES);
+  }
+
+  /**
+   * The query projected onto `columns`, by `select_only` and `columns`, read
+   * as plain records of those columns rather than as the entity's.
+   *
+   * @param {...string} columns
+   */
+  select(...columns) {
+    return new EntitySelection(this.#native, columns, READS);
+  }
+
+  /**
+   * How many rows the query reads, its limit, offset and ordering aside, by
+   * `PaginatorTrait::count`.
+   *
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async count(db, options) {
+    return (await this.paginate(1).numItemsAndPages(db, options)).items;
+  }
+
+  /**
+   * Pages of `pageSize` rows, by `PaginatorTrait::paginate`.
+   *
+   * @param {number} pageSize
+   */
+  paginate(pageSize) {
+    return new EntityPaginator(native.entitySelectPages(this.#native, pageSize), [this.#entity], READS);
+  }
+
+  /**
+   * A keyset cursor ordered by `columns`, by `Select::cursor_by`; its
+   * ordering replaces the query's.
+   *
+   * @param {...string} columns
+   */
+  cursor(...columns) {
+    return new EntityCursor(native.entitySelectCursor(this.#native, columns), [this.#entity], READS);
+  }
+
+  /**
+   * The records one per pull, decoded as `Select::stream` decodes each row as
+   * it arrives, over a connection the stream holds until it ends.
+   *
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  stream(db, options) {
+    const [statement, decoder] = native.entitySelectStream(this.#native);
+    const entities = [this.#entity];
+    const stream = decodedStream(db, statement, decoder, options, "a registered read");
+    return decodedWith(stream, (_names, pulled) => rowsOf(entities, /** @type {[string[][], ([unknown[], unknown] | null)[][]]} */ (pulled))[0]);
+  }
+}

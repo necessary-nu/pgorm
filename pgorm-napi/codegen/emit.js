@@ -159,13 +159,14 @@ export async function emit(project) {
     throw new CodegenError(`${project} has no native library: build it before emitting`);
   }
   const registrations = await import(pathToFileURL(join(lib, "registrations.js")).href);
-  /** @type {{ entities: { name: string, rust: string, typescript: string }[], graphs: { name: string, typescript: string }[], sources: { name: string, typescript: string }[], disjoints?: { name: string, typescript: string }[] }} */
-  const { entities, graphs, sources, disjoints = [] } = description;
+  /** @type {{ entities: { name: string, rust: string, typescript: string }[], graphs: { name: string, typescript: string }[], sources: { name: string, typescript: string }[], disjoints?: { name: string, typescript: string }[], oneOfs?: { name: string, typescript: string }[] }} */
+  const { entities, graphs, sources, disjoints = [], oneOfs = [] } = description;
   const named = {
     entities: entities.map((entry) => entry.name),
     graphs: graphs.map((entry) => entry.name),
     sources: sources.map((entry) => entry.name),
     disjoints: disjoints.map((entry) => entry.name),
+    oneOfs: oneOfs.map((entry) => entry.name),
   };
   const described = registrations.describeRegistrations(named);
   const fingerprint = registrations.registrationsFingerprint(named);
@@ -204,10 +205,18 @@ export async function emit(project) {
     );
   });
   disjoints.forEach((entry, index) => declarations.push(...disjointTypes(exports, entry, described.disjoints[index])));
+  // [spec:pgorm:req:bindings.codegen-coverage]
+  oneOfs.forEach((entry) => {
+    declarations.push(
+      docComment(`The one-of reference registered as \`${entry.name}\`.`),
+      `export declare const ${entry.typescript}: OneOfEntity;`,
+      "",
+    );
+  });
   const body = declarations.join("\n");
   const used = (/** @type {string[]} */ names) => names.filter((name) => new RegExp(`\\b${name}\\b`).test(body));
   const types = used([
-    "ActiveModel", "Decimal", "DisjointEntity", "Entity", "EntityGraph", "Interval", "JsonValue", "Multirange", "PlainValue",
+    "ActiveModel", "Decimal", "DisjointEntity", "Entity", "EntityGraph", "Interval", "JsonValue", "Multirange", "OneOfEntity", "PlainValue",
     "Range", "UnkindedDisjointEntity", "Uuid",
   ]);
   const imports = [importOf(types, "./index.js", "type ")];
@@ -217,6 +226,7 @@ export async function emit(project) {
     ["entity", entities.length],
     ["graph", graphs.length],
     ["disjointEntity", disjoints.length],
+    ["oneOfEntity", oneOfs.length],
     ["pipeline", sources.length],
   ]).filter(([, count]) => count > 0).map(([factory]) => factory).sort();
   const exported = (/** @type {{ name: string, typescript: string }} */ entry, /** @type {string} */ factory) =>
@@ -234,6 +244,7 @@ export async function emit(project) {
     ...graphs.map((entry) => exported(entry, "graph")),
     ...sources.map((entry) => exported(entry, "pipeline.sources")),
     ...disjoints.map((entry) => exported(entry, "disjointEntity")),
+    ...oneOfs.map((entry) => exported(entry, "oneOfEntity")),
     "",
   ];
   writeFileSync(join(lib, `${module}.d.ts`), `${[HEADER, "", ...imports, "", body.trimEnd()].join("\n")}\n`);

@@ -6,7 +6,7 @@ lives here once rather than in both places. Each entry names the rule that
 makes it a refusal rather than a defect.
 """
 
-# `pipeline.errors+4`: an identifier carrying `"` or NUL, beginning with `$`,
+# `pipeline.errors+5`: an identifier carrying `"` or NUL, beginning with `$`,
 # or equal to `*` is refused at `into_sql`, before prqlc sees it, rather than
 # escaped.
 UNQUOTABLE = (
@@ -20,7 +20,7 @@ UNQUOTABLE = (
 # reaches the server.
 EMPTY_INSERT = "insert requires rows, a select or explicit default_values"
 
-# `bindings.errors+5`: a value tokio-postgres cannot encode while building the
+# `bindings.errors+6`: a value tokio-postgres cannot encode while building the
 # bind message is a ConstructionError naming the parameter by its one-based
 # placeholder, followed by pgorm's refusal of the value.
 UNSERIALIZABLE = "parameter ${} cannot be bound: {}"

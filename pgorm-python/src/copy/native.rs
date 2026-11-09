@@ -3,6 +3,8 @@
 //! pump for a Connection, the scope task for a Transaction — and the handle
 //! talks to that task through bounded channels.
 
+use crate::errors::Raise as _;
+use crate::runtime::Owned as _;
 use std::{
     fmt,
     sync::{
@@ -11,6 +13,7 @@ use std::{
     },
 };
 
+use crate::panics::future_into_py;
 use bytes::{Bytes, BytesMut};
 use pgorm::{CopyRowDecoder, CopyRowEncoder, Error, ValueHolder};
 use pyo3::{
@@ -19,7 +22,6 @@ use pyo3::{
     prelude::*,
     types::{PyByteArray, PyBytes, PyList, PySequence, PyString, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
@@ -30,11 +32,16 @@ use super::{
 use crate::{
     errors::{ConstructionError, DecodeError, InternalError, LifecycleError, database_error},
     execution::Target,
-    results::{Field, value},
-    runtime::{ConnectionState, Operation},
+    results::{Field, PyRecord, value},
+    runtime::{ConnectionState, Held, Operation},
     transactions::{Lease, State},
-    values::PyValue,
+    values::{PyValue, Tag},
 };
+use pgorm::pgorm_query::ArrayType;
+
+/// A hook's connection runs statements only, and `Target::extract` never
+/// gives one: a COPY's target is a connection or a transaction.
+const HOOKS_COPY_NOTHING: &str = "a COPY runs on a Connection or a Transaction";
 
 /// The largest `bytes` a COPY TO pull joins from chunks already received.
 const GATHERED: usize = 64 * 1024;
@@ -79,7 +86,7 @@ fn described(columns: &Columns) -> PyResult<&[pgorm::CopyColumn]> {
     columns
         .get()
         .map(Vec::as_slice)
-        .ok_or_else(|| LifecycleError::new_err("COPY has not started"))
+        .ok_or_else(|| LifecycleError::new_err("the COPY has not started"))
 }
 
 fn lock<T>(mutex: &StdMutex<T>) -> PyResult<MutexGuard<'_, T>> {
@@ -127,14 +134,14 @@ impl Settle {
                     result
                 }
                 Err(_) => {
-                    connection.ensure_open()?;
-                    return Err(LifecycleError::new_err("COPY ended without completing"));
+                    connection.ensure_open().py()?;
+                    return Err(LifecycleError::new_err("the COPY has ended"));
                 }
             },
             Self::Transaction(lease, settled) => {
                 let result = settled
                     .await
-                    .map_err(|_| LifecycleError::new_err("transaction is closed"))?;
+                    .map_err(|_| LifecycleError::new_err("the transaction is closed"))?;
                 lease.complete();
                 result
             }
@@ -156,13 +163,17 @@ async fn pump_in(
 ) {
     let mut opened = Some(opened);
     let outcome = tokio::select! {
-        _ = state.cancelled.cancelled() => return,
-        _ = state.pool.cancelled.cancelled() => return,
+        _ = state.closed.cancelled() => return,
+        _ = state.pool.closed.cancelled() => return,
         outcome = async {
             let Ok(connection) = operation.connection_mut() else {
                 return Outcome::Abandoned;
             };
-            let sink = match open_in(connection, &statement, rows.as_ref()).await {
+            let started = match connection {
+                Held::Plain(connection) => open_in(connection, &statement, rows.as_ref()).await,
+                Held::Metered(connection) => open_in(connection, &statement, rows.as_ref()).await,
+            };
+            let sink = match started {
                 Ok(sink) => sink,
                 Err(unopened) => return unopened.into(),
             };
@@ -207,13 +218,17 @@ async fn pump_out(
 ) {
     let mut opened = Some(opened);
     let outcome = tokio::select! {
-        _ = state.cancelled.cancelled() => return,
-        _ = state.pool.cancelled.cancelled() => return,
+        _ = state.closed.cancelled() => return,
+        _ = state.pool.closed.cancelled() => return,
         outcome = async {
             let Ok(connection) = operation.connection_mut() else {
                 return Outcome::Abandoned;
             };
-            let stream = match open_out(connection, &statement, rows.as_ref()).await {
+            let started = match connection {
+                Held::Plain(connection) => open_out(connection, &statement, rows.as_ref()).await,
+                Held::Metered(connection) => open_out(connection, &statement, rows.as_ref()).await,
+            };
+            let stream = match started {
                 Ok(stream) => stream,
                 Err(unopened) => return unopened.into(),
             };
@@ -259,8 +274,9 @@ pub(crate) fn copy_in<'py>(
     future_into_py(py, async move {
         let (messages, receiver) = mpsc::channel(QUEUED);
         let (connection, settle) = match target {
+            Target::Hook(_) => return Err(PyTypeError::new_err(HOOKS_COPY_NOTHING)),
             Target::Connection(state) => {
-                let operation = Operation::begin(state.clone())?;
+                let operation = Operation::begin(state.clone()).py()?;
                 let (opened, open) = oneshot::channel();
                 let (settled, settle) = oneshot::channel();
                 tokio::spawn(pump_in(
@@ -276,14 +292,19 @@ pub(crate) fn copy_in<'py>(
                     Ok(Ok(())) => (state, Settle::Connection(settle)),
                     Ok(Err(error)) => return Err(database_error(error, &state.pool.secrets)),
                     Err(_) => {
-                        state.ensure_open()?;
-                        return Err(LifecycleError::new_err("COPY ended before it started"));
+                        state.ensure_open().py()?;
+                        return Err(LifecycleError::new_err("the COPY ended before it started"));
                     }
                 }
             }
             Target::Transaction(state) => {
-                let (lease, settle) = state.copy_in(statement, columns.clone(), receiver).await?;
-                (state.connection.clone(), Settle::Transaction(lease, settle))
+                let (lease, settle) =
+                    crate::transactions::copy_in(&state, statement, columns.clone(), receiver)
+                        .await?;
+                (
+                    state.connection().clone(),
+                    Settle::Transaction(lease, settle),
+                )
             }
         };
         Ok(NativeCopyIn {
@@ -315,8 +336,9 @@ pub(crate) fn copy_out<'py>(
     future_into_py(py, async move {
         let (pieces, receiver) = mpsc::channel(QUEUED);
         let (connection, transaction, holder) = match target {
+            Target::Hook(_) => return Err(PyTypeError::new_err(HOOKS_COPY_NOTHING)),
             Target::Connection(state) => {
-                let operation = Operation::begin(state.clone())?;
+                let operation = Operation::begin(state.clone()).py()?;
                 let (opened, open) = oneshot::channel();
                 let stopped = CancellationToken::new();
                 let pump = pump_out(
@@ -336,15 +358,17 @@ pub(crate) fn copy_out<'py>(
                     Ok(Ok(())) => (state, None, Holder::Connection(stopped)),
                     Ok(Err(error)) => return Err(database_error(error, &state.pool.secrets)),
                     Err(_) => {
-                        state.ensure_open()?;
-                        return Err(LifecycleError::new_err("COPY ended before it started"));
+                        state.ensure_open().py()?;
+                        return Err(LifecycleError::new_err("the COPY ended before it started"));
                     }
                 }
             }
             Target::Transaction(state) => {
-                let lease = state.copy_out(statement, columns.clone(), pieces).await?;
+                let lease =
+                    crate::transactions::copy_out(&state, statement, columns.clone(), pieces)
+                        .await?;
                 (
-                    state.connection.clone(),
+                    state.connection().clone(),
                     Some(state.clone()),
                     Holder::Transaction(lease, state),
                 )
@@ -399,16 +423,25 @@ impl RowsIn {
 }
 
 /// The message a refusal of pgorm's carries, without the variant's prefix.
-fn refusal(error: Error) -> String {
+pub(super) fn refusal(error: Error) -> String {
     match error {
         Error::Type(message) => message,
         other => other.to_string(),
     }
 }
 
-/// One COPY row's values, read from a Python sequence as parameters are:
-/// `None` is NULL, anything else a value whose kind is inferred.
-fn row_values(row: &Bound<'_, PyAny>) -> PyResult<Vec<Option<ValueHolder>>> {
+/// One COPY row's values, read from a Python sequence as parameters are —
+/// `None` is NULL, anything else a value whose kind is inferred — except
+/// where its column's kind says more: a json column's value, or a json
+/// array's, is read as JSON whatever it holds, and a value inference cannot
+/// type, an empty list, a list of `None`s, a `Range` or a `Multirange`, as
+/// its column's kind. So a row `copy_out_rows` read writes back. Where
+/// neither reads it, inference's refusal is the one raised.
+// [spec:pgorm:req:bindings.copy-rows.typed]
+pub(super) fn row_values(
+    row: &Bound<'_, PyAny>,
+    columns: &[pgorm::CopyColumn],
+) -> PyResult<Vec<Option<ValueHolder>>> {
     if row.is_instance_of::<PyString>()
         || row.is_instance_of::<PyBytes>()
         || row.is_instance_of::<PyByteArray>()
@@ -424,13 +457,32 @@ fn row_values(row: &Bound<'_, PyAny>) -> PyResult<Vec<Option<ValueHolder>>> {
         .map_err(|_| PyTypeError::new_err("a COPY row is a sequence of its columns' values"))?
         .try_iter()?;
     items
-        .map(|item| {
+        .enumerate()
+        .map(|(at, item)| {
             let item = item?;
             if item.is_none() {
-                Ok(None)
-            } else {
-                PyValue::coerce(&item).map(|value| Some(ValueHolder(value.inner)))
+                return Ok(None);
             }
+            let kind = columns.get(at).and_then(pgorm::CopyColumn::value_kind);
+            let as_column = |(kind, array): &(ArrayType, bool)| match array {
+                true => PyValue::array_of(Tag::Scalar(kind.clone()), &item),
+                false => PyValue::convert(&item, Tag::Scalar(kind.clone())),
+            };
+            // Any JSON value is a json column's, a number or a list
+            // included, which inference would read as numbers and arrays.
+            if let Some(json @ (ArrayType::Json, _)) = &kind {
+                return as_column(json).map(|value| Some(ValueHolder(value.inner)));
+            }
+            let inferred = match PyValue::coerce(&item) {
+                Ok(value) => return Ok(Some(ValueHolder(value.inner))),
+                Err(refused) => refused,
+            };
+            let Some(kind) = &kind else {
+                return Err(inferred);
+            };
+            as_column(kind)
+                .map(|value| Some(ValueHolder(value.inner)))
+                .map_err(|_| inferred)
         })
         .collect()
 }
@@ -453,7 +505,7 @@ impl NativeCopyIn {
         let data = chunk(data)?;
         let messages = lock(&self.messages)?
             .clone()
-            .ok_or_else(|| LifecycleError::new_err("COPY has ended"))?;
+            .ok_or_else(|| LifecycleError::new_err("the COPY has ended"))?;
         future_into_py(py, async move {
             Ok(messages.send(Message::Data(data)).await.is_ok())
         })
@@ -464,7 +516,7 @@ impl NativeCopyIn {
     /// as `write` queues data. A row of another width, or a value its
     /// column's type does not take, raises a construction error naming the
     /// column, and nothing of the batch is queued.
-    // [spec:pgorm:req:bindings.copy-rows+1]
+    // [spec:pgorm:req:bindings.copy-rows+2]
     fn write_rows<'py>(
         &self,
         py: Python<'py>,
@@ -478,7 +530,7 @@ impl NativeCopyIn {
         let encoder = CopyRowEncoder::new(described(&state.columns)?.to_vec());
         let mut out = BytesMut::new();
         for row in rows.try_iter()? {
-            let values = row_values(&row?)?;
+            let values = row_values(&row?, encoder.columns())?;
             let mut encoded = BytesMut::new();
             encoder
                 .encode(&values, &mut encoded)
@@ -490,7 +542,7 @@ impl NativeCopyIn {
         data.extend_from_slice(&out);
         let messages = lock(&self.messages)?
             .clone()
-            .ok_or_else(|| LifecycleError::new_err("COPY has ended"))?;
+            .ok_or_else(|| LifecycleError::new_err("the COPY has ended"))?;
         let data = data.freeze();
         future_into_py(py, async move {
             Ok(messages.send(Message::Data(data)).await.is_ok())
@@ -502,7 +554,7 @@ impl NativeCopyIn {
         let messages = lock(&self.messages)?.take();
         let settle = lock(&self.settle)?
             .take()
-            .ok_or_else(|| LifecycleError::new_err("COPY has ended"))?;
+            .ok_or_else(|| LifecycleError::new_err("the COPY has ended"))?;
         let connection = self.connection.clone();
         let tail = self.rows.as_ref().map(|rows| {
             let mut tail = BytesMut::new();
@@ -542,6 +594,21 @@ impl NativeCopyIn {
     fn closed(&self) -> PyResult<bool> {
         Ok(lock(&self.settle)?.is_none())
     }
+
+    /// The columns the server described before the COPY started, for
+    /// `copy_in_rows`.
+    // [spec:pgorm:req:bindings.copy-rows+2]
+    fn described(&self) -> PyResult<Vec<super::columns::PyCopyColumn>> {
+        let state = self.rows.as_ref().ok_or_else(|| {
+            LifecycleError::new_err("described names the columns of copy_in_rows")
+        })?;
+        Ok(described(&state.columns)?
+            .iter()
+            .map(|column| super::columns::PyCopyColumn {
+                inner: column.clone(),
+            })
+            .collect())
+    }
 }
 
 /// What a COPY TO in progress holds.
@@ -573,7 +640,7 @@ impl Active {
             Holder::Connection(stopped) => stopped.cancelled().await,
             Holder::Transaction(lease, state) => {
                 drop(lease);
-                state.released().await;
+                state.finished().await;
             }
         }
     }
@@ -658,6 +725,20 @@ impl RowsOut {
     }
 }
 
+/// `rows` as a list of tuples of Python values, or with `records` of
+/// `Record`s named and typed by the COPY's columns.
+fn rows_out(state: &RowsOut, rows: Vec<Vec<PyValue>>, records: bool) -> PyResult<Py<PyList>> {
+    if !records {
+        return rows_to_python(rows);
+    }
+    let columns = described(&state.columns)?;
+    let records = rows
+        .into_iter()
+        .map(|row| PyRecord::from_copy(columns, row))
+        .collect::<PyResult<Vec<_>>>()?;
+    Python::attach(|py| PyList::new(py, records).map(Bound::unbind))
+}
+
 /// `rows` as a list of tuples of Python values.
 fn rows_to_python(rows: Vec<Vec<PyValue>>) -> PyResult<Py<PyList>> {
     Python::attach(|py| {
@@ -679,9 +760,9 @@ impl OutState {
     fn ensure_open(&self) -> PyResult<()> {
         match &self.transaction {
             Some(transaction) if transaction.closed() => {
-                Err(LifecycleError::new_err("transaction is closed"))
+                Err(LifecycleError::new_err("the transaction is closed"))
             }
-            _ => self.connection.ensure_open(),
+            _ => self.connection.ensure_open().py(),
         }
     }
 }
@@ -714,7 +795,7 @@ impl NativeCopyOut {
                 return Ok(None);
             }
             let mut slot = state.active.clone().try_lock_owned().map_err(|_| {
-                LifecycleError::new_err("copy stream already has an active next operation")
+                LifecycleError::new_err("the COPY stream is busy: one chunk is pulled at a time")
             })?;
             let Some(active) = slot.as_mut() else {
                 return Ok(None);
@@ -722,7 +803,7 @@ impl NativeCopyOut {
             let piece = match active.stashed.take() {
                 Some(piece) => Some(piece),
                 None => tokio::select! {
-                    _ = state.closing.cancelled() => return Err(LifecycleError::new_err("copy stream is closed")),
+                    _ = state.closing.cancelled() => return Err(LifecycleError::new_err("the COPY stream is closed")),
                     piece = active.pieces.recv() => piece,
                 },
             };
@@ -748,7 +829,7 @@ impl NativeCopyOut {
                     drop(slot.take());
                     state.finished.cancel();
                     state.ensure_open()?;
-                    Err(LifecycleError::new_err("COPY ended without completing"))
+                    Err(LifecycleError::new_err("the COPY has ended"))
                 }
             }
         })
@@ -757,8 +838,11 @@ impl NativeCopyOut {
     /// The rows that have arrived, at least one, as a list of tuples of
     /// values; `None` at the end. A field that does not decode raises a
     /// decode error and closes the stream, discarding its connection.
-    // [spec:pgorm:req:bindings.copy-rows+1]
-    fn next_rows<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    /// With `records`, each row is a `Record` of the COPY's columns, as a
+    /// model reads its rows from.
+    // [spec:pgorm:req:bindings.copy-rows+2]
+    #[pyo3(signature = (records=false))]
+    fn next_rows<'py>(&self, py: Python<'py>, records: bool) -> PyResult<Bound<'py, PyAny>> {
         self.state.connection.pool.check_owner(py)?;
         if self.state.rows.is_none() {
             return Err(LifecycleError::new_err(
@@ -772,7 +856,7 @@ impl NativeCopyOut {
                 return Ok(None);
             }
             let mut slot = state.active.clone().try_lock_owned().map_err(|_| {
-                LifecycleError::new_err("copy stream already has an active next operation")
+                LifecycleError::new_err("the COPY stream is busy: one row is pulled at a time")
             })?;
             let rows_state = state
                 .rows
@@ -785,7 +869,7 @@ impl NativeCopyOut {
                 let piece = match active.stashed.take() {
                     Some(piece) => Some(piece),
                     None => tokio::select! {
-                        _ = state.closing.cancelled() => return Err(LifecycleError::new_err("copy stream is closed")),
+                        _ = state.closing.cancelled() => return Err(LifecycleError::new_err("the COPY stream is closed")),
                         piece = active.pieces.recv() => piece,
                     },
                 };
@@ -794,7 +878,7 @@ impl NativeCopyOut {
                         let data = active.gather(first);
                         match rows_state.rows(Some(&data)) {
                             Ok(rows) if rows.is_empty() => {}
-                            Ok(rows) => return rows_to_python(rows).map(Some),
+                            Ok(rows) => return rows_out(rows_state, rows, records).map(Some),
                             Err(error) => {
                                 if let Some(active) = slot.take() {
                                     active.abandon().await;
@@ -820,14 +904,14 @@ impl NativeCopyOut {
                         let rows = rows_state.rows(None)?;
                         return match rows.is_empty() {
                             true => Ok(None),
-                            false => rows_to_python(rows).map(Some),
+                            false => rows_out(rows_state, rows, records).map(Some),
                         };
                     }
                     None => {
                         drop(slot.take());
                         state.finished.cancel();
                         state.ensure_open()?;
-                        return Err(LifecycleError::new_err("COPY ended without completing"));
+                        return Err(LifecycleError::new_err("the COPY has ended"));
                     }
                 }
             }
@@ -836,7 +920,7 @@ impl NativeCopyOut {
 
     /// The names of the columns each row holds, in order, as the server
     /// describes them.
-    // [spec:pgorm:req:bindings.copy-rows+1]
+    // [spec:pgorm:req:bindings.copy-rows+2]
     fn columns(&self) -> PyResult<Vec<String>> {
         let rows =
             self.state.rows.as_ref().ok_or_else(|| {

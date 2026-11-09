@@ -40,7 +40,16 @@ A COPY takes no bound parameters, so a statement has one rendering:
 `inspect()` gives its SQL, with any value in it written as an escaped
 literal, and no values. The terminals that run other statements, `execute`,
 `query` and the rest, refuse a COPY with a `TypeError`, since it carries data
-only `copyIn` and `copyOut` move.
+only `copyIn` and `copyOut` move. SQL text holding a `COPY` given to them is
+refused too, with a `ConstructionError` saying to use `copyIn` or `copyOut`,
+before anything is sent, as Rust refuses it with `Error::CopyStatement`:
+
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError } from "@necessary/pgorm";
+
+await assert.rejects(pool.query("COPY cake TO STDOUT"), ConstructionError);
+```
 
 ## Loading rows
 
@@ -195,6 +204,29 @@ for await (const chunk of await pool.copyOut(raised)) csv += decoder.decode(chun
 assert.deepEqual(csv.trim().split("\n").sort(), ["Carrot Cake,4.80", "Vanilla Sponge,3.90"]);
 ```
 
+A `select` copies as it would run, a tie limit (`limitWithTies`) and a
+`window` clause included. One PostgreSQL would refuse, with a tie limit but
+no `orderBy` to measure its ties on, or a `window` clause that names a window
+twice or refers to one it does not define, is refused by `copyTo` with a
+`ConstructionError` as it is called, where Rust's `copy_out` refuses it
+before it sends anything. Here the cheapest of Sunrise's cakes, and any that
+tie with it, are copied:
+
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError, copyTo, select, Table } from "@necessary/pgorm";
+
+const cake = new Table("cake");
+const sunrise = select(cake.col("name")).from(cake).where(cake.col("bakery_id").eq(1));
+assert.throws(() => copyTo(sunrise.limitWithTies(1), "csv"), ConstructionError);
+
+const cheapest = copyTo(sunrise.orderBy(cake.col("price").asc()).limitWithTies(1), "csv");
+const decoder = new TextDecoder();
+let csv = "";
+for await (const chunk of await pool.copyOut(cheapest)) csv += decoder.decode(chunk, { stream: true });
+assert.equal(csv, "Lemon Drizzle\n");
+```
+
 Leaving a `CopyOutStream` before its end, with `close()`, `return()` or a
 `for await` loop that breaks, discards the connection it ran on, since data
 was left unread on it; in a transaction that ends the transaction. Here
@@ -260,59 +292,101 @@ assert.equal(slice.price.toString(), "3.40");
 The binary format sends each field in its type's binary form, the form a bound
 parameter travels in, so a binary COPY can carry rows of values with no text
 to write or parse. The format itself names no column types, so pgorm asks the
-server: before the COPY starts it prepares a `SELECT` of the COPY's columns,
-and binds each value against the type the server describes, as a parameter is
-bound.
+server: `copyInColumns(statement)` and `copyOutColumns(statement)` describe a
+COPY's columns, in order, each a [`CopyColumn`](../lib/copy.d.ts) with its
+`name` and its `type`, a `TypeName` qualified by the schema the server names
+it in, by preparing a `SELECT` of them and running nothing. They describe a
+COPY in any format.
 
-`copyInRows(statement, rows)` and `copyOutRows(statement)` take a binary
-statement and run it that way:
+`copyInRows` and `copyOutRows` do that for a binary statement, then start the
+COPY:
 
-- `rows` is an iterable or async iterable of arrays, each holding one value
-  for every column, in order, each read as a statement's parameter is
-  ([Values and types](13-values.md)). A row of another width, or a value its
-  column's type does not take, is a `ConstructionError` that abandons the
-  COPY, so nothing is written. Here JavaScript differs from Rust, whose
-  `CopyRowSink` refuses that one row with `Error::Type` and goes on taking
-  rows.
+- `copyInRows(statement)` resolves with a [`CopyRowSink`](../lib/copy.d.ts)
+  that takes each row with `send(row)`, an array of one value for each column,
+  in order, each read as a statement's parameter is
+  ([Values and types](13-values.md)), or a model's record with
+  `sendModel(record, model)`, which takes each of the COPY's columns from the
+  record's field whose column it is. A row of the wrong width, or a value its
+  column's type does not take, is refused with a `ConstructionError` before
+  anything of it is written, and the sink goes on taking rows. `finish()`
+  completes the COPY and resolves with the rows written; `close()`, or leaving
+  an `await using` block, abandons an unfinished one, so nothing is written.
+- `copyInRows(statement, rows)` pulls the rows from an iterable or async
+  iterable of arrays instead, as `copyIn` pulls its chunks, and resolves with
+  the rows written. A row it refuses abandons the whole COPY, as a source that
+  throws does. Rust has no such form: its rows go through the sink.
 - `copyOutRows` resolves with a [`CopyRowStream`](../lib/copy.d.ts) of
   arrays, each field decoded as a result column of its type is, and its
-  `columns` naming the columns each row holds. A field is typed as any value
-  a result may hold, so TypeScript asks for each one's type before a row read
-  out is written back in, as below.
+  `columns` naming the columns each row holds; `models(model)` reads each row
+  as a record of the model instead.
 
-Here every cake at Sunrise is copied out and copied back in as a new cake at
-Moonlight. The COPY FROM lists every column but the id, so the database
-assigns new ids:
+Here every cake at Sunrise is copied out as records and copied back in as new
+cakes at Moonlight. The COPY FROM lists every column but the id, so
+`sendModel` sends each record's other fields and the database assigns new
+ids:
 
 ```ts
 import assert from "node:assert/strict";
-import { copyFrom, copyTo, type Decimal } from "@necessary/pgorm";
+import { copyFrom, copyTo } from "@necessary/pgorm";
 
-const sunrise = copyTo(
-  Cake.select("name", "flavor", "price", "glutenFree").where(Cake.col("bakeryId").eq(1)).statement,
-  "binary",
-);
-const out = await pool.copyOutRows(sunrise);
-assert.deepEqual(out.columns, ["name", "flavor", "price", "gluten_free"]);
+const sunrise = copyTo(Cake.find().where(Cake.col("bakeryId").eq(1)).statement, "binary");
+const cakes = [];
+for await (const cake of (await pool.copyOutRows(sunrise)).models(Cake)) cakes.push(cake);
+assert.equal(cakes.length, 3);
 
 const into = copyFrom("cake", "binary").columns(["name", "flavor", "price", "gluten_free", "bakery_id"]);
-async function* atMoonlight() {
-  for await (const [name, flavor, price, glutenFree] of out) {
-    yield [name as string, flavor as string, price as Decimal, glutenFree as boolean, 2];
-  }
-}
-// The binary COPY TO reads on a connection of its own, while the COPY FROM writes on another.
-assert.equal(await pool.copyInRows(into, atMoonlight()), 3);
+// The binary COPY TO read on a connection of its own, and the COPY FROM writes on another.
+const sink = await pool.copyInRows(into);
+assert.deepEqual(sink.columns.map((column) => column.name), ["name", "flavor", "price", "gluten_free", "bakery_id"]);
+for (const cake of cakes) await sink.sendModel({ ...cake, bakeryId: 2 }, Cake);
+assert.equal(await sink.finish(), 3);
 
 assert.equal(await Cake.find().where(Cake.col("bakeryId").eq(2)).count(pool), 5);
+```
+
+A record a query gives keyed by column name is a record too:
+`sendModel(record)` with no model takes each of the COPY's columns from the
+record's property of that name.
+
+A row of values is written the same way, one value per column, and the row's
+values are checked against the column types before any of it is sent:
+
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError, copyFrom, copyTo } from "@necessary/pgorm";
+
+const bakeries = copyFrom("bakery", "binary").columns(["name", "city"]);
+const columns = await pool.copyInColumns(bakeries);
+assert.deepEqual(columns.map(({ name, type }) => `${name} ${type.schema}.${type.name}`), [
+  "name pg_catalog.varchar",
+  "city pg_catalog.varchar",
+]);
+
+const sink = await pool.copyInRows(bakeries);
+await sink.send(["Daybreak", "Trondheim"]);
+
+// A row of the wrong width is refused, and the sink goes on taking rows.
+await assert.rejects(sink.send(["Dusk"]), ConstructionError);
+assert.equal(await sink.finish(), 1);
+
+const rows = [];
+for await (const row of await pool.copyOutRows(copyTo("bakery", "binary"))) rows.push(row);
+assert.deepEqual(rows[2], [3, "Daybreak", "Trondheim"]);
 ```
 
 Each field reads as its column's type reads as a result column: the text
 types and an enum's label as a `string`, an `int8` as a `bigint`, a `numeric`
 as a `Decimal`, an array as an array. A `numeric` field reads exactly, its
 scale included, and one a `Decimal` cannot hold exactly is a `DecodeError`
-rather than rounded. A row of the wrong width is refused before any of the
-COPY is written:
+rather than rounded. A `money` column reads and writes as a `Decimal` in its
+currency's units, the places of which the description asks the server for,
+and which a `CopyColumn` gives as its `moneyPlaces`. A field is typed as any
+value a result may hold, and a row read out writes back in as it is: a
+`CopyRowStream`'s rows are `CopyRows`, and a value that says less than its
+column is written as the column's type, a JSON number or array into a
+`jsonb` column, an empty array into an array column, a `Range` into a range
+column. Through `copyInRows(statement, rows)`, a row of the wrong width is
+refused before any of the COPY is written:
 
 ```ts
 import assert from "node:assert/strict";
@@ -322,35 +396,66 @@ const bakeries = copyFrom("bakery", "binary").columns(["name", "city"]);
 await assert.rejects(pool.copyInRows(bakeries, [["Daybreak", "Trondheim"], ["Dusk"]]), ConstructionError);
 assert.equal(await pool.copyInRows(bakeries, [["Daybreak", "Trondheim"]]), 1);
 
-const rows = [];
-for await (const row of await pool.copyOutRows(copyTo("bakery", "binary"))) rows.push(row);
-assert.deepEqual(rows[2], [3, "Daybreak", "Trondheim"]);
-
 const prices = [];
 const lines = copyTo(OrderLine.select("price").where(OrderLine.col("orderId").eq(1)).statement, "binary");
 for await (const [price] of await pool.copyOutRows(lines)) prices.push(String(price as Decimal));
 assert.deepEqual(prices.sort(), ["3.20", "4.50"]);
-```
 
-**Not available in JavaScript yet:** Rust describes a COPY's columns without
-running it, `copy_in_columns` and `copy_out_columns`, each column a
-`CopyColumn` with its name and its type, and a `CopyRowSink` takes each row
-one call at a time, `send`, or a model whose fields name the COPY's columns,
-`send_model`, while a `CopyRowStream` reads each row into an entity's model
-with `models`. JavaScript's rows are arrays alone: it has no description of a
-COPY's column types, no records in or out of a COPY, and a `CopyRowStream`'s
-`columns` gives the names only.
+// Every cake, copied into a table of the same columns as it is read.
+await pool.execute("CREATE TABLE cake_copy (LIKE cake)");
+const copied = await pool.copyInRows(copyFrom("cake_copy", "binary"), await pool.copyOutRows(copyTo("cake", "binary")));
+const { differ } = await pool.one(
+  "SELECT count(*)::int AS differ FROM (SELECT * FROM cake EXCEPT ALL SELECT * FROM cake_copy) AS d",
+);
+assert.equal(differ, 0);
+assert.ok(copied > 0);
+```
 
 ## Encoding rows yourself
 
-**Not available in JavaScript yet:** Rust's `CopyRowEncoder` and
-`CopyRowDecoder` are the binary format's two sides over a list of columns, for
-code that moves the bytes itself, such as writing a COPY file to disk or
-reading one produced elsewhere: the encoder writes the header, each row of
-values and the trailer into a buffer, and the decoder takes the data in
-chunks split anywhere and yields each row once it has arrived. JavaScript has
-neither. A binary COPY's bytes can still be moved as they are, `copyOut` to a
-file and `copyIn` from it, since both directions speak the same format:
+[`CopyRowEncoder`](../lib/copy.d.ts) and [`CopyRowDecoder`](../lib/copy.d.ts)
+are the binary format's two sides, over a list of `CopyColumn`s, for code that
+moves the bytes itself: writing a COPY file to disk, or reading one produced
+elsewhere. The encoder gives the format's `header()` and `trailer()`, and each
+row's `encode(row)`, read and checked as `send` reads and checks one, each as
+a `Uint8Array`. The decoder takes the data with `push(chunk)`, in chunks split
+anywhere, and gives each row with `nextRow()` once all of it has arrived,
+`null` until then; `finish()` refuses data that ended part way through a row
+or before the trailer, with a `DecodeError`.
+
+A column the program names is of a built-in type, by its name as `pg_type`
+spells it (`"varchar"`, `"int4"`, `"_text"`) or an element's followed by `[]`
+(`"text[]"`); any other type is a `ConstructionError` that says to describe
+the COPY instead, which learns an enum's or a domain's. A `money` column
+needs `{ moneyPlaces }`, which no other column takes.
+
+```ts
+import assert from "node:assert/strict";
+import { CopyColumn, copyFrom, CopyRowDecoder, CopyRowEncoder, copyTo } from "@necessary/pgorm";
+
+const columns = [new CopyColumn("name", "varchar"), new CopyColumn("city", "varchar")];
+const encoder = new CopyRowEncoder(columns);
+const data = [
+  CopyRowEncoder.header(),
+  encoder.encode(["Noon", "Stavanger"]),
+  encoder.encode(["Night Owl", "Tromsø"]),
+  CopyRowEncoder.trailer(),
+];
+assert.equal(await pool.copyIn(copyFrom("bakery", "binary").columns(["name", "city"]), data), 2);
+
+const decoder = new CopyRowDecoder(columns);
+const rows = [];
+for await (const chunk of await pool.copyOut(copyTo(Bakery.select("name", "city").statement, "binary"))) {
+  decoder.push(chunk);
+  for (let row = decoder.nextRow(); row !== null; row = decoder.nextRow()) rows.push(row);
+}
+decoder.finish();
+assert.equal(rows.length, 4);
+assert.deepEqual(rows[3], ["Night Owl", "Tromsø"]);
+```
+
+A binary COPY's bytes can also be moved as they are, `copyOut` to a file and
+`copyIn` from it, since both directions speak the same format:
 
 ```ts
 import assert from "node:assert/strict";

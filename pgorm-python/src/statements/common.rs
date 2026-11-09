@@ -1,6 +1,6 @@
 use pgorm::pgorm_query::{
-    BinOper, Condition, Expr, IntoCondition, OrderedStatement, Query, ReturningClause,
-    SelectStatement, Values,
+    BinOper, ColumnRef, Condition, Expr, ExprTrait, IntoCondition, OrderedStatement, Query,
+    ReturningClause, SelectStatement, SimpleExpr, Values,
 };
 use pyo3::{
     exceptions::PyTypeError,
@@ -9,7 +9,7 @@ use pyo3::{
 };
 
 use crate::{
-    errors::ConstructionError,
+    errors::{ConstructionError, Raise},
     expressions::{Aliased, Compiled, OrderBy, PyCondition, require_expr},
     identifiers::Identifier,
 };
@@ -20,6 +20,27 @@ pub(crate) fn condition(value: &Bound<'_, PyAny>) -> PyResult<Condition> {
     } else {
         Ok(require_expr(value)?.inner.into_condition())
     }
+}
+
+/// The columns `items` names, each a column expression as pgorm-query's
+/// `IntoColumnRef` takes one, and at least one: `what` names the method in
+/// the error refusing another expression or none.
+// [spec:pgorm:req:bindings.distinct-on]
+pub(super) fn columns(items: &Bound<'_, PyTuple>, what: &str) -> PyResult<Vec<ColumnRef>> {
+    if items.is_empty() {
+        return Err(ConstructionError::new_err(format!(
+            "{what} names at least one column"
+        )));
+    }
+    items
+        .iter()
+        .map(|item| match require_expr(&item)?.inner {
+            SimpleExpr::Column(column) => Ok(column),
+            _ => Err(ConstructionError::new_err(format!(
+                "{what} takes columns, which an expression is not"
+            ))),
+        })
+        .collect()
 }
 
 pub(super) fn project(query: &mut SelectStatement, items: &Bound<'_, PyTuple>) -> PyResult<()> {
@@ -73,11 +94,7 @@ pub(super) fn unsigned(value: &Bound<'_, PyAny>) -> PyResult<u64> {
 }
 
 pub(super) fn compiled((sql, values): (String, Values)) -> PyResult<Compiled> {
-    if values.0.len() > 65535 {
-        return Err(ConstructionError::new_err(
-            "statement exceeds PostgreSQL's 65535-parameter limit",
-        ));
-    }
+    pgorm_bindings::parameter_count(values.0.len()).py()?;
     Ok(Compiled { sql, values })
 }
 

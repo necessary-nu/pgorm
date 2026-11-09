@@ -26,6 +26,32 @@ and a binary COPY has no delimiter, header or NULL string to set. A COPY
 takes no bound parameters, so `inspect()` gives its one rendering, with any
 value in it written as an escaped literal, and no parameters.
 
+The four methods are the only way a COPY runs. Its data flows beside the
+statement, which `execute`, `query` and the other statement methods have no
+route for, so a `RawSQL` holding a `COPY` given to one of them raises
+`ConstructionError` before anything is sent, saying to use `copy_in` or
+`copy_out`, as Rust refuses it with `Error::CopyStatement`:
+
+```python
+import asyncio
+import os
+
+from pgorm import ConstructionError, Pool, RawSQL
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        try:
+            await pool.query(RawSQL("COPY cake TO STDOUT"))
+        except ConstructionError as refusal:
+            assert "copy_in or copy_out" in str(refusal)
+        else:
+            raise AssertionError("a COPY ran as a statement")
+
+
+asyncio.run(main())
+```
+
 Here Python differs from Rust in spelling. Rust's format is a type,
 `CopyText`, `CopyCsv` or `CopyBinary`, so a missing option is a compile
 error. Python's is a string, and the stubs carry it as the statement's type
@@ -121,7 +147,7 @@ async def main() -> None:
                 yield b"Dusk\tBodo\n"
 
             assert await connection.copy_in(copy, bakeries()) == 2
-            assert refused == ["connection already has an active operation"]
+            assert refused == ["the connection is busy: an operation, a transaction or a stream holds it"]
 
             # Once the COPY ends, the connection runs statements again.
             row = await connection.one(RawSQL("SELECT count(*) AS bakeries FROM bakery"))
@@ -241,11 +267,13 @@ query does, where Rust's example names them bare; the data is the same.
 A write is a source too, when it has a `RETURNING` list: COPY TO copies the
 rows it returns. `CopyTo` takes a built `Insert`, `Update`, `Delete` or
 `Merge`, and raises `ConstructionError` for one without a `RETURNING` list,
-which returns nothing to copy. A `Select` PostgreSQL would refuse inside a
-COPY, such as one with a tie limit (`limit_with_ties`) but no `ORDER BY` to
-measure its ties on, raises `ConstructionError` there too. Here Python
-differs from Rust, which refuses that source when `copy_out` runs it rather
-than when the COPY is built.
+which returns nothing to copy. A `Select` copies as it would run, a tie
+limit (`limit_with_ties`) and a `WINDOW` clause included. One PostgreSQL
+would refuse, with a tie limit but no `ORDER BY` to measure its ties on, or a
+`WINDOW` clause that names a window twice or refers to one it does not
+define, raises `ConstructionError` there too. Here Python differs from Rust,
+which refuses that source when `copy_out` runs it rather than when the COPY
+is built.
 
 Reading to the end releases the connection, or the transaction, for other
 work. Here Python differs from Rust too: a Rust stream dropped early leaves
@@ -368,17 +396,27 @@ another format raises `TypeError`.
   Its `columns` attribute names the columns. A field no Python value holds
   raises `DecodeError` and closes the stream.
 
-Here Python differs from Rust. Rust's `CopyRowSink` refuses a bad row and
-goes on taking rows; Python's `copy_in_rows` aborts the whole COPY. Rust's
-sink also writes a model with `send_model`, and its stream reads models with
-`models`; Python's rows are tuples, and a program pairs a row with `columns`
-to make a dictionary. Rust's `copy_in_columns` and `copy_out_columns`, which
-describe a COPY's columns and their types without running it, are not
-available in Python yet.
+`copy_in_columns(statement)` and `copy_out_columns(statement)` give that
+description without running the COPY, for a statement in any format: a list
+of `CopyColumn`s in the COPY's order, each with its `name`, its `type` as a
+`TypeName` schema-qualified as the server names it, and a `money` column's
+`money_places`.
 
-Here every cake at Sunrise is copied out as rows and copied back in as new
-cakes at Moonlight. The COPY FROM lists every column but the id, so the
-database assigns new ids:
+Given no rows, `copy_in_rows(statement)` returns a `CopyRowSink`, Rust's own,
+which holds the COPY until it ends. Its `columns` are the described ones.
+`send(row)` writes one row, and `send_model(record)` a model's record, each
+of the COPY's columns taken from the record's field whose column it is. A
+row the columns refuse raises `ConstructionError` before anything of it is
+written, and the sink goes on taking rows. `finish()` completes the COPY
+and returns the rows written; leaving the sink's `async with` block without
+`finish()` abandons the COPY, so nothing is written. A `CopyRowStream`'s
+`models(model)` reads its rows as the model's records instead of tuples.
+
+Here every cake at Sunrise is copied out as records and copied back in
+twice: once with `send_model`, as new cakes at Sunrise, and once with `send`,
+as new cakes at Moonlight, since a record's fields are its own and a row
+with another bakery is a row of the program's. The COPY FROM lists every
+column but the id, so the database assigns new ids:
 
 ```python
 import asyncio
@@ -392,24 +430,33 @@ from bakery import Cake
 async def main() -> None:
     sunrise = CopyTo(Cake.find().where(Cake.col("bakery_id") == 1).statement, "binary")
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        async with await pool.copy_out_rows(sunrise) as rows:
-            assert rows.columns == ("id", "name", "flavor", "price", "gluten_free", "bakery_id")
-            cakes = [dict(zip(rows.columns, row)) async for row in rows]
+        stream = await pool.copy_out_rows(sunrise)
+        cakes = [cake async for cake in stream.models(Cake)]
         assert len(cakes) == 3
 
         into = CopyFrom(Cake.table, "binary").columns("name", "flavor", "price", "gluten_free", "bakery_id")
-        inserted = await pool.copy_in_rows(into, [
-            (cake["name"], cake["flavor"], cake["price"], cake["gluten_free"], 2)
-            for cake in cakes
-        ])
-        assert inserted == 3
+        columns = await pool.copy_in_columns(into)
+        assert [column.type.name for column in columns] == ["varchar", "flavor", "numeric", "bool", "int4"]
 
+        async with pool.transaction() as tx:
+            async with await tx.copy_in_rows(into) as sink:
+                for cake in cakes:
+                    await sink.send_model(cake)
+                    await sink.send([cake["name"], cake["flavor"], cake["price"], cake["gluten_free"], 2])
+                assert await sink.finish() == 6
+
+        at_sunrise = await Cake.find().where(Cake.col("bakery_id") == 1).count(pool)
         at_moonlight = await Cake.find().where(Cake.col("bakery_id") == 2).count(pool)
-        assert at_moonlight == 5
+        assert (at_sunrise, at_moonlight) == (6, 5)
 
 
 asyncio.run(main())
 ```
+
+Here Python differs from Rust in one respect: `copy_in_rows(statement, rows)`,
+given rows, pulls them as the COPY takes data and aborts the whole COPY at a
+row that does not fit, as a failing source does; a sink refuses only that
+row.
 
 A row's values are checked against the column types as it is written, and a
 row that does not fit stops the COPY with nothing written:
@@ -452,18 +499,86 @@ exactly is refused rather than rounded. A `money` column reads and writes as
 a `Decimal` in its currency's units. A query cannot read a `money` column at
 all, and raises `DecodeError` for one: cast it to `numeric` there.
 
+A row read out writes back in as it is. A value that says less than its
+column is written as the column's type: a JSON number or list into a `jsonb`
+column, an empty list into an array column, a `Range` into a range column.
+Here every cake is copied into a table of the same columns:
+
+```python
+import asyncio
+import os
+
+from pgorm import CopyFrom, CopyTo, Pool, RawSQL, Table
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await pool.execute(RawSQL("CREATE TABLE cake_copy (LIKE cake)"))
+        cakes = [row async for row in await pool.copy_out_rows(CopyTo(Table("cake"), "binary"))]
+        assert await pool.copy_in_rows(CopyFrom(Table("cake_copy"), "binary"), cakes) == len(cakes)
+        row = await pool.one(RawSQL(
+            "SELECT count(*) AS n FROM (SELECT * FROM cake EXCEPT ALL SELECT * FROM cake_copy) AS differ"
+        ))
+        assert row["n"] == 0
+
+
+asyncio.run(main())
+```
+
 ## Encoding rows yourself
 
-Rust's `CopyRowEncoder` and `CopyRowDecoder` are the binary format's two
-sides, for code that moves the bytes itself: writing a COPY file to disk, or
-reading one produced elsewhere. They are not available in Python yet, so a
-Python program cannot write or read the rows of a binary COPY's bytes
-through pgorm; `copy_in_rows` and `copy_out_rows` do both only while a COPY
-runs.
+`CopyRowEncoder` and `CopyRowDecoder` are the binary format's two sides,
+Rust's own, over a list of `CopyColumn`s, for code that moves the bytes
+itself: writing a COPY file to disk, or reading one produced elsewhere. A
+program builds a column of a built-in type by its name, as `pg_type` spells
+it (`"int4"`, `"varchar"`, `"text[]"`); another type comes from a
+description. The encoder gives the format's `header()` and `trailer()` and
+each row's `encode(row)` as `bytes`, a row checked as `send` checks one. The
+decoder takes the data with `push(chunk)`, in chunks split anywhere, gives
+each row with `next_row()` once all of it has arrived, `None` until then,
+and `finish()` raises `DecodeError` for data that ends part way through a
+row:
 
-The bytes themselves move as any COPY's do. A binary `copy_out` gives the
-whole file, header and trailer included, ready to keep, and `copy_in` loads
-such a file back:
+```python
+import asyncio
+import os
+
+from pgorm import CopyColumn, CopyFrom, CopyRowDecoder, CopyRowEncoder, CopyTo, Pool
+
+from bakery import Bakery
+
+
+async def main() -> None:
+    columns = [CopyColumn("name", "varchar"), CopyColumn("city", "varchar")]
+    encoder = CopyRowEncoder(columns)
+    data = (
+        CopyRowEncoder.header()
+        + encoder.encode(["Noon", "Stavanger"])
+        + encoder.encode(["Night Owl", "Tromsø"])
+        + CopyRowEncoder.trailer()
+    )
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        into = CopyFrom(Bakery.table, "binary").columns("name", "city")
+        assert await pool.copy_in(into, data) == 2
+
+        out = CopyTo(Bakery.select("name", "city").statement, "binary")
+        decoder = CopyRowDecoder(columns)
+        rows = []
+        async with await pool.copy_out(out) as chunks:
+            async for chunk in chunks:
+                decoder.push(chunk)
+                while (row := decoder.next_row()) is not None:
+                    rows.append(row)
+        decoder.finish()
+        assert rows[3] == ("Night Owl", "Tromsø")
+
+
+asyncio.run(main())
+```
+
+The bytes also move as any COPY's do. A binary `copy_out` gives the whole
+file, header and trailer included, ready to keep, and `copy_in` loads such a
+file back:
 
 ```python
 import asyncio
@@ -537,7 +652,7 @@ async def main() -> None:
             try:
                 await connection.one(RawSQL("SELECT 1 AS one"))
             except pgorm.LifecycleError as error:
-                assert str(error) == "connection is closed"
+                assert str(error) == "the connection is closed"
             else:
                 raise AssertionError("the connection was closed")
 

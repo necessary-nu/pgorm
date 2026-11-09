@@ -25,6 +25,7 @@ PgormError
 ├── DecodeError                    a result that cannot become what was asked for
 ├── TimeoutError                   no connection came free within the pool's acquire_timeout
 ├── LifecycleError                 a resource used after it closed, or while another operation holds it
+├── RollbackFailedError            a transaction's ROLLBACK failed after its block's exception
 └── InternalError                  a failure no input should cause
 ```
 
@@ -140,8 +141,7 @@ refused](#what-pgorm-refused)).
 
 A check and an exclusion constraint answer the same way. The bakery's ovens
 are booked by time, and an exclusion constraint keeps two bookings of one
-oven from overlapping. A `RawSQL` holds one statement, so the setup runs
-statement by statement:
+oven from overlapping. The setup is a script, which `batch_execute` runs:
 
 ```python
 import asyncio
@@ -156,15 +156,14 @@ from bakery import Cake
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        for statement in (
-            "ALTER TABLE cake ADD CONSTRAINT cake_price_positive CHECK (price > 0)",
-            "CREATE EXTENSION IF NOT EXISTS btree_gist",
+        await pool.batch_execute(
+            "ALTER TABLE cake ADD CONSTRAINT cake_price_positive CHECK (price > 0);"
+            "CREATE EXTENSION IF NOT EXISTS btree_gist;"
             "CREATE TABLE oven_booking ("
             " oven integer NOT NULL,"
             " during tstzrange NOT NULL,"
-            " EXCLUDE USING gist (oven WITH =, during WITH &&))",
-        ):
-            await pool.execute(RawSQL(statement))
+            " EXCLUDE USING gist (oven WITH =, during WITH &&))"
+        )
 
         try:
             await Cake.update({"price": Decimal("0")}).where(Cake.col("id") == 1).execute(pool)
@@ -217,11 +216,37 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Rust's `is_retryable` answers whether an error is one PostgreSQL expects the
-client to retry the whole transaction after, a serialization failure
-(`40001`) or a deadlock (`40P01`). It is not available in Python yet: compare
-`sqlstate` with those two codes. [Transactions](08-transactions.md) shows
-the retrying.
+Every error's `is_retryable` answers, as Rust's `Error::is_retryable` does,
+whether it is one PostgreSQL expects the client to retry the whole
+transaction after: a serialization failure (`40001`) or a deadlock
+(`40P01`). It is `False` for every other error, and for any error the
+program made itself. `transaction_with_retry` retries on it
+([Transactions](08-transactions.md)).
+
+```python
+import asyncio
+import os
+
+from pgorm import DatabaseError, Pool, RawSQL
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        try:
+            await pool.execute(RawSQL("DO $$ BEGIN RAISE EXCEPTION 'conflict' USING ERRCODE = '40001'; END $$"))
+        except DatabaseError as error:
+            assert (error.sqlstate, error.is_retryable) == ("40001", True)
+        else:
+            raise AssertionError("the block raised")
+
+        try:
+            await pool.query(RawSQL("SELECT * FROM pastry"))
+        except DatabaseError as error:
+            assert not error.is_retryable
+
+
+asyncio.run(main())
+```
 
 A `DatabaseError` pgorm raises without an answer from the server, which some
 of pgorm's own refusals are, has every one of these attributes `None`;
@@ -236,7 +261,9 @@ hold the column's value.
 
 A value refused on its way in raises `ConstructionError`, with pgorm's text
 for the refusal: which `$N` parameter was refused, and why. Nothing was sent.
-A value refused on its way out raises `DecodeError`:
+So does a statement given another number of values than its placeholders
+take, its text saying how many it takes and how many it was given. A value
+refused on its way out raises `DecodeError`:
 
 ```python
 import asyncio
@@ -256,6 +283,14 @@ async def main() -> None:
             )
         else:
             raise AssertionError("100,000 does not bind as a smallint")
+
+        # Two placeholders, and one value.
+        try:
+            await pool.one(RawSQL("SELECT $1::text AS a, $2::text AS b", ["lemon"]))
+        except ConstructionError as error:
+            assert str(error) == "the statement takes 2 parameters, and 1 was given"
+        else:
+            raise AssertionError("a value is missing")
 
         # A model that says a customer's name is an integer cannot read it.
         Mislabelled = Model("customer", {
@@ -293,16 +328,43 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Here Python differs from Rust. Rust reports both refusals as
+Here Python differs from Rust. Rust reports these refusals as
 `Error::Postgres` with no server code, and classifies them with
-`bind_refusal` and `decode_refusal`, whose `BindRefusal` and `DecodeRefusal`
-carry the parameter's number and what was being read as fields. Python
-raises `ConstructionError` and `DecodeError`, with the refusal's text and no
-such fields. A Python record reads each column as its own type, so a raw
-query never asks for a type the column does not have: the decoding a program
-chooses is a model's declaration, and a model whose field does not match its
-column, or receives a `NULL` it does not declare, raises `DecodeError`. Rust
-reports that `NULL` as `Error::Type`, which Python's `DecodeError` covers too.
+`bind_refusal`, `parameter_count_refusal` and `decode_refusal`. Python raises
+`ConstructionError` and `DecodeError`, whose fields are `BindRefusal`'s and
+`DecodeRefusal`'s: a parameter's refusal carries `parameter`, the `$N`
+refused, and `reason`, why; a read the driver refused carries `reading`, what
+it was reading, and `reason`. A wrong count, like every other
+`ConstructionError` and `DecodeError`, holds `None` in each. The parameter
+above is refused so:
+
+```python
+import asyncio
+import os
+
+from pgorm import ConstructionError, Pool, RawSQL
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        try:
+            await pool.one(RawSQL("SELECT $1::smallint AS n", [100_000]))
+        except ConstructionError as error:
+            assert error.parameter == 1
+            assert error.reason == "value `100000` is out of range for Postgres type `int2`"
+        else:
+            raise AssertionError("100,000 does not bind as a smallint")
+
+
+asyncio.run(main())
+```
+
+A Python record reads each column as its own type, so a raw query never asks
+for a type the column does not have, and a record's refusal is the binding's
+own, carrying no driver fields: the decoding a program chooses is a model's
+declaration, and a model whose field does not match its column, or receives a
+`NULL` it does not declare, raises `DecodeError`. Rust reports that `NULL` as
+`Error::Type`, which Python's `DecodeError` covers too.
 [Values and types](13-values.md) lists what each PostgreSQL type reads as,
 and what cannot be read.
 
@@ -314,12 +376,14 @@ arrive in Python as these classes:
 
 | Class | Raised when | Rust's variants |
 | --- | --- | --- |
-| `DecodeError` | `one` found no row or several, `optional` several; a value of the wrong type or a `NULL` where none is declared; JSON or a value that does not convert; a registered entity's write that reads back no row | `RecordNotFound`, `RecordNotInserted`, `Type`, `Json`, `Conversion`, `UnpackInsertId`, `Verify` |
+| `DecodeError` | `one` found no row or several, `optional` several; a value of the wrong type or a `NULL` where none is declared; JSON or a value that does not convert; a registered entity's write that reads back no row; a model `verify` finds the statement does not match | `RecordNotFound`, `RecordNotInserted`, `Type`, `Json`, `Conversion`, `UnpackInsertId`, `Verify` |
 | `ConstructionError` | a write that names no row or sets nothing, a field that is required and left out, a builder that refused its input, a hook's refusal | `PrimaryKeyNotSet`, `NothingToSet`, `AttrNotSet`, `QueryBuilder`, `Custom`, and a `Listen` channel name that is too long |
+| `DatabaseError` with `sqlstate` `25P02` | a transaction's block exited normally after catching a failed statement's error, so it was rolled back ([Transactions](08-transactions.md#a-caught-error-still-aborts)) | `TransactionAborted` |
 | `ConnectionError` | the pool could not reach the server, a connection broke, or a listener fell behind | `Pool`, and a `Listen` overflow |
 | `TimeoutError` | no connection came free within the pool's `acquire_timeout` | `Pool`, when a wait times out |
 | `LifecycleError` | a pool, connection, transaction, stream or listener used after it closed, while another operation holds it, or from another event loop | `Pool` for a closed pool; Rust's borrows make the rest compile errors |
 | `UnsupportedCapabilityError` | an operation this build does not have, or a registration it does not hold | none |
+| `RollbackFailedError` | a transaction's `ROLLBACK` failed after its block's exception, both carried as `rollback` and `cause` ([Transactions](08-transactions.md)) | `RollbackFailed` |
 | `InternalError` | pgorm or the binding failed in a way no input should cause | none |
 
 Here Python differs from Rust: `optional` is Rust's `one_opt`, answering
@@ -398,8 +462,12 @@ else:
 ```
 
 `InternalError` means a bug in pgorm or the binding, never a fault in what the
-program passed. A panic inside the native code is not turned into one of the
-classes that report bad input: it stays PyO3's own panic exception.
+program passed. A panic in pgorm's native work, which every awaitable the
+binding returns runs on its runtime, raises `InternalError`, its message
+`pgorm panicked:` and the panic's own. A panic in a synchronous call, such as
+a builder's, raises PyO3's `PanicException` instead, since PyO3 catches it
+before the binding can; it derives from `BaseException`, so an
+`except Exception` meant for bad input does not swallow it either.
 
 ### When the pool cannot connect
 
@@ -414,7 +482,8 @@ Here Python differs from Rust: Rust reports every failure to connect as
 the `DatabaseError` it is, with its SQLSTATE, such as `3D000` for a database
 that does not exist or `28P01` for a wrong password. A server that cannot be
 reached at all, or a connection that breaks, raises `ConnectionError`, whose
-text says only that the connection failed:
+text says that the connection failed and the driver's account of why, its
+credentials redacted as everywhere:
 
 ```python
 import asyncio
@@ -460,7 +529,7 @@ async def main() -> None:
         async with Pool(changed(url, port=1), connect_timeout=2):
             pass
     except pgorm.ConnectionError as error:
-        assert str(error) == "PostgreSQL connection or protocol failure"
+        assert str(error).startswith("PostgreSQL connection or protocol failure: ")
     else:
         raise AssertionError("nothing listens on port 1")
 
@@ -488,13 +557,13 @@ from pgorm import ConstructionError, Pool
 async def main() -> None:
     url = os.environ["DATABASE_URL"]
 
-    # "clean" is not one of the recycling methods.
+    # "tidy" is not one of the recycling methods.
     try:
-        Pool(url, recycle="clean")  # type: ignore[arg-type]
+        Pool(url, recycle="tidy")  # type: ignore[arg-type]
     except TypeError as error:
-        assert str(error) == "recycle is 'verified' or 'fast'"
+        assert str(error) == "recycle is 'verified', 'fast', 'clean' or None"
     else:
-        raise AssertionError("recycle takes 'verified' or 'fast'")
+        raise AssertionError("recycle takes 'verified', 'fast' or 'clean'")
 
     # A misspelt option is never left out silently.
     try:

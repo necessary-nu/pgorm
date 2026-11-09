@@ -1,10 +1,24 @@
 use heck::ToUpperCamelCase;
-use proc_macro2::Span;
-use quote::{ToTokens, format_ident};
+use proc_macro2::{Span, TokenStream};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
     Expr, Field, Ident, LitStr, Meta, Type, meta::ParseNestedMeta, parse::Parse,
     punctuated::Punctuated, token::Comma,
 };
+
+/// `IntoActiveValue<Self>` for a column value type a derive makes, so a form's
+/// field of the type sets its column as a field of a built-in type does.
+// [spec:pgorm:sem:macros.derive.active-model+9]
+pub(crate) fn into_active_value(ident: &Ident) -> TokenStream {
+    quote! {
+        #[automatically_derived]
+        impl pgorm::IntoActiveValue<#ident> for #ident {
+            fn into_active_value(self) -> pgorm::ActiveValue<#ident> {
+                pgorm::ActiveValue::Set(self)
+            }
+        }
+    }
+}
 
 /// The refusal for a `#[pgorm(...)]` key none of a derive's arms read, spanned at the
 /// key and naming it, so a typo is diagnosed rather than dropped.
@@ -20,7 +34,7 @@ pub(crate) fn unknown_pgorm_key(meta: &ParseNestedMeta<'_>) -> syn::Error {
 /// The Rust code a key's value is, written bare and taken as written. A string
 /// there is refused at the string, since the quotes would make it data the
 /// derive re-parses.
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 pub(crate) fn bare_code<T: Parse>(meta: &ParseNestedMeta<'_>, key: &str) -> syn::Result<T> {
     let value = meta.value()?;
     if value.peek(LitStr) {
@@ -64,7 +78,7 @@ pub(crate) const COMPOSITE_KEYS: [&str; 7] = [
 /// The field keys `PartialModel` reads that the `FromQueryResult` it writes
 /// does not.
 // [spec:pgorm:sem:macros.derive.from-query-result+4]
-// [spec:pgorm:sem:macros.derive.partial-model+5]
+// [spec:pgorm:sem:macros.derive.partial-model+7]
 pub(crate) const PROJECTION_FIELD_KEYS: [&str; 2] = ["from_col", "from_expr"];
 
 /// Every field-level `#[pgorm(...)]` key the `Entity` derive defines. The
@@ -111,7 +125,7 @@ pub(crate) enum Reader {
 /// The refusal for a key a model field carries that `reader` does not read:
 /// `enum_name` names a SQL type, and a key of the composite's vocabulary goes
 /// under the composite.
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 pub(crate) fn unread_model_field_key(meta: &ParseNestedMeta<'_>) -> syn::Error {
     if meta.path.is_ident("enum_name") {
         return meta.error(
@@ -131,7 +145,7 @@ pub(crate) fn unread_model_field_key(meta: &ParseNestedMeta<'_>) -> syn::Error {
 /// The `Column` variant a model field is read and written through: the
 /// variant `variant` names, or else the field's name in UpperCamelCase,
 /// keyword-escaped.
-// [spec:pgorm:req:macros.derive.code-values+3]
+// [spec:pgorm:req:macros.derive.code-values+4]
 // [spec:pgorm:sem:macros.derive.entity-model.casing+4]
 pub(crate) fn field_variant(field: &Field, reader: Reader) -> syn::Result<Ident> {
     let Some(field_ident) = field.ident.as_ref() else {
@@ -194,7 +208,7 @@ pub(crate) fn format_field_ident(field: Field) -> Ident {
 /// A field's type as written, rendered without the spaces tokenisation leaves
 /// between its parts, so a diagnostic spells `Option<i32>` rather than
 /// `Option < i32 >`.
-// [spec:pgorm:def:exec.verify]    the `rust_type` an `ExpectedColumn` carries
+// [spec:pgorm:def:exec.verify+1]    the `rust_type` an `ExpectedColumn` carries
 pub(crate) fn spell_type(ty: &Type) -> String {
     ty.to_token_stream()
         .to_string()

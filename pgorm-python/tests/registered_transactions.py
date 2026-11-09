@@ -27,7 +27,7 @@ class RegisteredTransactions(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL("DROP SCHEMA python_entities CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.transactions/test]
+    # [spec:pgorm:req:bindings.transactions+2/test]
     async def test_models_graphs_cursors_and_sources_share_transaction(self):
         async with self.pool.transaction() as tx:
             active = self.account.active().set("id", 1).set("display name", "Native").set("note", None)
@@ -56,7 +56,7 @@ class RegisteredTransactions(unittest.IsolatedAsyncioTestCase):
             await model.into_active().delete(tx)
             self.assertEqual(await self.account.find().all(tx), [])
 
-    # [spec:pgorm:req:bindings.transactions/test]
+    # [spec:pgorm:req:bindings.transactions+2/test]
     # [spec:pgorm:req:bindings.entity-writes+1/test]    the hook's refusal, a ConstructionError,
     # rolls back the write it refused inside the transaction
     async def test_after_hook_exception_rolls_back_database_write(self):
@@ -82,7 +82,7 @@ class RegisteredTransactions(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await self.pool.ping())
 
     # [spec:pgorm:req:bindings.cancellation/test]
-    # [spec:pgorm:req:bindings.errors+5/test]    a transaction whose connection was given up
+    # [spec:pgorm:req:bindings.errors+6/test]    a transaction whose connection was given up
     # refuses its next operation and its commit as closed, a LifecycleError, never the
     # ConstructionError an application's refusal is
     async def test_a_discarded_transaction_refuses_with_lifecycle_error(self):

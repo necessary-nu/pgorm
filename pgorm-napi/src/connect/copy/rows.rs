@@ -10,7 +10,7 @@ use std::sync::{
 
 use bytes::BytesMut;
 use neon::{prelude::*, types::JsUint8Array};
-use pgorm::{CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyTrait};
+use pgorm::{CopyColumn, CopyRowDecoder, CopyRowEncoder, pgorm_query::ArrayType};
 use tokio::sync::oneshot;
 
 use super::{OutState, Pull, abort_argument, in_state, out_state};
@@ -20,7 +20,7 @@ use crate::{
     errors::{Failure, throw},
     params, settle,
     statements::{CopyFrom, CopyTo, copy_from_at, copy_to_at},
-    values::{Tagged, read::refuse, write},
+    values::{Tag, Tagged, read::refuse, write},
 };
 
 /// A COPY of rows' writing side: the encoder over the columns its session
@@ -38,20 +38,6 @@ impl RowsIn {
         if !self.headed.swap(true, Ordering::AcqRel) {
             CopyRowEncoder::header(out);
         }
-    }
-}
-
-pub(super) async fn describe_in<C>(
-    db: &mut C,
-    copy: &CopyFrom,
-) -> Result<Vec<CopyColumn>, pgorm::Error>
-where
-    C: CopyTrait + Send,
-{
-    match copy {
-        CopyFrom::Text(statement) => db.copy_in_columns(statement).await,
-        CopyFrom::Csv(statement) => db.copy_in_columns(statement).await,
-        CopyFrom::Binary(statement) => db.copy_in_columns(statement).await,
     }
 }
 
@@ -103,22 +89,8 @@ pub(crate) fn copy_to_rows_at(
     Ok((copy, rows))
 }
 
-pub(super) async fn describe_out<C>(
-    db: &mut C,
-    copy: &CopyTo,
-) -> Result<Vec<CopyColumn>, pgorm::Error>
-where
-    C: CopyTrait + Send,
-{
-    match copy {
-        CopyTo::Text(statement) => db.copy_out_columns(statement).await,
-        CopyTo::Csv(statement) => db.copy_out_columns(statement).await,
-        CopyTo::Binary(statement) => db.copy_out_columns(statement).await,
-    }
-}
-
 /// The message a refusal of pgorm's carries, without the variant's prefix.
-fn refusal(error: pgorm::Error) -> String {
+pub(super) fn refusal(error: pgorm::Error) -> String {
     match error {
         pgorm::Error::Type(message) => message,
         other => other.to_string(),
@@ -131,7 +103,7 @@ fn refusal(error: pgorm::Error) -> String {
 /// written against its column's type as a parameter is bound; a row of
 /// another width, or a value its column's type does not take, is refused with
 /// a `ConstructionError` naming the column.
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 pub(super) fn copy_rows_encode(mut cx: FunctionContext) -> JsResult<JsUint8Array> {
     let state = in_state(&mut cx)?;
     let Some(rows) = &state.rows else {
@@ -144,13 +116,7 @@ pub(super) fn copy_rows_encode(mut cx: FunctionContext) -> JsResult<JsUint8Array
     let codec = Codec::get(&mut cx)?;
     let mut body = BytesMut::new();
     for row in batch {
-        let Ok(row) = row.downcast::<JsArray, _>(&mut cx) else {
-            return cx.throw_type_error("a COPY row is an array of its columns' values");
-        };
-        let params = params::read(&mut cx, codec, row)?;
-        if let Err(error) = encoder.encode(&params, &mut body) {
-            return refuse(&mut cx, refusal(error));
-        }
+        encode_row(&mut cx, codec, encoder, row, &mut body)?;
     }
     let mut out = BytesMut::new();
     rows.head(&mut out);
@@ -158,19 +124,105 @@ pub(super) fn copy_rows_encode(mut cx: FunctionContext) -> JsResult<JsUint8Array
     JsUint8Array::from_slice(&mut cx, &out)
 }
 
-/// Every whole row the decoder holds, each field decoded as a result
-/// column of its type is.
-fn decoded(decoder: &mut CopyRowDecoder) -> Result<Vec<Vec<Tagged>>, Failure> {
-    let mut rows = Vec::new();
-    while let Some(fields) = decoder
+/// Append `row`, an array of its columns' values, to `out` in the binary
+/// format: each value read as a parameter is, and written against its
+/// column's type as a parameter is bound. A row of another width, or a value
+/// its column's type does not take, is refused with a `ConstructionError`
+/// naming the column, and `out` is left as it was.
+// [spec:pgorm:req:bindings.copy-rows+2]
+pub(super) fn encode_row<'cx>(
+    cx: &mut FunctionContext<'cx>,
+    codec: Codec<'cx>,
+    encoder: &CopyRowEncoder,
+    row: Handle<'cx, JsValue>,
+    out: &mut BytesMut,
+) -> NeonResult<()> {
+    let Ok(row) = row.downcast::<JsArray, _>(cx) else {
+        return cx.throw_type_error("a COPY row is an array of its columns' values");
+    };
+    let params = row_params(cx, codec, row, encoder.columns())?;
+    match encoder.encode(&params, out) {
+        Ok(()) => Ok(()),
+        Err(error) => refuse(cx, refusal(error)),
+    }
+}
+
+/// One COPY row's values, read as parameters are — null as NULL, a plain
+/// value by its inferred kind, a `Value` by its own — except where its
+/// column's kind says more: a json column's value, or a json array's, is
+/// read as JSON whatever it holds, and a value inference cannot type, an
+/// array holding no element or only nulls, a `Range` or a `Multirange`, as
+/// its column's kind. So a row `copyOutRows` read writes back. Where neither
+/// reads it, inference's refusal is the one thrown.
+// [spec:pgorm:req:bindings.copy-rows.typed]
+fn row_params<'cx>(
+    cx: &mut FunctionContext<'cx>,
+    codec: Codec<'cx>,
+    row: Handle<'cx, JsArray>,
+    columns: &[CopyColumn],
+) -> NeonResult<Vec<params::Param>> {
+    let items = row.to_vec(cx)?;
+    let mut read = Vec::with_capacity(items.len());
+    for (at, item) in items.into_iter().enumerate() {
+        let tag =
+            columns
+                .get(at)
+                .and_then(CopyColumn::value_kind)
+                .map(|(kind, array)| match array {
+                    true => Tag::Array(Box::new(Tag::Scalar(kind))),
+                    false => Tag::Scalar(kind),
+                });
+        // Any JSON value is a json column's, a number or an array included,
+        // which inference would read as numbers and arrays.
+        let json = matches!(&tag, Some(Tag::Scalar(ArrayType::Json)))
+            || matches!(&tag, Some(Tag::Array(element)) if **element == Tag::Scalar(ArrayType::Json));
+        let datum = match (json, &tag) {
+            (true, Some(tag)) => Some(crate::values::read::tagged(cx, codec, item, tag)?.datum),
+            _ => match cx.try_catch(|cx| crate::values::read::infer(cx, codec, item)) {
+                Ok(inferred) => inferred.map(|value| value.datum),
+                Err(refusal) => {
+                    let Some(tag) = &tag else {
+                        return cx.throw(refusal);
+                    };
+                    match cx.try_catch(|cx| crate::values::read::tagged(cx, codec, item, tag)) {
+                        Ok(value) => Some(value.datum),
+                        Err(_) => return cx.throw(refusal),
+                    }
+                }
+            },
+        };
+        read.push(match datum {
+            None => params::Param::Null,
+            Some(value) => params::Param::Value(pgorm::ValueHolder(value)),
+        });
+    }
+    Ok(read)
+}
+
+/// The data a decoder was given refused as not the binary format, or as
+/// ending where it may not.
+/// The decoder's next whole row, each field decoded as a result column of
+/// its type is; `None` until more data arrives, and after the trailer.
+// [spec:pgorm:req:bindings.copy-rows+2]
+pub(super) fn next_decoded(decoder: &mut CopyRowDecoder) -> Result<Option<Vec<Tagged>>, Failure> {
+    let Some(fields) = decoder
         .next_fields()
         .map_err(|error| Failure::Decode(refusal(error)))?
-    {
-        let row = fields
-            .iter()
-            .zip(decoder.columns())
-            .map(|(raw, column)| decode::field(column, raw.as_deref()))
-            .collect::<Result<Vec<_>, _>>()?;
+    else {
+        return Ok(None);
+    };
+    fields
+        .iter()
+        .zip(decoder.columns())
+        .map(|(raw, column)| decode::field(column, raw.as_deref()))
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
+/// Every whole row the decoder holds.
+fn decoded(decoder: &mut CopyRowDecoder) -> Result<Vec<Vec<Tagged>>, Failure> {
+    let mut rows = Vec::new();
+    while let Some(row) = next_decoded(decoder)? {
         rows.push(row);
     }
     Ok(rows)
@@ -200,7 +252,7 @@ fn rows_from(state: &OutState, chunk: Option<&[u8]>) -> Result<Vec<Vec<Tagged>>,
 /// the connection is free again. One pull runs at a time. A field that does
 /// not decode rejects with a `DecodeError` and closes the stream, discarding
 /// its connection, which the server would go on sending to.
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 pub(super) fn copy_rows_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = out_state(&mut cx)?;
     let abort = abort_argument(&mut cx, 1)?;
@@ -220,7 +272,7 @@ pub(super) fn copy_rows_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
     }
     let Ok(busy) = state.busy.clone().try_lock_owned() else {
         let busy =
-            Failure::Lifecycle("the COPY stream is busy: one pull runs at a time".to_owned());
+            Failure::Lifecycle("the COPY stream is busy: one row is pulled at a time".to_owned());
         return settle::rejected(&mut cx, busy);
     };
     let work = async move {
@@ -271,24 +323,34 @@ fn rows_to_js<'cx>(cx: &mut Cx<'cx>, rows: Option<Vec<Vec<Tagged>>>) -> JsResult
     };
     let codec = Codec::get(cx)?;
     let array = JsArray::new(cx, rows.len());
-    for (at, row) in rows.into_iter().enumerate() {
-        let values = JsArray::new(cx, row.len());
-        for (column, value) in row.iter().enumerate() {
-            let value = write::plain(cx, codec, value)?;
-            values.set(cx, index(column), value)?;
-        }
+    for (at, row) in rows.iter().enumerate() {
+        let values = row_to_js(cx, codec, row)?;
         array.set(cx, index(at), values)?;
     }
     Ok(array.upcast())
 }
 
-fn index(index: usize) -> u32 {
+/// One row as an array of its plain values.
+pub(super) fn row_to_js<'cx>(
+    cx: &mut Cx<'cx>,
+    codec: Codec<'cx>,
+    row: &[Tagged],
+) -> JsResult<'cx, JsArray> {
+    let values = JsArray::new(cx, row.len());
+    for (column, value) in row.iter().enumerate() {
+        let value = write::plain(cx, codec, value)?;
+        values.set(cx, index(column), value)?;
+    }
+    Ok(values)
+}
+
+pub(super) fn index(index: usize) -> u32 {
     u32::try_from(index).unwrap_or(u32::MAX)
 }
 
 /// `copyRowsColumns(stream)`: the names of the columns each row holds, in
 /// order, as the server describes them.
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 pub(super) fn copy_rows_columns(mut cx: FunctionContext) -> JsResult<JsArray> {
     let state = out_state(&mut cx)?;
     let names: Vec<String> = match &state.rows {

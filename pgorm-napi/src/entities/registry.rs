@@ -1,22 +1,18 @@
-//! The build-time collection of an application's concrete registrations.
-//! Its module owns it once installed; JavaScript cannot add a generic
-//! instantiation, only use the ones compiled in.
+//! The build-time collection of an application's concrete registrations,
+//! pgorm-bindings' own, refusing as Rust's `RegistrationError`. Its module
+//! owns it once installed; JavaScript cannot add a generic instantiation,
+//! only use the ones compiled in.
 
-use std::{
-    any::TypeId,
-    collections::{BTreeMap, HashMap},
-    marker::PhantomData,
-    sync::Arc,
+use pgorm::{
+    Disjoint, EntityTrait, GraphItem, GraphRow, IntoActiveModel, OneOf, SelectGraph, SelectorTrait,
+    pipeline::SourceList,
+};
+use pgorm_bindings::{
+    Failure,
+    entity::{GraphSlots, SourceTypes},
 };
 
-use pgorm::{EntityTrait, GraphItem, GraphRow, IntoActiveModel, SelectGraph, SelectorTrait};
-
-use super::{
-    adapter::{EntityAdapter, EntityBackend},
-    graph::{Factory, GraphFactory, GraphInfo, GraphSlots},
-    info::{EntityInfo, registration_name},
-};
-use crate::errors::Failure;
+use crate::connect::DIALECT;
 
 /// Why a registration was refused: a duplicate name or Rust type, a name
 /// out of bounds, a graph whose sources are not registered.
@@ -37,23 +33,25 @@ impl From<Failure> for RegistrationError {
     }
 }
 
-/// The concrete Rust entities and graph shapes one native module carries,
-/// which JavaScript reaches by name through `entity()` and `graph()`.
-#[derive(Debug, Default)]
-pub struct Registry {
-    pub(crate) entities: BTreeMap<String, Arc<dyn EntityBackend>>,
-    types: HashMap<TypeId, String>,
-    pub(crate) graphs: BTreeMap<String, Arc<dyn Factory>>,
-    pub(crate) sources: BTreeMap<String, Arc<dyn super::sources::SourcesFactory>>,
-    pub(crate) disjoints: crate::disjoint::Registered,
-    pub(crate) one_ofs: crate::one_of::Registered,
+/// The concrete Rust entities, graph shapes, source tuples, disjoint enums
+/// and one-of enums one native module carries, which JavaScript reaches by
+/// name through `entity()`, `graph()`, `pipeline.sources()`,
+/// `disjointEntity()` and `oneOfEntity()`.
+#[derive(Debug)]
+pub struct Registry(pub(crate) pgorm_bindings::entity::Registry);
+
+impl Default for Registry {
+    fn default() -> Self {
+        Self(pgorm_bindings::entity::Registry::new(DIALECT))
+    }
 }
 
 impl Registry {
     /// Register an entity's real `EntityTrait`, model, columns and
-    /// ActiveModel under `name`. A name or a Rust type registered twice is
-    /// refused, and nothing is added.
-    // [spec:pgorm:req:bindings.entities+5]
+    /// ActiveModel under `name`, its statements naming `E::default()`'s
+    /// table. A name or a Rust type registered twice is refused, and nothing
+    /// is added.
+    // [spec:pgorm:req:bindings.entities+6]
     // [spec:pgorm:req:napi.application+2]
     pub fn entity<E>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where
@@ -61,20 +59,22 @@ impl Registry {
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
-        if self.entities.contains_key(name) || self.types.contains_key(&TypeId::of::<E>()) {
-            return Err(RegistrationError(format!(
-                "{name:?} or its Rust entity is already registered"
-            )));
-        }
-        let info = Arc::new(EntityInfo::of::<E>(name)?);
-        self.entities.insert(
-            name.to_owned(),
-            Arc::new(EntityAdapter::<E> {
-                info,
-                entity: PhantomData,
-            }),
-        );
-        self.types.insert(TypeId::of::<E>(), name.to_owned());
+        self.entity_in(name, E::default())
+    }
+
+    /// Register `entity`, an instance of an entity whose names are computed
+    /// at run time, under `name`: every statement of the registration names
+    /// the instance's table, as Rust's `_in` constructors do. A type may be
+    /// registered once for each table its instances name; a name, or a type
+    /// and table already registered, is refused, and nothing is added.
+    // [spec:pgorm:req:bindings.entities+6]
+    pub fn entity_in<E>(&mut self, name: &str, entity: E) -> Result<&mut Self, RegistrationError>
+    where
+        E: EntityTrait + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        self.0.entity_in(name, entity)?;
         Ok(self)
     }
 
@@ -82,7 +82,7 @@ impl Registry {
     /// factory receives one alias per joined slot, in tuple order, and must
     /// join each slot under its alias; every source entity is registered
     /// first.
-    // [spec:pgorm:req:bindings.entity-graphs+3]
+    // [spec:pgorm:req:bindings.entity-graphs+4]
     pub fn graph<E, S, Build>(
         &mut self,
         name: &str,
@@ -91,136 +91,48 @@ impl Registry {
     where
         E: EntityTrait + Send + Sync + 'static,
         S: GraphSlots<E>,
-        GraphRow<E, S>: SelectorTrait,
+        GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
         GraphItem<E, S>: Send + 'static,
         Build: Fn(&[String]) -> SelectGraph<E, S> + Send + Sync + 'static,
     {
-        registration_name(name)?;
-        if self.graphs.contains_key(name) {
-            return Err(RegistrationError(format!(
-                "the graph {name:?} is already registered"
-            )));
-        }
-        let info = Arc::new(GraphInfo {
-            name: name.to_owned(),
-            shape: std::any::type_name::<SelectGraph<E, S>>(),
-            bindings: S::bindings(self)?,
-        });
-        self.graphs.insert(
-            name.to_owned(),
-            Arc::new(GraphFactory::<E, S, Build> {
-                info,
-                build,
-                marker: PhantomData,
-            }),
-        );
+        self.0.graph(name, build)?;
         Ok(self)
     }
 
-    /// The registered entity `E`, which a disjoint enum's base or kind is.
-    pub(crate) fn backend<E: EntityTrait + 'static>(
-        &self,
-    ) -> Result<Arc<dyn EntityBackend>, RegistrationError> {
-        self.backend_of(TypeId::of::<E>()).ok_or_else(|| {
-            RegistrationError(format!(
-                "register the entity {} before the disjoint entity over it",
-                std::any::type_name::<E>()
-            ))
-        })
+    /// Register a tuple of one to six entity types a pipeline's
+    /// `select_sources` decodes rows as, each entity registered first.
+    // [spec:pgorm:req:bindings.pipeline-sources+3]
+    pub fn sources<T: SourceTypes>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
+    where
+        <T::Selection as SourceList>::Row: Send,
+    {
+        self.0.sources::<T>(name)?;
+        Ok(self)
     }
 
-    /// The registered entity whose Rust type is `entity`.
-    pub(crate) fn backend_of(&self, entity: TypeId) -> Option<Arc<dyn EntityBackend>> {
-        self.types
-            .get(&entity)
-            .and_then(|name| self.entities.get(name))
-            .cloned()
+    /// Register the `#[derive(Disjoint)]` enum `D` under `name`, its base and
+    /// each kind's entity registered before it. A name or an enum registered
+    /// twice, an entity not registered, and a declaration `check_disjoint`
+    /// refuses are each refused, and nothing is added. An unkinded enum
+    /// registers the same way and is read-only: its shape refuses every
+    /// write and its schema.
+    // [spec:pgorm:req:bindings.disjoint+2]
+    // [spec:pgorm:req:bindings.disjoint-unkinded]
+    pub fn disjoint<D: Disjoint + 'static>(
+        &mut self,
+        name: &str,
+    ) -> Result<&mut Self, RegistrationError> {
+        self.0.disjoint::<D>(name)?;
+        Ok(self)
     }
 
-    /// The registration of `E`, which a graph's sources name.
-    pub(crate) fn registered<E: EntityTrait + 'static>(
-        &self,
-    ) -> Result<Arc<EntityInfo>, RegistrationError> {
-        self.types
-            .get(&TypeId::of::<E>())
-            .and_then(|name| self.entities.get(name))
-            .map(|entity| entity.info().clone())
-            .ok_or_else(|| {
-                RegistrationError(format!(
-                    "register the entity {} before a graph of it",
-                    std::any::type_name::<E>()
-                ))
-            })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use pgorm::EntityTrait;
-
-    use super::*;
-
-    mod widget {
-        use pgorm::entity::prelude::*;
-
-        #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-        #[pgorm(table_name = "widgets", schema_name = "app")]
-        pub struct Model {
-            #[pgorm(primary_key, auto_increment = false)]
-            pub id: i32,
-            pub label: Option<String>,
-        }
-
-        #[derive(Copy, Clone, Debug, Relation)]
-        pub enum Relation {}
-    }
-
-    mod gadget {
-        use pgorm::entity::prelude::*;
-
-        #[derive(Clone, Debug, PartialEq, Eq, Entity)]
-        #[pgorm(table_name = "gadgets")]
-        pub struct Model {
-            #[pgorm(primary_key, auto_increment = false)]
-            pub id: i64,
-        }
-
-        #[derive(Copy, Clone, Debug, Relation)]
-        pub enum Relation {}
-    }
-
-    // [spec:pgorm:req:bindings.entities+5/test]    a name or a Rust entity registered
-    // twice, a name out of bounds and a graph of an unregistered entity are each
-    // refused, and nothing is added
-    #[test]
-    fn registrations_refuse_duplicates_and_unregistered_sources() -> Result<(), RegistrationError> {
-        let mut registry = Registry::default();
-        registry.entity::<widget::Entity>("app.Widget")?;
-        assert!(registry.entity::<gadget::Entity>("app.Widget").is_err());
-        assert!(registry.entity::<widget::Entity>("again.Widget").is_err());
-        assert!(registry.entity::<gadget::Entity>("").is_err());
-        assert!(registry.entity::<gadget::Entity>(&"x".repeat(256)).is_err());
-        assert_eq!(registry.entities.len(), 1);
-        assert!(
-            registry
-                .graph::<gadget::Entity, (), _>("app.Gadgets", |_| gadget::Entity::graph())
-                .is_err()
-        );
-        registry.entity::<gadget::Entity>("app.Gadget")?;
-        registry.graph::<gadget::Entity, (), _>("app.Gadgets", |_| gadget::Entity::graph())?;
-        assert!(
-            registry
-                .graph::<gadget::Entity, (), _>("app.Gadgets", |_| gadget::Entity::graph())
-                .is_err()
-        );
-        let described = registry.entities["app.Widget"]
-            .info()
-            .describe()
-            .unwrap_or_else(|failure| panic!("{failure}"));
-        assert_eq!(described["schema"], "app");
-        assert_eq!(described["primaryKey"], serde_json::json!(["id"]));
-        assert_eq!(described["columns"][1]["nullable"], true);
-        assert_eq!(described["columns"][1]["kind"], "text");
-        Ok(())
+    /// Register the `#[derive(OneOf)]` enum `O` under `name`, its entity and
+    /// each target's registered before it. A name or an enum registered
+    /// twice, and an entity not registered, are each refused, and nothing is
+    /// added.
+    // [spec:pgorm:req:bindings.one-of+1]
+    pub fn one_of<O: OneOf>(&mut self, name: &str) -> Result<&mut Self, RegistrationError> {
+        self.0.one_of::<O>(name)?;
+        Ok(self)
     }
 }

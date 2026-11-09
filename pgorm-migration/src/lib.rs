@@ -3,11 +3,13 @@
 #![deny(clippy::print_stderr, clippy::print_stdout, clippy::dbg_macro)]
 
 pub mod ledger;
+mod migrations;
 pub mod migrator;
 pub mod prelude;
 mod sql_file;
 pub mod util;
 
+pub use migrations::Migrations;
 pub use migrator::*;
 pub use sql_file::SqlMigration;
 
@@ -34,13 +36,13 @@ pub trait MigrationName {
 pub use pgorm_macros::MigrationName;
 
 /// The migration definition
-// [spec:pgorm:def:migration.runner+4]    author-facing half
+// [spec:pgorm:def:migration.runner+5]    author-facing half
 // [spec:pgorm:req:migration.up-only]    `up` is the only direction
 #[async_trait::async_trait]
 #[doc(alias = "SchemaManager")]
 pub trait MigrationTrait: MigrationName + Send + Sync {
     /// Define actions to perform when applying the migration
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error>;
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error>;
 
     /// An opaque digest of what this migration does, stored in the ledger when
     /// the migration is applied and compared against on every later run.

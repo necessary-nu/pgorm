@@ -120,7 +120,7 @@ pub(super) const BEHAVIOR: &[(&str, DropBehavior)] = &[
     ("cascade", DropBehavior::Cascade),
 ];
 
-pub(super) const ACTIONS: &[(&str, ForeignKeyAction)] = &[
+pub(crate) const ACTIONS: &[(&str, ForeignKeyAction)] = &[
     ("noAction", ForeignKeyAction::NoAction),
     ("restrict", ForeignKeyAction::Restrict),
     ("cascade", ForeignKeyAction::Cascade),

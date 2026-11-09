@@ -7,7 +7,7 @@
 
 use std::ops;
 
-use pgorm::pgorm_query::{ArrayType, ColumnType, Multirange, Range, RangeType, Value};
+use pgorm::pgorm_query::{ArrayType, Multirange, Range, RangeType, Value};
 use pyo3::prelude::*;
 
 use super::{
@@ -22,16 +22,6 @@ pub(crate) fn kind_names() -> impl Iterator<Item = &'static str> {
     ArrayType::kinds()
         .filter(|kind| matches!(kind, ArrayType::Range(_) | ArrayType::Multirange(_)))
         .map(|kind| kind.kind_name())
-}
-
-/// The column type a schema declares for the range or multirange kind
-/// `name`.
-pub(crate) fn column_type(name: &str) -> Option<ColumnType> {
-    Some(match ArrayType::from_kind_name(name)? {
-        ArrayType::Range(range) => ColumnType::Range(range),
-        ArrayType::Multirange(range) => ColumnType::Multirange(range),
-        _ => return None,
-    })
 }
 
 // [spec:pgorm:req:bindings.values]

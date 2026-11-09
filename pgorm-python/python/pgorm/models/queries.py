@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from .. import _native as p
+from .clauses import Clauses, Recipe
 from .record import (
     Database,
     ModelRecord,
@@ -20,79 +22,23 @@ from .record import (
 if TYPE_CHECKING:
     from ..results import RowStream
     from ..runtime import Connection, Pool
+    from .columns import Column, ModelColumn
     from .cursors import Cursor, Paginator
     from .model import Model
+    from .projections import ModelProjection, ModelSelector, PartialModel
     from .relations import Relation
 
 
-def predicate_of(predicate: object) -> p.Expr | p.Condition:
-    if not isinstance(predicate, (p.Expr, p.Condition)):
-        raise TypeError("a condition is an expression or a Condition")
-    return predicate
-
-
-def orderings_of(orderings: tuple[object, ...]) -> tuple[p.OrderBy, ...]:
-    checked = tuple(ordering for ordering in orderings if isinstance(ordering, p.OrderBy))
-    if len(checked) != len(orderings):
-        raise TypeError("an ordering is expr.asc() or expr.desc()")
-    return checked
-
-
-@dataclass(frozen=True, slots=True)
-class Joined:
-    """A table a model query joins without reading its columns."""
-
-    model: Model
-    table: p.Table
-    qualifier: str
-    on: p.Condition
-    kind: p.Join
-
-
-@dataclass(frozen=True, slots=True)
-class Recipe:
-    """What a model query reads: its fields, joins, conditions, ordering and
-    window, from which each terminal's statement is built."""
-
-    model: Model
-    fields: tuple[str, ...]
-    joins: tuple[Joined, ...] = ()
-    wheres: tuple[p.Expr | p.Condition, ...] = ()
-    orders: tuple[p.OrderBy, ...] = ()
-    limit: int | None = None
-    offset: int | None = None
-
-    def select(
-        self,
-        orders: tuple[p.OrderBy, ...] | None = None,
-        wheres: tuple[p.Expr | p.Condition, ...] = (),
-        limit: int | None = None,
-    ) -> p.Select:
-        """The SELECT, its ordering, further conditions and limit those given."""
-        model = self.model
-        query = p.Select(
-            *(model._projected(name, model.col(name)) for name in self.fields)
-        ).from_(model.table)
-        for join in self.joins:
-            query = query.join(join.table, join.on, kind=join.kind)
-        for where in (*self.wheres, *wheres):
-            query = query.where(where)
-        ordering = self.orders if orders is None else orders
-        if ordering:
-            query = query.order_by(*ordering)
-        return query.limit(limit).offset(self.offset)
-
-
-# [spec:pgorm:req:bindings.model-reads]
+# [spec:pgorm:req:bindings.model-reads+1]
 @dataclass(frozen=True, eq=False, slots=True)
-class ModelQuery:
+class ModelQuery(Clauses):
     """A model's SELECT: every method returns a new query, and the terminals
     decode each row into a record of the fields it selects."""
 
     recipe: Recipe
 
     def __post_init__(self) -> None:
-        if not isinstance(self.recipe, Recipe):
+        if not isinstance(self.recipe, Recipe) or self.recipe.items is not None:
             raise TypeError("a ModelQuery comes from a model's find() or select()")
         # Building the statement refuses what cannot be built as the query is made.
         self.statement
@@ -118,50 +64,6 @@ class ModelQuery:
             return p._model_count(self.statement).inspect()
         raise TypeError('a model query inspects itself, or its "count"')
 
-    def where(self, predicate: p.Expr | p.Condition) -> ModelQuery:
-        recipe = self.recipe
-        return ModelQuery(replace(recipe, wheres=(*recipe.wheres, predicate_of(predicate))))
-
-    def order_by(self, *ordering: p.OrderBy) -> ModelQuery:
-        recipe = self.recipe
-        return ModelQuery(replace(recipe, orders=(*recipe.orders, *orderings_of(ordering))))
-
-    def limit(self, value: int | None) -> ModelQuery:
-        return ModelQuery(replace(self.recipe, limit=value))
-
-    def offset(self, value: int | None) -> ModelQuery:
-        return ModelQuery(replace(self.recipe, offset=value))
-
-    def join(
-        self,
-        relation: Relation,
-        *,
-        kind: p.Join = p.Join.Inner,
-        alias: str | None = None,
-    ) -> ModelQuery:
-        """Join the table at the far end of ``relation``, from the query's
-        model or a table it joined, without reading its columns."""
-        from .relations import Relation, joined_on, same_table
-
-        if not isinstance(relation, Relation):
-            raise TypeError("a model query joins a Relation")
-        if kind != p.Join.Inner and kind != p.Join.Left:
-            raise TypeError("a model join is Join.Inner or Join.Left")
-        recipe = self.recipe
-        tables = [(recipe.model, recipe.model.qualifier)]
-        tables += [(join.model, join.qualifier) for join in recipe.joins]
-        start = next((q for model, q in tables if same_table(model, relation.from_)), None)
-        if start is None:
-            raise p.ConstructionError(
-                f"the relation starts at {relation.from_.table.name}, which the query does not read"
-            )
-        end = relation.to
-        table = end.table if alias is None else end.table.as_(alias)
-        qualifier = end.qualifier if alias is None else p._identifier(alias)
-        on = joined_on(relation, start, qualifier)
-        join = Joined(end, table, qualifier, on, kind)
-        return ModelQuery(replace(recipe, joins=(*recipe.joins, join)))
-
     async def all(self, db: Database) -> list[ModelRecord]:
         return await decode_all(db, self.statement, self._sources())
 
@@ -171,9 +73,9 @@ class ModelQuery:
     async def optional(self, db: Database) -> ModelRecord | None:
         return cast(ModelRecord | None, await decode_single(db, self.statement, self._sources(), optional=True))
 
-    async def stream(self, db: Connection | Pool) -> RowStream[ModelRecord]:
-        """The rows, one per pull, over a connection the stream holds until
-        it ends."""
+    async def stream(self, db: Database) -> RowStream[ModelRecord]:
+        """The rows, one per pull, over a connection or a transaction the
+        stream holds until it ends."""
         return await decode_stream(db, self.statement, self._sources())
 
     async def count(self, db: Database) -> int:
@@ -187,8 +89,7 @@ class ModelQuery:
         recipe = self.recipe
         if not fields:
             raise p.ConstructionError("a cursor orders by at least one field")
-        qualifier = recipe.model.qualifier
-        order = tuple((recipe.model, qualifier, recipe.model.col(name).field_name) for name in fields)
+        order = tuple(recipe.model.col(name) for name in fields)
         return Cursor(
             Keyed(
                 lambda orders, wheres, limit: recipe.select(orders, wheres, limit),
@@ -196,6 +97,7 @@ class ModelQuery:
                 self._sources(),
                 order,
                 (),
+                recipe.tables(),
             )
         )
 
@@ -212,6 +114,54 @@ class ModelQuery:
             ),
             page_size,
         )
+
+    def select_only(self) -> ModelProjection:
+        """A projection of no items yet, the query's clauses kept: Rust's
+        ``select_only``."""
+        from .projections import ModelProjection
+
+        return ModelProjection(replace(self.recipe, items=()))
+
+    def _projection(self) -> ModelProjection:
+        """A projection of the fields the query selects, each projected as
+        the query projects it."""
+        from .projections import Item, ModelProjection
+
+        model = self.recipe.model
+        items = tuple(Item.field(model, name) for name in self.recipe.fields)
+        return ModelProjection(replace(self.recipe, items=items))
+
+    def column(self, column: ModelColumn) -> ModelProjection:
+        """A projection of the query's fields and ``column``."""
+        return self._projection().column(column)
+
+    def columns(self, *columns: ModelColumn) -> ModelProjection:
+        return self._projection().columns(*columns)
+
+    def column_as(self, column: ModelColumn, name: str) -> ModelProjection:
+        return self._projection().column_as(column, name)
+
+    def expr_as(self, expr: p.Expr, name: str, declaration: Column) -> ModelProjection:
+        return self._projection().expr_as(expr, name, declaration)
+
+    def into_tuple(self) -> ModelSelector[tuple[Any, ...]]:
+        """The rows as tuples of the fields' values, in the order selected."""
+        return self._projection().into_tuple()
+
+    def into_values(self, *names: str) -> ModelSelector[tuple[Any, ...]]:
+        return self._projection().into_values(*names)
+
+    def into_model[T](self, target: Callable[..., T]) -> ModelSelector[T]:
+        return self._projection().into_model(target)
+
+    def into_partial_model(self, shape: PartialModel) -> ModelSelector[Mapping[str, Any]]:
+        """The rows read as ``shape`` declares them, the query's clauses
+        kept: Rust's ``into_partial_model``."""
+        from .projections import PartialModel
+
+        if not isinstance(shape, PartialModel):
+            raise TypeError("into_partial_model takes a PartialModel")
+        return shape._selector(self.recipe)
 
     def _sources(self) -> tuple[Source, ...]:
         return (own_source(self.recipe.model, self.recipe.fields),)

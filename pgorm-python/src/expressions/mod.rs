@@ -11,6 +11,7 @@ mod comparison;
 mod compiled;
 mod construct;
 mod declared;
+mod json_ops;
 mod logic;
 mod options;
 mod patterns;
@@ -24,7 +25,7 @@ mod tests;
 #[cfg(test)]
 mod variants;
 
-use pgorm::pgorm_query::{BinOper, SimpleExpr};
+use pgorm::pgorm_query::{BinOper, ExprTrait, SimpleExpr};
 use pyo3::prelude::*;
 
 use crate::statements::PyQuantified;
@@ -35,7 +36,7 @@ pub use construct::PyCondition;
 pub(crate) use construct::{coerce, require_expr};
 pub use options::{Aliased, OrderBy, PyLikeExpr};
 
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:python.expressions+7]
 // [spec:pgorm:req:bindings.statements]
 /// An immutable owned Rust SimpleExpr. Every composition clones its inputs.
@@ -65,7 +66,7 @@ impl PyExpr {
 /// result is a boolean, as the server requires of one (`42809`). `SIMILAR
 /// TO`, `IS DISTINCT FROM`, `BETWEEN` and `IN` are read by the grammar with
 /// no quantifier at all.
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 fn takes_quantifier(operator: BinOper) -> bool {
     matches!(
         operator,
@@ -113,7 +114,12 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(construct::bind, module)?)?;
     module.add_function(wrap_pyfunction!(construct::literal, module)?)?;
     module.add_function(wrap_pyfunction!(construct::call, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::func, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::template, module)?)?;
     module.add_function(wrap_pyfunction!(construct::tuple_expr, module)?)?;
     module.add_function(wrap_pyfunction!(construct::domain_value, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::current_date, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::current_time, module)?)?;
+    module.add_function(wrap_pyfunction!(construct::current_timestamp, module)?)?;
     Ok(())
 }

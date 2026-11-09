@@ -227,18 +227,18 @@ impl MigrationName for Noop {
 
 #[async_trait::async_trait]
 impl MigrationTrait for Noop {
-    async fn up(&self, _: &pgorm::DatabaseTransaction<'_>) -> Result<(), pgorm::Error> {
+    async fn up(&self, _: &mut pgorm::DatabaseTransaction<'_>) -> Result<(), pgorm::Error> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl MigratorTrait for OracleMigrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(Noop)]
     }
 
-    fn migration_table_name() -> Name {
+    fn migration_table_name(&self) -> Name {
         Name::runtime(LEDGER.lock().map(|name| name.clone()).unwrap_or_default())
     }
 }
@@ -252,7 +252,7 @@ async fn ledger(url: &str, name: &str) -> Reached {
     // The connection checked out here goes back idle, and is the one the
     // migrator is lent, so it does not connect again.
     drop(reach(|| pool.get()).await?);
-    let _ = OracleMigrator::up(pool, None).await;
+    let _ = OracleMigrator.up(pool, None).await;
     Ok(())
 }
 
@@ -431,7 +431,7 @@ async fn capture(run: Pin<Box<dyn Future<Output = Reached> + '_>>) -> Result<Vec
                 *lines = theirs;
                 mine.into_iter()
                     .map(|(_, sql)| sql)
-                    .filter(|sql| !is_catalogue(sql))
+                    .filter(|sql| !is_catalogue(sql) && !is_commit(sql))
                     .collect::<Vec<_>>()
             },
         )
@@ -601,4 +601,11 @@ async fn hold_site(live: &LiveSite, url: &str) -> Vec<String> {
 /// site.
 fn is_catalogue(sql: &str) -> bool {
     sql.contains("pg_catalog.pg_type") || sql.contains("FROM pg_catalog.pg_enum")
+}
+
+/// pgorm-pool's commit of a transaction, `SELECT; COMMIT` in one simple
+/// query (`conn.tx.aborted`): fixed text naming nothing, and two statements,
+/// which no site's statement is.
+fn is_commit(sql: &str) -> bool {
+    sql == "SELECT; COMMIT"
 }

@@ -279,6 +279,25 @@ assert!(refused.is_err());
 # }
 ```
 
+The wrapping is [`raw_select`](crate::raw_select), for a caller that sends a
+page or the count itself: it gives the `SelectStatement` `paginate` pages,
+which [`page_statement`](crate::page_statement) and
+[`count_statement`](crate::count_statement) take.
+
+```rust
+use pgorm::{Value, count_statement, raw_select};
+
+let wrapped = raw_select("SELECT name FROM cake WHERE bakery_id = $1 ORDER BY price", vec![Value::from(1)])?;
+let (sql, values) = count_statement(&wrapped)?.build();
+assert_eq!(
+    sql,
+    r#"SELECT COUNT(*) AS num_items FROM (SELECT * FROM (SELECT name FROM cake WHERE bakery_id = $1 ORDER BY price
+) AS "sub_statement") AS "sub_query""#
+);
+assert_eq!(values.0, [Value::from(1)]);
+# Ok::<(), pgorm::Error>(())
+```
+
 ## Streams
 
 [`stream`](crate::Select::stream) runs a query and yields its rows as they

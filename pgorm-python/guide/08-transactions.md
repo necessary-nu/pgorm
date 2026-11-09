@@ -80,7 +80,7 @@ async def main() -> None:
                 try:
                     await connection.one(RawSQL("SELECT count(*) AS cakes FROM cake"))
                 except pgorm.LifecycleError as error:
-                    assert str(error) == "connection already has an active operation"
+                    assert str(error) == "the connection is busy: an operation, a transaction or a stream holds it"
                 else:
                     raise AssertionError("the transaction holds the connection")
                 row = await tx.one(RawSQL("SELECT count(*) AS cakes FROM cake"))
@@ -89,7 +89,7 @@ async def main() -> None:
             try:
                 await tx.one(RawSQL("SELECT 1 AS one"))
             except pgorm.LifecycleError as error:
-                assert str(error) == "transaction is closed"
+                assert str(error) == "the transaction is closed"
             else:
                 raise AssertionError("the transaction ended with its block")
 
@@ -154,25 +154,34 @@ program decides the work should not stand, rolls back the same way and
 reaches the code around the block as itself.
 
 Here Python differs from Rust. Rust wraps a failed transaction in a
-`TransactionError` that keeps apart the closure's own error, a failed `BEGIN`
-or `COMMIT`, and a `ROLLBACK` that failed after the closure's error. Python
-has no wrapper, and raises one exception:
+`TransactionError` that keeps apart the closure's own error
+(`Transaction`), a failed `BEGIN` or `COMMIT` (`Connection`), and a
+`ROLLBACK` that failed after the closure's error (`RollbackFailed`). Python
+has no wrapper, and raises one exception for each:
 
 - The block's own exception, after a rollback that succeeded.
-- A `COMMIT` that fails raises its error, a `DatabaseError` or a
-  `ConnectionError`, from the block's exit.
-- A `ROLLBACK` that fails raises its error in place of the block's
-  exception, which it carries as `__context__`. A cancellation,
+- A `BEGIN` or `COMMIT` that fails raises its error, a `DatabaseError` or a
+  `ConnectionError`, from the block's entry or exit, and so does a block whose
+  transaction a caught failure had aborted
+  ([A caught error still aborts](#a-caught-error-still-aborts)).
+- A `ROLLBACK` that fails raises `RollbackFailedError`, Rust's
+  `Error::RollbackFailed`: its `cause` is the block's exception, which it is
+  chained from, and its `rollback` the rollback's error. The `ROLLBACK` of a
+  transaction a caught failure aborted that fails raises it too, its `cause`
+  the `25P02` `DatabaseError`. A cancellation,
   `KeyboardInterrupt` or `SystemExit` is never replaced this way: it
   propagates as itself, so that asyncio still sees the cancellation.
 
 In Rust, a connection whose `COMMIT` or `ROLLBACK` failed is in a state no one
-knows, and the program gives it back with `discard` so the pool closes it.
-Python has no `discard`: the binding discards such a connection itself, and
-the pool opens a fresh one when it next needs one. A block whose transaction
-was already discarded, by a cancelled statement or by a `COPY` the server
-refused ([COPY](17-copy.md)), keeps its own exception; if it exits normally
-instead, its exit raises `LifecycleError`, since nothing is left to commit.
+knows, an aborted transaction's apart, and the program gives it back with
+`discard` so the pool closes it. Python's binding discards such a connection
+itself, and the pool opens a fresh one when it next needs one. A connection
+the program no longer trusts for a reason of its own it gives up with
+`connection.discard()`, which closes it rather than return it to its pool, as
+Rust's `discard` does. A block whose transaction was already discarded, by a
+cancelled statement or by a `COPY` the server refused ([COPY](17-copy.md)),
+keeps its own exception; if it exits normally instead, its exit raises
+`LifecycleError`, since nothing is left to commit.
 
 ## Savepoints
 
@@ -226,16 +235,65 @@ as Rust's `?` passes a savepoint's error on to the closure around it.
 
 Without the savepoint, the failed insert would have aborted the whole
 transaction: PostgreSQL refuses every later statement in a transaction one
-statement has failed in, with SQLSTATE `25P02`, until it rolls back. Catching
-the error inside the block does not undo that. A block that catches a failed
-statement's error without a savepoint and then exits normally commits
-nothing: PostgreSQL answers the `COMMIT` of a failed transaction by rolling it
-back, and the block ends without an error. Put the statement that may fail in
-a savepoint and catch its error outside the savepoint's block.
+statement has failed in, with SQLSTATE `25P02`, until it rolls back.
 
 While a savepoint is open, its parent transaction refuses statements and
 other savepoints with `LifecycleError`; use the savepoint's own `Transaction`
 until its block ends.
+
+## A caught error still aborts
+
+Catching a failed statement's error inside the block does not undo what the
+failure did to the transaction. PostgreSQL has aborted it, and answers its
+`COMMIT` by rolling it back. pgorm asks before it commits, so a block that
+exits normally after catching such an error raises from its exit: a
+`DatabaseError` whose `sqlstate` is `25P02`, saying the transaction was rolled
+back, with nothing it wrote kept:
+
+```python
+import asyncio
+import os
+from datetime import datetime, timezone
+
+from pgorm import DatabaseError, ForeignKeyViolationError, Pool
+
+from bakery import Order
+
+
+async def main() -> None:
+    placed_at = datetime(2026, 11, 4, 10, 0, tzinfo=timezone.utc)
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        try:
+            async with pool.transaction() as tx:
+                await Order.insert({"customer_id": 1, "bakery_id": 1, "placed_at": placed_at}).execute(tx)
+                try:
+                    await Order.insert({"customer_id": 99, "bakery_id": 1, "placed_at": placed_at}).execute(tx)
+                except ForeignKeyViolationError:
+                    pass  # A mistake: the block carries on.
+        except DatabaseError as error:
+            assert error.sqlstate == "25P02"
+            assert str(error).startswith("the transaction was rolled back, not committed")
+        else:
+            raise AssertionError("the block committed")
+
+        # Neither order was written.
+        assert await Order.find().count(pool) == 2
+
+
+asyncio.run(main())
+```
+
+The connection is in a known state, so it goes back to the pool as usual. A
+savepoint's block that exits normally after catching an error raises the same
+`DatabaseError` from its exit, and the savepoint is rolled back to, so the
+transaction around it carries on unless the error leaves its block too. Put
+the statement that may fail in a savepoint of its own, as above, and catch its
+error outside the savepoint's block.
+
+Here Python differs from Rust: Rust returns this as
+`TransactionError::Connection(Error::TransactionAborted)`, and Python raises
+the `DatabaseError` it carries, its message pgorm's account of the rollback
+rather than the server's.
 
 ## Choosing the isolation level and access mode
 
@@ -258,7 +316,7 @@ isolation level given to `"default"` or `"deferrable"` raises
 the two choices for type annotations. A savepoint takes neither argument.
 
 Here Python differs from Rust in spelling: Rust passes a `TransactionMode`
-value to `transaction_with`, a method of `DatabaseConnection` alone. Python
+value to `transaction_with`, a method of a connection alone. Python
 passes the same choices as keyword arguments, to a pool's `transaction` as
 well as a connection's.
 
@@ -299,15 +357,18 @@ whose result another concurrent transaction has made inconsistent, with a
 serialization failure (SQLSTATE `40001`), and expects the client to run it
 again. It does the same to one side of a deadlock (`40P01`).
 
-Rust's `transaction_with_retry` runs the whole transaction again, from
-`BEGIN`, while it fails with one of those two errors. It is not available in
-Python yet, nor is Rust's `is_retryable`, which tells those errors from the
-rest. A Python program writes the loop: open the transaction again while its
-block fails with a `DatabaseError` whose `sqlstate` is one of the two. The
-binding itself never retries a statement or a transaction.
+`transaction_with_retry(work, retries=..)`, on a pool or a connection, runs
+the whole transaction again, from `BEGIN`, while it fails with one of those
+two errors, as Rust's `transaction_with_retry` does: pgorm's own retry,
+through the connection a pool lends for the whole. A block cannot run twice,
+so the work is a function given each attempt's `Transaction`, and its result
+is returned once an attempt commits. It runs again when it raises an error
+whose `is_retryable` is true, or when its `COMMIT` fails that way, up to
+`retries` more times; past the last, or for any other exception, the
+transaction ends as a block's does and the exception propagates. `mode` and
+`isolation` are a block's. Anything the work does outside the database
+happens again on each attempt.
 
-The work may run more than once, so it is a function the loop calls on each
-attempt, and anything it does outside the database happens again each time.
 Here another connection changes the cake's price after the first attempt has
 read it, and the first attempt's update is refused; the second attempt reads
 the new price and succeeds:
@@ -315,28 +376,11 @@ the new price and succeeds:
 ```python
 import asyncio
 import os
-from collections.abc import Awaitable, Callable
 from decimal import Decimal
 
-from pgorm import DatabaseError, Pool, RawSQL, Transaction
+from pgorm import Pool, RawSQL, Transaction
 
 from bakery import Cake
-
-RETRYABLE = {"40001", "40P01"}
-
-
-async def serializable[T](pool: Pool, retries: int, work: Callable[[Transaction], Awaitable[T]]) -> T:
-    """Run `work` in a serializable transaction, and again from the start while
-    it fails with a serialization failure or a deadlock, up to `retries` times."""
-    attempt = 0
-    while True:
-        attempt += 1
-        try:
-            async with pool.transaction(mode="read_write", isolation="serializable") as tx:
-                return await work(tx)
-        except DatabaseError as error:
-            if error.sqlstate not in RETRYABLE or attempt > retries:
-                raise
 
 
 async def main() -> None:
@@ -359,16 +403,14 @@ async def main() -> None:
             price: Decimal = changed["price"]
             return price
 
-        doubled = await serializable(pool, 3, double_fudge)
+        doubled = await pool.transaction_with_retry(
+            double_fudge, retries=3, mode="read_write", isolation="serializable"
+        )
         assert (attempts, str(doubled)) == (2, "11.00")
 
 
 asyncio.run(main())
 ```
-
-The `return` inside the block commits before the value leaves the function,
-and a serialization failure can also come from the `COMMIT`, which this loop
-retries like any other.
 
 ## A cancelled block rolls back
 
@@ -477,12 +519,11 @@ the second, as two statements on one connection do. A pool used from another
 event loop, such as one running in another thread, raises `LifecycleError`
 before anything is sent.
 
-A transaction runs every statement the package offers except a stream:
-`stream` is not available on a `Transaction` in Python yet, though Rust
-streams rows inside a transaction. Read a transaction's rows whole, or a page
-at a time ([Pages, cursors and streams](06-pagination.md)). A transaction
-does run `COPY` ([COPY](17-copy.md)) and `notify` ([LISTEN and
-NOTIFY](18-listen-notify.md)).
+A transaction runs every statement the package offers: a stream of its rows
+([Pages, cursors and streams](06-pagination.md)), which reserves the
+transaction until its last row, `COPY` ([COPY](17-copy.md)) and `notify`
+([LISTEN and NOTIFY](18-listen-notify.md)) among them.
 
-Rust's metrics wrappers instrument transactions too. Python has no metrics
-layer yet ([Metrics](21-metrics.md)).
+A transaction on an instrumented pool, or on a connection it lent, reports
+its begin, its statements, its savepoints and its commit or rollback to the
+pool's collector ([Metrics](21-metrics.md)), whatever its mode.

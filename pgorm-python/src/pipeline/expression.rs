@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use pgorm::pgorm_query::Name;
 use pgorm::pipeline as pl;
 use pyo3::{
     basic::CompareOp,
@@ -16,7 +17,7 @@ use crate::{
     UnsupportedCapabilityError,
     errors::{ConstructionError, LifecycleError},
     identifiers::Identifier,
-    values::PyTypeName,
+    values::{PyTypeName, PyValue},
 };
 
 /// A native expression recipe with an optional, checked Python callback scope.
@@ -30,11 +31,21 @@ use crate::{
 pub struct PyPipelineExpr {
     pub(super) recipe: Arc<Recipe>,
     pub(super) scope: Option<Arc<Scope>>,
+    /// A declared model's column carries its declaration's conversion, which
+    /// a value compared with it goes through. Only the column itself carries
+    /// it: what an operator builds from the column is an expression of its
+    /// own type, as pgorm's `values_as` is the column's alone.
+    pub(super) declared: Option<Arc<Py<PyAny>>>,
 }
 
 impl PyPipelineExpr {
     pub(super) fn check(&self) -> PyResult<()> {
-        self.scope.as_ref().map_or(Ok(()), |scope| scope.check())
+        match &self.scope {
+            Some(scope) if !scope.active()? => Err(LifecycleError::new_err(
+                pgorm_bindings::pipeline::PLACEHOLDER_ENDED,
+            )),
+            _ => Ok(()),
+        }
     }
 
     pub(super) fn compose(recipe: Recipe, operands: &[Self]) -> PyResult<Self> {
@@ -47,7 +58,7 @@ impl PyPipelineExpr {
                     .is_some_and(|owner| !Arc::ptr_eq(owner, scope))
                 {
                     return Err(LifecycleError::new_err(
-                        "pipeline expression combines different binder scopes",
+                        pgorm_bindings::pipeline::TWO_BINDERS,
                     ));
                 }
                 owner = Some(scope.clone());
@@ -56,6 +67,7 @@ impl PyPipelineExpr {
         Ok(Self {
             recipe: Arc::new(recipe),
             scope: owner,
+            declared: None,
         })
     }
 
@@ -65,17 +77,50 @@ impl PyPipelineExpr {
     // [spec:pgorm:req:bindings.operands]
     pub(super) fn coerce(value: &Bound<'_, PyAny>) -> PyResult<Self> {
         if let Ok(expression) = value.extract::<PyRef<'_, Self>>() {
-            expression.check()?;
             return Ok(expression.clone());
         }
         Ok(Self {
             recipe: Arc::new(Recipe::Value(bindable(value)?)),
             scope: None,
+            declared: None,
+        })
+    }
+
+    /// An operand compared with this expression: a value compared with a
+    /// declared model's column converted through the column's declaration,
+    /// and bound as the payload it holds, the column's own cast typing it as
+    /// `col_typed` casts a compared value; any other operand as `coerce`
+    /// takes it.
+    // [spec:pgorm:req:bindings.pipeline-models+1]
+    fn compared(&self, value: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let Some(convert) = &self.declared else {
+            return Self::coerce(value);
+        };
+        if value.extract::<PyRef<'_, Self>>().is_ok() {
+            return Self::coerce(value);
+        }
+        let converted = convert.bind(value.py()).call1((value,))?;
+        let converted = converted.extract::<PyRef<'_, PyValue>>().map_err(|_| {
+            PyTypeError::new_err("a model column's declaration converts a value to a Value")
+        })?;
+        Ok(Self {
+            recipe: Arc::new(Recipe::Value(converted.rust_value().clone())),
+            scope: None,
+            declared: None,
         })
     }
 
     fn binary(&self, operation: Binary, value: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let right = Self::coerce(value)?;
+        let right = match operation {
+            Binary::Eq
+            | Binary::Ne
+            | Binary::Gt
+            | Binary::Gte
+            | Binary::Lt
+            | Binary::Lte
+            | Binary::Coalesce => self.compared(value)?,
+            _ => Self::coerce(value)?,
+        };
         Self::compose(
             Recipe::Binary(operation, self.recipe.clone(), right.recipe.clone()),
             &[self.clone(), right],
@@ -227,7 +272,7 @@ impl PyPipelineExpr {
         }
         let mut members = values
             .try_iter()?
-            .map(|value| Self::coerce(&value?))
+            .map(|value| self.compared(&value?))
             .collect::<PyResult<Vec<_>>>()?;
         let recipe = Recipe::In(
             self.recipe.clone(),
@@ -242,7 +287,7 @@ impl PyPipelineExpr {
     }
 }
 
-pub(super) fn alias_name(value: &Bound<'_, PyAny>) -> PyResult<String> {
+pub(super) fn alias_name(value: &Bound<'_, PyAny>) -> PyResult<Name> {
     if let Ok(expression) = value.extract::<PyRef<'_, PyPipelineExpr>>() {
         expression.check()?;
         if let Recipe::Alias(name) = expression.recipe.as_ref() {
@@ -252,5 +297,5 @@ pub(super) fn alias_name(value: &Bound<'_, PyAny>) -> PyResult<String> {
             "pipeline names require identifiers or alias tokens",
         ));
     }
-    Ok(Identifier::new(value)?.name)
+    Ok(Name::runtime(Identifier::new(value)?.name))
 }

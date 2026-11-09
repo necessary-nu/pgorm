@@ -79,7 +79,7 @@ impl<'cx> Codec<'cx> {
         match handles {
             Some((describe, make)) => Ok(Self { describe, make }),
             None => cx.throw_error(
-                "pgorm-napi converts values only when loaded through lib/index.js, which \
+                "pgorm-napi converts values only when loaded through lib/pgorm.js, which \
                  registers how they are read and built",
             ),
         }

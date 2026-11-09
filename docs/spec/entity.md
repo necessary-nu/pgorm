@@ -32,7 +32,7 @@ explicit limitations.
 > whose names are computed, or a key the arity guard of `entity.traits.crud` refuses —
 > meets the same bounds.
 
-> [spec:pgorm:req:entity.traits.entity-name+5]
+> [spec:pgorm:req:entity.traits.entity-name+6]
 > `EntityName::table_name` is the only required method and MUST return the table's SQL
 > name. `schema_name` and `comment` default to `None`; `module_name` defaults to
 > `table_name()`; `unique_keys` — the table's unique keys over two columns or
@@ -54,14 +54,35 @@ explicit limitations.
 > answers `schema_name` as its `table_schema`, which `IntoTableName` reads
 > (`[spec:pgorm:def:sql.types.table-ref]`). An entity whose `SqlName` is written
 > by hand qualifies there only if it answers `table_schema` too.
+>
+> An entity whose names are computed at run time — a hand-written `Entity` struct
+> holding what they are computed from — names a table per instance. A statement
+> built by a static constructor (`find()`, `Insert::one`, …) names
+> `Self::default()`'s table; one built by an `_in` constructor
+> (`entity.traits.crud`, `query.build.insert`, `query.build.update`,
+> `query.build.delete`, `query.graph`) or by `Update::many(entity)`,
+> `Delete::many(entity)` or `Pipeline::from(entity)` names the instance's, its schema
+> and table both. Every column reference such a statement writes is qualified by the
+> default's table name (`ColumnTrait::entity_name`), so where the instance's table
+> name differs from the default's, the table is read under the default's as an alias —
+> `FROM "acme"."cake_2026" AS "cake"`, `UPDATE … AS "cake"` — and a schema alone needs
+> none, since `FROM "acme"."cake"` already answers to `cake`. The default is therefore
+> part of the entity's contract: its table name qualifies every column, so it SHOULD
+> name one; a default whose table name is empty names none to read the instance's
+> table under, and its statements name the instance's table bare.
 
-> [spec:pgorm:req:entity.traits.crud+4]
+> [spec:pgorm:req:entity.traits.crud+5]
 > `EntityTrait` provides the static *read* surface (`src/entity/base_entity.rs`):
 > `find()` returns a fresh `Select<Self>`; `find_by_id(values)` builds on `find()` by
 > adding an equality filter per primary-key column, consuming the value tuple in
 > primary-key iteration order. `delete_by_id(values)` returns a `DeleteMany`
 > filtered per primary-key column like `find_by_id`; it stays because the
-> per-column filter loop is real work, not a forward.
+> per-column filter loop is real work, not a forward. Each has an `_in` form taking
+> the entity instance first — `find_in(entity)`, `find_by_id_in(entity, values)`,
+> `delete_by_id_in(entity, values)`, and `graph_in(entity)` beside `graph()` — that
+> names the instance's table instead of `Self::default()`'s
+> (`entity.traits.entity-name`), so a per-tenant schema is chosen where the
+> statement is written; the static forms are the `_in` forms over the default.
 >
 > `EntityTrait` MUST NOT carry `insert`, `insert_many`, `update`, `update_many`,
 > `delete`, or `delete_many`. Each was a one-line forward to a builder
@@ -82,8 +103,8 @@ explicit limitations.
 > Values are accepted via `IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>`
 > (`entity.traits.primary-key`), so composite keys are passed as tuples whose parts
 > convert one by one: `find_by_id((1, "x"))` against an `(i32, String)` key, with no
-> `.to_owned()`. These two are the only APIs that take a key value; a cursor boundary
-> takes a value tuple over its order columns, not a key.
+> `.to_owned()`. These two and their `_in` forms are the only APIs that take a key
+> value; a cursor boundary takes a value tuple over its order columns, not a key.
 
 > [spec:pgorm:def:entity.traits.column+9]
 > `ColumnTrait: StaticName + Iterable + FromStr` (`src/entity/column.rs`) describes one
@@ -95,7 +116,9 @@ explicit limitations.
 > comparisons `is_distinct_from` / `is_not_distinct_from`; pattern matching
 > `like`, `not_like`, and the sugar `starts_with`, `ends_with` and
 > `contains`, whose search text is LITERAL: `%`, `_` and `\` in it are
-> escaped before the pattern is built (`s%`, `%s`, `%s%`), so
+> escaped before the pattern is built (`s%`, `%s`, `%s%`) — they are
+> `LikeExpr::starting_with`, `ending_with` and `containing`
+> (`sql.ast.expr.similar-to`), the one escaping pgorm has — so
 > `contains("%")` matches a percent sign rather than every row — a pattern
 > is `like`'s job and `like`/`not_like` take theirs verbatim; aggregates `max`, `min`, `sum`, `count`; null checks `is_null`,
 > `is_not_null`, `if_null`; set membership `is_in` / `is_not_in`, its
@@ -483,6 +506,14 @@ explicit limitations.
 > MUST return `None` if any key component is `NotSet`.
 > `is_changed` returns `true` when any attribute is in the `Set` state.
 
+> [spec:pgorm:req:entity.active-model.set-if-not-equals]
+> `ActiveModelTrait::set_if_not_equals(column, value)` MUST be `set` unless the
+> column holds that value `Unchanged`, when it does nothing: the column's
+> `ActiveValue::set_if_not_equals` reached by name, as a binding names a column,
+> so `is_changed` then reports whether there is anything to write. A column the
+> model does not carry, and a value of the wrong type for it, MUST be the
+> `Error::Type` `get` and `set` report.
+
 > [spec:pgorm:def:entity.active-model.active-value+1]
 > `ActiveValue<V: Into<Value>>` (`src/entity/active_model.rs`) is a three-state
 > machine over a column value: `Set(V)` (a value actively being written),
@@ -542,7 +573,7 @@ explicit limitations.
 > root and is the spelling documentation uses
 > (`[spec:pgorm:def:entity.active-model.active-value]`).
 
-> [spec:pgorm:req:entity.active-model.persistence+2]
+> [spec:pgorm:req:entity.active-model.persistence+3]
 > `ActiveModelTrait::insert` MUST execute via `Insert::exec_returning_model`, so on
 > PostgreSQL the insert and the returned `Model` are a single `INSERT ... RETURNING`
 > round trip. `ActiveModelTrait::update` executes
@@ -550,7 +581,12 @@ explicit limitations.
 > (an `UPDATE ... RETURNING` statement keyed on the primary key) and likewise returns
 > the fresh `Model`. `ActiveModelTrait::delete` deletes by the model's primary key and
 > returns the rows-affected count as `u64`. All three are async and generic over any
-> `ConnectionTrait` (`src/entity/active_model.rs`). `insert` and `update` are the
+> `ConnectionTrait` (`src/entity/active_model.rs`). Each has an `_in` form taking the
+> entity instance before the connection — `insert_in`, `update_in`, `delete_in` — that
+> writes the table the instance names through `Insert::one_in`, `Update::one_in` and
+> `Delete::one_in` (`[spec:pgorm:req:entity.traits.entity-name]`), its hooks run as the
+> plain form runs them; the plain form is the `_in` form over `Self::Entity::default()`.
+> `insert` and `update`, with their `_in` forms, are the
 > trait's only write entry points, and which of them runs is the caller's stated
 > choice rather than a property of the model
 > (`[spec:pgorm:req:entity.active-model.save]`). Both accept a primary key in
@@ -857,7 +893,7 @@ explicit limitations.
 
 ## Prelude
 
-> [spec:pgorm:def:entity.prelude+11]
+> [spec:pgorm:def:entity.prelude+12]
 > `pgorm::entity::prelude` (`src/entity/prelude.rs`) is the glob a file that
 > talks to the database imports instead of naming what it needs one item at a
 > time. Membership is chosen from what code actually writes, and is public API:
@@ -875,8 +911,11 @@ explicit limitations.
 > `QueryResult`, `DecodeSelect`, `DecodeRaw` (`exec.crud.selector-entry`); the
 > connection types `DatabasePool`, `DatabaseConnection`, `DatabaseTransaction`,
 > `ConnectionTrait`, `TransactionTrait`; `Iterable`, `Condition`, `JoinType`,
-> `Value`, the `error` module's contents, and the handful of `pgorm_query`
-> names an entity definition needs (`Expr`, `Name`, `StringLen`,
+> `Value`, the `error` module's contents, `ExprTrait`, without which a
+> function call, a cast or a column's aggregate could be built but not
+> compared (`Column::Id.count().gt(2)`, `sql.ast.expr.operators`), and the
+> handful of `pgorm_query` names an entity definition needs (`Expr`, `Name`,
+> `StringLen`,
 > `ForeignKeyAction`, `Func`, `Arc`, and `ConditionType`, `Deferrability`,
 > `Enforcement` and `ArrayType`, which with `ForeignKeyAction` and `ColumnType`
 > a derive's attributes name as written, with no prefix of the derive's

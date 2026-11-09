@@ -54,7 +54,7 @@ today, including panicking edges and deliberate failsafes.
 > `MergeStatement` do not, and a caller who wants a second copy of one writes
 > `.to_owned()`.
 
-> [spec:pgorm:req:sql.surface+38]
+> [spec:pgorm:req:sql.surface+40]
 > The crate's exports are an explicit list, not a set of module globs.
 > `pgorm-query/src/lib.rs` MUST name every exported item in `pub use` statements
 > grouped by what the items are for — names, expressions, values, query
@@ -237,8 +237,11 @@ today, including panicking edges and deliberate failsafes.
 > `TableSample`, a table read through `TABLESAMPLE`, and `SampleMethod`, the
 > method that draws it (`sql.ast.select.table-sample`);
 > `POSTGRES_TARGET`, the PostgreSQL release a build targets (`sql.target`);
-> and `base_type`, the type a value of a domain travels as, every domain
-> looked through to the type at the bottom (`sql.value.base-type`). An
+> `base_type`, the type a value of a domain travels as, every domain
+> looked through to the type at the bottom (`sql.value.base-type`);
+> `ExprTrait`, the operator vocabulary every expression type implements
+> (`sql.ast.expr.operators`); and `ArrayElement`, what an array parameter's
+> element type is read from (`sql.value.array`). An
 > item leaves the list with the state it described: `Frame` went when a
 > frame's bounds stopped being one enum, the frame builder replacing it
 > (`sql.ast.window-statement`), `StandaloneIndexKind` when the primary-key
@@ -384,14 +387,16 @@ today, including panicking edges and deliberate failsafes.
 
 ## Target release
 
-> [spec:pgorm:req:sql.target+1]
+> [spec:pgorm:req:sql.target+2]
 > A build of pgorm targets one PostgreSQL major release. 18 is the floor and
 > the default: a build that names no release targets 18, there is no `pg-18`
 > feature to say so, and nothing older is kept working. The `pg-19` cargo
 > feature targets 19. pgorm-query declares it, since the typed surface lives
-> there; pgorm forwards it (`pg-19 = ["pgorm-query/pg-19"]`), and so does
-> pgorm-python (`pg-19 = ["pgorm/pg-19"]`), whose capability manifest then
-> lists `pg-19` among its `features` (`python.capabilities`). No other crate
+> there; pgorm forwards it (`pg-19 = ["pgorm-query/pg-19"]`), and so do both
+> bindings, pgorm-python and pgorm-napi (`pg-19 = ["pgorm/pg-19"]`), each
+> module exporting the release as `POSTGRES_TARGET`
+> (`bindings.postgres-target`) and pgorm-python's capability manifest
+> listing `pg-19` among its `features` (`python.capabilities`). No other crate
 > carries it, because no other crate's surface or behaviour differs between
 > the two releases yet. `pgorm_query::POSTGRES_TARGET` is the release a build
 > targets, 18 or 19: a dependent cannot read another crate's features through
@@ -418,8 +423,9 @@ today, including panicking edges and deliberate failsafes.
 > many rows a subquery returns — is beyond what any builder value records, so
 > it is documented per release instead: the rule and the rustdoc give 18's
 > answer and 19's, naming each, and the live test holds 18's answer by
-> default and 19's under `cfg(feature = "pg-19")` (pgorm-python's tests branch
-> on the manifest's `features`). Each build's suite runs against the server it
+> default and 19's under `cfg(feature = "pg-19")` (the bindings' tests branch
+> on their module's `POSTGRES_TARGET`, or pgorm-python's on the manifest's
+> `features`). Each build's suite runs against the server it
 > targets: `DATABASE_URL` names an 18 server for the default build and a 19
 > one for `pg-19`. Three such differences exist today, and no 19-only syntax
 > is built yet: `ALTER CONSTRAINT .. ENFORCED` / `NOT ENFORCED` on a `CHECK`
@@ -546,7 +552,7 @@ today, including panicking edges and deliberate failsafes.
 > `ConditionHolder`, so multi-part conditions built with `Condition::all`/`any`
 > render as chained `AND`/`OR` in the ON clause.
 
-> [spec:pgorm:req:sql.ast.select.table-function+2]
+> [spec:pgorm:req:sql.ast.select.table-function+3]
 > A set-returning function in FROM is a `TableFunction`, PostgreSQL's
 > `func_table`: one call, built by `TableFunction::new(call)`, or
 > `ROWS FROM (..)`, built by `TableFunction::rows_from(call)`, to which
@@ -575,11 +581,12 @@ today, including panicking edges and deliberate failsafes.
 > are the set-returning constructors, `Function::GenerateSeries` and
 > `Function::Unnest`, and the two the Python and JavaScript call vocabularies
 > reach; `Func::named` calls any other by name. Both are overloaded on their
-> argument types, so a bound argument, a placeholder the call gives no type,
-> is ambiguous to the server (`42725`) until it is cast to its type, as
-> anywhere a placeholder has no context
-> (`[spec:pgorm:sem:sql.render.placeholder-typing]`); the constructors add
-> no cast of their own. A zero step is the server's refusal (`22023`).
+> argument types, so a bound argument carries its own type there,
+> `UNNEST($1::int4[])` and `GENERATE_SERIES($1::int4, $2::int4)`
+> (`[spec:pgorm:sem:sql.render.placeholder-typing]`): a bare placeholder is
+> ambiguous to the server (`42725`). A cast chooses another overload, and a
+> function called by name annotates nothing, its signature unknown to the
+> renderer. A zero step is the server's refusal (`22023`).
 
 > [spec:pgorm:req:sql.ast.select.column-definitions]
 > A function returning `record` — `json_to_record`, `jsonb_to_record`,
@@ -794,7 +801,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## Conditions
 
-> [spec:pgorm:def:sql.ast.condition+1]
+> [spec:pgorm:def:sql.ast.condition+2]
 > `Condition` is a tree node holding a `condition_type`
 > (`ConditionType::All` = conjunction, `ConditionType::Any` = disjunction), a
 > `negate` flag, and child `ConditionExpression`s, where each child is either a
@@ -804,10 +811,13 @@ today, including panicking edges and deliberate failsafes.
 > inspect the children. Those constructors are the only spelling — the type
 > carries no shorthand alias and no shorthand macro.
 >
-> The `IntoCondition` trait converts arguments at API boundaries: a
-> `SimpleExpr` becomes `Condition::all().add(expr)` and a `Condition` passes
-> through unchanged, which is why `and_where`-style helpers and `cond_where`
-> accept both.
+> The `IntoCondition` trait converts arguments at API boundaries: an
+> expression — any `ExprTrait` type (`sql.ast.expr.operators`), so a
+> function call or an `Expr` as well as a `SimpleExpr` — becomes
+> `Condition::all().add(expr)` and a `Condition` passes through unchanged,
+> which is why `and_where`-style helpers and `cond_where` accept both.
+> `Condition::add` takes the same two, every expression converting into a
+> `ConditionExpression` leaf.
 
 > [spec:pgorm:sem:sql.ast.condition.flattening]
 > `Condition::add` flattens trivial nesting: when the added child is itself a
@@ -842,7 +852,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## Expressions
 
-> [spec:pgorm:def:sql.ast.expr+7]
+> [spec:pgorm:def:sql.ast.expr+8]
 > `SimpleExpr` is the expression tree node, with variants `Column(ColumnRef)`,
 > `Tuple`, `Unary(UnOper, ..)` (the only unary operator is `Not`),
 > `FunctionCall`, `Binary(lhs, BinOper, rhs)`, `SubQuery(Option<SubQueryOper>, ..)`,
@@ -858,14 +868,16 @@ today, including panicking edges and deliberate failsafes.
 > `SqlTemplate::new`, which returns `Result`, so the AST cannot hold a template
 > whose placeholders and values disagree — see `sql.render.custom-expr`.
 >
-> `Expr` is the entry-point builder holding a left operand plus pending
-> unary/binary operator state; `Expr::col`, `Expr::val`, `Expr::expr`,
-> `Expr::tuple`, `Expr::value` and `Expr::raw` construct expressions from
-> columns, values, other expressions, and raw SQL — `Expr::raw` bound to
-> `&'static str`, so only program text can be written verbatim — and
-> `Expr::template`, `Expr::template_with_expr` and `Expr::template_with_exprs`
-> do the same for templates, each returning `Result` because each pairs a
-> template with substitutions.
+> `Expr` is the entry point, holding the one `SimpleExpr` it starts;
+> `Expr::col`, `Expr::val`, `Expr::expr`, `Expr::tuple`, `Expr::value` and
+> `Expr::raw` construct expressions from columns, values, other expressions,
+> and raw SQL — `Expr::raw` bound to `&'static str`, so only program text can
+> be written verbatim — and `Expr::template`, `Expr::template_with_expr` and
+> `Expr::template_with_exprs` do the same for templates, each returning
+> `Result` because each pairs a template with substitutions. What an
+> expression becomes — compared, combined, cast, aggregated — is
+> `ExprTrait`'s (`sql.ast.expr.operators`), which `Expr` implements as every
+> other expression type does, so `Expr` carries no operator of its own.
 >
 > Subquery expressions carry an optional `SubQueryOper`: `Expr::exists`,
 > `Expr::any`, `Expr::some`, `Expr::all` and `Expr::array` wrap a
@@ -881,13 +893,27 @@ today, including panicking edges and deliberate failsafes.
 > `SimpleExpr`, which is what allows plain Rust values wherever
 > `Into<SimpleExpr>` is accepted.
 
-> [spec:pgorm:req:sql.ast.expr.operators+5]
-> `Expr` and `SimpleExpr` MUST provide combinators that produce `Binary`/`Unary`
-> nodes: comparisons `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, plus
+> [spec:pgorm:req:sql.ast.expr.operators+6]
+> The operator vocabulary is one public trait, `ExprTrait`, and every type
+> that is an expression in its own right MUST implement it: `Expr`,
+> `SimpleExpr`, `FunctionCall`, `CaseStatement`, `SimpleCaseStatement`,
+> `Grouping` and each SQL/JSON builder (`SqlJson`, `JsonExists`, `JsonValue`,
+> `JsonQuery`, `JsonObject`, `JsonArray`, `JsonArrayQuery`, `JsonObjectAgg`,
+> `JsonArrayAgg`, `JsonParse`, `JsonSerialize`). What one method returns is
+> therefore built on by the next with no `Expr::expr` around it: a function
+> call compares (`Func::lower(..).eq(..)`), an aggregate compares in `HAVING`
+> (`Expr::col(..).count().gt(2)`), a cast compares
+> (`Expr::col(..).cast_as(..).lt(10)`). Each method consumes its receiver and
+> returns a `SimpleExpr`. The trait is a root export and in pgorm's prelude;
+> a method named for a comparison takes `self` by value, which is what makes
+> `eq` and the orderings the trait's where it is in scope, ahead of
+> `PartialEq`'s and `PartialOrd`'s borrowing methods and of `Iterator`'s. The
+> trait MUST provide combinators that produce `Binary`/`Unary` nodes: comparisons `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, plus
 > `equals`/`not_equals` for column-to-column comparison; arithmetic `add`,
 > `sub`, `mul`, `div`, `modulo`; bit shifts `left_shift`, `right_shift`;
 > `between`/`not_between` and the bound-sorting
-> `between_symmetric`/`not_between_symmetric`; `is_null`, `is_not_null`, `is`,
+> `between_symmetric`/`not_between_symmetric`, whose two bounds are typed
+> apart, since one may be a value and the other an expression built on; `is_null`, `is_not_null`, `is`,
 > `is_not`, and the null-safe `is_distinct_from`/`is_not_distinct_from`;
 > logical
 > `and`, `or`, and `not` (prefix `NOT`); string/pattern operators `like`,
@@ -915,9 +941,8 @@ today, including panicking edges and deliberate failsafes.
 > and merge tests, and `sql.ast.expr.json` MUST NOT name duplicates of them.
 >
 > `overlaps` asks whether its operands share a value: two ranges, a
-> multirange and a range or another multirange, two arrays. It lives in a
-> child module of `expr`, as the JSON and membership families do, and
-> renders `BinOper::Overlap`, which `binary` still reaches. Checked live on
+> multirange and a range or another multirange, two arrays. It renders
+> `BinOper::Overlap`, which `binary` still reaches. Checked live on
 > PostgreSQL 18.6: the empty range overlaps nothing, `(,)` included; beside a
 > range column the server types a bare operand as that range (`r && $1`
 > infers `int4range`) and beside a multirange as that multirange, so a range
@@ -934,9 +959,9 @@ today, including panicking edges and deliberate failsafes.
 > corresponding function call. JSON field, path and key-existence access is
 > `sql.ast.expr.json`.
 
-> [spec:pgorm:req:sql.ast.expr.similar-to+1]
-> `similar_to(pattern)` and `not_similar_to(pattern)`, on `Expr` and on
-> `SimpleExpr`, build `SIMILAR TO` and `NOT SIMILAR TO`
+> [spec:pgorm:req:sql.ast.expr.similar-to+3]
+> `similar_to(pattern)` and `not_similar_to(pattern)`, on every expression
+> (`ExprTrait`), build `SIMILAR TO` and `NOT SIMILAR TO`
 > (`BinOper::SimilarTo`, `BinOper::NotSimilarTo`): whether the whole string
 > matches a pattern in SQL's regular-expression dialect, which is LIKE's `%`
 > and `_` with `|`, `*`, `+`, `?`, `{m,n}`, grouping and bracket classes
@@ -952,6 +977,20 @@ today, including panicking edges and deliberate failsafes.
 > construction: `escape` takes a `char` and `no_escape` nothing. Both
 > operators are of the LIKE family the renderer ranks by
 > (`sql.render.precedence`), where the grammar ranks `SIMILAR`.
+>
+> A pattern is also built from literal text, a user's search among it:
+> `LikeExpr::literal(text)` matches exactly the text,
+> `LikeExpr::containing(text)` is `%text%`, `starting_with(text)` `text%` and
+> `ending_with(text)` `%text`. The text's `%`, `_` and escape character are
+> each preceded by the escape, so the text matches itself and nothing it
+> would otherwise widen to. The escaping is the pattern's: it is done for
+> the escape character in force when the statement renders, so `escape(c)`
+> chosen after the text escapes it with `c`, and under `no_escape()` nothing
+> is escaped and the text's `%` and `_` are wildcards. The set escaped is
+> LIKE's; under `SIMILAR TO` the regular-expression characters keep their
+> meaning. This is the one escaping pgorm has: the entity columns'
+> `starts_with`, `ends_with` and `contains` (`entity.traits.column`) are
+> these constructors.
 
 > [spec:pgorm:req:sql.ast.expr.in+1]
 > `is_in`/`is_not_in` MUST build an `IN`/`NOT IN` over a `Tuple` of the given
@@ -968,7 +1007,7 @@ today, including panicking edges and deliberate failsafes.
 > `in_subquery`/`not_in_subquery` MUST build `IN (SELECT ...)` /
 > `NOT IN (SELECT ...)` from a `SelectStatement`.
 
-> [spec:pgorm:req:sql.ast.expr.eq-any+1]
+> [spec:pgorm:req:sql.ast.expr.eq-any+2]
 > `eq_any`/`ne_all` MUST build the same membership tests over a *single array
 > parameter*: `eq_any` the comparison `= ANY(<array>)` and `ne_all` its
 > complement `<> ALL(<array>)`, with the operand collection gathered into one
@@ -980,9 +1019,12 @@ today, including panicking edges and deliberate failsafes.
 > short literal list written into the query, and `eq_any` when the length varies
 > at runtime.
 >
-> The operand type MUST be bound `Into<Value> + ValueType`, not `Into<Value>`
-> alone: the array's element tag is read from the Rust type, so an empty list is
-> still a typed array (see `sql.value.array`).
+> The operand type MUST be bound `ArrayElement`, not `Into<Value>` alone: the
+> array's element tag is read from the Rust type, so an empty list is still a
+> typed array (see `sql.value.array`). Every `ValueType` is an `ArrayElement`,
+> and so are `&str`, `&String` and `&[u8]`, so `eq_any(["a", "b"])` takes the
+> string slices `eq("a")` does, binding one `text[]`. `ColumnTrait`'s
+> `eq_any` and `ne_all` take the same bound.
 >
 > The negation MUST be spelled `<> ALL`, not `NOT (… = ANY …)`. The two are
 > equivalent under three-valued logic — a NULL element makes both NULL, as it
@@ -1006,14 +1048,16 @@ today, including panicking edges and deliberate failsafes.
 > `Func::any`/`some`/`all` render SQL only in that position, and are the escape
 > hatch for the operators these two do not name.
 
-> [spec:pgorm:req:sql.ast.expr.json+2]
-> `Expr` MUST provide the JSON *operator* vocabulary as typed combinators:
+> [spec:pgorm:req:sql.ast.expr.json+3]
+> `ExprTrait` MUST provide the JSON *operator* vocabulary as typed
+> combinators, so every expression has it, a field already extracted
+> included:
 > field access `get_json_field` (`->`) and `cast_json_field` (`->>`), path
 > access `get_json_path` (`#>`) and `cast_json_path` (`#>>`), key existence
 > `has_json_key` (`?`), `has_any_json_keys` (`?|`) and `has_all_json_keys`
-> (`?&`), and path existence `json_path_exists` (`@?`). They live in a child
-> module of `expr` rather than in `Expr`'s main block, as the membership
-> family does.
+> (`?&`), and path existence `json_path_exists` (`@?`). What one returns is
+> an expression like any other, so `get_json_field("a").get_json_field("b")`
+> reads a nested field in one chain.
 >
 > `json_path_exists` binds its path as `text` cast to `jsonpath`, as
 > `JSON_EXISTS` binds its own (`[spec:pgorm:def:sql.ast.expr.sql-json]`):
@@ -1078,18 +1122,15 @@ today, including panicking edges and deliberate failsafes.
 > re-entering the builder with `Expr::expr`; `#>` exists so that the common
 > multi-step path needs one node instead of a nest of them.
 
-> [spec:pgorm:req:sql.ast.expr.subscript]
+> [spec:pgorm:req:sql.ast.expr.subscript+2]
 > `SimpleExpr::Subscript(base, subscript)` MUST express PostgreSQL's array
 > subscript, where `Subscript` is either `Index(expr)` — one element, `a[i]` —
 > or `Slice(lower, upper)` with each bound an `Option<SimpleExpr>` — `a[l:u]`,
-> `a[l:]`, `a[:u]` and `a[:]`. The node is reached from `Expr` through
-> `index(i)`, `slice(l, u)`, `slice_from(l)`, `slice_to(u)`, and
-> `subscript(Subscript)` for the one form the shorthands do not name, the
-> slice with neither bound. They live in a child module of `expr`, as the
-> JSON family does, and unlike every other combinator there they return an
-> `Expr` rather than a `SimpleExpr`, because a subscripted value is an operand
-> rather than a predicate: it goes on to be compared, or subscripted again,
-> in the same chain.
+> `a[l:]`, `a[:u]` and `a[:]`. The node is reached from every expression
+> (`ExprTrait`) through `index(i)`, `slice(l, u)`, `slice_from(l)`,
+> `slice_to(u)`, and `subscript(Subscript)` for the one form the shorthands
+> do not name, the slice with neither bound. Each returns a `SimpleExpr`,
+> which goes on to be compared, or subscripted again, in the same chain.
 >
 > A chain of subscripts is one multi-dimensional access, and the AST keeps it
 > as nested `Subscript` nodes that render as one: `.index(1).index(2)` is
@@ -1112,15 +1153,14 @@ today, including panicking edges and deliberate failsafes.
 > can index as readily as a literal; the server coerces each to `int4`, and a
 > bound value is a placeholder it types as `int4`.
 
-> [spec:pgorm:req:sql.ast.expr.collate]
+> [spec:pgorm:req:sql.ast.expr.collate+2]
 > `SimpleExpr::Collate(operand, collation)` MUST express PostgreSQL's
 > `COLLATE`, where the collation is a `Collation`: a name and an optional
-> schema, both `Name`s. It is reached from `Expr` through `collate(c)`, which
-> takes any `IntoCollation` — a name converts bare and a `(schema, name)` pair
-> qualified, as a table name does — and returns an `Expr`, because a collated
-> value is an operand rather than a predicate: it goes on to be compared or
-> ordered in the same chain. It lives in a child module of `expr`, as the
-> subscript family does. The right-hand side is a collation's *name* and
+> schema, both `Name`s. It is reached from every expression (`ExprTrait`)
+> through `collate(c)`, which takes any `IntoCollation` — a name converts
+> bare and a `(schema, name)` pair qualified, as a table name does — and
+> returns the `SimpleExpr`, which goes on to be compared or ordered in the
+> same chain. The right-hand side is a collation's *name* and
 > never an expression, which is why the node is its own variant rather than a
 > `BinOper`: an operator would admit `a COLLATE b` for an arbitrary `b`, and
 > the grammar has no such form.
@@ -1438,7 +1478,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## MERGE statements
 
-> [spec:pgorm:req:sql.ast.merge+1]
+> [spec:pgorm:req:sql.ast.merge+2]
 > `MergeStatement` is the MERGE AST node. It holds a target `NamedTable`
 > (`[spec:pgorm:def:sql.types.table-ref]`: a name, bare or
 > schema-qualified, with an optional alias), an `only` flag, a source
@@ -1528,10 +1568,11 @@ today, including panicking edges and deliberate failsafes.
 > `sql.ast.build`, whether it sits in the join condition, an arm's
 > condition, an assignment or the inserted row. The server types such a
 > parameter by the column it is assigned to or compared with. A value in the
-> source relation is assigned to no column, so a bound `VALUES` row or
-> function argument has only the type an unknown parameter gets. Annotating
-> it is the caller's obligation under `sql.render.placeholder-typing`, and
-> the live suite holds both refusals (`42883`, `42725`).
+> source relation is assigned to no column, so a bound `VALUES` row, or an
+> argument of a function called by name, has only the type an unknown
+> parameter gets. Annotating it is the caller's obligation under
+> `sql.render.placeholder-typing`, and the live suite holds the refusal
+> (`42883`).
 >
 > A MERGE nests as a common table expression's body (`sql.ast`). No ORM path
 > emits MERGE. The upsert an entity layer writes is `ON CONFLICT`
@@ -1870,7 +1911,7 @@ today, including panicking edges and deliberate failsafes.
 > [spec:pgorm:req:sql.ast.cast-shape+2]
 > A cast has exactly ONE node shape: `SimpleExpr::AsEnum(TypeName, operand)`.
 > Every spelling that produces one — `as_enum`, `cast_as`, `cast_as_type`
-> (on `Expr` and on `SimpleExpr`), `as_range`
+> (`ExprTrait`'s, on every expression), `as_range`
 > (`[spec:pgorm:def:sql.value.created-range]`), the entity layer's enum and
 > created-range casts, and the `cast_as_raw` escape hatch — builds
 > that node, and there is no `Function::Cast`. Whether the type renders as a

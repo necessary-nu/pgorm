@@ -7,7 +7,7 @@
 // [spec:pgorm:req:bindings.pipeline-sources+3]
 
 import { arg } from "./builder.js";
-import { runJob } from "./connections.js";
+import { runJob } from "./runs.js";
 import { recordOf } from "./entities.js";
 import { native } from "./operations.js";
 

@@ -31,7 +31,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
     def rows(self):
         return p.select(p.col("id")).from_(self.table).order_by(p.col("id").asc())
 
-    # [spec:pgorm:req:bindings.transactions/test]
+    # [spec:pgorm:req:bindings.transactions+2/test]
     async def test_block_commits_and_reserves_its_connection(self):
         async with self.pool.connection() as connection:
             async with connection.transaction() as tx:
@@ -78,7 +78,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(tx.closed)
         self.assertEqual([r["id"] for r in await self.pool.query(self.rows())], [1])
 
-    # [spec:pgorm:req:bindings.transactions/test]
+    # [spec:pgorm:req:bindings.transactions+2/test]
     async def test_savepoints_reserve_parents_and_recover_database_errors(self):
         async with self.pool.connection() as connection:
             async with connection.transaction() as tx:
@@ -103,7 +103,34 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await connection.ping())
         self.assertEqual([r["id"] for r in await self.pool.query(self.rows())], [1, 3, 4])
 
-    # [spec:pgorm:req:bindings.transactions/test]
+    # [spec:pgorm:req:bindings.transactions+2/test]
+    async def test_a_caught_failure_rolls_the_block_back(self):
+        aborted = "the transaction was rolled back, not committed: a statement that failed inside it had aborted it"
+        async with self.pool.connection() as connection:
+            with self.assertRaises(p.DatabaseError) as caught:
+                async with connection.transaction() as tx:
+                    await tx.execute(self.insert(1))
+                    with self.assertRaises(p.UniqueViolationError):
+                        await tx.execute(self.insert(1))
+            self.assertEqual(caught.exception.sqlstate, "25P02")
+            self.assertEqual(caught.exception.message, aborted)
+            self.assertEqual(str(caught.exception), aborted)
+            self.assertTrue(tx.closed)
+            self.assertEqual(await connection.query(self.rows()), [])
+            async with connection.transaction() as tx:
+                await tx.execute(self.insert(2))
+                with self.assertRaises(p.DatabaseError) as caught:
+                    async with tx.transaction() as savepoint:
+                        await savepoint.execute(self.insert(3))
+                        with self.assertRaises(p.UniqueViolationError):
+                            await savepoint.execute(self.insert(2))
+                self.assertEqual(caught.exception.sqlstate, "25P02")
+                self.assertTrue(savepoint.closed)
+                await tx.execute(self.insert(4))
+            self.assertTrue(await connection.ping())
+        self.assertEqual([r["id"] for r in await self.pool.query(self.rows())], [2, 4])
+
+    # [spec:pgorm:req:bindings.transactions+2/test]
     async def test_options_and_foreign_parent_rejection(self):
         async with self.pool.connection() as connection, self.pool.connection() as other:
             for mode, isolation in (("read_only", "repeatable_read"), ("read_write", "serializable"), ("deferrable", None)):
@@ -133,12 +160,15 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
         marker = ValueError("the block failed")
         async with self.pool.connection() as connection:
             pid = (await connection.one(p.RawSQL("SELECT pg_backend_pid() AS pid")))["pid"]
-            with self.assertRaises((p.ConnectionError, p.DatabaseError)) as caught:
+            with self.assertRaises(p.RollbackFailedError) as caught:
                 async with connection.transaction() as tx:
                     await tx.execute(self.insert(1))
                     await self.pool.execute(p.RawSQL("SELECT pg_terminate_backend($1, 5000)", [pid]))
                     raise marker
-            self.assertIs(caught.exception.__context__, marker)
+            # [spec:pgorm:req:bindings.rollback-failed/test]    the block's exception and the rollback's error, both carried
+            self.assertIs(caught.exception.cause, marker)
+            self.assertIs(caught.exception.__cause__, marker)
+            self.assertIsInstance(caught.exception.rollback, (p.ConnectionError, p.DatabaseError))
             self.assertTrue(tx.closed)
             self.assertTrue(connection.closed)
         self.assertEqual(await self.pool.query(self.rows()), [])
@@ -220,7 +250,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.LifecycleError):
             await asyncio.wait_for(task, 2)
 
-    # [spec:pgorm:req:bindings.transactions/test]
+    # [spec:pgorm:req:bindings.transactions+2/test]
     async def test_abandoned_savepoint_rolls_back_and_releases_parent(self):
         async with self.pool.transaction() as tx:
             block = tx.transaction()
@@ -238,7 +268,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
             await tx.execute(self.insert(2))
         self.assertEqual([r["id"] for r in await self.pool.query(self.rows())], [2])
 
-    # [spec:pgorm:req:python.runtime+1/test]
+    # [spec:pgorm:req:python.runtime+2/test]
     async def test_foreign_event_loop_fails_before_query(self):
         async with self.pool.transaction() as tx:
             async def use_transaction():

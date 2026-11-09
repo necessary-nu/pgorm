@@ -41,7 +41,7 @@ fn selector(sql: &str, values: Values) -> SelectorRaw<SelectModel<Invoice>> {
     (sql, values).into_model::<Invoice>()
 }
 
-// [spec:pgorm:def:macros.prql/test]    the expansion binds its argument end to end
+// [spec:pgorm:def:macros.prql+2/test]    the expansion binds its argument end to end
 #[pgorm_macros::test]
 async fn bound_param_reaches_the_server() -> Result<(), Error> {
     let ctx = TestContext::new("prql_macro_bound_param").await;
@@ -89,7 +89,7 @@ async fn reused_placeholder_binds_once_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql/test]    two placeholders, two values, right slots
+// [spec:pgorm:def:macros.prql+2/test]    two placeholders, two values, right slots
 #[pgorm_macros::test]
 async fn arguments_land_in_placeholder_order() -> Result<(), Error> {
     let ctx = TestContext::new("prql_macro_placeholder_order").await;
@@ -162,7 +162,7 @@ const TALLY: &str = sql!(
          ('pear', 'green', 3), ('pear', 'green', 3), ('pear', 'green', 3);"
 );
 
-// [spec:pgorm:def:macros.prql/test]    grouping an undeclared relation by
+// [spec:pgorm:def:macros.prql+2/test]    grouping an undeclared relation by
 // `this` writes a qualified whole-row key PostgreSQL can read
 #[pgorm_macros::test]
 async fn grouping_undeclared_rows_counts_duplicates() -> Result<(), Error> {
@@ -191,7 +191,7 @@ async fn grouping_undeclared_rows_counts_duplicates() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql/test]    a literal grouping key is projected but
+// [spec:pgorm:def:macros.prql+2/test]    a literal grouping key is projected but
 // left out of GROUP BY, where PostgreSQL would read `5` as a column position;
 // a grouping made only of literals keeps its empty-input answer
 #[pgorm_macros::test]
@@ -264,7 +264,7 @@ async fn literal_group_key_is_not_a_position() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql/test]    a computed DISTINCT ON key, or a computed
+// [spec:pgorm:def:macros.prql+2/test]    a computed DISTINCT ON key, or a computed
 // sort inside the group, that the projection drops is ordered by its
 // expression rather than by an alias the SELECT no longer carries
 #[pgorm_macros::test]
@@ -327,7 +327,7 @@ async fn dropped_distinct_key_still_orders_rows() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql/test]    a named column read beside a whole-row
+// [spec:pgorm:def:macros.prql+2/test]    a named column read beside a whole-row
 // key is written as a key too, since PostgreSQL reads a column outside an
 // aggregate only when it is grouped by name
 #[pgorm_macros::test]
@@ -375,6 +375,96 @@ async fn named_column_beside_whole_row_key() -> Result<(), Error> {
     );
     let rows = (query, values).into_model::<Count>().all(&db).await?;
     assert_eq!(rows, vec![Count { n: 1 }, Count { n: 2 }]);
+
+    drop(db);
+    ctx.delete().await;
+
+    Ok(())
+}
+
+/// Rows of `sql` as `(i32, i64)` pairs, sorted: the server's answer to SQL
+/// this suite wrote, or to SQL `prql!` emitted.
+async fn pairs(db: &impl ConnectionTrait, sql: &str) -> Result<Vec<(i32, i64)>, Error> {
+    let mut rows: Vec<(i32, i64)> = db
+        .query_all(sql, &[])
+        .await?
+        .iter()
+        .map(|row| (row.get(0), row.get(1)))
+        .collect();
+    rows.sort_unstable();
+    Ok(rows)
+}
+
+const SHELF: &str = sql!(
+    "CREATE TABLE shelf (id int NOT NULL, kind int NOT NULL);
+     INSERT INTO shelf VALUES (1, 10), (2, 20), (2, 20), (2, 21), (3, 30), (4, 40);"
+);
+
+// [spec:pgorm:def:macros.prql+2/test]    PRQL text's intersect and remove are
+// INTERSECT ALL and EXCEPT ALL of whole rows by position: operands that each
+// read a different column of a table nothing declares combine whole, and a
+// stage after the operation reads its whole result
+#[pgorm_macros::test]
+async fn set_operations_combine_operands_read_apart() -> Result<(), Error> {
+    let ctx = TestContext::new("prql_macro_set_operations").await;
+    let db = ctx.db.get().await?;
+    db.batch_execute(SHELF).await?;
+
+    let (query, _) = prql!(
+        "from shelf
+         filter id > 1
+         intersect (from shelf | filter kind < 30)
+         group {id} (aggregate {n = count this})"
+    );
+    assert_eq!(
+        query,
+        "WITH table_1 AS (SELECT * FROM shelf WHERE id > 1 \
+         INTERSECT ALL SELECT * FROM shelf WHERE kind < 30) \
+         SELECT id, COUNT(*) AS n FROM table_1 GROUP BY id"
+    );
+    assert_eq!(
+        pairs(&db, query).await?,
+        pairs(
+            &db,
+            "SELECT id, count(*) FROM (SELECT * FROM shelf WHERE id > 1 \
+             INTERSECT ALL SELECT * FROM shelf WHERE kind < 30) c GROUP BY id"
+        )
+        .await?
+    );
+
+    let (query, _) = prql!(
+        "from shelf
+         filter id > 1
+         remove (from shelf | filter kind < 30)
+         select {id, n = kind}"
+    );
+    assert_eq!(
+        query,
+        "WITH table_1 AS (SELECT * FROM shelf WHERE id > 1 \
+         EXCEPT ALL SELECT * FROM shelf WHERE kind < 30) \
+         SELECT id, kind AS n FROM table_1"
+    );
+    let removed: Vec<(i32, i32)> = (query, Values(vec![])).into_tuple().all(&db).await?;
+    let mut removed = removed;
+    removed.sort_unstable();
+    assert_eq!(removed, [(3, 30), (4, 40)]);
+
+    // Each row of the other operand cancels one row: (2, 20) is on the shelf
+    // twice and in the other operand once.
+    let (query, _) = prql!(
+        "from shelf
+         remove (from shelf | filter kind == 20 | take 1)
+         group {id} (aggregate {n = count this})"
+    );
+    assert_eq!(
+        pairs(&db, query).await?,
+        pairs(
+            &db,
+            "SELECT id, count(*) FROM (SELECT * FROM shelf \
+             EXCEPT ALL (SELECT * FROM shelf WHERE kind = 20 LIMIT 1)) c GROUP BY id"
+        )
+        .await?
+    );
 
     drop(db);
     ctx.delete().await;

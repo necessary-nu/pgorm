@@ -213,25 +213,36 @@ PostgreSQL's `money` stores an amount in the currency of the server's
 `Decimal` field declared `ColumnType::Money`: the column is read cast to
 `numeric` and each value written cast to `money`.
 
-**Not available in JavaScript yet:** a model column of type `money`. A model
-column has no money kind: a `decimal` column over `money` is refused, binding
-with a `ConstructionError` and decoding with a `DecodeError`, and a raw query
-that selects a `money` column cannot decode it either. Cast it to `numeric`
-where it is read, and cast each value to `money` where it is written:
+A model declares the same with `columnType: "money"` on a `"decimal"`
+column, and its reads, writes and comparisons take pgorm's casts for
+`money`:
 
+<!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { DecodeError, Decimal } from "@necessary/pgorm";
+import { column, Decimal, fromModel, model } from "@necessary/pgorm";
 
-await pool.execute("CREATE TABLE tip_jar (id serial PRIMARY KEY, amount money NOT NULL)");
-await pool.execute("INSERT INTO tip_jar (amount) VALUES ($1::numeric::money)", [new Decimal("12.345")]);
+const TipJar = model("tip_jar", {
+  columns: {
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    amount: column("decimal", { columnType: "money" }),
+  },
+});
+await pool.execute(fromModel(TipJar).table);
 
+const tips = await TipJar.insert({ amount: new Decimal("12.345") }).returning().one(pool);
 // Rounded to the currency's two places.
-const tips = await pool.one("SELECT amount::numeric AS amount FROM tip_jar");
 assert.equal(String(tips.amount), "12.35");
 
-await assert.rejects(pool.query("SELECT amount FROM tip_jar"), DecodeError);
+const query = TipJar.find().where(TipJar.col("amount").gt(new Decimal("10")));
+assert.equal(
+  query.inspect().sql,
+  `SELECT "tip_jar"."id", CAST("tip_jar"."amount" AS numeric) AS "amount" FROM "tip_jar" WHERE "tip_jar"."amount" > CAST($1::numeric AS money)`,
+);
+assert.equal((await query.all(pool)).length, 1);
 ```
+
+SQL text reads a `money` column only cast to `numeric`, `amount::numeric`.
 
 ## JSON
 
@@ -273,13 +284,46 @@ assert.deepEqual(english, [ada]);
 
 Rust gives a JSON document of a fixed shape a type of its own, a struct
 deriving `JsonValueType`, which is stored as its JSON and read back as the
-struct. A JavaScript object already is its JSON, so a record's field is the
-object itself.
+struct, its shape checked as it is read. A model's column says the same with
+`decode`, a function from the document to the program's value, which runs as
+each row is read: one that throws makes the read a `DecodeError`, and the
+record's field is typed as what `decode` returns. `encode` is its inverse,
+run before every write and comparison converts the value through the kind.
+Any kind takes the two, which is also how a Rust `ValueType` newtype's
+counterpart is written:
 
-**Not available in JavaScript yet:** declaring a JSON column's shape. A model
-types every `json` field as any JSON value, so the declarations cannot type
-`contact.phone` as a `string`, and nothing checks a document's shape as it is
-read; narrow it in the program.
+<!-- example: empty -->
+```ts
+import assert from "node:assert/strict";
+import { column, DecodeError, fromModel, model } from "@necessary/pgorm";
+
+interface Contact {
+  readonly name: string;
+  readonly phone: string;
+}
+
+function contact(document: any): Contact {
+  if (typeof document?.name !== "string" || typeof document?.phone !== "string") {
+    throw new TypeError("a contact has a name and a phone");
+  }
+  return { name: document.name, phone: document.phone };
+}
+
+const Supplier = model("supplier", {
+  columns: {
+    id: column("i32", { primaryKey: true }),
+    contact: column("json", { decode: contact }),
+  },
+});
+await pool.execute(fromModel(Supplier).table);
+
+const flour = await Supplier.insert({ id: 1, contact: { name: "Flour & Co", phone: "555-0100" } }).returning().one(pool);
+const phone: string = flour.contact.phone;
+assert.equal(phone, "555-0100");
+
+await pool.execute(`INSERT INTO supplier (id, contact) VALUES (2, '{"name": "Nobody"}')`);
+await assert.rejects(Supplier.findByKey({ id: 2 }).one(pool), DecodeError);
+```
 
 ## Arrays
 
@@ -447,7 +491,10 @@ assert.throws(() => new Interval({ months: 1, days: -2 }).toDuration(), RangeErr
 An `Interval`'s text is PostgreSQL's `iso_8601` interval style, each field
 signed, where Rust's `Display` writes PostgreSQL's own style, `+3 days`. A
 column restricted to some fields, such as `interval HOUR TO MINUTE`, is
-declared as `interval`; the restriction is the table's.
+declared `columnType: new DataType("interval", { fields: "hourToMinute" })`,
+the fields in camelCase and a `precision` only where the last field is
+seconds, as Rust's `IntervalSpec::Fields`; its values read as any interval's
+do.
 
 ## Ranges and multiranges
 
@@ -620,13 +667,34 @@ comparison operator for such a domain, so Rust compares its column cast to the
 enum, and refuses a relation over one in schema generation, since PostgreSQL
 cannot build a foreign key on it.
 
-**Not available in JavaScript yet:** comparing a declared model's column of a
-domain over an enum. Rust's entity declares the column as the domain, and
-compares it cast to the enum; a JavaScript model's column names the enum
-alone, so a comparison on it is the server's `DatabaseError`, *operator does
-not exist*. A [registered entity](24-registered-entities.md) compares such a
-column as Rust does, and so does a pipeline's `comparesAs` ([The
-pipeline](12-pipeline.md)).
+A model's column says it is the domain with `columnType:
+DataType.domain(name, base)`, its kind the enum's `TypeName`, and compares as
+Rust's entity does, both sides cast to the enum; it is read as its text and
+written cast to the domain:
+
+```ts
+import assert from "node:assert/strict";
+import { column, DataType, model, TypeName } from "@necessary/pgorm";
+
+const flavor = new TypeName("flavor", { schema: "public" });
+const Special = model("special", {
+  columns: {
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    flavor: column(flavor, {
+      values: ["lemon", "vanilla"],
+      columnType: DataType.domain(new TypeName("special_flavor", { schema: "public" }), flavor),
+    }),
+  },
+});
+
+assert.equal(
+  Special.find().where(Special.col("flavor").eq("lemon")).inspect().sql,
+  `SELECT "special"."id", CAST("special"."flavor" AS text) AS "flavor" FROM "special" WHERE CAST("special"."flavor" AS public.flavor) = CAST($1::text AS public.flavor)`,
+);
+```
+
+An enum column's `columnType` must be a domain over that enum, any other a
+`ConstructionError`.
 
 ## Network addresses, bytes and vectors
 
@@ -687,26 +755,57 @@ TypeScript itself.
 ## Custom reads and writes
 
 Sometimes a column needs SQL around it on its way in or out, because pgorm
-has no type that reads it directly. Rust's entities say so with four field
+has no type that reads it directly. Rust's entities say so with five field
 attributes: `select_as` reads the column cast to a type and `save_as` writes
 each value cast to one, and `select_with` and `save_with` read and write
-through functions of the column's expression.
+through functions of the column's expression, beside `save_array_with` for
+the arrays `eq_any` and `ne_all` compare the column with.
 
-**Not available in JavaScript yet:** custom reads and writes on a model
-column. A model's column is read as it is and written as its kind, so a
-column of a type pgorm cannot read, such as a `bit(7)` the program reads as an
-integer, is read and written through SQL with its casts written out:
+A model's column takes the same five: `selectAs` and `saveAs` name a type —
+a built-in type's name, a `TypeName` or a `DataType`, whose length or
+precision the cast writes — and `selectWith`, `saveWith` and `saveArrayWith`
+are functions from an expression to an expression, the value bound before
+`saveWith` sees it and the array before `saveArrayWith` does. As in Rust,
+`saveWith` and `saveArrayWith` come together, and either alone is a
+`ConstructionError`. A comparison's value takes the column's write too, and
+so does a list `any(..)` or `all(..)` ranges over, bound as one array: a
+`saveAs` column's array is cast to the array of its type, a `money`
+column's to `money[]`, a domain over an enum's to the enum's array, as
+Rust's `save_array_as` casts it. The bakery keeps the days of the week it
+opens as a `bit(7)`, read as an integer:
 
+<!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
+import { any, column, DataType, fromModel, model } from "@necessary/pgorm";
 
-await pool.execute("CREATE TABLE opening (bakery_id integer PRIMARY KEY, days bit(7) NOT NULL)");
+const days = new DataType("bit", { length: 7 });
+const Opening = model("opening", {
+  renameAll: "snake_case",
+  columns: {
+    bakeryId: column("i32", { primaryKey: true }),
+    days: column("i64", { columnType: days, selectAs: "bigint", saveAs: days }),
+  },
+});
+await pool.execute(fromModel(Opening).table);
 
 // Monday to Saturday.
-await pool.execute("INSERT INTO opening (bakery_id, days) VALUES ($1, $2::int4::bit(7))", [1, 0b111_1110]);
-
-const sunrise = await pool.one("SELECT days::int8 AS days FROM opening WHERE bakery_id = $1", [1]);
+const sunrise = await Opening.insert({ bakeryId: 1, days: 0b111_1110n }).returning().one(pool);
 assert.equal(sunrise.days, 0b111_1110n);
+
+const everyDay = Opening.find().where(Opening.col("days").eq(0b111_1111n));
+assert.equal(
+  everyDay.inspect().sql,
+  `SELECT "opening"."bakery_id", CAST("opening"."days" AS bigint) AS "days" FROM "opening" WHERE "opening"."days" = CAST($1::int8 AS bit(7))`,
+);
+assert.deepEqual(await everyDay.all(pool), []);
+
+const someDays = Opening.find().where(Opening.col("days").eq(any([0b111_1110n, 0b000_0011n])));
+assert.match(someDays.inspect().sql, /WHERE "opening"\."days" = ANY\(CAST\(\$1::int8\[\] AS bit\(7\)\[\]\)\)$/);
+assert.deepEqual((await someDays.all(pool)).map((row) => row.bakeryId), [1]);
 ```
+
+A `selectWith`, `saveWith` or `saveArrayWith` written inline names its
+parameter's type, `(column: Expr) => ..`.
 
 [pgvector]: https://github.com/pgvector/pgvector

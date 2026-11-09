@@ -22,7 +22,7 @@ pub enum Join {
 
 #[pymethods]
 impl Join {
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "join kinds cannot be tested as Python booleans",
@@ -31,7 +31,7 @@ impl Join {
 }
 
 impl Join {
-    fn rust_join(&self) -> JoinType {
+    pub(crate) fn rust_join(&self) -> JoinType {
         match self {
             Self::Inner => JoinType::InnerJoin,
             Self::Left => JoinType::LeftJoin,
@@ -236,6 +236,17 @@ impl PySelect {
         let mut next = self.clone();
         next.inner.distinct();
         next
+    }
+
+    // [spec:pgorm:req:bindings.distinct-on]
+    /// `DISTINCT ON (..)`: the first row of each run of rows equal on the
+    /// columns, replacing `distinct()` or an earlier list.
+    #[pyo3(signature = (*columns))]
+    fn distinct_on(&self, columns: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        let columns = common::columns(columns, "distinct_on")?;
+        let mut next = self.clone();
+        next.inner.distinct_on(columns);
+        Ok(next)
     }
 
     // [spec:pgorm:req:bindings.windows]

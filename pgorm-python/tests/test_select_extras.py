@@ -26,7 +26,7 @@ def text_array(values):
 
 
 # [spec:pgorm:req:bindings.select+4/test]
-# [spec:pgorm:req:bindings.expressions+3/test]
+# [spec:pgorm:req:bindings.expressions+4/test]
 class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
@@ -130,7 +130,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             G()
 
-    # [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    a whole-string match, the default
+    # [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    a whole-string match, the default
     # backslash escape and a chosen one
     async def test_similar_to_matches_whole_strings(self):
         def names(predicate):
@@ -147,7 +147,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
                          [("Ann",), ("Bob",), ("Cy",)])
         self.assertEqual(await names(name.similar_to("' OR 1=1 --")), [])
 
-    # [spec:pgorm:req:sql.ast.expr.similar-to+1/test]    no_escape() turns escaping off for
+    # [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    no_escape() turns escaping off for
     # LIKE, ILIKE and SIMILAR TO, a backslash then matching itself
     async def test_no_escape_turns_escaping_off(self):
         def text(value):
@@ -161,6 +161,23 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
             text("a\\b").similar_to(off).as_("similar"),
             text("50%").not_like(p.LikeExpr("50\\%").no_escape()).as_("percent")))
         self.assertEqual(answers, [(False, True, True, True, True)])
+
+    # [spec:pgorm:req:bindings.expressions+4/test]    a pattern built from literal text
+    # matches the text and nothing its % or _ would widen it to, under the default escape
+    # and a chosen one
+    async def test_patterns_from_text_match_the_text(self):
+        def text(value):
+            return p.bind(value).cast(p.TypeName("text"))
+
+        answers = await self.rows(p.Select(
+            text("save 50%_off now").like(p.LikeExpr.containing("50%_off")).as_("inside"),
+            text("save 50xyoff now").like(p.LikeExpr.containing("50%_off")).as_("widened"),
+            text("50%").like(p.LikeExpr.literal("50%")).as_("exact"),
+            text("A!B%c").ilike(p.LikeExpr.starting_with("a!b%").escape("!")).as_("chosen"),
+            text("x_y").like(p.LikeExpr.ending_with("_y")).as_("tail")))
+        self.assertEqual(answers, [(True, False, True, True, True)])
+        with self.assertRaises(TypeError):
+            p.LikeExpr.containing(1)
 
     # [spec:pgorm:req:bindings.collations/test]    "C" orders and compares bytewise in both
     # positions, and the server refuses a collation it lacks or a type without one
@@ -179,7 +196,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
                 await self.rows(p.select(collated).from_(words))
             self.assertEqual(raised.exception.sqlstate, sqlstate)
 
-    # [spec:pgorm:req:sql.ast.select.table-function+2/test]    UNNEST numbered WITH ORDINALITY,
+    # [spec:pgorm:req:sql.ast.select.table-function+3/test]    UNNEST numbered WITH ORDINALITY,
     # its columns named, beside the row it reads
     async def test_unnest_with_ordinality_numbers_positions(self):
         tags = T(p.call("unnest", self.s("tags"))).with_ordinality().columns("tag", "n").alias("u")
@@ -192,7 +209,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         plain = T(p.call("unnest", text_array(["a", "b"]))).alias("u")
         self.assertEqual(await self.rows(p.Select(plain.star()).from_(plain)), [("a",), ("b",)])
 
-    # [spec:pgorm:req:sql.ast.select.table-function+2/test]    ROWS FROM reads its calls side by
+    # [spec:pgorm:req:sql.ast.select.table-function+3/test]    ROWS FROM reads its calls side by
     # side, padding the shorter with NULL
     async def test_rows_from_pads_shorter_functions_with_null(self):
         zipped = (T.rows_from(p.call("generate_series", int4(1), int4(2)))
@@ -240,13 +257,15 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             T(p.call("json_to_record", p.Value.json({}))).column_definition("", "integer")
 
-    # [spec:pgorm:req:sql.ast.select.table-function+2/test]    a bound argument gives the server no
-    # overload to choose, so the caller casts it; nothing is guessed for it
-    async def test_set_returning_calls_need_typed_arguments(self):
-        untyped = T(p.call("generate_series", 1, 2)).alias("g")
-        with self.assertRaises(p.DatabaseError) as caught:
-            await self.connection.query(p.Select().from_(untyped))
-        self.assertEqual(caught.exception.sqlstate, "42725")
+    # [spec:pgorm:req:sql.ast.select.table-function+3/test]    a bound argument carries its
+    # own type, which chooses the overload, and a cast chooses another
+    async def test_set_returning_calls_read_their_arguments_types(self):
+        series = T(p.call("generate_series", 1, 3)).alias("g")
+        inspected = p.Select(series.star()).from_(series).inspect()
+        self.assertEqual(inspected.sql, 'SELECT "g".* FROM GENERATE_SERIES($1::int4, $2::int4) AS "g"')
+        self.assertEqual(await self.rows(p.Select(series.star()).from_(series)), [(1,), (2,), (3,)])
+        letters = T(p.call("unnest", p.bind(["x", "y"]))).alias("u")
+        self.assertEqual(await self.rows(p.Select(letters.star()).from_(letters)), [("x",), ("y",)])
 
     # [spec:pgorm:req:sql.ast.select.table-sample/test]    the percentage decides the sample,
     # a seed repeats it, and an out-of-range percentage is the server's refusal
@@ -276,7 +295,7 @@ class SelectExtrasTests(unittest.IsolatedAsyncioTestCase):
         count = p.Select(p.call("count", unaliased.col("id"))).from_(unaliased)
         self.assertEqual(await self.rows(count), [(200,)])
 
-    # [spec:pgorm:req:bindings.expressions+3/test]    array(select) collects a subquery's one
+    # [spec:pgorm:req:bindings.expressions+4/test]    array(select) collects a subquery's one
     # column into an array value, empty for no rows, cast as one value, and the server refuses a
     # subquery of two columns with 42601
     async def test_array_collects_a_subquery_column(self):

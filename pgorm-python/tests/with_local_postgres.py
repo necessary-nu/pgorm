@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 
-from with_postgres import certificates, run
+from with_postgres import CERT_USER, certificates, run
 
 
 # [spec:pgorm:req:python.distribution/test]
@@ -51,7 +51,13 @@ def fixture():
                 "ssl = on\n"
                 f"ssl_cert_file = '{quote(root / 'server.crt')}'\n"
                 f"ssl_key_file = '{quote(root / 'server.key')}'\n"
+                f"ssl_ca_file = '{quote(root / 'ca.pem')}'\n"
             )
+        # The first matching line decides, so CERT_USER's comes before
+        # initdb's password lines: over TLS it is let in by its certificate,
+        # which ssl_ca_file has the server ask every TLS client for.
+        hba = data / "pg_hba.conf"
+        hba.write_text(f"hostssl all {CERT_USER} all cert\n" + hba.read_text())
         try:
             run(
                 str(binary / "pg_ctl"),
@@ -78,10 +84,28 @@ def fixture():
                 check=True,
                 env={**os.environ, "PGPASSWORD": "pgorm-python-test"},
             )
+            run(
+                str(binary / "psql"),
+                "-h",
+                str(root),
+                "-p",
+                str(port),
+                "-U",
+                "postgres",
+                "-d",
+                "pgorm_python",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-c",
+                f"CREATE ROLE {CERT_USER} LOGIN",
+            )
             yield {
                 **os.environ,
                 "PGORM_TEST_DSN": f"postgres://postgres:pgorm-python-test@127.0.0.1:{port}/pgorm_python?sslmode=disable",
                 "PGORM_TEST_CA": str(root / "ca.pem"),
+                "PGORM_TEST_CLIENT_CERT": str(root / "client.crt"),
+                "PGORM_TEST_CLIENT_KEY": str(root / "client.key"),
+                "PGORM_TEST_CERT_USER": CERT_USER,
             }
         finally:
             if (data / "postmaster.pid").exists():

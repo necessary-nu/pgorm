@@ -204,7 +204,7 @@ mod tests {
     use super::*;
     use crate::tests_cfg::{cake, cake_filling, entity_linked, filling};
     use crate::{QueryTrait, RelationTrait};
-    use pgorm_query::{ConditionType, Expr, IntoCondition};
+    use pgorm_query::{ConditionType, Expr, ExprTrait, IntoCondition};
     use pretty_assertions::assert_eq;
 
     #[test]

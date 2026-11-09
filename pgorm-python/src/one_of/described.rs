@@ -2,12 +2,11 @@
 
 use std::sync::Arc;
 
-use pgorm::OneOfShape;
+use pgorm_bindings::entity::{DescribedTarget, OneOfCore};
 use pyo3::prelude::*;
-use serde_json::json;
 
-use super::{Core, NativeOneOf};
-use crate::{disjoint::table_of, errors::ConstructionError};
+use super::NativeOneOf;
+use crate::{disjoint::table_of, errors::Raise};
 
 /// A model's name beside the description of its table.
 type Described<'py> = (String, Bound<'py, PyAny>);
@@ -27,28 +26,20 @@ pub(crate) fn one_of_model(
 ) -> PyResult<NativeOneOf> {
     let (model_name, model) = model;
     let entity = table_of(&model)?;
-    let mut described = Vec::with_capacity(targets.len());
-    let mut tables = Vec::with_capacity(targets.len());
-    for (value, field, column, (target, table)) in targets {
-        described.push(json!({"value": value, "field": field, "target": target}));
-        tables.push((value, column, table_of(&table)?));
-    }
-    let named: Vec<(&str, &str, &pgorm::DisjointTable)> = tables
-        .iter()
-        .map(|(value, column, table)| (value.as_str(), column.as_str(), table))
-        .collect();
-    let shape = OneOfShape::new(name, &entity, &named, optional)
-        .map_err(|error| ConstructionError::new_err(error.to_string()))?;
+    let targets = targets
+        .into_iter()
+        .map(|(value, field, column, (model, table))| {
+            Ok(DescribedTarget {
+                value,
+                field,
+                column,
+                model,
+                table: table_of(&table)?,
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let core = OneOfCore::model(name, (model_name, entity), targets, optional).py()?;
     Ok(NativeOneOf {
-        core: Arc::new(Core {
-            shape,
-            description: json!({
-                "name": name,
-                "model": model_name,
-                "targets": described,
-                "optional": optional,
-            }),
-            rust: None,
-        }),
+        core: Arc::new(core),
     })
 }

@@ -9,101 +9,75 @@
 
 use pgorm::{
     CreatedRangeCodec,
-    pgorm_query::{ArrayType, ColumnType, Multirange, Range, Value},
+    pgorm_query::{ArrayType, Multirange, Range, Value},
 };
 use pyo3::{prelude::*, types::PyString};
 
 use super::{classes::PyMultirange, ranges, types::PyTypeName};
 use crate::errors::{ConstructionError, DecodeError};
 
-/// A created range or multirange type: its name, its subtype's value kind,
-/// and which of the two it is.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CreatedKind {
-    pub(crate) name: PyTypeName,
-    pub(crate) subtype: ArrayType,
-    pub(crate) multirange: bool,
+pub(crate) use pgorm_bindings::CreatedKind;
+
+/// The created range or multirange type `name` names, in `schema`, over the
+/// value kind `subtype`, refused for a subtype no created range ranges over.
+fn created_kind(
+    name: &Bound<'_, PyAny>,
+    subtype: &str,
+    schema: Option<&Bound<'_, PyAny>>,
+    multirange: bool,
+) -> PyResult<CreatedKind> {
+    let subtype = ArrayType::from_kind_name(subtype)
+        .filter(|kind| CreatedRangeCodec::new(kind, multirange).is_some())
+        .ok_or_else(|| {
+            ConstructionError::new_err(
+                "a created range's subtype is one of i16, i32, i64, f32, f64, decimal, \
+                 text, date, time, datetime, datetime_utc or uuid",
+            )
+        })?;
+    Ok(CreatedKind {
+        name: PyTypeName::new(name, schema)?.0,
+        subtype,
+        multirange,
+    })
 }
 
-impl CreatedKind {
-    fn new(
-        name: &Bound<'_, PyAny>,
-        subtype: &str,
-        schema: Option<&Bound<'_, PyAny>>,
-        multirange: bool,
-    ) -> PyResult<Self> {
-        let subtype = ArrayType::from_kind_name(subtype)
-            .filter(|kind| CreatedRangeCodec::new(kind, multirange).is_some())
-            .ok_or_else(|| {
-                ConstructionError::new_err(
-                    "a created range's subtype is one of i16, i32, i64, f32, f64, decimal, \
-                     text, date, time, datetime, datetime_utc or uuid",
-                )
-            })?;
-        Ok(Self {
-            name: PyTypeName::new(name, schema)?,
-            subtype,
-            multirange,
-        })
-    }
+/// A created range or multirange type as Python reads and writes its
+/// values.
+pub(crate) trait CreatedKindPy {
+    /// The kind as Python names it, a `CreatedRange` or `CreatedMultirange`.
+    fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>>;
+    /// The text form of a Python value of this kind.
+    fn text(&self, data: &Bound<'_, PyAny>) -> PyResult<String>;
+    /// The Python value of this kind's text form.
+    fn read(&self, py: Python<'_>, text: &str) -> PyResult<Py<PyAny>>;
+}
 
-    /// The kind a `ColumnType::CreatedRange` or `CreatedMultirange` column
-    /// holds, when its subtype is one a created range can range over, as
-    /// pgorm's codec reads the column type.
-    // [spec:pgorm:req:bindings.created-ranges+5]
-    pub(crate) fn from_column(ty: &ColumnType) -> Option<Self> {
-        let (ColumnType::CreatedRange { name, schema, .. }
-        | ColumnType::CreatedMultirange { name, schema, .. }) = ty
-        else {
-            return None;
-        };
-        let codec = CreatedRangeCodec::of_column(ty)?;
-        Some(Self {
-            name: PyTypeName {
-                name: name.to_string(),
-                schema: schema.as_ref().map(|schema| schema.to_string()),
-            },
-            subtype: codec.subtype().clone(),
-            multirange: codec.is_multirange(),
-        })
-    }
+/// pgorm's codec of `kind`'s values; a kind is made only over a subtype it
+/// has one for.
+fn codec(kind: &CreatedKind) -> PyResult<CreatedRangeCodec> {
+    kind.codec()
+        .ok_or_else(|| ConstructionError::new_err("a created range's subtype has no codec"))
+}
 
-    /// The column type a schema declares for this kind.
-    pub(crate) fn column_type(&self) -> PyResult<ColumnType> {
-        let subtype = std::sync::Arc::new(self.codec()?.subtype_column_type());
-        let rust = self.name.rust_type();
-        let (name, schema) = (rust.name, rust.schema);
-        Ok(if self.multirange {
-            ColumnType::CreatedMultirange {
-                name,
-                schema,
-                subtype,
-            }
-        } else {
-            ColumnType::CreatedRange {
-                name,
-                schema,
-                subtype,
-            }
-        })
+/// A `pgorm.Range`'s, or each range of a `pgorm.Multirange`'s, bounds as
+/// subtype values.
+fn bounds(kind: &CreatedKind, data: &Bound<'_, PyAny>) -> PyResult<Vec<Range<Value>>> {
+    if !kind.multirange {
+        return Ok(vec![ranges::read_bounds(data, &kind.subtype)?]);
     }
+    let multirange = data
+        .cast_exact::<PyMultirange>()
+        .map_err(|_| ConstructionError::new_err("expected pgorm.Multirange"))?;
+    multirange
+        .get()
+        .ranges
+        .iter()
+        .map(|range| ranges::read_bounds(range.bind(data.py()).as_any(), &kind.subtype))
+        .collect()
+}
 
-    /// pgorm's codec of this kind's values; a kind is made only over a
-    /// subtype it has one for.
-    fn codec(&self) -> PyResult<CreatedRangeCodec> {
-        CreatedRangeCodec::new(&self.subtype, self.multirange)
-            .ok_or_else(|| ConstructionError::new_err("a created range's subtype has no codec"))
-    }
-
-    pub(crate) fn kind_name(&self) -> &'static str {
-        if self.multirange {
-            "created_multirange"
-        } else {
-            "created_range"
-        }
-    }
-
-    pub(crate) fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+impl CreatedKindPy for CreatedKind {
+    fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         if self.multirange {
             Ok(Py::new(py, PyCreatedMultirange(self.clone()))?.into_any())
         } else {
@@ -111,12 +85,12 @@ impl CreatedKind {
         }
     }
 
-    /// The text form of a Python value of this kind: a `pgorm.Range` (or a
-    /// `pgorm.Multirange`), each bound converted as the subtype's kind, or the
-    /// text form itself, which is read and written back canonically.
+    /// A `pgorm.Range` (or a `pgorm.Multirange`), each bound converted as
+    /// the subtype's kind, or the text form itself, which is read and
+    /// written back canonically.
     // [spec:pgorm:req:bindings.created-ranges+5]
-    pub(crate) fn text(&self, data: &Bound<'_, PyAny>) -> PyResult<String> {
-        let codec = self.codec()?;
+    fn text(&self, data: &Bound<'_, PyAny>) -> PyResult<String> {
+        let codec = codec(self)?;
         let ranges = if let Ok(text) = data.cast_exact::<PyString>() {
             match codec.ranges(text.to_str()?) {
                 Some(ranges) => ranges,
@@ -129,34 +103,16 @@ impl CreatedKind {
                 }
             }
         } else {
-            self.bounds(data)?
+            bounds(self, data)?
         };
         codec
             .text(ranges)
             .ok_or_else(|| ConstructionError::new_err("a bound does not convert to the subtype"))
     }
 
-    /// A `pgorm.Range`'s, or each range of a `pgorm.Multirange`'s, bounds as
-    /// subtype values.
-    fn bounds(&self, data: &Bound<'_, PyAny>) -> PyResult<Vec<Range<Value>>> {
-        if !self.multirange {
-            return Ok(vec![ranges::read_bounds(data, &self.subtype)?]);
-        }
-        let multirange = data
-            .cast_exact::<PyMultirange>()
-            .map_err(|_| ConstructionError::new_err("expected pgorm.Multirange"))?;
-        multirange
-            .get()
-            .ranges
-            .iter()
-            .map(|range| ranges::read_bounds(range.bind(data.py()).as_any(), &self.subtype))
-            .collect()
-    }
-
-    /// The Python value of this kind's text form.
     // [spec:pgorm:req:bindings.created-ranges+5]
-    pub(crate) fn read(&self, py: Python<'_>, text: &str) -> PyResult<Py<PyAny>> {
-        let ranges = self.codec()?.ranges(text).ok_or_else(|| {
+    fn read(&self, py: Python<'_>, text: &str) -> PyResult<Py<PyAny>> {
+        let ranges = codec(self)?.ranges(text).ok_or_else(|| {
             DecodeError::new_err(format!(
                 "text is no value of {} {}",
                 self.kind_name(),
@@ -201,7 +157,7 @@ macro_rules! created_kind_methods {
                 subtype: &str,
                 schema: Option<&Bound<'_, PyAny>>,
             ) -> PyResult<Self> {
-                Ok(Self(CreatedKind::new(name, subtype, schema, $multirange)?))
+                Ok(Self(created_kind(name, subtype, schema, $multirange)?))
             }
 
             #[getter]

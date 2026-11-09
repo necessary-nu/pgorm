@@ -3,7 +3,7 @@
 pub mod common;
 
 pub use common::{TestContext, features::*, setup::*};
-use pgorm::{ActiveEnum, ActiveEnumValue, Error, QueryResult, Value, entity::prelude::*};
+use pgorm::{ActiveEnum, ActiveEnumValue, Error, QueryResult, Value, Values, entity::prelude::*};
 use pgorm_query::{ArrayType, Expr, Query, QueryBuilder, SimpleExpr, StringLen};
 use pretty_assertions::assert_eq;
 
@@ -149,7 +149,7 @@ fn active_enum_u32_vec_read_errors() {
     let ctx = TestContext::new("active_enum_u32_vec_read_errors").await;
     let db = ctx.db.get().await.unwrap();
 
-    let err = U32VecProbe::find_by_statement(r#"SELECT ARRAY[1, 2] AS "ids""#, vec![])
+    let err = U32VecProbe::find_by_statement(r#"SELECT ARRAY[1, 2] AS "ids""#, Values(vec![]))
         .one(&db)
         .await
         .expect_err("a `u32` enum array cannot be decoded");

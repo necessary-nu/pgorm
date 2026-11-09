@@ -105,12 +105,28 @@ jobs:
           "$OPENSSL" x509 -req -in "$tls/server.csr" -CA "$tls/ca.pem" -CAkey "$tls/ca.key" -CAcreateserial \
             -days 2 -extfile "$tls/server.ext" -out "$tls/server.crt"
           chmod 600 "$tls/server.key"
+          # A client certificate for pgorm_cert, a role the server lets in by
+          # it alone, as pgorm-python/tests/with_postgres.py's server does.
+          "$OPENSSL" req -newkey rsa:2048 -nodes -subj /CN=pgorm_cert \
+            -keyout "$tls/client.key" -out "$tls/client.csr"
+          printf '%s\n' 'basicConstraints=critical,CA:FALSE' 'keyUsage=critical,digitalSignature,keyEncipherment' \
+            'extendedKeyUsage=clientAuth' > "$tls/client.ext"
+          "$OPENSSL" x509 -req -in "$tls/client.csr" -CA "$tls/ca.pem" -CAkey "$tls/ca.key" -CAcreateserial \
+            -days 2 -extfile "$tls/client.ext" -out "$tls/client.crt"
           "$PGORM_TEST_PG_BIN/initdb" -D "$data" -U postgres --auth=trust --encoding=UTF8 --no-locale
+          # The first matching line decides, so pgorm_cert's comes before
+          # initdb's trust lines.
+          { echo 'hostssl all pgorm_cert all cert'; cat "$data/pg_hba.conf"; } > "$data/pg_hba.first"
+          mv "$data/pg_hba.first" "$data/pg_hba.conf"
           "$PGORM_TEST_PG_BIN/pg_ctl" -D "$data" -l "$RUNNER_TEMP/postgres.log" -w -t 30 \
-            -o "-c listen_addresses=127.0.0.1 -c port=54329 -c unix_socket_directories=$RUNNER_TEMP -c ssl=on -c ssl_cert_file=$tls/server.crt -c ssl_key_file=$tls/server.key" start
+            -o "-c listen_addresses=127.0.0.1 -c port=54329 -c unix_socket_directories=$RUNNER_TEMP -c ssl=on -c ssl_cert_file=$tls/server.crt -c ssl_key_file=$tls/server.key -c ssl_ca_file=$tls/ca.pem" start
           "$PGORM_TEST_PG_BIN/psql" -h 127.0.0.1 -p 54329 -U postgres -Atc 'SELECT version()'
+          "$PGORM_TEST_PG_BIN/psql" -h 127.0.0.1 -p 54329 -U postgres -Atc 'CREATE ROLE pgorm_cert LOGIN'
           echo 'PGORM_TEST_DSN=postgres://postgres@127.0.0.1:54329/postgres' >> "$GITHUB_ENV"
           echo "PGORM_TEST_CA=$tls/ca.pem" >> "$GITHUB_ENV"
+          echo "PGORM_TEST_CLIENT_CERT=$tls/client.crt" >> "$GITHUB_ENV"
+          echo "PGORM_TEST_CLIENT_KEY=$tls/client.key" >> "$GITHUB_ENV"
+          echo 'PGORM_TEST_CERT_USER=pgorm_cert' >> "$GITHUB_ENV"
       - name: Check the addon's Rust
         run: |
           cargo fmt --manifest-path pgorm-napi/Cargo.toml --all -- --check

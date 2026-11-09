@@ -316,8 +316,8 @@ fn subtype_of(ty: &Type) -> &Type {
 fn typed<T: RangeSubtype>(range: Range<Value>) -> Option<Range<T>> {
     let bound = |bound: Bound<Value>| -> Option<Bound<T>> {
         Some(match bound {
-            Bound::Included(value) => Bound::Included(T::try_from(value).ok()?),
-            Bound::Excluded(value) => Bound::Excluded(T::try_from(value).ok()?),
+            Bound::Included(value) => Bound::Included(T::from_value(value).ok()?),
+            Bound::Excluded(value) => Bound::Excluded(T::from_value(value).ok()?),
             Bound::Unbounded => Bound::Unbounded,
         })
     };

@@ -1421,9 +1421,11 @@ dependencies = [
  "jiff",
  "log",
  "pg_query",
+ "pgorm-case-style",
  "pgorm-macros",
  "pgorm-pool",
  "pgorm-query",
+ "pgorm-sql-check",
  "pgorm-sql-macro",
  "postgres-protocol",
  "prqlc",
@@ -1440,15 +1442,68 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-bindings"
+version = "0.2.0"
+dependencies = [
+ "fallible-iterator",
+ "futures-util",
+ "pgorm",
+ "pgorm-migration",
+ "postgres-protocol",
+ "rustls",
+ "rustls-native-certs",
+ "serde_json",
+ "tokio",
+ "tokio-postgres",
+ "tokio-postgres-rustls",
+ "tokio-util",
+]
+
+[[package]]
+name = "pgorm-case-style"
+version = "0.2.0"
+dependencies = [
+ "heck",
+]
+
+[[package]]
+name = "pgorm-codegen"
+version = "0.2.0"
+dependencies = [
+ "heck",
+ "pg_query",
+ "pgorm-case-style",
+ "pgorm-query",
+ "rust_decimal",
+ "tracing",
+ "unicode-ident",
+]
+
+[[package]]
 name = "pgorm-macros"
 version = "0.2.0"
 dependencies = [
  "heck",
+ "pgorm-case-style",
  "pgorm-query-derive-internals",
  "proc-macro2",
  "quote",
  "syn 3.0.6",
  "unicode-ident",
+]
+
+[[package]]
+name = "pgorm-migration"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "pgorm",
+ "pgorm-macros",
+ "pgorm-sql-check",
+ "pgorm-sql-macro",
+ "sha2",
+ "tracing",
 ]
 
 [[package]]
@@ -1461,15 +1516,15 @@ dependencies = [
  "jiff",
  "neon",
  "pgorm",
+ "pgorm-bindings",
+ "pgorm-codegen",
+ "pgorm-migration",
  "pgorm-query",
  "postgres-protocol",
  "rust_decimal",
- "rustls",
- "rustls-native-certs",
  "serde_json",
  "tokio",
  "tokio-postgres",
- "tokio-postgres-rustls",
  "tokio-util",
  "uuid",
 ]
@@ -1481,6 +1536,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "deadpool",
+ "futures-util",
  "serde",
  "tokio",
  "tokio-postgres",
@@ -1525,14 +1581,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "pgorm-sql-macro"
+name = "pgorm-sql-check"
 version = "0.2.0"
 dependencies = [
  "pg_query",
- "proc-macro2",
  "prqlc",
- "quote",
  "serde_json",
+]
+
+[[package]]
+name = "pgorm-sql-macro"
+version = "0.2.0"
+dependencies = [
+ "pgorm-sql-check",
+ "proc-macro2",
+ "quote",
  "syn 3.0.6",
 ]
 
@@ -1727,7 +1790,7 @@ dependencies = [
 [[package]]
 name = "prqlc"
 version = "0.13.14"
-source = "git+https://github.com/necessary-nu/prql.git?rev=2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19#2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19"
+source = "git+https://github.com/necessary-nu/prql.git?rev=f25bf16dbd3ee6af1312fde39b6637aca32acc49#f25bf16dbd3ee6af1312fde39b6637aca32acc49"
 dependencies = [
  "anstream",
  "ariadne",
@@ -1752,7 +1815,7 @@ dependencies = [
 [[package]]
 name = "prqlc-parser"
 version = "0.13.14"
-source = "git+https://github.com/necessary-nu/prql.git?rev=2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19#2ce6a2428ee850b1d1e16c41285f6ae7ee7fbe19"
+source = "git+https://github.com/necessary-nu/prql.git?rev=f25bf16dbd3ee6af1312fde39b6637aca32acc49#f25bf16dbd3ee6af1312fde39b6637aca32acc49"
 dependencies = [
  "chumsky",
  "enum-as-inner",

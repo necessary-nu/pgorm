@@ -2,7 +2,7 @@ use crate::{ColumnPairs, EntityTrait, Iterable, QuerySelect, Select, unpack_tabl
 use core::marker::PhantomData;
 use pgorm_query::{
     Condition, ConditionType, Deferrability, Enforcement, ForeignKeyCreateStatement, FromItem,
-    IntoName, JoinType, Name, TableForeignKey, alias,
+    IntoName, JoinType, Name, TableForeignKey, TableName, alias,
 };
 use std::fmt::Debug;
 
@@ -174,6 +174,29 @@ where
 }
 
 impl RelationDef {
+    /// A belongs-to relation from the table `from` to the table `to`, its
+    /// foreign key over `columns`, with no action, name, condition,
+    /// enforcement or deferrability until its fields say otherwise: the
+    /// relation a table described at run time is keyed by
+    /// ([`TableShape::with_relation`](crate::TableShape::with_relation)).
+    // [spec:pgorm:sem:schema.from-shape]
+    pub fn belongs_to(from: TableName, to: TableName, columns: ColumnPairs) -> Self {
+        Self {
+            rel_type: RelationType::HasOne,
+            from_tbl: FromItem::from(from),
+            to_tbl: FromItem::from(to),
+            columns,
+            is_owner: false,
+            on_delete: None,
+            on_update: None,
+            on_condition: None,
+            fk_name: None,
+            enforcement: None,
+            deferrability: None,
+            condition_type: ConditionType::All,
+        }
+    }
+
     /// Reverse this relation (swap from and to).
     ///
     /// An `on_condition` closure already attached keeps its authored roles:
@@ -263,7 +286,7 @@ impl RelationDef {
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::{cake, cake_filling}};
-    /// use pgorm_query::{Expr, IntoCondition};
+    /// use pgorm_query::{Expr, ExprTrait, IntoCondition};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -301,7 +324,7 @@ impl RelationDef {
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::{cake, cake_filling}};
-    /// use pgorm_query::{Expr, IntoCondition, ConditionType};
+    /// use pgorm_query::{Expr, ExprTrait, IntoCondition, ConditionType};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -538,8 +561,8 @@ macro_rules! foreign_key_from_relation {
         if let Some(enforcement) = $relation.enforcement {
             foreign_key.enforcement(enforcement);
         }
-        let name = if let Some(name) = $relation.fk_name {
-            name
+        let name = if let Some(name) = &$relation.fk_name {
+            name.clone()
         } else {
             let from_cols: Vec<String> = $relation
                 .columns
@@ -561,8 +584,15 @@ macro_rules! foreign_key_from_relation {
 // [spec:pgorm:req:entity.relation.fk+6]
 impl From<RelationDef> for ForeignKeyCreateStatement {
     fn from(relation: RelationDef) -> Self {
-        foreign_key_from_relation!(relation, Self)
+        foreign_key_of(&relation)
     }
+}
+
+/// The foreign key `relation` holds, as its `From` conversion writes it, for
+/// a relation the caller keeps.
+// [spec:pgorm:req:entity.relation.fk+6]
+pub(crate) fn foreign_key_of(relation: &RelationDef) -> ForeignKeyCreateStatement {
+    foreign_key_from_relation!(relation, ForeignKeyCreateStatement)
 }
 
 /// Creates a column definition for example to update a table.

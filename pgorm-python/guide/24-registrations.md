@@ -120,8 +120,9 @@ when there is no row, and `optional` returns `None`.
 `inspect(terminal="one")` or `inspect(terminal="optional")` shows the SQL
 with that limit. These are the Rust selector's rules; the `one` of a pool, a
 connection or a transaction, which runs a statement you built, has its own
-([Reading rows](05-reading.md)). A registered entity has no `stream`, and no
-projection onto some of its columns: a query reads whole models.
+([Reading rows](05-reading.md)). A query also counts, pages, takes a keyset
+cursor and streams, joins a relation and reads some of its columns, [as
+below](#counts-pages-cursors-and-streams).
 
 Here Python differs from Rust: every terminal and write returns an
 awaitable, and runs on a `Pool` as well as on a `Connection` or a
@@ -136,6 +137,107 @@ the pool also cancels a Rust hook that is still running.
 A query, like every builder here, is a value: `where`, `order_by`, `limit`
 and `offset` each return a new one. Testing a query or a write for truth, as
 `if query:` does, raises `ConstructionError` rather than answering.
+
+### Counts, pages, cursors and streams
+
+A query has the rest of Rust's `Select<E>` reads. `count(db)` is
+`PaginatorTrait::count`, counting the rows with the limit, offset and
+ordering dropped, and `inspect(terminal="count")` shows that statement.
+`paginate(page_size)` is `PaginatorTrait::paginate`: its paginator holds no
+database, so each of `fetch_page(db, n)`, `num_items(db)`, `num_pages(db)` and
+`num_items_and_pages(db)` takes the one it runs on, `pages(db)` reads each
+page in turn until one is empty, and `inspect(n)` or `inspect("count")` shows
+a statement, as a model query's paginator does ([Pages, cursors and
+streams](06-pagination.md)). `cursor(*columns)` is `Select::cursor_by` over
+those columns in order: `after(*values)` and `before(*values)` take one value
+per column, converted and cast as a comparison's value is, `first`, `last`,
+`asc` and `desc` are the cursor's own, `inspect()` shows its statement, and
+`all(db)` runs it. `stream(db)` reads the models one at a time from a pool's
+connection of its own or a connection, each decoded as it arrives, as
+`Select::stream` does:
+
+```python registered
+import asyncio
+import os
+
+import pgorm
+from pgorm import Pool
+
+
+async def main() -> None:
+    cake = pgorm.entity("rust_bakery.Cake")
+    by_price = cake.find().order_by(cake.col("price").asc())
+
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        assert await by_price.count(pool) == 5
+
+        pages = by_price.paginate(2)
+        assert await pages.num_items_and_pages(pool) == (5, 3)
+        second = await pages.fetch_page(pool, 1)
+        assert [model["name"] for model in second] == ["Carrot Cake", "Chocolate Fudge"]
+
+        cursor = cake.find().cursor("price", "id")
+        first = await cursor.first(2).all(pool)
+        assert [model["name"] for model in first] == ["Vanilla Sponge", "Lemon Drizzle"]
+        last = first[-1]
+        following = await cursor.after(last["price"], last["id"]).first(2).all(pool)
+        assert [model["name"] for model in following] == ["Carrot Cake", "Chocolate Fudge"]
+
+        async with await by_price.stream(pool) as models:
+            names = [model["name"] async for model in models]
+        assert names[:2] == ["Vanilla Sponge", "Lemon Drizzle"]
+
+
+asyncio.run(main())
+```
+
+`join(relation, kind=Join.Inner)` is `QuerySelect::join` of a relation the
+entity's Rust `Relation` enum declares: `entity.relation(name)` names the
+variant, a name it does not declare raising `ConstructionError`, and the
+joined entity's columns go in the conditions and orderings. The rows stay the
+query's own models. `select(*columns)` is `select_only` with `columns`: the
+query reads only those columns, each through its `select_as`, and its rows
+are `Record`s, as a statement's are, rather than models; its `all`, `one`,
+`optional`, `stream` and `inspect` are a query's. Here Python differs from
+Rust, which decodes such a projection into a type of the program's own,
+`into_tuple` or a `PartialModel`, which a binding cannot name at run time:
+
+```python registered
+import asyncio
+import os
+
+import pgorm
+from pgorm import Pool
+
+
+async def main() -> None:
+    cake = pgorm.entity("rust_bakery.Cake")
+    bakery = pgorm.entity("rust_bakery.Bakery")
+    in_bergen = (
+        cake.find()
+        .join(cake.relation("Bakery"))
+        .where(bakery.col("city") == "Bergen")
+        .order_by(cake.col("name").asc())
+    )
+    assert in_bergen.inspect().sql == (
+        'SELECT "cake"."id", "cake"."name", CAST("cake"."flavor" AS text), "cake"."price", '
+        '"cake"."gluten_free", "cake"."bakery_id" FROM "cake" '
+        'INNER JOIN "bakery" ON "cake"."bakery_id" = "bakery"."id" '
+        'WHERE "bakery"."city" = $1 ORDER BY "cake"."name" ASC'
+    )
+
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        assert [model["name"] for model in await in_bergen.all(pool)] == ["Carrot Cake", "Vanilla Sponge"]
+
+        names = in_bergen.select("name", "flavor")
+        assert [dict(row) for row in await names.all(pool)] == [
+            {"name": "Carrot Cake", "flavor": "carrot"},
+            {"name": "Vanilla Sponge", "flavor": "vanilla"},
+        ]
+
+
+asyncio.run(main())
+```
 
 ### Columns
 
@@ -379,6 +481,9 @@ Rust statements of [Writing rows](04-writing.md), with Rust's terminals:
 | `entity.insert_many(actives).returning_models(db)` | `Insert::many(actives).exec_returning_models` |
 | `entity.insert_many(actives).on_conflict(..).returning_upserts(db)` | `Insert::many(actives).on_conflict(..).exec_returning_upserts` |
 | `insert.add(active)`, `insert.add_many(actives)` | `Insert::add`, `Insert::add_many` |
+| `entity.insert(active).on_conflict_do_nothing().execute(db)` | `Insert::one(active).on_conflict_do_nothing().exec` |
+| `entity.insert(active).on_empty_do_nothing().returning_model(db)` | `Insert::one(active).on_empty_do_nothing().exec_returning_model` |
+| `entity.insert_many(actives).on_conflict_do_nothing().returning_pks(db)` | `Insert::many(actives).on_conflict_do_nothing().exec_returning_pks` |
 
 An insert is typed by its row count, as Rust's is: `insert` gives an
 `EntityInsert`, and `insert_many`, `add` and `add_many` an
@@ -400,6 +505,52 @@ UPDATE` whose `WHERE` held it back); `returning_pk` and `returning_model`
 raise `DecodeError` for such a row, and `returning_pks` and
 `returning_models` leave it out. The conflict clause is the statement
 builders' `Conflict` ([Writing rows](04-writing.md)).
+
+`on_conflict_do_nothing()` adds `ON CONFLICT (primary key) DO NOTHING`, as
+Rust's does, and turns an `EntityInsert` into an `EntityTryInsert`, or an
+`EntityInsertMany` into an `EntityTryInsertMany`: Rust's `TryInsert`.
+`on_empty_do_nothing()` makes one too, keeping the insert's own conflict
+clause. A try-insert has `on_conflict`, which replaces its clause, `add` and
+`add_many`, and Rust's `TryInsert` terminals: `execute`, `returning_pk` and
+`returning_model` for one row, `execute`, `returning_pks` and
+`returning_models` for a batch, and no upsert terminal. Each answers with the
+`TryInsertResult` a declared model's try-insert answers with
+([Writing rows](04-writing.md)): `TryInsertResult.Inserted` holding what the
+terminal wrote, `TryInsertResult.Conflicted()` when the conflict clause held
+every row back, or `TryInsertResult.Empty()` when there was nothing to write,
+a batch of no `ActiveModel`s or one that sets no column, and nothing was
+sent. An entity view's try-insert reads the rows it wrote as the view's
+models:
+
+```python registered
+import asyncio
+import os
+
+from pgorm import Pool, TryInsertResult
+from pgorm.rust_bakery import CakeBaker
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        # Ada already bakes the Chocolate Fudge.
+        ada = CakeBaker.active().set_cake_id(1).set_baker_id(1)
+        again = CakeBaker.insert(ada).on_conflict_do_nothing()
+        assert await again.execute(pool) == TryInsertResult.Conflicted()
+
+        # Bo starts baking it too.
+        bo = CakeBaker.active().set_cake_id(1).set_baker_id(2)
+        match await CakeBaker.insert(bo).on_conflict_do_nothing().returning_model(pool):
+            case TryInsertResult.Inserted(row):
+                assert (row.cake_id, row.baker_id) == (1, 2)
+            case other:
+                raise AssertionError(f"Bo is new to it: {other!r}")
+
+        nothing = await CakeBaker.insert_many([]).on_empty_do_nothing().returning_pks(pool)
+        assert nothing == TryInsertResult.Empty()
+
+
+asyncio.run(main())
+```
 
 These are statement terminals, as they are in Rust, so they run no hooks:
 an update returning its change does not do what a `before_save` would.
@@ -440,6 +591,24 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
 registered twice, or a Rust entity registered under two names, is refused
 there, before the entry is added. `install` fails on a module that already
 has a registry.
+
+`Registry::entity` registers `E::default()`, and every statement of the
+registration names that value's table. An entity whose names are computed at
+run time, such as a schema per tenant, is registered once for each value it
+serves with `Registry::entity_in`, and each registration reads and writes its
+own value's table, as Rust's `Entity::find_in(entity)` and the other `_in`
+constructors do:
+
+```rust
+registry.entity::<note::Entity>("app.Note")?;
+registry.entity_in("app.AcmeNote", note::Entity { tenant: "acme" })?;
+```
+
+Python picks the tenant by the name it asks for, `p.entity("app.AcmeNote")`,
+since a Python program has no Rust value to hand over itself. A Rust type is
+registered once for each table its values name, so the same type and table
+under two names is the duplicate refused above. A graph or a source tuple
+over the type reads the metadata of its first registration.
 
 The crate is a library named `_native`, of crate types `cdylib` and `rlib`.
 It depends on the checkout's `pgorm-python` with its default
@@ -545,7 +714,8 @@ seven entities from `pgorm-guide-support`:
   module exports it under. An entry may add `fields`, a map from a column's
   SQL name to the attribute its typed model reads it as, such as
   `{"display name": "display_name"}`.
-- `graphs` and `disjoints` list graph shapes and disjoint enums the same way,
+- `graphs`, `disjoints`, `one_ofs` and `sources` list graph shapes,
+  disjoint enums, one-of references and pipeline source tuples the same way,
   as the sections on them show.
 
 The description is checked before anything is written. A Rust path names
@@ -716,16 +886,16 @@ written by hand, is `Any`, and takes an explicit `Value` where the column's
 SQL type is no guide.
 
 The entity view's writes have the generic API's terminals, typed:
-`returning_change` gives a `Change` of the typed models, `returning_upsert`
-an `Inserted` or an `Updated`, each from `pgorm._registered.entities`, and
-`returning_models` a list of the typed models:
+`returning_change` gives a `pgorm.Change` of the typed models,
+`returning_upsert` a `pgorm.Upserted.Inserted` or `Upserted.Updated` holding
+them, the classes every write answers with, and `returning_models` a list of
+the typed models:
 
 ```python registered
 import asyncio
 import os
 
-from pgorm import Conflict, Pool
-from pgorm._registered.entities import Inserted, Updated
+from pgorm import Conflict, Pool, Upserted
 from pgorm.rust_bakery import Customer
 
 
@@ -735,14 +905,14 @@ async def main() -> None:
         kim = Customer.active().set_name("Kimberly").set_email("kim@example.com").set_notes(None)
         renamed = Conflict.on("email").update("name")
         match await Customer.insert(kim).on_conflict(renamed).returning_upsert(pool):
-            case Updated(change):
+            case Upserted.Updated(change):
                 assert (change.old.name, change.new.name) == ("Kim", "Kimberly")
             case other:
                 raise AssertionError(f"expected an update, got {other!r}")
 
         sam = Customer.active().set_name("Sam").set_email("sam@example.com").set_notes(None)
         match await Customer.insert(sam).on_conflict(renamed).returning_upsert(pool):
-            case Inserted(model):
+            case Upserted.Inserted(model):
                 # The insert that updated Kim drew id 3 from the sequence too.
                 assert (model.id, model.name) == (4, "Sam")
             case other:
@@ -889,10 +1059,23 @@ continues nowhere: bound the order column alone to step past it. A boundary
 on the order column alone also skips the remaining joined rows of the same
 root, so choose the boundary that matches where the page ended.
 
-Not available in Python yet: a cursor ordered by a slot's column or by more
-than one column, streaming or grouping a graph, inspecting a cursor's SQL,
-and graphs of more than seven sources. None of them falls back to another
-kind of query.
+`cursor(*columns)` orders by up to six root columns, and
+`cursor_on(source, *columns)` is Rust's `cursor_by_on`, ordering by up to six
+columns of slot `source`, the first slot being `1`: the whole key is then the
+order columns, the rest of that slot's key, the root's, and the other slots'
+in order. `after` and `before` take one value per order column, and
+`after_with` and `before_with` those or the whole key. `inspect()` shows a
+cursor's statement. A graph has no more than seven sources because Rust's
+`SelectGraph` holds no more than six slots.
+
+`query.stream(db)` reads the rows one at a time, each decoded by `GraphRow`
+as Rust's `SelectGraph::stream` decodes it, from a pool's connection of its
+own or a connection. `query.all_grouped(db)` is `all_grouped`, which Rust
+has only on a graph of one `Opt` slot: each root once with a list of its
+slot's models, an empty one where none matched; any other shape raises
+`ConstructionError`. `count(db)` and `paginate(page_size)` count and page the
+graph's rows as an entity's query does, a page boundary falling between rows
+of the join.
 
 ### Graphs in pgorm.codegen
 
@@ -972,8 +1155,13 @@ records are the entities' own models; `set(active, value, key)` returns the
 `ActiveModel` with the reference set to that target's key and every other
 target's column NULL, and `set(active, None)` sets them all NULL where the
 reference is optional. `load(db, records)` reads the record each reference
-names, as a one-of model's does. `pgorm.codegen` does not describe one-of
-enums yet: a wheel that registers one is built by hand.
+names, as a one-of model's does. In `pgorm.codegen`, an enum is described
+under `one_ofs` by its registration, its Rust path and its export, and the
+generated module exports it as that `OneOfEntity`:
+
+```json
+"one_ofs": [{"name": "app.CommentTarget", "rust": "comment::Target", "python": "CommentTarget"}]
+```
 
 ### Pipeline source tuples
 
@@ -991,8 +1179,14 @@ from the source its qualifier names, and its `all`, `one` and `optional` give
 tuples of the registered models, with `None` for a source a right or full
 join left absent. `(None,)` is a row whose one source is absent, not the
 absence of a row. A tuple holds one to six entities, each registered before
-it. `pgorm.codegen` does not describe source tuples yet: a wheel that
-registers one is built by hand.
+it. In `pgorm.codegen`, a tuple is described under `sources`, its `rust` the
+paths of the entities it lists, each one the description registers, and the
+generated module exports its `SourceSelection` beside a `<Name>Row` alias
+for the rows it selects, each source's model or `None`:
+
+```json
+"sources": [{"name": "app.BakeryAndCake", "rust": ["bakery::Entity", "cake::Entity"], "python": "BakeryAndCake"}]
+```
 
 ## Checks at import
 

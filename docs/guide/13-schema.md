@@ -198,6 +198,136 @@ another method is the [index builder](#indexes)'s. A unique key over several
 columns is the `Model`'s `unique(columns = (..))`, which [Entities](crate::guide::entities)
 shows; it is part of the `CREATE TABLE`.
 
+## Tables described as data
+
+An entity is described at compile time. A table known only at run time, such
+as one a program reads from configuration or a language binding's model
+declares, is described as a [`TableShape`](crate::TableShape) instead: its
+columns, each a name and the [`ColumnDef`](crate::ColumnDef) an entity's
+column returns from `def()`, its primary key, unique keys, belongs-to
+relations and comment. [`create_table_from_shape`](crate::Schema::create_table_from_shape),
+`create_enum_from_shape`, `create_index_from_shape` and
+`create_comments_from_shape` write the same statements the entity methods
+write, and [`TableShape::of`](crate::TableShape::of) describes an entity, so
+both come from one writer. pgorm's Python and JavaScript bindings write a
+declared model's schema this way.
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::empty("schema_shapes").await;
+# let db = scratch.pool.get().await?;
+use pgorm::entity::prelude::*;
+use pgorm::pgorm_query::{ForeignKeyAction, GeneratedKind, Name, TableName};
+use pgorm::{ColumnPairs, ColumnTypeTrait, RelationDef, Schema, TableColumn, TableShape};
+
+let table = |name: &str| TableName::Table(Name::runtime(name));
+let price = || ColumnType::Decimal(Some((10, 2)));
+
+let mut to_order = RelationDef::belongs_to(
+    table("order_line"),
+    table("order"),
+    ColumnPairs::new(Name::runtime("order_id"), Name::runtime("id")),
+);
+to_order.on_delete = Some(ForeignKeyAction::Cascade);
+
+let order_line = TableShape::new(
+    table("order_line"),
+    vec![
+        TableColumn::new("id", ColumnType::Integer.def()),
+        TableColumn::new("order_id", ColumnType::Integer.def().indexed()),
+        TableColumn::new("quantity", ColumnType::Integer.def().default_value(1)),
+        TableColumn::new("price", price().def()),
+        TableColumn::new(
+            "total",
+            price()
+                .def()
+                .generated(Expr::col(Name::runtime("price")).mul(Expr::col(Name::runtime("quantity"))), GeneratedKind::Stored)
+                .comment("price times quantity"),
+        ),
+    ],
+)?
+.with_primary_key(&["id"])?
+.auto_increment()
+.with_relation("Order", to_order)?;
+
+let schema = Schema::new();
+let create = schema.create_table_from_shape(&order_line)?;
+assert_eq!(
+    create.to_string(),
+    r#"CREATE TABLE "order_line" ( "id" serial NOT NULL, "order_id" integer NOT NULL, "quantity" integer NOT NULL DEFAULT 1, "price" decimal(10, 2) NOT NULL, "total" decimal(10, 2) NOT NULL GENERATED ALWAYS AS ("price" * "quantity") STORED, PRIMARY KEY ("id"), CONSTRAINT "fk-order_line-order_id" FOREIGN KEY ("order_id") REFERENCES "order" ("id") ON DELETE CASCADE )"#
+);
+
+db.batch_execute(r#"CREATE TABLE "order" ( "id" serial PRIMARY KEY )"#).await?;
+db.batch_execute(&create.to_string()).await?;
+for index in schema.create_index_from_shape(&order_line) {
+    db.batch_execute(&index.to_string()).await?;
+}
+for comment in schema.create_comments_from_shape(&order_line) {
+    db.batch_execute(&comment.to_string()).await?;
+}
+
+// An entity's shape writes the entity's own statements.
+let customer = TableShape::of::<pgorm_guide_support::customer::Entity>();
+assert_eq!(
+    schema.create_table_from_shape(&customer)?.to_string(),
+    schema.create_table_from_entity(pgorm_guide_support::customer::Entity)?.to_string()
+);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+A shape refuses what it cannot describe as it is built, with
+[`Error::Type`](crate::Error::Type): two columns of one name, a key or unique
+key naming a column it lacks, and a relation that holds no key of the table,
+a `has_many` among them. A column built
+[`with_unstated_default`](crate::TableColumn::with_unstated_default), which
+the database fills by a default the description does not state, has no
+`DEFAULT` to write, so `create_table_from_shape` refuses its table.
+
+A `TableColumn` also reads, writes and compares as an entity's column of its
+type does: [`select`](crate::TableColumn::select) reads a `money` column as
+`numeric` and an enum as its text, `save` casts a value to the column's type,
+and `compared_column` and `compared_value` give the two sides of a
+comparison, both cast to the enum where the column is a domain over one.
+`with_select_as` and `with_save_as` replace the read's and the write's cast,
+as an entity column's `select_as` and `save_as` attributes do.
+[`compared_array`](crate::TableColumn::compared_array) is the array `= ANY`
+and `<> ALL` compare the column with, as an entity column's `eq_any` casts
+it, and [`read_cast`](crate::TableColumn::read_cast) and
+[`compared_value_cast`](crate::TableColumn::compared_value_cast) name the
+types the read and a compared value are cast to. A
+[pipeline](crate::guide::pipeline) reads such a table through them:
+[`col_shaped`](crate::pipeline::col_shaped) is a column compared as its
+`TableColumn` compares, and
+[`read_columns`](crate::pipeline::Pipeline::read_columns) reads the rows as
+a reader of those columns does, each cast column projected cast, as
+`into_model` reads an entity's:
+
+```rust
+use pgorm::pgorm_query::{ColumnType, Expr, Query};
+use pgorm::pipeline::{ExprOps, Pipeline, alias, col_shaped};
+use pgorm::{ColumnTypeTrait, TableColumn};
+
+let takings = TableColumn::new("takings", ColumnType::Money.def());
+assert_eq!(
+    Query::select().expr(takings.compared_array(Expr::val(vec![1.5]))).to_string(),
+    "SELECT CAST(ARRAY [1.5] AS money[])"
+);
+
+let (sql, _) = Pipeline::from(alias("till"))
+    .filter(col_shaped(alias("till"), alias("takings"), &takings).gt(10))
+    .read_columns([("id".to_owned(), None), ("takings".to_owned(), takings.read_cast())])
+    .into_sql()?;
+assert_eq!(
+    sql,
+    "SELECT id, CAST(takings AS numeric) AS takings FROM till WHERE takings > CAST(10 AS money)"
+);
+# Ok::<_, pgorm::pipeline::PipelineError>(())
+```
+
 ## The DDL builders
 
 The [query builder](crate::guide::query_builder), pgorm-query, has a builder for each
@@ -254,7 +384,7 @@ and then its columns, keys, foreign keys and checks.
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_tables").await;
 # let db = scratch.pool.get().await?;
 use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{ColumnDef, Expr, ForeignKey, ForeignKeyAction, Table};
+use pgorm::pgorm_query::{ColumnDef, Expr, ExprTrait, ForeignKey, ForeignKeyAction, Table};
 use pgorm_guide_support::order;
 
 let create = Table::create(Delivery::Table)
@@ -389,7 +519,7 @@ method) and `and_where` (a partial index) say what kind of index it is:
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_index_builder").await;
 # let db = scratch.pool.get().await?;
 use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{Expr, Index, Name};
+use pgorm::pgorm_query::{Expr, ExprTrait, Index, Name};
 use pgorm_guide_support::cake;
 
 // One cake of each name per bakery.
@@ -488,7 +618,7 @@ counter of its own, beyond the ones an identity column keeps. The
 # let scratch = pgorm_guide_support::Scratch::empty("schema_sequences").await;
 # let db = scratch.pool.get().await?;
 use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{self, ColumnType, Domain, Expr, Name, Sequence, SequenceOption, SequenceType};
+use pgorm::pgorm_query::{self, ColumnType, Domain, Expr, ExprTrait, Name, Sequence, SequenceOption, SequenceType};
 
 let archive = pgorm_query::Schema::create(Name::runtime("archive")).if_not_exists().to_owned();
 assert_eq!(archive.to_string(), r#"CREATE SCHEMA IF NOT EXISTS "archive""#);
@@ -533,7 +663,7 @@ place, so construction returns a `Result`:
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_views").await;
 # let db = scratch.pool.get().await?;
 use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{Expr, Func, MaterializedView, Name, Query, View};
+use pgorm::pgorm_query::{Expr, ExprTrait, Func, MaterializedView, Name, Query, View};
 use pgorm_guide_support::{cake, order_line};
 
 let gluten_free = View::create(

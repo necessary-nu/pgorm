@@ -5,17 +5,22 @@
 // the statement builders. Declaring a model sends nothing and runs no DDL,
 // and claims no Rust entity: no derive, `EntityTrait` or ActiveModel hook is
 // behind it.
-// [spec:pgorm:req:bindings.models+5]
+// [spec:pgorm:req:bindings.models+6]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
+// [spec:pgorm:req:bindings.schema-from-model]
 
 import { Condition } from "./conditions.js";
 import { ConstructionError } from "./errors.js";
 import { graphOf } from "./graphs.js";
 import { Column, columnKey } from "./model-columns.js";
 import { query } from "./model-queries.js";
-import { fieldOf, qualified, register, shapeOf } from "./model-shape.js";
-import { deleteRows, insertMany, insertOne, picked, updateSet } from "./model-writes.js";
-import { relation } from "./relations.js";
+import { described, fieldOf, qualified, register, shapeOf } from "./model-shape.js";
+import { findByStatement } from "./raw.js";
+import { picked } from "./model-rows.js";
+import { active, hooksOf } from "./model-active.js";
+import { deleteRows, insertMany, insertOne, updateSet } from "./model-writes.js";
+import { native } from "./operations.js";
+import { linked, related, relation } from "./relations.js";
 import { Table } from "./select.js";
 import { isIdentifier } from "./values.js";
 
@@ -27,16 +32,19 @@ const MADE = Symbol("pgorm-napi model");
  * field that is no column declaration and two fields of one column.
  *
  * @param {unknown} columns
+ * @param {string | null} renameAll The case style a field's column is named in, where its column names none.
  * @returns {import("./model-shape.js").Field[]}
  */
-function fieldsOf(columns) {
+function fieldsOf(columns, renameAll) {
   if (typeof columns !== "object" || columns === null || Array.isArray(columns)) {
     throw new TypeError("a model's columns are an object of column() declarations");
   }
   const fields = Object.entries(columns).map(([field, column]) => {
     if (!(column instanceof Column)) throw new TypeError(`${field} is no column() declaration`);
     if (field === "") throw new ConstructionError("a field has a name");
-    return { field, sql: column.name ?? field, column };
+    const sql = column.name ?? (renameAll === null ? field : native.modelRenamed(field, renameAll));
+    if (!isIdentifier(sql)) throw new ConstructionError("an identifier is 1–63 UTF-8 bytes without NUL");
+    return { field, sql, column };
   });
   if (fields.length === 0) throw new ConstructionError("a model has at least one column");
   const sql = new Set(fields.map((field) => field.sql));
@@ -85,6 +93,24 @@ function uniqueKeyOf(key, fields) {
   return Object.freeze({ name, fields: Object.freeze(keyed), nullsNotDistinct });
 }
 
+// [spec:pgorm:req:bindings.schema-from-model]
+/**
+ * Refuse a key the serial family or a period cannot be part of: a serial key
+ * is of one column, and a period is the last column of a key of two or more,
+ * as PostgreSQL requires of `WITHOUT OVERLAPS`.
+ *
+ * @param {readonly import("./model-shape.js").Field[]} key
+ */
+function checkKey(key) {
+  if (key.some((field) => field.column.autoIncrement) && key.length !== 1) {
+    throw new ConstructionError("autoIncrement draws a one-column key from the serial family");
+  }
+  const periods = key.flatMap((field, index) => (field.column.withoutOverlaps ? [index] : []));
+  if (periods.length > 0 && (periods.length !== 1 || periods[0] !== key.length - 1 || key.length < 2)) {
+    throw new ConstructionError("withoutOverlaps marks the last field of a key of two or more as its period");
+  }
+}
+
 /**
  * @param {unknown} keys
  * @param {readonly import("./model-shape.js").Field[]} fields
@@ -107,14 +133,19 @@ export class Model {
    * @param {string | null} alias
    * @param {readonly import("./model-shape.js").Field[]} fields
    * @param {readonly import("./model-shape.js").UniqueKey[]} uniqueKeys
+   * @param {string | null} comment
+   * @param {Readonly<Record<string, Function>>} hooks
    * @param {symbol} token
    */
-  constructor(name, schema, alias, fields, uniqueKeys, token) {
+  constructor(name, schema, alias, fields, uniqueKeys, comment, hooks, token) {
     if (token !== MADE) throw new TypeError("a Model is made by model(name, { columns })");
     const table = new Table(name, { schema: schema ?? undefined, alias: alias ?? undefined });
     const qualifier = alias ?? name;
     for (const field of fields) qualified(field, qualifier);
-    register(this, {
+    const primaryKey = fields.filter((field) => field.column.primaryKey);
+    checkKey(primaryKey);
+    /** @type {import("./model-shape.js").Shape} */
+    const shape = {
       model: this,
       name,
       schema,
@@ -123,9 +154,13 @@ export class Model {
       table,
       fields,
       byField: new Map(fields.map((field) => [field.field, field])),
-      primaryKey: fields.filter((field) => field.column.primaryKey),
+      primaryKey,
       uniqueKeys,
-    });
+      comment,
+      hooks,
+    };
+    native.modelTable(described(shape));
+    register(this, shape);
     Object.freeze(this);
   }
 
@@ -140,6 +175,11 @@ export class Model {
 
   get alias() {
     return shapeOf(this).alias;
+  }
+
+  /** The table's comment, which its schema writes. */
+  get comment() {
+    return shapeOf(this).comment;
   }
 
   /** The table, schema-qualified and aliased as the model is. */
@@ -165,7 +205,7 @@ export class Model {
    */
   as(alias) {
     const shape = shapeOf(this);
-    return new Model(shape.name, shape.schema, alias, shape.fields, shape.uniqueKeys, MADE);
+    return new Model(shape.name, shape.schema, alias, shape.fields, shape.uniqueKeys, shape.comment, shape.hooks, MADE);
   }
 
   /**
@@ -226,6 +266,21 @@ export class Model {
   }
 
   /**
+   * The rows of `statement`, SQL text, and its `params` decoded into this
+   * model's records, as Rust's
+   * `FromQueryResult::find_by_statement` decodes them: each field read from
+   * the column of its SQL name and held to its declared kind, other columns
+   * left unread.
+   * [spec:pgorm:req:bindings.raw-models]
+   *
+   * @param {unknown} statement
+   * @param {readonly unknown[]} [params]
+   */
+  findByStatement(statement, params) {
+    return findByStatement(this, statement, params);
+  }
+
+  /**
    * An INSERT of one row: the fields `values` sets, each converted through
    * its declared kind. A field left out takes its default; one the model
    * declares neither nullable nor defaulted must be set.
@@ -255,6 +310,16 @@ export class Model {
     return updateSet(shapeOf(this), values);
   }
 
+  /**
+   * The fields one record write sets, whose `insert`, `update` and `delete`
+   * run the model's hooks around the write, as a Rust `ActiveModel`'s do.
+   *
+   * @param {unknown} [values]
+   */
+  active(values) {
+    return active(this, values);
+  }
+
   /** A DELETE, which needs a `where` or `allRows()` before it runs. */
   delete() {
     return deleteRows(shapeOf(this));
@@ -262,6 +327,9 @@ export class Model {
 
   /**
    * A relation from this model's foreign key to the key of `target`.
+   * `keys.onCondition`, given the two ends as a join names them, adds a
+   * condition of its own, ANDed with the fields' equality, or ORed when
+   * `keys.conditionType` is `"any"`.
    *
    * @param {unknown} target
    * @param {unknown} keys
@@ -290,6 +358,28 @@ export class Model {
     return relation("hasMany", this, target, keys);
   }
 
+  /**
+   * The path from this model through a junction, as a Rust `Related`
+   * implementation with a `via` declares it: `options.via` from this model
+   * to the junction, then `target` from the junction to the far end.
+   *
+   * @param {unknown} target
+   * @param {unknown} options
+   */
+  related(target, options) {
+    return related(this, target, options);
+  }
+
+  /**
+   * A chain of relations from this model, each starting where the one
+   * before it ends, as a Rust `Linked` type lists them.
+   *
+   * @param {...unknown} relations
+   */
+  linked(...relations) {
+    return linked(this, relations);
+  }
+
   /** A graph rooted at this model. */
   graph() {
     return graphOf(shapeOf(this));
@@ -303,6 +393,7 @@ export class Model {
       table: shape.name,
       alias: shape.alias,
       primaryKey: shape.primaryKey.map((field) => field.field),
+      hooks: Object.keys(shape.hooks),
       uniqueKeys: shape.uniqueKeys.map((key) => ({
         name: key.name,
         fields: key.fields.map((field) => field.field),
@@ -333,13 +424,17 @@ export function model(name, declaration) {
     throw new TypeError("a model's declaration is { columns, schema?, uniqueKeys? }");
   }
   for (const key of Object.keys(declaration)) {
-    if (key !== "columns" && key !== "schema" && key !== "uniqueKeys") {
-      throw new TypeError(`${JSON.stringify(key)} is no model option`);
-    }
+    if (!MODEL_OPTIONS.has(key)) throw new TypeError(`${JSON.stringify(key)} is no model option`);
   }
-  const { columns, schema = null, uniqueKeys = [] } =
-    /** @type {{ columns?: unknown, schema?: unknown, uniqueKeys?: unknown }} */ (declaration);
+  const { columns, schema = null, uniqueKeys = [], comment = null, renameAll = null, hooks } =
+    /** @type {{ columns?: unknown, schema?: unknown, uniqueKeys?: unknown, comment?: unknown, renameAll?: unknown, hooks?: unknown }} */ (
+      declaration
+    );
   if (schema !== null && typeof schema !== "string") throw new TypeError("a model's schema is a string");
-  const fields = fieldsOf(columns);
-  return new Model(name, schema, null, fields, uniqueKeysOf(uniqueKeys, fields), MADE);
+  if (comment !== null && typeof comment !== "string") throw new TypeError("a model's comment is a string");
+  if (renameAll !== null && typeof renameAll !== "string") throw new TypeError("a model's renameAll is a case style's name");
+  const fields = fieldsOf(columns, renameAll);
+  return new Model(name, schema, null, fields, uniqueKeysOf(uniqueKeys, fields), comment, hooksOf(hooks), MADE);
 }
+
+const MODEL_OPTIONS = new Set(["columns", "schema", "uniqueKeys", "comment", "renameAll", "hooks"]);

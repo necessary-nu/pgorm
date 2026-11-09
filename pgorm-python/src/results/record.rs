@@ -5,7 +5,7 @@ use tokio_postgres::Row;
 
 use crate::{
     errors::DecodeError,
-    values::{PyTypeName, PyValue},
+    values::{PyTypeName, PyValue, TypeName},
 };
 
 /// Owned PostgreSQL output identity, including source identity when available.
@@ -21,7 +21,7 @@ pub struct PyField {
 }
 
 // [spec:pgorm:req:bindings.rows]
-// [spec:pgorm:req:python.records]
+// [spec:pgorm:req:python.records+1]
 /// A detached row whose unique output names index exact, tagged Rust values.
 #[derive(Clone, Debug)]
 #[pyclass(name = "Record", module = "pgorm", frozen, from_py_object)]
@@ -45,10 +45,10 @@ impl PyRecord {
             fields.push(PyField {
                 name: column.name().to_owned(),
                 index,
-                type_name: PyTypeName {
+                type_name: PyTypeName(TypeName {
                     name: column.type_().name().to_owned(),
                     schema: Some(column.type_().schema().to_owned()),
-                },
+                }),
                 type_oid: column.type_().oid(),
                 table_oid: column.table_oid(),
                 column_id: column.column_id(),
@@ -70,9 +70,45 @@ impl PyRecord {
         })
     }
 
+    /// A binary COPY's row as a record: each field named and typed by its
+    /// column, as a query's row is by its result columns, with no table
+    /// behind it.
+    // [spec:pgorm:req:bindings.copy-rows+2]
+    pub(crate) fn from_copy(columns: &[pgorm::CopyColumn], values: Vec<PyValue>) -> PyResult<Self> {
+        let fields: Vec<PyField> = columns
+            .iter()
+            .enumerate()
+            .map(|(index, column)| PyField {
+                name: column.name().to_owned(),
+                index,
+                type_name: PyTypeName(TypeName {
+                    name: column.type_().name().to_owned(),
+                    schema: Some(column.type_().schema().to_owned()),
+                }),
+                type_oid: column.type_().oid(),
+                table_oid: None,
+                column_id: None,
+            })
+            .collect();
+        Python::attach(|py| {
+            values
+                .iter()
+                .try_for_each(|value| value.to_python(py).map(drop))
+        })?;
+        let names = fields
+            .iter()
+            .map(|field| (field.name.clone(), field.index))
+            .collect();
+        Ok(Self {
+            fields,
+            values,
+            names,
+        })
+    }
+
     /// Read the column `name`, which holds an enum's label as its text, as
     /// a value of the enum `enum_type`, or an array of it.
-    pub(crate) fn read_as_enum(&mut self, name: &str, enum_type: PyTypeName, array: bool) {
+    pub(crate) fn read_as_enum(&mut self, name: &str, enum_type: TypeName, array: bool) {
         if let Some(index) = self.names.get(name) {
             let value = self.values[*index].rust_value().clone();
             if matches!(

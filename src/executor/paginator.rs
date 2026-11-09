@@ -61,7 +61,7 @@ const COUNT_SUBQUERY_ALIAS: &str = "sub_query";
 /// own means. A query with no projection, one whose limit keeps ties, and an
 /// offset past `u64` are refused.
 // [spec:pgorm:sem:exec.paginator.fetch+3]
-// [spec:pgorm:sem:exec.paginator.raw+6] (one shape for a built source and a raw one)
+// [spec:pgorm:sem:exec.paginator.raw+7] (one shape for a built source and a raw one)
 // [spec:pgorm:req:exec.tie-limit+1]
 // [spec:pgorm:req:bindings.disjoint+2]
 pub fn page_statement(
@@ -89,7 +89,7 @@ pub fn page_statement(
 /// is the count. A query with no projection, and one whose limit keeps ties,
 /// are refused.
 // [spec:pgorm:sem:exec.paginator.count]
-// [spec:pgorm:sem:exec.paginator.raw+6] (one shape for a built source and a raw one)
+// [spec:pgorm:sem:exec.paginator.raw+7] (one shape for a built source and a raw one)
 // [spec:pgorm:req:exec.tie-limit+1]
 // [spec:pgorm:req:bindings.disjoint+2]
 pub fn count_statement(query: &SelectStatement) -> Result<SelectStatement, Error> {
@@ -350,7 +350,7 @@ where
     ///
     /// let mut pages = cake::Entity::find()
     ///     .from_raw_sql(
-    ///         r#"SELECT "id", "name" FROM "cake" ORDER BY "id""#.to_owned(),
+    ///         r#"SELECT "id", "name" FROM "cake" ORDER BY "id""#,
     ///         Values(vec![]),
     ///     )
     ///     .paginate(&db, PAGE_SIZE)?;
@@ -362,7 +362,7 @@ where
     /// # }
     /// ```
     // [spec:pgorm:req:exec.paginator.page-size+2]
-    // [spec:pgorm:sem:exec.paginator.raw+6]
+    // [spec:pgorm:sem:exec.paginator.raw+7]
     pub fn paginate<'db, C>(
         self,
         db: &'db C,
@@ -373,7 +373,7 @@ where
         S: Send + Sync + 'db,
     {
         Ok(Paginator {
-            query: wrap_raw_select(&self.stmt, self.values.0)?,
+            query: raw_select(&self.stmt, self.values.0)?,
             page: 0,
             page_size,
             db,
@@ -385,7 +385,7 @@ where
     ///
     /// The counterpart of [`PaginatorTrait::count`], fallible for the same
     /// reason [`paginate`](SelectorRaw::paginate) is.
-    // [spec:pgorm:sem:exec.paginator.raw+6]
+    // [spec:pgorm:sem:exec.paginator.raw+7]
     pub async fn count<C>(self, db: &C) -> Result<u64, Error>
     where
         C: ConnectionTrait,
@@ -398,8 +398,16 @@ where
 /// The alias the caller's own statement is paged over as.
 const RAW_SUBQUERY_ALIAS: &str = "sub_statement";
 
-/// Build `SELECT * FROM (<statement>) AS "sub_statement"` over a caller's own
-/// statement, or report why it cannot be paged over at all.
+/// A caller's own statement as `SELECT * FROM (<statement>) AS
+/// "sub_statement"`, its values bound there, or why it cannot be paged over
+/// at all: what [`SelectorRaw::paginate`] and [`SelectorRaw::count`] page and
+/// count.
+///
+/// For a caller that sends the page or the count itself and decodes its rows
+/// by its own means, as a language binding does: [`page_statement`] and
+/// [`count_statement`] take the result. Anything but one row-returning
+/// `SELECT` is refused, as is a statement whose `$N` markers and values do
+/// not pair.
 ///
 /// Two checks, each where it belongs. That the text is one row-returning
 /// `SELECT` is PostgreSQL's answer and stays here, because libpg_query is a
@@ -415,8 +423,8 @@ const RAW_SUBQUERY_ALIAS: &str = "sub_statement";
 /// Both checks answer to the caller that asked for the paginator, so the
 /// refusal is returned to `paginate` rather than stored for a later reader to
 /// replay.
-// [spec:pgorm:sem:exec.paginator.raw+6]
-fn wrap_raw_select(stmt: &str, values: Vec<Value>) -> Result<SelectStatement, Error> {
+// [spec:pgorm:sem:exec.paginator.raw+7]
+pub fn raw_select(stmt: &str, values: Vec<Value>) -> Result<SelectStatement, Error> {
     // Both refusals are the caller's own statement being unusable, which is
     // the vocabulary their other query failures already arrive in.
     let refusal = |report: String| Error::Query(RuntimeError::Internal(report));
@@ -436,7 +444,7 @@ fn wrap_raw_select(stmt: &str, values: Vec<Value>) -> Result<SelectStatement, Er
 /// A marker census failure, reported in the paginator's voice: the caller asked
 /// to page a statement, so the reason names the statement and its bind values
 /// rather than a template and its substitutions.
-// [spec:pgorm:sem:exec.paginator.raw+6]
+// [spec:pgorm:sem:exec.paginator.raw+7]
 fn marker_report(error: QueryError) -> String {
     let supplied = |count: usize| {
         if count == 1 {
@@ -470,7 +478,7 @@ fn marker_report(error: QueryError) -> String {
 ///
 /// A `WITH ... SELECT` qualifies: PostgreSQL hangs the `WITH` clause off the
 /// `SelectStmt` itself rather than making it a statement of its own.
-// [spec:pgorm:sem:exec.paginator.raw+6]
+// [spec:pgorm:sem:exec.paginator.raw+7]
 fn single_select(stmt: &str) -> Result<&str, String> {
     let parsed = pg_query::parse(stmt, pg_query::ParserOptions::DEFAULT).map_err(|error| {
         format!(
@@ -568,7 +576,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.paginator.raw+6/test]    a caller's statement reaches
+// [spec:pgorm:sem:exec.paginator.raw+7/test]    a caller's statement reaches
 // the wrapper with its non-marker text untouched, whatever token forms it is
 // made of; its markers renumber into the wrapper's own parameter space with
 // the right values behind them; and a census the supplied values cannot
@@ -653,7 +661,7 @@ mod tests {
 
     /// The wrapper around `stmt`, or a panic naming the refusal.
     fn wrapped(stmt: &str, values: Vec<Value>) -> SelectStatement {
-        match wrap_raw_select(stmt, values) {
+        match raw_select(stmt, values) {
             Ok(query) => query,
             Err(report) => panic!("{stmt:?} was refused: {report}"),
         }
@@ -694,7 +702,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:sem:exec.paginator.raw+6/test]    the statement is taken
+    // [spec:pgorm:sem:exec.paginator.raw+7/test]    the statement is taken
     // from its first token: what leads it is not carried into the wrapper,
     // and a terminating `;` is left behind with it
     #[test]
@@ -784,7 +792,7 @@ mod tests {
                 "given 2 bind values when nothing in it reads $2",
             ),
         ] {
-            let report = match wrap_raw_select(stmt, vec![Value::Int(Some(7)); bound]) {
+            let report = match raw_select(stmt, vec![Value::Int(Some(7)); bound]) {
                 Ok(_) => panic!("{stmt:?} was not refused"),
                 Err(error) => error.to_string(),
             };

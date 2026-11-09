@@ -5,7 +5,7 @@
 // callback's transaction ends.
 // [spec:pgorm:req:napi.cancellation+2]
 
-import { LifecycleError } from "./errors.js";
+import { DatabaseError, LifecycleError } from "./errors.js";
 
 /** @type {any} */
 export let native;
@@ -39,6 +39,12 @@ export function signalOf(signal) {
  * transaction with nothing committed, as an abort the addon saw does.
  */
 export const LATE = Symbol("pgorm-napi late abort");
+
+/** The statement runner each database class implements, keyed privately. */
+export const RUN = Symbol("run");
+
+/** The job runner each database class implements, keyed privately. */
+export const JOB = Symbol("job");
 
 /**
  * Run `start` with a native abort token that `signal` fires, rejecting with
@@ -93,11 +99,28 @@ export function row(names, values) {
 }
 
 /**
+ * Refuse an option the call does not know with a `TypeError`, so a misspelt
+ * one is never left out.
+ * [spec:pgorm:req:bindings.argument-errors+1]
+ *
+ * @param {object} options
+ * @param {readonly string[]} names
+ */
+export function knownOptions(options, names) {
+  for (const name of Object.keys(options)) {
+    if (!names.includes(name)) {
+      throw new TypeError(`${JSON.stringify(name)} is no option here: the options are ${names.join(", ")}`);
+    }
+  }
+}
+
+/**
  * @param {unknown} options
  * @returns {{ tagged: boolean, signal: AbortSignal | undefined }}
  */
 export function queryOptions(options) {
   if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
+  knownOptions(options, ["tagged", "signal"]);
   const { tagged = false, signal } = /** @type {{ tagged?: unknown, signal?: unknown }} */ (options);
   if (typeof tagged !== "boolean") throw new TypeError("options.tagged is a boolean");
   return { tagged, signal: signalOf(signal) };
@@ -107,7 +130,9 @@ export function queryOptions(options) {
  * Run `use` in the transaction or savepoint `handle` is, which `transaction`
  * wraps: committed (a savepoint released) when `use` resolves, and rolled back
  * when it throws, rejecting with what it threw. A commit that fails ends the
- * transaction, discarding its connection, and rejects with its failure; a
+ * transaction, discarding its connection, and rejects with its failure, but a
+ * commit of a transaction a caught failure aborted keeps the connection,
+ * which pgorm rolled back (`25P02`); a
  * ROLLBACK that fails does too, rejecting with a `SuppressedError` over the
  * rollback's failure and what `use` threw.
  * [spec:pgorm:req:napi.transactions+3]
@@ -128,7 +153,8 @@ export async function scoped(handle, transaction, use) {
   try {
     await native.transactionFinish(handle, true);
   } catch (error) {
-    await native.transactionAbort(handle);
+    // [spec:pgorm:req:bindings.transactions+2]    an aborted transaction's rollback leaves its connection in a known state
+    if (!(error instanceof DatabaseError && error.sqlstate === "25P02")) await native.transactionAbort(handle);
     throw error;
   }
   return result;
@@ -142,6 +168,7 @@ export async function scoped(handle, transaction, use) {
  * @param {unknown} error
  * @returns {Promise<unknown>}
  */
+// [spec:pgorm:req:bindings.rollback-failed]
 async function rolledBack(handle, error) {
   if (!native.transactionClosed(handle)) {
     try {

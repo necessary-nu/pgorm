@@ -5,8 +5,8 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.expressions+3]
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.expressions+4]
+// [spec:pgorm:req:bindings.quantifiers+4]
 // [spec:pgorm:req:bindings.case]
 
 import type { Multirange, Param, Range, TypeName, Value } from "./index.d.ts";
@@ -117,6 +117,21 @@ export declare class Expr extends Builder {
    * values, which a bound string array is not.
    */
   pathExists(path: string | Quantified): Expr;
+  // [spec:pgorm:req:bindings.json-operators]
+  /** `->`: the field `key` names, or the element an integer index does, as `jsonb`; bound unless an expression. */
+  getJsonField(key: Operand): Expr;
+  /** `->>`: the field or element as `text`. */
+  castJsonField(key: Operand): Expr;
+  /** `#>`: the value at `path`, its keys bound as one `text[]`. */
+  getJsonPath(path: readonly string[]): Expr;
+  /** `#>>`: the value at `path` as `text`. */
+  castJsonPath(path: readonly string[]): Expr;
+  /** `?`: whether `key` is a top-level key, or a string element. */
+  hasJsonKey(key: string): Expr;
+  /** `?|`: whether any of `keys` is a top-level key or a string element. */
+  hasAnyJsonKeys(keys: readonly string[]): Expr;
+  /** `?&`: whether every one of `keys` is. */
+  hasAllJsonKeys(keys: readonly string[]): Expr;
   isDistinctFrom<S>(this: S, other: ComparisonOperand<S>): Expr;
   isNotDistinctFrom<S>(this: S, other: ComparisonOperand<S>): Expr;
   and(other: Expr): Expr;
@@ -188,6 +203,14 @@ export declare class Expr extends Builder {
 export declare class LikeExpr {
   #private;
   private constructor();
+  /** A pattern matching exactly `text`, its `%`, `_` and escape character escaped. */
+  static literal(text: string): LikeExpr;
+  /** `%text%` over literal text, escaped as `literal` escapes it. */
+  static containing(text: string): LikeExpr;
+  /** `text%` over literal text. */
+  static startingWith(text: string): LikeExpr;
+  /** `%text` over literal text. */
+  static endingWith(text: string): LikeExpr;
   /** Escape with `character`, `ESCAPE 'c'`, in place of the default backslash: one character, not NUL. */
   escape(character: string): LikeExpr;
   /** Turn escaping off, `ESCAPE ''`: a backslash in the pattern is then itself. */
@@ -222,6 +245,8 @@ export declare class Condition extends Builder {
   /** Their OR; false when there are none. */
   static any(...items: Predicate[]): Condition;
   add(item: Predicate): Condition;
+  /** Rust's `add_option`: a search whose fields are optional adds each without a branch around the builder. */
+  addOption(item: Predicate | null | undefined): Condition;
   not(): Condition;
 }
 
@@ -280,7 +305,15 @@ export type FunctionName =
   | "json_to_record"
   | "jsonb_to_record"
   | "json_to_recordset"
-  | "jsonb_to_recordset";
+  | "jsonb_to_recordset"
+  | "grouping"
+  | "to_tsvector"
+  | "to_tsquery"
+  | "plainto_tsquery"
+  | "phraseto_tsquery"
+  | "websearch_to_tsquery"
+  | "ts_rank"
+  | "ts_rank_cd";
 
 /**
  * A call to one of the functions pgorm-query has a constructor for; another
@@ -289,15 +322,43 @@ export type FunctionName =
  *
  * `generate_series` (start, stop and an optional step) and `unnest` (one
  * array) are set-returning, read as a relation by `tableFunction`. Their
- * overloads are chosen by argument type and a parameter has none, so a bound
- * argument needs its type: `bind(1).cast("int4")`, or an array cast with
- * `{ array: true }`; a column or a typed expression already has one.
+ * overloads are chosen by argument type, so a bound argument carries its
+ * own, as pgorm-query writes it: `call("generate_series", bind(1), bind(3))`
+ * is `GENERATE_SERIES($1::int4, $2::int4)`, an integer that fits 32 bits
+ * typed as its literal would be, and `bind(1).cast("int8")` chooses another
+ * overload.
  *
  * `json_to_record`, `jsonb_to_record`, `json_to_recordset` and
  * `jsonb_to_recordset` (one document each) return `record`, read by
  * `tableFunction` through the columns `columnDefinition` gives it.
  */
 export declare function call(name: FunctionName, ...operands: Operand[]): Expr;
+// [spec:pgorm:req:bindings.named-functions]
+/**
+ * A call of the function `name`, any function the server has, each operand
+ * bound unless it is an expression, as Rust's `Func::named` calls one. The
+ * name is an identifier: written bare when it is a lowercase name PostgreSQL
+ * does not restrict and quoted otherwise, so it names a function and is never
+ * read as syntax.
+ */
+export declare function func(name: string, ...operands: Operand[]): Expr;
+// [spec:pgorm:req:bindings.current-keywords]
+/** `CURRENT_DATE`, the date the transaction started. */
+export declare function currentDate(): Expr;
+/** `CURRENT_TIME`, the time of day the transaction started. */
+export declare function currentTime(): Expr;
+/** `CURRENT_TIMESTAMP`, the instant the transaction started. */
+export declare function currentTimestamp(): Expr;
+// [spec:pgorm:req:bindings.template]
+/**
+ * A piece of SQL the builders have no method for, written as a tagged
+ * template literal, `` template`char_length(${col("body")}) < ${40}` ``: its
+ * text is SQL, and each interpolation goes between the pieces, an expression
+ * embedded as it is and any other value bound. Its text is the program's: a
+ * string is no {@link TemplateStringsArray}, so text built at run time cannot
+ * become a template.
+ */
+export declare function template(strings: TemplateStringsArray, ...values: Operand[]): Expr;
 /** `(a, b, ..)`, at least one item. */
 export declare function tuple(first: Operand, ...rest: Operand[]): Expr;
 /** `EXISTS (select)`. */

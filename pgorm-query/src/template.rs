@@ -43,7 +43,7 @@ pub(crate) enum Grammar {
 }
 
 /// Split `input` into literal text and placeholder references.
-// [spec:pgorm:req:sql.render.custom-expr+3] (the `Template` grammar: `$$` escape, `$N` index)
+// [spec:pgorm:req:sql.render.custom-expr+4] (the `Template` grammar: `$$` escape, `$N` index)
 // [spec:pgorm:sem:sql.render.inject+3] (the `Sql` grammar: only `$N`, everything else verbatim)
 pub(crate) fn scan(input: &str, grammar: Grammar) -> Result<Vec<Chunk>> {
     let mark = "$";
@@ -118,7 +118,7 @@ pub(crate) fn scan(input: &str, grammar: Grammar) -> Result<Vec<Chunk>> {
 
 /// Check the census of `chunks` against `supplied`: the distinct placeholder
 /// indices referenced must be exactly `1..=supplied`.
-// [spec:pgorm:req:sql.render.custom-expr+3]
+// [spec:pgorm:req:sql.render.custom-expr+4]
 // [spec:pgorm:sem:sql.render.inject+3]
 fn census(input: &str, chunks: &[Chunk], supplied: usize) -> Result<()> {
     let mut referenced: Vec<usize> = chunks
@@ -154,7 +154,7 @@ fn census(input: &str, chunks: &[Chunk], supplied: usize) -> Result<()> {
 
 /// Scan `input` and pair every placeholder with the value it names, or refuse
 /// the pairing. The result holds values, not indices.
-// [spec:pgorm:req:sql.render.custom-expr+3]
+// [spec:pgorm:req:sql.render.custom-expr+4]
 // [spec:pgorm:sem:sql.render.inject+3]
 pub(crate) fn resolve<T>(input: &str, grammar: Grammar, values: &[T]) -> Result<Vec<Segment<T>>>
 where
@@ -182,7 +182,7 @@ where
         .collect()
 }
 
-// [spec:pgorm:req:sql.render.custom-expr+3/test]
+// [spec:pgorm:req:sql.render.custom-expr+4/test]
 // [spec:pgorm:sem:sql.render.inject+3/test]
 #[cfg(test)]
 mod tests {
@@ -328,6 +328,43 @@ mod tests {
         );
     }
 
+    // [spec:pgorm:req:sql.render.template-pieces/test]
+    #[test]
+    fn pieces_take_their_values_between_them() {
+        let template = SqlTemplate::from_pieces(
+            &["coalesce(", ", ", ") > $$ $9 $$"],
+            [SimpleExpr::Value(1.into()), SimpleExpr::Value(2.into())],
+        )
+        .unwrap();
+        assert_eq!(
+            template.segments,
+            vec![
+                Segment::Text("coalesce(".to_owned()),
+                Segment::Value(SimpleExpr::Value(1.into())),
+                Segment::Text(", ".to_owned()),
+                Segment::Value(SimpleExpr::Value(2.into())),
+                Segment::Text(") > $$ $9 $$".to_owned()),
+            ]
+        );
+        assert_eq!(
+            SqlTemplate::from_pieces(&["$2 + ", ""], [SimpleExpr::Value(1.into())]).unwrap_err(),
+            Error::Template {
+                template: "$2 + ".to_owned(),
+                reason: TemplateError::MarkerInText { index: 2 },
+            }
+        );
+        assert!(matches!(
+            SqlTemplate::from_pieces(&["'", "'"], [SimpleExpr::Value(1.into())]),
+            Err(Error::Template {
+                reason: TemplateError::UnreferencedValue {
+                    index: 1,
+                    supplied: 1
+                },
+                ..
+            })
+        ));
+    }
+
     #[test]
     fn resolve_accepts_a_template_with_no_placeholders() {
         assert_eq!(
@@ -360,7 +397,7 @@ mod tests {
 /// [`Expr::template_with_exprs`](crate::Expr::template_with_exprs); in relation
 /// position it is the payload of
 /// [`FromItem::Template`](crate::FromItem::Template).
-// [spec:pgorm:req:sql.render.custom-expr+3]
+// [spec:pgorm:req:sql.render.custom-expr+4]
 #[derive(Debug, Clone, PartialEq)]
 pub struct SqlTemplate {
     segments: Vec<Segment<SimpleExpr>>,
@@ -368,6 +405,11 @@ pub struct SqlTemplate {
 
 impl SqlTemplate {
     /// Pair `template` with `values`, or refuse the pair.
+    ///
+    /// The template is a `&'static str`: a template authored for this
+    /// machinery is program text, as [`Expr::raw`](crate::Expr::raw)'s is, and
+    /// text built at run time cannot become one. Real SQL that arrives at run
+    /// time, a caller's own statement, is [`SqlTemplate::from_sql`]'s.
     ///
     /// The template is tokenized, so placeholder-like text inside quoted
     /// tokens is left alone. `$$` writes a literal `$`; `$N` names the `N`th
@@ -392,16 +434,14 @@ impl SqlTemplate {
     /// let short = SqlTemplate::new("$1 * $2", [Expr::val(2).into()]);
     /// assert!(short.is_err());
     /// ```
-    // [spec:pgorm:req:sql.render.custom-expr+3]
-    pub fn new<T, I>(template: T, values: I) -> Result<Self>
+    // [spec:pgorm:req:sql.render.custom-expr+4]
+    pub fn new<I>(template: &'static str, values: I) -> Result<Self>
     where
-        T: Into<String>,
         I: IntoIterator<Item = SimpleExpr>,
     {
-        let template = template.into();
         let values: Vec<SimpleExpr> = values.into_iter().collect();
         Ok(Self {
-            segments: resolve(&template, Grammar::Template, &values)?,
+            segments: resolve(template, Grammar::Template, &values)?,
         })
     }
 
@@ -439,7 +479,7 @@ impl SqlTemplate {
     /// let unbound = SqlTemplate::from_sql("SELECT $1, $2", [1i32.into()]);
     /// assert!(unbound.is_err());
     /// ```
-    // [spec:pgorm:req:sql.render.custom-expr+3]
+    // [spec:pgorm:req:sql.render.custom-expr+4]
     pub fn from_sql<T, I>(sql: T, values: I) -> Result<Self>
     where
         T: Into<String>,
@@ -449,6 +489,65 @@ impl SqlTemplate {
         let values: Vec<SimpleExpr> = values.into_iter().map(SimpleExpr::Value).collect();
         Ok(Self {
             segments: resolve(&sql, Grammar::Sql, &values)?,
+        })
+    }
+
+    /// Pair the pieces of a template literal with the values written between
+    /// them: `pieces[0]`, then `values[0]`, then `pieces[1]`, and so on, the
+    /// shape of a Python t-string's or a JavaScript tagged template's parts.
+    ///
+    /// This is the door the language bindings' `template` uses, holding its
+    /// text to their languages' template literals as far as the language
+    /// allows, where Rust's own [`Expr::template`](crate::Expr::template)
+    /// holds it to program text by its type. The pieces are SQL, read as
+    /// [`from_sql`](SqlTemplate::from_sql) reads it, and the values go
+    /// between them, so a piece cannot write a `$N` marker of its own: one
+    /// that does is refused with
+    /// [`TemplateError::MarkerInText`](crate::error::TemplateError::MarkerInText).
+    /// A value that lands inside a quoted region or an identifier, where
+    /// PostgreSQL would read no parameter, is refused by the census as a value
+    /// nothing reads.
+    ///
+    /// ```
+    /// use pgorm_query::{tests_cfg::*, *};
+    ///
+    /// let short = SqlTemplate::from_pieces(&["char_length(", ") < 40"], [Expr::val("Fudge").into()]);
+    /// assert!(short.is_ok());
+    ///
+    /// // `$1` in a piece is SQL text claiming a value the interpolations hold.
+    /// let marker = SqlTemplate::from_pieces(&["$1 < ", ""], [Expr::val(1).into()]);
+    /// assert!(marker.is_err());
+    ///
+    /// // A value inside a string literal is never read as a parameter.
+    /// let quoted = SqlTemplate::from_pieces(&["'", "'"], [Expr::val(1).into()]);
+    /// assert!(quoted.is_err());
+    /// ```
+    // [spec:pgorm:req:sql.render.template-pieces]
+    pub fn from_pieces<S, I>(pieces: &[S], values: I) -> Result<Self>
+    where
+        S: AsRef<str>,
+        I: IntoIterator<Item = SimpleExpr>,
+    {
+        let values: Vec<SimpleExpr> = values.into_iter().collect();
+        let mut joined = String::new();
+        for (index, piece) in pieces.iter().enumerate() {
+            let piece = piece.as_ref();
+            if let Some(Chunk::Placeholder(marker)) = scan(piece, Grammar::Sql)?
+                .into_iter()
+                .find(|chunk| matches!(chunk, Chunk::Placeholder(_)))
+            {
+                return Err(Error::Template {
+                    template: piece.to_owned(),
+                    reason: TemplateError::MarkerInText { index: marker },
+                });
+            }
+            if index > 0 {
+                joined.push_str(&format!("${index}"));
+            }
+            joined.push_str(piece);
+        }
+        Ok(Self {
+            segments: resolve(&joined, Grammar::Sql, &values)?,
         })
     }
 

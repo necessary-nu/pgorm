@@ -6,18 +6,16 @@ import { column, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await pool.execute(
-    `CREATE TABLE note ( tenant_id integer NOT NULL, id bigint NOT NULL GENERATED ALWAYS AS IDENTITY, body varchar NOT NULL, PRIMARY KEY (tenant_id, id) )`,
-  );
-
-  const Note = model("note", {
+  const CakeBaker = model("cake_baker", {
     columns: {
-      tenantId: column("i32", { name: "tenant_id", primaryKey: true }),
-      id: column("i64", { primaryKey: true, generated: "always" }),
-      body: column("text"),
+      cakeId: column("i32", { name: "cake_id", primaryKey: true }),
+      bakerId: column("i32", { name: "baker_id", primaryKey: true }),
     },
   });
 
-  const note = await Note.insert({ tenantId: 7, body: "Order more flour" }).returning().one(pool);
-  assert.deepEqual(note, { tenantId: 7, id: 1n, body: "Order more flour" });
+  assert.deepEqual(CakeBaker.primaryKey, ["cakeId", "bakerId"]);
+
+  // Bo bakes the Lemon Drizzle.
+  const row = await CakeBaker.findByKey({ cakeId: 2, bakerId: 2 }).optional(pool);
+  assert.deepEqual(row, { cakeId: 2, bakerId: 2 });
 }

@@ -28,7 +28,7 @@ impl MigrationName for Script {
 
 #[async_trait::async_trait]
 impl MigrationTrait for Script {
-    async fn up(&self, tx: &DatabaseTransaction<'_>) -> Result<(), Error> {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute(self.sql).await
     }
 
@@ -55,7 +55,7 @@ pub struct Created;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Created {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CREATED)]
     }
 }
@@ -65,7 +65,7 @@ pub struct Defaulted;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Defaulted {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![Box::new(CREATED), Box::new(DEFAULTED)]
     }
 }
@@ -82,7 +82,7 @@ pub struct Unannounced;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Unannounced {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(CREATED),
             Box::new(DEFAULTED),
@@ -90,7 +90,7 @@ impl MigratorTrait for Unannounced {
         ]
     }
 
-    fn statement_cache_channel() -> Option<String> {
+    fn statement_cache_channel(&self) -> Option<String> {
         None
     }
 }

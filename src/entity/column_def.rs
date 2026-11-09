@@ -1,7 +1,7 @@
 //! Column-type introspection and [`ColumnDef`] construction.
 
 use super::*;
-use pgorm_query::{ColumnRef, GeneratedKind, IdentityGeneration, SelectExpr};
+use pgorm_query::{ColumnRef, ExprTrait, GeneratedKind, IdentityGeneration, SelectExpr};
 
 /// pgorm's utility methods that act on [ColumnType]
 pub trait ColumnTypeTrait {
@@ -46,16 +46,6 @@ fn enum_name(col_type: &ColumnType) -> Option<&Name> {
         ColumnType::Array(col_type) => enum_name(col_type),
         _ => None,
     }
-}
-
-/// The `LIKE`-metacharacter escape behind the substring sugar: `%`, `_` and
-/// the escape character itself become literal, so search text matches
-/// itself and nothing else.
-// [spec:pgorm:def:entity.traits.column+9]
-pub(crate) fn escape_like_text(text: &str) -> String {
-    text.replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
 }
 
 /// A type's name and schema as the structured [`TypeName`] a cast renders.
@@ -148,12 +138,47 @@ pub(crate) fn compared_value_as(
 /// the cast itself, from this.
 // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 pub(crate) fn compared_value_cast<C: ColumnTrait>(col: &C) -> Option<pgorm_query::TypeName> {
+    cast_of(|operand| compared_value(col, operand))
+}
+
+/// [`compared_value_cast`] for a column of `col_type` no entity describes,
+/// its values written by the type's own cast ([`save_cast`]): what a
+/// pipeline column a program describes at run time compares by.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:sem:pipeline.described+1]
+pub(crate) fn compared_type_cast(col_type: &ColumnType) -> Option<pgorm_query::TypeName> {
+    cast_of(|operand| compared_value_as(col_type, operand, |val| save_cast(col_type, val)))
+}
+
+/// The type `compare` casts its operand to, when what it writes is a cast of
+/// the operand itself.
+pub(crate) fn cast_of(compare: impl FnOnce(Expr) -> SimpleExpr) -> Option<pgorm_query::TypeName> {
     const OPERAND: &str = "pgorm_compared_operand";
-    match compared_value(col, Expr::expr(SimpleExpr::Raw(OPERAND))) {
+    match compare(Expr::expr(SimpleExpr::Raw(OPERAND))) {
         SimpleExpr::AsEnum(type_name, operand) if matches!(*operand, SimpleExpr::Raw(OPERAND)) => {
             Some(*type_name)
         }
         _ => None,
+    }
+}
+
+/// The write cast [`ColumnTrait::save_enum_array_as`] gives an array of
+/// values of a column of `col_type`: cast to the array of the column's
+/// `money` or enum, a created range's array through
+/// [`ExprTrait::as_range`], and anything else as it is.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:req:sql.ast.cast-shape+2]
+pub(crate) fn save_array_cast(col_type: &ColumnType, val: Expr) -> SimpleExpr {
+    if let Some(money) = money_type_name(col_type) {
+        return val.cast_as_type(money.array());
+    }
+    if let Some(created) = created_range_type_name(col_type) {
+        return val.as_range(created.array());
+    }
+    match enum_type_name(col_type) {
+        Some(type_name) => val.cast_as_type(type_name.array()),
+        None => val.into(),
     }
 }
 
@@ -460,6 +485,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{ColumnTrait, EntityTrait};
+    use pgorm_query::ExprTrait;
 
     // [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    every
     // value-position operand passes through `save_as` — between, if_null and

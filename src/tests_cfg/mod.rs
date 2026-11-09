@@ -23,6 +23,7 @@ pub mod post;
 pub mod rust_keyword;
 pub mod shop;
 pub mod storefront;
+pub mod tenant_cake;
 pub mod truck;
 pub mod vehicle;
 pub mod vendor;

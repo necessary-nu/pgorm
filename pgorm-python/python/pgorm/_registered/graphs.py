@@ -60,8 +60,31 @@ class GraphQueryView(Generic[R]):
     def inspect(self, *, terminal="all"):
         return self._query.inspect(terminal=terminal)
 
-    def cursor(self, column) -> "GraphCursorView[R]":
-        return GraphCursorView(self._query.cursor(column), self._decode)
+    def cursor(self, *columns) -> "GraphCursorView[R]":
+        return GraphCursorView(self._query.cursor(*columns), self._decode)
+
+    def cursor_on(self, source, *columns) -> "GraphCursorView[R]":
+        return GraphCursorView(self._query.cursor_on(source, *columns), self._decode)
+
+    async def count(self, connection) -> int:
+        return await self._query.count(connection)
+
+    def paginate(self, page_size):
+        from .reads import PaginatorView
+
+        return PaginatorView(self._query.paginate(page_size), self._decode)
+
+    async def stream(self, connection):
+        return (await self._query.stream(connection))._decoding(self._decode)
+
+    async def all_grouped(self, connection):
+        """Each root with its slot's models, decoded as the generated row
+        type decodes the root with no slot and the root with each slot."""
+        grouped = []
+        for root, slots in await self._query.all_grouped(connection):
+            decoded_root = self._decode((root, None))[0]
+            grouped.append((decoded_root, [self._decode((root, slot))[1] for slot in slots]))
+        return grouped
 
     async def all(self, connection) -> list[R]:
         return [self._decode(row) for row in await self._query.all(connection)]
@@ -80,11 +103,11 @@ class GraphCursorView(Generic[R]):
     def __init__(self, cursor: native.EntityGraphCursor, decode: Callable[..., R]):
         self._cursor, self._decode = cursor, decode
 
-    def before(self, value) -> "GraphCursorView[R]":
-        return GraphCursorView(self._cursor.before(value), self._decode)
+    def before(self, *values) -> "GraphCursorView[R]":
+        return GraphCursorView(self._cursor.before(*values), self._decode)
 
-    def after(self, value) -> "GraphCursorView[R]":
-        return GraphCursorView(self._cursor.after(value), self._decode)
+    def after(self, *values) -> "GraphCursorView[R]":
+        return GraphCursorView(self._cursor.after(*values), self._decode)
 
     def before_with(self, *values) -> "GraphCursorView[R]":
         return GraphCursorView(self._cursor.before_with(*values), self._decode)
@@ -103,6 +126,9 @@ class GraphCursorView(Generic[R]):
 
     def desc(self) -> "GraphCursorView[R]":
         return GraphCursorView(self._cursor.desc(), self._decode)
+
+    def inspect(self):
+        return self._cursor.inspect()
 
     async def all(self, connection) -> list[R]:
         return [self._decode(row) for row in await self._cursor.all(connection)]

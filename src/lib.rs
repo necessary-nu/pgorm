@@ -142,18 +142,19 @@ pub use tokio_postgres::row::RowIndex;
 /// ```
 ///
 /// The escape hatches that take SQL as text are its call sites, and they are
-/// findable rather than listed: on a connection, the rule is the
-/// [`SqlText`] bound — every [`ConnectionTrait`] method taking
-/// `&T where T: SqlText`, which is [`execute`], [`execute_raw`],
+/// findable rather than listed: the rule is the [`SqlText`] bound, every
+/// function taking its SQL as `&T where T: SqlText`. On a connection that is
+/// each [`ConnectionTrait`] method — [`execute`], [`execute_raw`],
 /// [`query_one`], [`query_opt`], [`query_all`] and [`query_raw`] — plus
 /// [`batch_execute`], which takes its `&str` directly because it runs a whole
 /// script through the simple-query protocol. Away from a connection a raw
-/// statement travels as SQL text paired with its values, and the entry points
-/// are [`Select::from_raw_sql`], the [`SelectorRaw`] constructors
-/// ([`from_statement`], [`into_tuple`], [`with_columns`]), the [`DecodeRaw`]
-/// impl on a `(sql, values)` pair ([`into_model`], [`DecodeRaw::into_tuple`],
-/// [`into_values`]), and [`FromQueryResult::find_by_statement`]. Migration
-/// bodies are the last of them.
+/// statement travels as SQL text paired with its values, and every entry point
+/// takes the pair in that shape: [`Select::from_raw_sql`], the
+/// [`SelectorRaw`] constructors ([`from_statement`], [`into_tuple`],
+/// [`with_columns`]) and [`FromQueryResult::find_by_statement`], with the
+/// [`DecodeRaw`] methods ([`into_model`], [`DecodeRaw::into_tuple`],
+/// [`into_values`]) taking the pair as their receiver. Migration bodies are
+/// the last of them.
 ///
 /// [`SqlText`]: crate::SqlText
 /// [`ConnectionTrait`]: crate::ConnectionTrait
@@ -174,7 +175,7 @@ pub use tokio_postgres::row::RowIndex;
 /// [`DecodeRaw::into_tuple`]: crate::DecodeRaw::into_tuple
 /// [`into_values`]: crate::DecodeRaw::into_values
 /// [`FromQueryResult::find_by_statement`]: crate::FromQueryResult::find_by_statement
-// [spec:pgorm:def:macros.sql+5]
+// [spec:pgorm:def:macros.sql+6]
 pub use pgorm_sql_macro::sql;
 
 /// Compile a PRQL string literal to PostgreSQL SQL at build time, expanding
@@ -209,10 +210,40 @@ pub use pgorm_sql_macro::sql;
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:macros.prql]
+// [spec:pgorm:def:macros.prql+2]
 pub use pgorm_sql_macro::prql;
+
+/// The checks behind [`sql!`](crate::sql) and [`prql!`](crate::prql), run on
+/// text at run time: [`check_sql`](sql_check::check_sql) holds SQL to
+/// PostgreSQL 18's grammar, and [`compile_prql`](sql_check::compile_prql)
+/// compiles PRQL to SQL the grammar accepts and counts its placeholders. The
+/// macros run the same code while a crate compiles, so a refusal reads the
+/// same either way. They are for text a program has only once it runs, such
+/// as a statement read from a file, and for the language bindings, which have
+/// no compile step.
+///
+/// ```
+/// use pgorm::sql_check::{check_sql, compile_prql};
+///
+/// assert!(check_sql("SELECT name FROM cake WHERE id = $1").is_ok());
+/// let refused = check_sql("SELEC name FROM cake").unwrap_err();
+/// assert_eq!(refused.token(), Some("SELEC"));
+///
+/// let compiled = compile_prql("from cake | filter price < $1 | select {name}")?;
+/// assert_eq!(compiled.sql(), "SELECT name FROM cake WHERE price < $1");
+/// assert_eq!(compiled.placeholders(), 1);
+/// # Ok::<(), pgorm::sql_check::PrqlRejection>(())
+/// ```
+// [spec:pgorm:req:macros.runtime]
+pub use pgorm_sql_check as sql_check;
 
 pub use pgorm_query;
 pub use pgorm_query::{AliasName, Values, alias};
+
+/// The case styles a `rename_all` renames by: the derives rename an entity's
+/// columns by them at compile time, and a language binding names the columns
+/// of a model it declares at run time by the same [`CaseStyle::convert`].
+// [spec:pgorm:sem:schema.from-shape]
+pub use pgorm_case_style::{CASE_STYLES, CaseStyle, UnknownCaseStyle};
 
 pub use tokio_postgres::types;

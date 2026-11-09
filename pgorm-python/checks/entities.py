@@ -58,8 +58,8 @@ def reject_execution_mismatch(project, output, environment):
         )
 
 
-# [spec:pgorm:req:bindings.entities+5/test]
-# [spec:pgorm:req:bindings.entity-graphs+3/test]
+# [spec:pgorm:req:bindings.entities+6/test]
+# [spec:pgorm:req:bindings.entity-graphs+4/test]
 # [spec:pgorm:req:bindings.pipeline-sources+3/test]
 # [spec:pgorm:req:bindings.surface+2/test]
 # [spec:pgorm:req:bindings.disjoint+2/test]
@@ -185,6 +185,21 @@ def main():
         )
         run(
             [
+                str(python),
+                "-I",
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                str(root / "pgorm-python/tests"),
+                "-p",
+                "registered_reads.py",
+                "-v",
+            ],
+            environment,
+        )
+        run(
+            [
                 "cargo",
                 "run",
                 "--manifest-path",
@@ -291,6 +306,7 @@ def main():
                 "passed": True,
                 "registered_entities": [
                     "app.Account",
+                    "app.AcmeTenantNote",
                     "app.Auction",
                     "app.Booking",
                     "app.Label",
@@ -305,6 +321,7 @@ def main():
                     "app.Shipment",
                     "app.Stay",
                     "app.Temper",
+                    "app.TenantNote",
                     "app.Till",
                 ],
                 "registered_disjoints": ["app.Listings", "app.Shipments"],

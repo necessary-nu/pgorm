@@ -18,12 +18,13 @@ an ideal Postgres renderer would emit.
 > writes `unwrap()`, and unsupported AST shapes abort via `panic!` /
 > `unimplemented!` rather than returning errors.
 
-> [spec:pgorm:def:sql.render.writer+2]
+> [spec:pgorm:def:sql.render.writer+3]
 > `SqlWriter` (`prepare.rs`) is the output sink trait for rendering:
-> `fmt::Write + ToString` plus `push_param(value)` and
-> `push_param_source_typed(value)`, whose default body is
-> `push_param` and which only sinks that emit placeholders override (see
-> `sql.render.cast-param-type`). Neither takes a `QueryBuilder` argument: the
+> `fmt::Write + ToString` plus `push_param(value)`,
+> `push_param_source_typed(value)` and `push_param_typed(value, type_name)`,
+> the last two with `push_param` as their default body, which only sinks that
+> emit placeholders override (see `sql.render.cast-param-type` and
+> `sql.render.placeholder-typing`). Neither takes a `QueryBuilder` argument: the
 > builder is a stateless unit struct, so a sink that needs it names it
 > directly. Two sinks exist:
 >
@@ -162,7 +163,7 @@ an ideal Postgres renderer would emit.
 > `CAST($1::text AS tea)` reaches an enum through Postgres' text I/O
 > conversion, exactly as the unpinned form did.
 
-> [spec:pgorm:sem:sql.render.placeholder-typing+1]
+> [spec:pgorm:sem:sql.render.placeholder-typing+2]
 > Every `SimpleExpr::Value` renders as a `$n` placeholder
 > (`sql.render.param-vs-inline`), and PostgreSQL types a placeholder from the
 > context it appears in. A placeholder in a position that supplies *no* context
@@ -180,18 +181,64 @@ an ideal Postgres renderer would emit.
 > integer fails `22021` (`invalid byte sequence for encoding "UTF8"`) because the
 > driver wrote `int4` bytes where the server asked for `text`.
 >
-> pgorm-query annotates a placeholder in exactly two places — the operand of a
-> cast, per `sql.render.cast-param-type`, and a value in an SQL/JSON position
-> that gives it no type, per `sql.render.sql-json` — and MUST NOT guess a type
-> anywhere else. Neither is a guess: the type written is the value's own, in a
-> position that accepts it as it is. Anywhere else the renderer has no catalog
-> and no expression typing, so an annotation would be a guess that silently
-> changes what the statement means.
-> Supplying the context is therefore the caller's obligation, and it has two
-> spellings: annotate the value with `Expr::val(v).cast_as("<type>")`, which
-> renders `CAST($n::<pin> AS <type>)` and gives the position a type; or, where the
-> value is a fixed literal rather than caller data, use `SimpleExpr::Constant`,
-> which is inlined and so is never a placeholder at all
+> pgorm-query annotates a placeholder with the bound value's own type —
+> `$n::<type>`, the name `Value::source_type_name` gives, as a cast operand's
+> pin writes it — in the positions where PostgreSQL chooses an operator or a
+> function overload by that operand's type, and in no other:
+>
+> - the operand of a cast, per `sql.render.cast-param-type`, and a value in an
+>   SQL/JSON position that gives it no type, per `sql.render.sql-json`;
+> - an argument of a function whose overload its argument's type chooses:
+>   `max`, `min`, `sum`, `avg`, `bit_and`, `bit_or` and `abs`, defined for
+>   every numeric type; `round`'s operand, not its precision; `lower` and
+>   `upper`, of text or of a range; `percentile_cont` and `percentile_disc`,
+>   of a fraction or an array of them; and the polymorphic `generate_series`
+>   and `unnest`. `Func::unnest(Expr::val(vec![4, 1]))` is `UNNEST($1::int4[])`
+>   where a bare `UNNEST($1)` is `42725` (`function unnest(unknown) is not
+>   unique`). A `Func::named` call, whose signature the renderer does not
+>   know, and every other `Func` constructor, whose arguments the signature
+>   types, are left bare;
+> - an operand of `+`, `-`, `*`, `/`, `%`, `||`, `->` and `->>` that is an
+>   integer, a `Decimal`, a date, a time, a timestamp, an interval, a `bool`,
+>   `bytea`, a `uuid` or a network address: these operators are overloaded
+>   across operand types the column beside them does not settle — a date
+>   plus an integer is a date, a timestamp minus an interval a timestamp, an
+>   array `||` an element its array, `->` an integer an array element where
+>   text is a key — and bare, PostgreSQL assumes the column's own type
+>   (`timestamp - $1` reads a timestamp) or finds the call ambiguous
+>   (`date + $1` is `42725`);
+> - the range or multirange of `@>` and `<@` that contains the other operand,
+>   which may be an element: `$1::tstzrange @> "placed_at"`, where a bare
+>   `$1 @> "placed_at"` is `42725`.
+>
+> No annotation is a guess: each writes the value's own type where the
+> operator or function reads it, with one narrowing, the one PostgreSQL's
+> own literals make: a 64-bit integer (`BigInt`, `Unsigned`, `BigUnsigned`)
+> whose value fits 32 bits is written `int4`, as the literal of that value is
+> an `integer`. The bindings hold every integer in 64 bits, so its own `int8`
+> would widen an `integer` column's arithmetic to `bigint`, and a recursive
+> CTE's step with it, which the anchor's `integer` then refuses (`42804`). Values a column's type should decide stay
+> bare: text, which PostgreSQL reads as it reads a string literal, taking
+> the type of the operand beside it (`varchar`, `citext`, a domain over
+> text); JSON, which has no one type to name, `json` and `jsonb` both
+> taking it; floats, which beside a `numeric` are the `numeric`'s,
+> where `float8` would turn the result to `float8`; and arrays and ranges
+> outside a containing position, which beside a column of one take that
+> column's type, PostgreSQL converting between no two array or range types
+> (`int8[] @> int4[]` is no operator). Comparisons, assignments, IN lists and
+> `ANY`/`ALL` never annotate: the column on the other side types the
+> placeholder, which is the reading the entity layer's casts are written for
+> (`entity.traits.column.enum-cast`). An integer annotated in arithmetic
+> takes the width its own type or its SQL literal gives it: `"int2col" +
+> $1::int4` is an `integer`, as `"int2col" + 1` is.
+>
+> The bare projection and the `VALUES` row in `FROM`, and an operand of an
+> operator outside the list above whose siblings are all bound, remain
+> positions that supply no context. Supplying it is the caller's obligation,
+> with two spellings: annotate the value with `Expr::val(v).cast_as("<type>")`,
+> which renders `CAST($n::<pin> AS <type>)` and gives the position a type; or,
+> where the value is a fixed literal rather than caller data, use
+> `SimpleExpr::Constant`, which is inlined and so is never a placeholder at all
 > (`join_lateral_on_true`'s `TRUE` is this case, per `query.build.lateral`).
 
 ## Identifiers and literals
@@ -1038,14 +1085,18 @@ an ideal Postgres renderer would emit.
 
 ## Custom expressions
 
-> [spec:pgorm:req:sql.render.custom-expr+3]
+> [spec:pgorm:req:sql.render.custom-expr+4]
 > `SimpleExpr::Raw(s)` MUST be written verbatim, unescaped; its payload is
 > `&'static str`, so only program text can reach it.
 > `SimpleExpr::Template` carries a `SqlTemplate`, whose template and
 > substitutions are resolved against each other at CONSTRUCTION —
 > `SqlTemplate::new`, reached through `Expr::template`,
 > `Expr::template_with_expr` and `Expr::template_with_exprs`, all of which
-> return `Result` — and never at render.
+> return `Result` — and never at render. Those four take the template as
+> `&'static str`, as `SimpleExpr::Raw`, `cast_as_raw` and `TypeName::raw` take
+> their text: a template is written into the statement as it stands, so it
+> MUST be program text, and text built at run time cannot become SQL through
+> them. The values are what varies, and they are bound.
 >
 > Construction tokenizes the template with the SQL tokenizer (`sql.token`) and
 > reads each `$` punctuation token: `$` followed by another `$` contributes one
@@ -1105,6 +1156,21 @@ an ideal Postgres renderer would emit.
 > A `SimpleExpr::AsEnum(type, expr)` at the top level is rewritten to a cast and
 > renders as `CAST(expr AS type)`, with the type name written raw (unquoted) as
 > a verbatim expression.
+
+> [spec:pgorm:req:sql.render.template-pieces]
+> `SqlTemplate::from_pieces(pieces, values)` MUST pair the pieces of a host
+> language's template literal with the expressions written between them:
+> `pieces[0]`, `values[0]`, `pieces[1]` and so on, `n + 1` pieces around `n`
+> values. It is the door the language bindings' `template` uses
+> (`bindings.template`), where Rust's own constructors take `&'static str`. The
+> pieces are SQL text, read with the real-SQL grammar `from_sql` reads
+> (`$$` opens a dollar-quoted body, quoted regions are opaque), and joined with a
+> marker per value. A piece that writes a `$N` marker of its own MUST be refused
+> with `TemplateError::MarkerInText`, since its values are the interpolations, and
+> a value that lands where PostgreSQL reads no parameter, inside a quoted region
+> or an identifier, MUST be refused by the census as a value nothing reads
+> (`UnreferencedValue`). Each value renders as an embedded expression, a bound
+> value as a parameter, never as text.
 
 ## Parameter injection
 

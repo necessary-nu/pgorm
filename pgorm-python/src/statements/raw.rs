@@ -6,7 +6,11 @@ use pyo3::{
 };
 
 use super::common;
-use crate::{errors::ConstructionError, expressions::Compiled, values::PyValue};
+use crate::{
+    errors::{ConstructionError, Raise},
+    expressions::Compiled,
+    values::PyValue,
+};
 
 // [spec:pgorm:req:python.raw]
 /// Explicit application SQL text with separately owned Rust parameters.
@@ -22,7 +26,7 @@ pub struct RawSQL {
 impl RawSQL {
     #[new]
     #[pyo3(signature = (template, values=None))]
-    fn new(template: String, values: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+    pub(crate) fn new(template: String, values: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         if template.contains('\0') {
             return Err(ConstructionError::new_err("SQL text cannot contain NUL"));
         }
@@ -42,11 +46,7 @@ impl RawSQL {
                     .collect::<PyResult<_>>()?
             }
         };
-        if values.len() > 65535 {
-            return Err(ConstructionError::new_err(
-                "raw SQL exceeds PostgreSQL's parameter limit",
-            ));
-        }
+        pgorm_bindings::parameter_count(values.len()).py()?;
         Ok(Self {
             template,
             values: Values(values),

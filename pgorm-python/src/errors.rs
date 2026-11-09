@@ -14,122 +14,162 @@ pyo3::create_exception!(pgorm, ForeignKeyViolationError, DatabaseError);
 pyo3::create_exception!(pgorm, CheckViolationError, DatabaseError);
 pyo3::create_exception!(pgorm, NotNullViolationError, DatabaseError);
 pyo3::create_exception!(pgorm, ExclusionViolationError, DatabaseError);
+pyo3::create_exception!(pgorm, RollbackFailedError, PgormError);
 
-/// Connection secrets must never enter diagnostics, including nested causes.
-#[derive(Clone, Default)]
-pub(crate) struct Redactions(Vec<String>);
+pub(crate) use pgorm_bindings::{Failure, Redactions};
 
-impl Redactions {
-    pub(crate) fn from_config(config: &pgorm::Config) -> Self {
-        let mut values = Vec::new();
-        if let Some(user) = config.get_user().filter(|s| !s.is_empty()) {
-            values.push(user.to_owned());
-        }
-        if let Some(password) = config.get_password().filter(|s| !s.is_empty()) {
-            values.push(String::from_utf8_lossy(password).into_owned());
-        }
-        values.sort_by_key(|value| std::cmp::Reverse(value.len()));
-        Self(values)
-    }
+/// What pgorm-bindings refuses, raised as the exception its class names.
+pub(crate) trait Raise<T> {
+    fn py(self) -> PyResult<T>;
+}
 
-    fn apply(&self, input: &str) -> String {
-        self.0.iter().fold(input.to_owned(), |text, secret| {
-            text.replace(secret, "[redacted]")
-        })
+impl<T> Raise<T> for Result<T, Failure> {
+    fn py(self) -> PyResult<T> {
+        self.map_err(raised)
     }
 }
 
-// [spec:pgorm:req:bindings.errors+5]
-pub(crate) fn database_error(error: pgorm::Error, secrets: &Redactions) -> PyErr {
-    let mut source: &(dyn std::error::Error + 'static) = &error;
-    loop {
-        if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
-            return postgres_error(postgres, secrets);
-        }
-        match source.source() {
-            Some(next) => source = next,
-            None => break,
-        }
-    }
-    match error {
-        pgorm::Error::Pool(_) => ConnectionError::new_err("PostgreSQL pool acquisition failed"),
-        // [spec:pgorm:req:bindings.listen+2]
-        pgorm::Error::Listen(pgorm::ListenError::ChannelTooLong { .. }) => {
-            ConstructionError::new_err(secrets.apply(&error.to_string()))
-        }
-        pgorm::Error::Listen(_) => ConnectionError::new_err(secrets.apply(&error.to_string())),
-        // A result that is not the row or rows asked for, a `one` finding none
-        // among them, cannot become the record asked for.
-        // [spec:pgorm:req:bindings.row-count]
-        pgorm::Error::Conversion { .. }
-        | pgorm::Error::Type(_)
-        | pgorm::Error::Json(_)
-        | pgorm::Error::RecordNotFound
-        | pgorm::Error::RecordNotInserted
-        | pgorm::Error::UnpackInsertId
-        | pgorm::Error::Verify(_) => DecodeError::new_err(secrets.apply(&error.to_string())),
-        // A write pgorm refuses to build from what it was given, and the
-        // refusal an application's ActiveModelBehavior hook returns:
-        // pgorm-python makes no `Error::Custom` of its own.
-        // [spec:pgorm:req:bindings.entity-writes+1]
-        pgorm::Error::NothingToSet
-        | pgorm::Error::PrimaryKeyNotSet
-        | pgorm::Error::AttrNotSet(_)
-        | pgorm::Error::QueryBuilder(_)
-        | pgorm::Error::Custom(_) => ConstructionError::new_err(secrets.apply(&error.to_string())),
-        _ => DatabaseError::new_err(secrets.apply(&error.to_string())),
+// [spec:pgorm:req:bindings.errors+6]
+pub(crate) fn database_error(
+    error: impl std::borrow::Borrow<pgorm::Error>,
+    secrets: &Redactions,
+) -> PyErr {
+    raised(pgorm_bindings::classify(
+        error.borrow(),
+        secrets,
+        crate::config::DIALECT,
+    ))
+}
+
+/// `failure` as the exception of the class it names, carrying the fields
+/// that class has.
+// [spec:pgorm:req:bindings.errors+6]
+pub(crate) fn raised(failure: Failure) -> PyErr {
+    match failure {
+        Failure::RollbackFailed {
+            cause, rollback, ..
+        } => rollback_failed(raised(*cause), raised(*rollback)),
+        Failure::Database(diagnostics) => database_raised(*diagnostics),
+        Failure::Connection(message) => ConnectionError::new_err(message),
+        Failure::Decode(message) => DecodeError::new_err(message),
+        Failure::Construction(message) => ConstructionError::new_err(message),
+        Failure::Internal(message) => InternalError::new_err(message),
+        Failure::Lifecycle(message) => LifecycleError::new_err(message),
+        Failure::Timeout(message) => TimeoutError::new_err(message),
+        Failure::Cancelled => pyo3::exceptions::asyncio::CancelledError::new_err(
+            Failure::Cancelled.message().to_owned(),
+        ),
+        // [spec:pgorm:req:bindings.refusal-fields]
+        Failure::Bind {
+            message,
+            parameter,
+            reason,
+        } => decorated(ConstructionError::new_err(message), |value| {
+            value.setattr("parameter", parameter)?;
+            value.setattr("reason", reason)
+        }),
+        Failure::Unreadable {
+            message,
+            reading,
+            reason,
+        } => decorated(DecodeError::new_err(message), |value| {
+            value.setattr("reading", reading)?;
+            value.setattr("reason", reason)
+        }),
     }
 }
 
-fn postgres_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr {
-    let Some(db) = error.as_db_error() else {
-        return client_error(error, secrets);
-    };
-    let message = secrets.apply(db.message());
-    // [spec:pgorm:req:bindings.errors+5]    the constraint classes pgorm's SqlError names
-    let exception = match db.code().code() {
-        "23505" => UniqueViolationError::new_err(message.clone()),
-        "23503" => ForeignKeyViolationError::new_err(message.clone()),
-        "23514" => CheckViolationError::new_err(message.clone()),
-        "23502" => NotNullViolationError::new_err(message.clone()),
-        "23P01" => ExclusionViolationError::new_err(message.clone()),
+/// `raised` with the fields `decorate` sets, or an `InternalError` saying
+/// they could not be set.
+fn decorated(
+    raised: PyErr,
+    decorate: impl for<'py> FnOnce(&Bound<'py, pyo3::exceptions::PyBaseException>) -> PyResult<()>,
+) -> PyErr {
+    Python::attach(|py| match decorate(raised.value(py)) {
+        Ok(()) => raised,
+        Err(_) => InternalError::new_err("could not attach a failure's fields"),
+    })
+}
+
+/// A server's error as the class its SQLSTATE names, with its diagnostics,
+/// marked retryable when pgorm says the transaction is worth running again.
+fn database_raised(diagnostics: pgorm_bindings::Diagnostics) -> PyErr {
+    let message = diagnostics.message.clone();
+    let exception = match diagnostics.class() {
+        pgorm_bindings::Class::UniqueViolation => UniqueViolationError::new_err(message.clone()),
+        pgorm_bindings::Class::ForeignKeyViolation => {
+            ForeignKeyViolationError::new_err(message.clone())
+        }
+        pgorm_bindings::Class::CheckViolation => CheckViolationError::new_err(message.clone()),
+        pgorm_bindings::Class::NotNullViolation => NotNullViolationError::new_err(message.clone()),
+        pgorm_bindings::Class::ExclusionViolation => {
+            ExclusionViolationError::new_err(message.clone())
+        }
         _ => DatabaseError::new_err(message.clone()),
     };
-    let decorated = Python::attach(|py| -> PyResult<()> {
-        let value = exception.value(py);
-        value.setattr("sqlstate", db.code().code())?;
+    decorated(exception, |value| {
+        value.setattr("sqlstate", diagnostics.sqlstate)?;
         value.setattr("message", message)?;
-        value.setattr("severity", db.severity())?;
+        value.setattr("severity", diagnostics.severity)?;
         for (field, content) in [
-            ("detail", db.detail()),
-            ("hint", db.hint()),
-            ("schema", db.schema()),
-            ("table", db.table()),
-            ("column", db.column()),
-            ("datatype", db.datatype()),
-            ("constraint", db.constraint()),
+            ("detail", diagnostics.detail),
+            ("hint", diagnostics.hint),
+            ("schema", diagnostics.schema),
+            ("table", diagnostics.table),
+            ("column", diagnostics.column),
+            ("datatype", diagnostics.datatype),
+            ("constraint", diagnostics.constraint),
         ] {
-            value.setattr(field, content.map(|text| secrets.apply(text)))?;
+            value.setattr(field, content)?;
+        }
+        // [spec:pgorm:req:bindings.transaction-retry]
+        if diagnostics.retryable {
+            value.setattr("is_retryable", true)?;
         }
         Ok(())
-    });
-    match decorated {
-        Ok(()) => exception,
-        Err(_) => InternalError::new_err("could not attach PostgreSQL diagnostics"),
-    }
+    })
 }
 
-// [spec:pgorm:req:bindings.errors+5]
-fn client_error(error: &tokio_postgres::Error, secrets: &Redactions) -> PyErr {
-    // Keep the original Rust error intact until this Python boundary so
-    // application hooks can still match pgorm::Error::Postgres.
-    if let Some(refusal) = pgorm::DecodeRefusal::of(error) {
-        DecodeError::new_err(secrets.apply(&refusal.to_string()))
-    } else if let Some(refusal) = pgorm::BindRefusal::of(error) {
-        ConstructionError::new_err(secrets.apply(&refusal.to_string()))
-    } else {
-        ConnectionError::new_err("PostgreSQL connection or protocol failure")
-    }
+/// A transaction whose block failed with `cause`, and whose `ROLLBACK` then
+/// failed with `rollback`: Rust's `Error::RollbackFailed`, its two errors as
+/// `cause` and `rollback`.
+// [spec:pgorm:req:bindings.rollback-failed]
+pub(crate) fn rollback_failed(cause: PyErr, rollback: PyErr) -> PyErr {
+    Python::attach(|py| {
+        let raised = RollbackFailedError::new_err(format!(
+            "{}; its ROLLBACK failed: {}",
+            cause.value(py),
+            rollback.value(py)
+        ));
+        let decorated = (|| -> PyResult<()> {
+            let value = raised.value(py);
+            value.setattr("rollback", rollback.value(py))?;
+            value.setattr("cause", cause.value(py))?;
+            value.setattr("__cause__", cause.value(py))?;
+            Ok(())
+        })();
+        match decorated {
+            Ok(()) => raised,
+            Err(_) => InternalError::new_err("could not attach a failed rollback's errors"),
+        }
+    })
+}
+
+/// The `RollbackFailedError` a block's exception `cause` and its rollback's
+/// failure `rollback` make, for the transaction scopes Python ends.
+// [spec:pgorm:req:bindings.rollback-failed]
+#[pyfunction(name = "_rollback_failed")]
+fn rollback_failed_error<'py>(
+    py: Python<'py>,
+    cause: Bound<'py, pyo3::exceptions::PyBaseException>,
+    rollback: Bound<'py, pyo3::exceptions::PyBaseException>,
+) -> Bound<'py, pyo3::exceptions::PyBaseException> {
+    rollback_failed(
+        PyErr::from_value(cause.into_any()),
+        PyErr::from_value(rollback.into_any()),
+    )
+    .into_value(py)
+    .into_bound(py)
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -151,6 +191,22 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     ] {
         database_error.setattr(field, py.None())?;
     }
+    // [spec:pgorm:req:bindings.transaction-retry]    a failure is retryable only when pgorm says so
+    py.get_type::<crate::PgormError>()
+        .setattr("is_retryable", false)?;
+    // [spec:pgorm:req:bindings.refusal-fields]
+    for field in ["parameter", "reason"] {
+        py.get_type::<ConstructionError>()
+            .setattr(field, py.None())?;
+    }
+    for field in ["reading", "reason"] {
+        py.get_type::<DecodeError>().setattr(field, py.None())?;
+    }
+    let rollback_failed = py.get_type::<RollbackFailedError>();
+    rollback_failed.setattr("cause", py.None())?;
+    rollback_failed.setattr("rollback", py.None())?;
+    module.add("RollbackFailedError", rollback_failed)?;
+    module.add_function(wrap_pyfunction!(rollback_failed_error, module)?)?;
     module.add("ConstructionError", py.get_type::<ConstructionError>())?;
     module.add("ConnectionError", py.get_type::<ConnectionError>())?;
     module.add("DatabaseError", database_error)?;
@@ -180,4 +236,47 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
         py.import("asyncio")?.getattr("CancelledError")?,
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // [spec:pgorm:req:bindings.rollback-failed/test]    pgorm's own RollbackFailed raises both
+    // errors, each as the class its own failure names
+    #[test]
+    fn a_failed_rollback_raises_both_errors() {
+        Python::initialize();
+        Python::attach(|py| {
+            let failed = database_error(
+                pgorm::Error::RollbackFailed {
+                    cause: Box::new(pgorm::Error::Custom("aborted".into())),
+                    rollback: Box::new(pgorm::Error::Custom("connection lost".into())),
+                },
+                &Redactions::default(),
+            );
+            assert!(failed.is_instance_of::<RollbackFailedError>(py));
+            let value = failed.value(py).as_any();
+            for field in ["cause", "rollback"] {
+                let carried = value.getattr(field).ok();
+                assert!(carried.is_some_and(|error| error.is_instance_of::<ConstructionError>()));
+            }
+        });
+    }
+
+    // [spec:pgorm:req:bindings.errors+6/test]    a failure the binding does not represent is an
+    // InternalError, and an application hook's refusal the ConstructionError it is in both
+    // bindings
+    #[test]
+    fn failures_raise_their_own_class() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert!(raised(Failure::Internal("x".into())).is_instance_of::<InternalError>(py));
+            let refusal = database_error(
+                pgorm::Error::Custom("before_save refused".into()),
+                &Redactions::default(),
+            );
+            assert!(refusal.is_instance_of::<ConstructionError>(py));
+        });
+    }
 }

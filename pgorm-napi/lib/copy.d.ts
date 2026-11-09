@@ -15,10 +15,11 @@
 
 // [spec:pgorm:req:napi.typing+1]
 // [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.copy-rows+1]
+// [spec:pgorm:req:bindings.copy-rows+2]
 
-import type { Builder, Predicate } from "./expressions.d.ts";
-import type { Param, PlainValue } from "./index.d.ts";
+import type { Builder, Expr, Predicate } from "./expressions.d.ts";
+import type { Param, PlainValue, TypeName } from "./index.d.ts";
+import type { ColumnsOf, FieldInput, Model, RowOf } from "./models.d.ts";
 import type { Merge } from "./merge.d.ts";
 import type { TableRef } from "./schema.d.ts";
 import type { Select } from "./select.d.ts";
@@ -148,12 +149,21 @@ export declare class CopyOutStream implements AsyncIterableIterator<Uint8Array>,
   [Symbol.asyncDispose](): Promise<void>;
 }
 
+// [spec:pgorm:req:bindings.copy-rows.typed]
+/**
+ * One value of a row `copyInRows` writes: a parameter, or any value a row
+ * `copyOutRows` read holds, a range, a multirange, an empty array and a
+ * vector's `Float32Array` among them, which is read as its column's type
+ * where inference cannot say what it is.
+ */
+export type CopyValue = Param | PlainValue;
+
 /**
  * What `copyInRows` writes: rows, each an array of its columns' values in
  * the order the server describes the statement's columns, from an iterable
- * or async iterable.
+ * or async iterable, a {@link CopyRowStream} included.
  */
-export type CopyRows = Iterable<readonly Param[]> | AsyncIterable<readonly Param[]>;
+export type CopyRows = Iterable<readonly CopyValue[]> | AsyncIterable<readonly CopyValue[]>;
 
 /**
  * A binary COPY TO's rows as an async iterator of arrays of values, one row
@@ -167,9 +177,108 @@ export declare class CopyRowStream implements AsyncIterableIterator<PlainValue[]
   private constructor();
   readonly columns: readonly string[];
   readonly closed: boolean;
+  /**
+   * The rows still to come as records of `model`, pulled from this stream:
+   * each field found by its column among the COPY's, which may hold columns
+   * no field reads, and held to its declaration as a model's reads hold it.
+   * A field the COPY lacks, or a column of another kind, is a `DecodeError`
+   * that closes the stream.
+   */
+  models<M extends Model<any>>(model: M): AsyncGenerator<RowOf<M>, void, undefined>;
   next(): Promise<IteratorResult<PlainValue[], undefined>>;
   return(): Promise<IteratorResult<PlainValue[], undefined>>;
   close(): Promise<void>;
   [Symbol.asyncIterator](): AsyncIterableIterator<PlainValue[]>;
   [Symbol.asyncDispose](): Promise<void>;
+}
+
+/** The options a {@link CopyColumn} a program makes takes. */
+export interface CopyColumnOptions {
+  /** The places a `money` column's currency is written to, which no other type takes. */
+  readonly moneyPlaces?: number;
+}
+
+/**
+ * One column of a COPY: its name, its type as a `TypeName` qualified by the
+ * schema the server names it in — `pg_catalog` for a built-in type, whose
+ * array is named `_` and its element's name — and for a `money` column the
+ * places its currency is written to, `null` for any other.
+ *
+ * A description gives a column of any type. A program makes one of a
+ * built-in type, named as `pg_type` names it (`"int4"`, `"varchar"`,
+ * `"_text"`) or as its element's name followed by `[]` (`"text[]"`), or by a
+ * `TypeName` in `pg_catalog`; any other type is a `ConstructionError` that
+ * says to describe the COPY instead, and a `money` column needs its
+ * `moneyPlaces`.
+ */
+export declare class CopyColumn {
+  constructor(name: string, type: string | TypeName, options?: CopyColumnOptions);
+  readonly name: string;
+  readonly type: TypeName;
+  readonly moneyPlaces: number | null;
+  /** Whether `other` has the same name and type, counting `money` in the same places. */
+  equals(other: CopyColumn): boolean;
+}
+
+/** A record of model `M` as a COPY's sink writes it: any of its fields, each as a write takes it but an expression. */
+export type CopyRecordOf<M> = { readonly [F in keyof ColumnsOf<M>]?: Exclude<FieldInput<ColumnsOf<M>[F]>, Expr> };
+
+/**
+ * A binary `COPY … FROM STDIN` the program writes a row at a time, from
+ * `copyInRows(statement)` with no rows, holding what it runs on until it
+ * ends. Each row is checked against `columns`, as the server describes them:
+ * one the columns refuse is a `ConstructionError` before anything of it is
+ * queued, and the sink goes on taking rows. Rows are sent in the order they
+ * are given, the sender held back while the connection is busy.
+ */
+export declare class CopyRowSink implements AsyncDisposable {
+  private constructor();
+  readonly columns: readonly CopyColumn[];
+  readonly closed: boolean;
+  /** Write one row: a value for each column in order, each read as a {@link Param} is. */
+  send(row: readonly CopyValue[]): Promise<void>;
+  /**
+   * Write a record of `model` as one row, each of the COPY's columns from
+   * the field whose column it is; a column no field of the model reads is a
+   * `ConstructionError`.
+   */
+  sendModel<M extends Model<any>>(record: CopyRecordOf<M>, model: M): Promise<void>;
+  /** Write a record keyed by column name, as a query's row is, each of the COPY's columns from its property of that name. */
+  sendModel(record: { readonly [column: string]: Param }): Promise<void>;
+  /** Complete the COPY, and resolve with the rows it wrote once the connection is free again. */
+  finish(): Promise<number>;
+  /** Abandon the COPY unless it has finished, so that nothing is written. */
+  close(): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>;
+}
+
+/**
+ * The binary format's writing side over a COPY's columns, for a program
+ * that moves the bytes itself: the `header()`, each row's `encode(row)`, read
+ * and checked as a {@link CopyRowSink} reads and checks one, and the
+ * `trailer()`.
+ */
+export declare class CopyRowEncoder {
+  constructor(columns: readonly CopyColumn[]);
+  readonly columns: readonly CopyColumn[];
+  /** The signature, flags and extension area that come once, before the first row. */
+  static header(): Uint8Array;
+  /** The field count of -1 that comes once, after the last row. */
+  static trailer(): Uint8Array;
+  encode(row: readonly CopyValue[]): Uint8Array;
+}
+
+/**
+ * The binary format's reading side over a COPY's columns: `push` takes the
+ * data in chunks split anywhere, `nextRow` gives each row once all of it has
+ * arrived — `null` until then, and after the trailer — each field decoded as
+ * `copyOutRows` decodes it, and `finish` refuses data that ended part way
+ * through a row or before the trailer. Each refusal is a `DecodeError`.
+ */
+export declare class CopyRowDecoder {
+  constructor(columns: readonly CopyColumn[]);
+  readonly columns: readonly CopyColumn[];
+  push(chunk: Uint8Array): void;
+  nextRow(): PlainValue[] | null;
+  finish(): void;
 }

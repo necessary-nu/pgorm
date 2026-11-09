@@ -112,7 +112,7 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > bound) and its brackets; and a created range with its name, schema and
 > subtype beside its text.
 
-> [spec:pgorm:req:python.records]
+> [spec:pgorm:req:python.records+1]
 > A statement's rows MUST be `Record`s: read-only mappings from column name to
 > value, in column order, whose `fields` describe each column (`Field`: its
 > name, index, table OID, column number, type OID and type name), and whose
@@ -121,8 +121,18 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > record's model. A registered entity's rows are `EntityModel`s keyed by SQL
 > column name, whose `into_active()`, `with_value(column, value)` and
 > `tagged(column)` are the entity operations on the record. A change is a
-> `Change` of `old` and `new`, an upsert an `Upserted` that is `Inserted` or
-> `Updated`, and a notification a `Notification`.
+> `Change` of `old` and `new`, an upsert an `Upserted` that is
+> `Upserted.Inserted` or `Upserted.Updated`, and a notification a
+> `Notification`. There MUST be one `Change` and one `Upserted`, both
+> `pgorm`'s, whatever wrote the row: a registered entity's write, whose rows
+> are `EntityModel`s, a declared model's, whose rows are `ModelRecord`s, and
+> a generated view's, whose rows are its typed models. The stubs make both
+> generic in the rows (`Change[M]`, `Upserted.Inserted[M]`), covariantly and
+> `Any` where none is named, so a program annotates any of them as
+> `pgorm.Change` and matches any of them with `case
+> pgorm.Upserted.Inserted(model)`. A declared model's and a view's results
+> are made by the native module's private `_change`, `_inserted` and
+> `_updated`, so no second family of classes exists for a program to import.
 
 ## Expressions and statements
 
@@ -137,7 +147,7 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > against it. A model's and a registered entity's column give their plain
 > expression through `expr`.
 
-> [spec:pgorm:req:python.truth-testing+4]
+> [spec:pgorm:req:python.truth-testing+5]
 > Every class the package defines MUST raise `ConstructionError` on Python
 > truth testing — `bool()`, `if`, `not`, `and`, `or` — so `if statement:` or
 > `statement or fallback` fails where it is written instead of reading the
@@ -153,7 +163,10 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > and `TypeName`, compared with `==` as data), rows, models and
 > what a write answers, pools, connections and transactions and the private
 > native handles under them and under the streams, registrations and model
-> declarations, and exceptions. A test MUST enumerate every class the
+> declarations, the metrics layer's collectors and what a query hook is told
+> (`QueryContext`, and `QueryFingerprint`, compared with `==` as data,
+> so `if query.fingerprint:` tests for one; `bindings.metrics`), and
+> exceptions. A test MUST enumerate every class the
 > package's modules define, so a class that neither refuses nor is exempt for
 > a stated reason fails it.
 
@@ -170,7 +183,7 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 
 ## Execution and lifecycle
 
-> [spec:pgorm:req:python.runtime+1]
+> [spec:pgorm:req:python.runtime+2]
 > Database I/O MUST have an asyncio-compatible awaitable interface on the
 > shared runtime (`bindings.runtime`). Native waiting MUST NOT block the
 > Python event loop or hold Python interpreter access unnecessarily. Objects
@@ -178,13 +191,33 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > the event loop running when it was built, and use from another loop, or
 > other unsupported cross-owner use, MUST raise `LifecycleError` rather than
 > deadlock or panic.
+>
+> A panic in native work on the runtime MUST resolve its awaitable with the
+> `InternalError` `bindings.errors` names, its message `pgorm panicked:`
+> followed by the panic's, rather than pyo3-async-runtimes' own `RustPanic`
+> or an awaitable left pending: every awaitable the native module returns is
+> made by one wrapper of `future_into_py` that catches the unwind. A debug
+> build exports `_probe_panic()`, whose work panics, for the suite to prove
+> it, as pgorm-napi's `probePanic` proves its own (`napi.errors`); a release
+> build exports no probe. A panic in a synchronous call, which PyO3 catches
+> as it crosses into Python before the binding could, raises PyO3's
+> `PanicException`, which derives from `BaseException` and so, like
+> `InternalError`, is never one of the classes that report bad input.
 
-> [spec:pgorm:req:python.lifecycle+3]
-> `Pool(dsn, *, tls, ca, cafile, max_size, connect_timeout, acquire_timeout,
-> statement_cache_size, recycle, statement_cache_channel)` builds a pool,
-> `ca` the PEM certificates to trust as a `str` or `bytes`, `cafile` naming a
-> PEM file to read them from, never both, and the timeouts given in seconds;
-> `await connect(dsn, **options)` gives one whose server answered. A pool, a
+> [spec:pgorm:req:python.lifecycle+4]
+> `Pool(dsn, *, tls, ca, cafile, cert, certfile, key, keyfile, max_size,
+> connect_timeout, acquire_timeout, wait_timeout, create_timeout,
+> recycle_timeout, queue_mode, statement_cache_size, recycle, recycle_sql,
+> statement_cache_channel, tag, post_create, pre_recycle, post_recycle)`
+> builds a pool (`bindings.connections`), `ca`, `cert` and `key` PEM data as
+> a `str` or `bytes` and `cafile`, `certfile` and `keyfile` naming a PEM file
+> to read each from, never both of a pair, the timeouts given in seconds and
+> each hook a function, `async` or not, taking a `HookConnection`. `MultiPool(dsn,
+> pools, **options)` takes each pool's own options as a mapping, the keys
+> those Rust's per-pool builder sets, and refuses another key with
+> `TypeError`. `await connect(dsn, **options)` gives one whose server
+> answered, and `await connect_listener(dsn, *, capacity, **tls)` a listener
+> of no pool. A pool, a
 > connection and every stream MUST be closable by `await close()` (`aclose()`
 > on a stream or listener) and MUST be asynchronous context managers that
 > close on exit; `pool.connection()` lends a connection for an `async with`

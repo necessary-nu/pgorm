@@ -30,7 +30,8 @@ showed. The full vocabulary is:
 | a `CreatedRange` | a range type the schema creates |
 | `IpNetwork`, `MacAddress` | `inet`, `macaddr` |
 | `Vector` | pgvector's `vector` |
-| `Option<T>` | `T`'s type, nullable |
+| a `ValueType` newtype | the type it wraps |
+| `Option<T>` | `T`'s type, nullable, for every `T` above |
 
 Every name in the left column is in the prelude. The date and time types are
 [jiff]'s, `Decimal` is [rust_decimal]'s, and `Json` is `serde_json::Value`.
@@ -43,7 +44,9 @@ When pgorm builds a statement it carries each parameter as a
 [`Value`](crate::Value), one enum with a variant per kind of value. Every
 variant holds an `Option`, so a typed `NULL` remains a `NULL` of its own type.
 Anything that converts into `Value` can be bound, and
-[`ValueType`](crate::pgorm_query::ValueType) reads one back out:
+[`ValueType`](crate::pgorm_query::ValueType)'s
+[`from_value`](crate::pgorm_query::ValueType::from_value) reads one back
+out:
 
 ```rust
 use pgorm::entity::prelude::*;
@@ -57,8 +60,8 @@ let missing: Value = Option::<String>::None.into();
 assert_eq!(missing, Value::String(None));
 
 // Reading back checks the variant.
-assert_eq!(<Decimal as ValueType>::try_from(price.clone())?, Decimal::new(450, 2));
-assert!(<i32 as ValueType>::try_from(price).is_err());
+assert_eq!(Decimal::from_value(price.clone())?, Decimal::new(450, 2));
+assert!(i32::from_value(price).is_err());
 # Ok::<(), pgorm::pgorm_query::ValueTypeError>(())
 ```
 
@@ -174,9 +177,35 @@ assert_eq!(total.to_string(), "12.20");
 ```
 
 A `Decimal` holds up to 28 digits after the point, in a 96-bit coefficient.
-Give a `numeric` column a precision and scale within that, such as
-`decimal(10, 2)` for prices, since a value beyond it does not read back
-exactly.
+A `numeric` beyond that is not read at all rather than read rounded: the row
+fails to decode, wherever the `Decimal` is read, a model's field, a tuple, an
+array or a range's bound. Give a `numeric` column a precision and scale within
+it, such as `decimal(10, 2)` for prices, and its every value reads:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("values_decimal_exact").await;
+# let db = scratch.pool.get().await?;
+use pgorm::{Values, entity::prelude::*};
+
+let tiny = ("SELECT 0.0000000000000000000000000001::numeric", Values(vec![]))
+    .into_tuple::<Decimal>()
+    .one(&db)
+    .await?;
+assert_eq!(tiny, Decimal::new(1, 28));
+
+// One more digit after the point is more than a `Decimal` holds.
+let tinier = ("SELECT 0.00000000000000000000000000001::numeric", Values(vec![]))
+    .into_tuple::<Decimal>()
+    .one(&db)
+    .await;
+assert!(tinier.is_err());
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
 
 ## Money
 
@@ -312,7 +341,8 @@ element). An array of an enum is an array of the enum's type.
 
 The other direction, a scalar column against a list of values, is
 [`eq_any`](crate::ColumnTrait::eq_any), which binds the whole list as one
-array parameter, so a statement has the same SQL however long the list is:
+array parameter, so a statement has the same SQL however long the list is.
+Its items are what `eq` takes, string slices among them:
 
 ```rust
 mod menu {
@@ -381,7 +411,7 @@ assert_eq!(chocolate, ["Party"]);
 
 let named: Vec<String> = menu::Entity::find()
     .select(menu::Column::Name)
-    .filter(menu::Column::Name.eq_any(tags(&["Party", "Picnic"])))
+    .filter(menu::Column::Name.eq_any(["Party", "Picnic"]))
     .into_tuple()
     .all(&db)
     .await?;
@@ -935,7 +965,7 @@ mod shelf {
 use pgorm::entity::prelude::*;
 
 let (sql, _) = shelf::Entity::find()
-    .filter(shelf::Column::Label.eq_any(["top".to_owned(), "middle".to_owned()]))
+    .filter(shelf::Column::Label.eq_any(["top", "middle"]))
     .build();
 assert_eq!(
     sql,

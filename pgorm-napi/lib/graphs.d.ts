@@ -5,12 +5,12 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.graphs]
+// [spec:pgorm:req:bindings.graphs+2]
 
 import type { Compiled, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Select } from "./select.d.ts";
 import type { Connection, OperationOptions, Pool, Queryable, RowStream } from "./index.d.ts";
-import type { ColumnOf, Columns, ColumnsOf, FieldOf, FieldOperand, Model, Relation, RowOf } from "./models.d.ts";
+import type { ColumnOf, Columns, ColumnsOf, FieldOf, FieldOperand, Model, Related, Relation, RowOf } from "./models.d.ts";
 
 /** What a cursor's boundary gives for each of its order fields `F` of columns `C`. */
 export type KeyInputs<C extends Columns, F extends readonly FieldOf<C>[]> = {
@@ -28,7 +28,9 @@ export interface GraphJoinOptions {
   readonly alias?: string;
   /**
    * The decoded source the relation starts at — 0 the root, i the i-th slot
-   * — when it is not the first table of its model the graph reads.
+   * — when it is not the first table of its model the graph reads. A
+   * relation's `fromAlias` names any table the graph reads, a `via` hop's
+   * included, instead.
    */
   readonly from?: number;
 }
@@ -41,40 +43,80 @@ export interface GraphJoinOptions {
  * decoded as a record or `null` where it matched nothing, and `via` a LEFT
  * JOIN of a table no record reads. A present slot whose record does not
  * decode is a {@link DecodeError}, never an absent one.
+ *
+ * `Sliced` records whether `limit` or `offset` has cut the read to a window
+ * of rows: `false` until one is called, `true` after, whatever value it was
+ * given. A sliced graph has no `count`, `allGrouped`, `cursor`, `cursorOn`
+ * or `paginate`, the reads that decide the row range themselves, as pgorm's
+ * `Sliced` graph has none of them: calling one is a type error, and a
+ * {@link ConstructionError} where the types are not checked.
  */
-export declare class Graph<S extends readonly Model<any>[], I extends readonly unknown[]> {
+export declare class Graph<S extends readonly Model<any>[], I extends readonly unknown[], Sliced extends boolean = false> {
   private constructor();
+  /** Whether `limit` or `offset` has sliced it, for the type checker alone. */
+  private readonly sliced: Sliced;
   /** A slot that must match. */
-  joinOne<T extends Model<any>>(relation: Relation<any, T, any>, options?: GraphJoinOptions): Graph<[...S, T], [...I, RowOf<T>]>;
+  joinOne<T extends Model<any>>(
+    relation: Relation<any, T, any>,
+    options?: GraphJoinOptions,
+  ): Graph<[...S, T], [...I, RowOf<T>], Sliced>;
   /** A slot that may be absent. */
   joinMaybe<T extends Model<any>>(
     relation: Relation<any, T, any>,
     options?: GraphJoinOptions,
-  ): Graph<[...S, T], [...I, RowOf<T> | null]>;
+  ): Graph<[...S, T], [...I, RowOf<T> | null], Sliced>;
+  /**
+   * A slot that may be absent, `condition` — given the two ends as the join
+   * names them — ANDed into the join's ON, as pgorm's `join_maybe_filtered`
+   * adds it: it narrows which rows match, and a root with none keeps its row
+   * with the slot `null`.
+   */
+  joinMaybeFiltered<F extends Model<any>, T extends Model<any>>(
+    relation: Relation<F, T, any>,
+    condition: (from: F, to: T) => Predicate,
+    options?: GraphJoinOptions,
+  ): Graph<[...S, T], [...I, RowOf<T> | null], Sliced>;
   /** A hop no record reads: a junction table, a step of a chain. */
-  via(relation: Relation<any, any, any>, options?: GraphJoinOptions): Graph<S, I>;
+  via(relation: Relation<any, any, any>, options?: GraphJoinOptions): Graph<S, I, Sliced>;
+  /**
+   * A slot that must match along `path`: a relation, as `joinOne` joins it,
+   * or a related path, its junction INNER JOINed and its far end the slot,
+   * as pgorm's `related_one` folds a `Related` path in.
+   */
+  relatedOne<T extends Model<any>>(path: Relation<any, T, any> | Related<any, T>): Graph<[...S, T], [...I, RowOf<T>], Sliced>;
+  /**
+   * A slot that may be absent along `path`: a relation, as `joinMaybe` joins
+   * it, or a related path, its junction a `via` hop and its far end the
+   * slot, as pgorm's `related_maybe` folds a `Related` path in.
+   */
+  relatedMaybe<T extends Model<any>>(
+    path: Relation<any, T, any> | Related<any, T>,
+  ): Graph<[...S, T], [...I, RowOf<T> | null], Sliced>;
   /** A column of decoded source `source` — 0 the root, i the i-th slot — qualified as it is named. */
   col<N extends Indexes<S>, F extends FieldOf<ColumnsOf<S[N]>>>(source: N, field: F): ColumnOf<ColumnsOf<S[N]>, F>;
-  where(predicate: Predicate): Graph<S, I>;
-  orderBy(...orderings: OrderBy[]): Graph<S, I>;
-  limit(count: number | bigint | null): Graph<S, I>;
-  offset(count: number | bigint | null): Graph<S, I>;
+  where(predicate: Predicate): Graph<S, I, Sliced>;
+  orderBy(...orderings: OrderBy[]): Graph<S, I, Sliced>;
+  /** At most `count` rows of the join, not roots, or with `null` no limit; either way sliced. */
+  limit(count: number | bigint | null): Graph<S, I, true>;
+  /** The rows of the join after the first `count`, or with `null` all; either way sliced. */
+  offset(count: number | bigint | null): Graph<S, I, true>;
   /** The SELECT it runs, every source projected under its prefix: `s0_` the root, `s{i}_` the i-th slot. */
   readonly statement: Select;
-  /** The SQL and values it runs, or the ones `count` or `allGrouped` runs. */
+  /** The SQL and values it runs, or the ones `count` or `allGrouped` runs, which a sliced graph refuses. */
   inspect(terminal?: "count" | "allGrouped"): Compiled;
-  /** How many rows it reads, limit and offset aside. */
-  count(db: Queryable, options?: OperationOptions): Promise<number>;
+  /** How many rows it reads. */
+  count(this: Graph<S, I, false>, db: Queryable, options?: OperationOptions): Promise<number>;
   all(db: Queryable, options?: OperationOptions): Promise<GraphItem<I>[]>;
   one(db: Queryable, options?: OperationOptions): Promise<GraphItem<I>>;
   optional(db: Queryable, options?: OperationOptions): Promise<GraphItem<I> | null>;
-  stream(db: Pool | Connection, options?: OperationOptions): RowStream<GraphItem<I>>;
+  stream(db: Queryable, options?: OperationOptions): RowStream<GraphItem<I>>;
   /**
    * Each root with the records its one slot holds for it, the root's
    * primary key ordered behind the graph's ordering and the rows grouped by
    * the decoded root's key.
    */
   allGrouped(
+    this: Graph<S, I, false>,
     db: Queryable,
     options?: OperationOptions,
   ): Promise<I extends readonly [infer R, infer T] ? [R, Exclude<T, null>[]][] : never>;
@@ -83,10 +125,20 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
    * and each slot's following as tiebreaks.
    */
   cursor<const F extends readonly [FieldOf<ColumnsOf<S[0]>>, ...FieldOf<ColumnsOf<S[0]>>[]]>(
+    this: Graph<S, I, false>,
     ...fields: F
   ): Cursor<GraphItem<I>, KeyInputs<ColumnsOf<S[0]>, F>>;
+  /**
+   * A keyset cursor ordered by `fields` of slot `source`, the first slot
+   * `1`, as pgorm's `cursor_by_on` orders: the slot's primary key, then the
+   * root's, then every other slot's are its tiebreaks.
+   */
+  cursorOn<
+    N extends Exclude<Indexes<S>, 0>,
+    const F extends readonly [FieldOf<ColumnsOf<S[N]>>, ...FieldOf<ColumnsOf<S[N]>>[]],
+  >(this: Graph<S, I, false>, source: N, ...fields: F): Cursor<GraphItem<I>, KeyInputs<ColumnsOf<S[N]>, F>>;
   /** Pages of `pageSize` rows, a boundary falling between rows rather than roots. */
-  paginate(pageSize: number): Paginator<GraphItem<I>>;
+  paginate(this: Graph<S, I, false>, pageSize: number): Paginator<GraphItem<I>>;
 }
 
 /**
@@ -95,6 +147,13 @@ export declare class Graph<S extends readonly Model<any>[], I extends readonly u
  */
 export declare class Cursor<R, K extends readonly unknown[] = readonly unknown[]> {
   private constructor();
+  /**
+   * The cursor ordered by `field` of `model` after its key and the entries
+   * before it: a column of the queried model or a table it joined, `model`
+   * named as the query names it. `after` and `before` still take the key
+   * alone; `afterWith` and `beforeWith` take the whole ordering.
+   */
+  addSecondaryOrderBy<M extends Model<any>>(model: M, field: FieldOf<ColumnsOf<M>>): Cursor<R, K>;
   /** Rows past the one whose order-field values these are. */
   after(...values: K): Cursor<R, K>;
   /** Rows short of the one whose order-field values these are. */
@@ -136,3 +195,7 @@ export declare class Paginator<R> {
   /** Each page in turn from the first, ending at the first empty one. */
   pages(db: Queryable, options?: OperationOptions): AsyncGenerator<R[], void, undefined>;
 }
+
+// A declaration file with no `export {}` exports every declaration in it, so
+// the helpers above without `export` would be the package's exports too.
+export {};

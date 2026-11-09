@@ -7,7 +7,9 @@ mod common;
 use common::runtime_name as n;
 use common::*;
 use pgorm_codegen::parse_schema;
-use pgorm_query::{ColumnDef, ColumnSpec, Expr, Func, GeneratedKind, Query, TableCreateStatement};
+use pgorm_query::{
+    ColumnDef, ColumnSpec, Expr, ExprTrait, Func, GeneratedKind, Query, TableCreateStatement,
+};
 
 const SCHEMA: &str = include_str!("sql/expressions/schema.sql");
 

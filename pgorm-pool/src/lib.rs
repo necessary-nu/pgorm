@@ -67,7 +67,7 @@ pub use self::config::{
 pub use self::cache_listener::STATEMENT_CACHE_CHANNEL;
 pub use self::generic_client::GenericClient;
 pub use self::raw::{RawConnection, Unpooled};
-pub use self::transaction::{Transaction, TransactionBuilder};
+pub use self::transaction::{CommitError, Transaction, TransactionBuilder};
 
 pub use deadpool::managed::reexports::*;
 deadpool::managed_reexports!(
@@ -647,6 +647,7 @@ impl ClientWrapper {
             txn: PgClient::transaction(&mut self.client).await?,
             statement_cache: self.statement_cache.clone(),
             connection: self.conn_task.abort_handle(),
+            savepoint: false,
         })
     }
 

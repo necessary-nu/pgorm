@@ -1,7 +1,7 @@
 // @ts-check
 
 // Row streams over a pool's or a connection's connection.
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 
 import { LifecycleError } from "./errors.js";
 import { abortable, native, queryOptions, row, TRUSTED } from "./operations.js";

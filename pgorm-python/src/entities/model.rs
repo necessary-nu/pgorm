@@ -1,7 +1,9 @@
 use pyo3::{exceptions::PyKeyError, prelude::*, types::PyTuple};
 
-use super::{PyActiveModel, backend::Model};
-use crate::values::PyValue;
+use pgorm_bindings::entity::Model;
+
+use super::{PyActiveModel, input};
+use crate::{errors::Raise, values::PyValue};
 
 #[derive(Clone, Debug)]
 #[pyclass(name = "EntityModel", module = "pgorm", frozen, from_py_object)]
@@ -31,11 +33,7 @@ impl PyEntityModel {
             .info()
             .column(name)
             .map_err(|_| PyKeyError::new_err(name.to_owned()))?;
-        column.input.tagged(
-            self.inner
-                .get(name)
-                .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?,
-        )
+        input::tagged(column, self.inner.get(name).py()?)
     }
 
     fn __getitem__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
@@ -80,12 +78,9 @@ impl PyEntityModel {
 
     fn with_value(&self, column: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
         let name = super::column::name(column, self.inner.info())?;
-        let value = self.inner.info().column(&name)?.input.coerce(value)?;
+        let value = input::coerce(self.inner.info().column(&name).py()?, value)?;
         Ok(Self {
-            inner: self
-                .inner
-                .set(&name, value.inner)
-                .map_err(|error| crate::errors::ConstructionError::new_err(error.to_string()))?,
+            inner: self.inner.set(&name, value.inner).py()?,
         })
     }
 

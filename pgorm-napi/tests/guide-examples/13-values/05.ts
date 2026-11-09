@@ -2,16 +2,26 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { DecodeError, Decimal } from "@necessary/pgorm";
+import { column, Decimal, fromModel, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  await pool.execute("CREATE TABLE tip_jar (id serial PRIMARY KEY, amount money NOT NULL)");
-  await pool.execute("INSERT INTO tip_jar (amount) VALUES ($1::numeric::money)", [new Decimal("12.345")]);
+  const TipJar = model("tip_jar", {
+    columns: {
+      id: column("i32", { primaryKey: true, autoIncrement: true }),
+      amount: column("decimal", { columnType: "money" }),
+    },
+  });
+  await pool.execute(fromModel(TipJar).table);
 
+  const tips = await TipJar.insert({ amount: new Decimal("12.345") }).returning().one(pool);
   // Rounded to the currency's two places.
-  const tips = await pool.one("SELECT amount::numeric AS amount FROM tip_jar");
   assert.equal(String(tips.amount), "12.35");
 
-  await assert.rejects(pool.query("SELECT amount FROM tip_jar"), DecodeError);
+  const query = TipJar.find().where(TipJar.col("amount").gt(new Decimal("10")));
+  assert.equal(
+    query.inspect().sql,
+    `SELECT "tip_jar"."id", CAST("tip_jar"."amount" AS numeric) AS "amount" FROM "tip_jar" WHERE "tip_jar"."amount" > CAST($1::numeric AS money)`,
+  );
+  assert.equal((await query.all(pool)).length, 1);
 }

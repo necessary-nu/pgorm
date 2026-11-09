@@ -4,29 +4,17 @@
 
 use std::{
     fmt,
-    pin::Pin,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
 };
 
-use futures_util::TryStreamExt;
 use neon::{prelude::*, types::Finalize};
-use pgorm::{ConnectionTrait, types::ToSql};
-use tokio::sync::Mutex;
-use tokio_postgres::RowStream;
-use tokio_util::sync::CancellationToken;
+use pgorm_bindings::StreamState;
 
-use super::{Abort, ConnectionHandle, ConnectionState, Operation, abort_argument};
-use crate::{
-    codec::Codec,
-    decode,
-    errors::{Failure, failure},
-    params::Param,
-    rows, settle,
-    values::Tagged,
-};
+use super::{Abort, ConnectionHandle, Operation, abort_argument};
+use crate::{codec::Codec, decode, errors::Failure, rows, settle, values::Tagged};
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("connectionStream", connection_stream)?;
@@ -36,47 +24,37 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-/// The open result and the connection it holds out of its slot.
-struct Active {
-    rows: Pin<Box<RowStream>>,
-    operation: Operation,
-}
+/// What a stream that decodes its own rows makes of each: a disjoint read's
+/// codec's rows, or a registered read's models.
+pub(crate) type RowDecode =
+    Arc<dyn Fn(tokio_postgres::Row) -> Result<crate::connect::job::Output, Failure> + Send + Sync>;
 
-/// A stream, which holds its connection until the last row or `close`.
-pub(crate) struct StreamState {
-    connection: Arc<ConnectionState>,
-    /// The disjoint read whose codec reads each row, for a disjoint read's
+/// A stream as JavaScript reads it: pgorm-bindings' stream, which holds its
+/// connection until the last row or `close`, and what each row becomes.
+pub(crate) struct Stream {
+    state: Arc<StreamState>,
+    /// The decode of each row, for a disjoint read's or a registered read's
     /// stream; its rows are otherwise values.
-    disjoint: Option<Arc<crate::disjoint::Core>>,
-    active: Arc<Mutex<Option<Active>>>,
-    cancelled: CancellationToken,
-    finished: CancellationToken,
+    decode: Option<RowDecode>,
+    /// Whether the column names went with a row already.
     named: AtomicBool,
 }
 
-impl fmt::Debug for StreamState {
+impl fmt::Debug for Stream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StreamState")
-            .field("closed", &self.closed())
+        f.debug_struct("Stream")
+            .field("state", &self.state)
             .finish_non_exhaustive()
     }
 }
 
-impl StreamState {
-    fn closed(&self) -> bool {
-        self.cancelled.is_cancelled() || self.finished.is_cancelled()
-    }
-
-    /// Release an idle stream's connection once the stream, its connection
-    /// or its pool closes, without waiting for JavaScript's next pull.
-    async fn watch(self: Arc<Self>) {
-        tokio::select! {
-            () = self.finished.cancelled() => return,
-            () = self.cancelled.cancelled() => {}
-            () = self.connection.closing() => {}
-        }
-        drop(self.active.lock().await.take());
-        self.finished.cancel();
+impl Stream {
+    pub(crate) fn new(state: Arc<StreamState>, decode: Option<RowDecode>) -> Arc<Self> {
+        Arc::new(Self {
+            state,
+            decode,
+            named: AtomicBool::new(false),
+        })
     }
 }
 
@@ -84,140 +62,90 @@ impl StreamState {
 /// releases its connection as a backstop; reaching the end, `return` and
 /// `close` are what release it.
 #[derive(Debug)]
-pub(crate) struct StreamHandle(Arc<StreamState>);
+pub(crate) struct StreamHandle(pub(crate) Arc<Stream>);
 
 impl Finalize for StreamHandle {}
 
 impl Drop for StreamHandle {
     fn drop(&mut self) {
-        self.0.cancelled.cancel();
+        self.0.state.abandon();
     }
 }
 
-async fn open(
-    operation: Operation,
-    sql: String,
-    params: Vec<Param>,
-    abort: Abort,
-    disjoint: Option<Arc<crate::disjoint::Core>>,
-) -> Result<Arc<StreamState>, Failure> {
-    let connection = operation.state.clone();
-    let secrets = &connection.pool.secrets;
-    let rows = tokio::select! {
-        biased;
-        () = abort.token().cancelled() => return Err(Failure::Cancelled),
-        () = connection.closing() => {
-            return Err(Failure::Lifecycle("the connection closed as the stream opened".to_owned()));
-        }
-        rows = operation.connection()?.query_raw(
-            &sql,
-            params.iter().map(|param| param as &(dyn ToSql + Sync)),
-        ) => rows.map_err(|error| failure(&error, secrets))?,
-    };
-    let state = Arc::new(StreamState {
-        connection,
-        disjoint,
-        active: Arc::new(Mutex::new(Some(Active {
-            rows: Box::pin(rows),
-            operation,
-        }))),
-        cancelled: CancellationToken::new(),
-        finished: CancellationToken::new(),
-        named: AtomicBool::new(false),
-    });
-    tokio::spawn(state.clone().watch());
-    Ok(state)
+/// The decode the stream's argument `index` names: a disjoint read's codec,
+/// a registered read's selector, or with neither its rows as values.
+pub(crate) fn decode_argument(cx: &mut FunctionContext, index: usize) -> Option<RowDecode> {
+    let value = cx.argument_opt(index)?;
+    if let Ok(handle) = value.downcast::<JsBox<crate::disjoint::DisjointHandle>, _>(cx) {
+        let core = handle.0.clone();
+        let decode: RowDecode = Arc::new(move |row| {
+            let rows = crate::disjoint::Rows::of(&core, vec![row])?;
+            Ok(Box::new(rows) as crate::connect::job::Output)
+        });
+        return Some(decode);
+    }
+    value
+        .downcast::<JsBox<crate::entities::reads::DecoderHandle>, _>(cx)
+        .ok()
+        .map(|handle| handle.row_decode())
 }
 
-/// `connectionStream(connection, sql, params, abort, disjoint?)`: open a
+/// `connectionStream(connection, sql, params, abort, decoder?)`: open a
 /// stream, which holds the connection until the last row or `close`, each
-/// row read by `disjoint`'s codec when one is given.
-// [spec:pgorm:req:bindings.streams]
+/// row read by `decoder` when one is given, a disjoint read's codec or a
+/// registered read's selector.
+// [spec:pgorm:req:bindings.streams+1]
 // [spec:pgorm:req:bindings.disjoint+2]
 fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let connection = cx.argument::<JsBox<ConnectionHandle>>(0)?.0.clone();
     let (sql, params) = super::sql_and_params(&mut cx, 1)?;
     let abort = abort_argument(&mut cx, 3)?;
-    let disjoint = match cx.argument_opt(4) {
-        Some(value) => value
-            .downcast::<JsBox<crate::disjoint::DisjointHandle>, _>(&mut cx)
-            .ok()
-            .map(|handle| handle.0.clone()),
-        None => None,
-    };
+    let decode = decode_argument(&mut cx, 4);
     let operation = match Operation::begin(connection) {
         Ok(operation) => operation,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    settle::promise(
-        &mut cx,
-        open(operation, sql, params, abort, disjoint),
-        |cx, state| Ok(cx.boxed(StreamHandle(state)).upcast()),
-    )
+    let work = async move {
+        let state = StreamState::on_connection(operation, sql, params, abort.token()).await?;
+        Ok(Stream::new(state, decode))
+    };
+    settle::promise(&mut cx, work, |cx, stream| {
+        Ok(cx.boxed(StreamHandle(stream)).upcast())
+    })
 }
 
-/// One pulled row: its values, or what a disjoint read's codec read it as.
+/// One pulled row: its values, or what the stream's decode read it as.
 enum Pulled {
     Values(Vec<Tagged>),
-    Disjoint(crate::disjoint::Rows),
+    Decoded(crate::connect::job::Output),
 }
 
 /// The next row, decoded, with the column names on the first; `None` at the
 /// end, which returns the connection to its slot.
 async fn next(
-    state: Arc<StreamState>,
+    stream: Arc<Stream>,
     abort: Abort,
 ) -> Result<Option<(Pulled, Option<Vec<String>>)>, Failure> {
-    state.connection.ensure_open()?;
-    if state.cancelled.is_cancelled() {
-        return Err(Failure::Lifecycle("the stream is closed".to_owned()));
-    }
-    if state.finished.is_cancelled() {
-        return Ok(None);
-    }
-    let mut slot = state.active.clone().try_lock_owned().map_err(|_| {
-        Failure::Lifecycle("the stream is busy: one row is pulled at a time".to_owned())
-    })?;
-    let Some(mut active) = slot.take() else {
-        return Ok(None);
-    };
-    let row = tokio::select! {
-        biased;
-        () = abort.token().cancelled() => return Err(Failure::Cancelled),
-        () = state.cancelled.cancelled() => return Err(Failure::Lifecycle("the stream is closed".to_owned())),
-        () = state.connection.closing() => {
-            return Err(Failure::Lifecycle("the connection closed under the stream".to_owned()));
-        }
-        row = active.rows.try_next() => row,
-    };
-    match row {
-        Ok(Some(row)) => {
-            if let Some(disjoint) = &state.disjoint {
-                let rows = crate::disjoint::Rows::of(disjoint, vec![row])?;
-                *slot = Some(active);
-                return Ok(Some((Pulled::Disjoint(rows), None)));
+    let pulled = stream
+        .state
+        .next(abort.token(), |row| {
+            if let Some(decode) = &stream.decode {
+                return decode(row).map(|decoded| (Pulled::Decoded(decoded), None));
             }
-            let names = if state.named.swap(true, Ordering::Relaxed) {
+            let names = if stream.named.swap(true, Ordering::Relaxed) {
                 None
             } else {
                 Some(decode::names(&row)?)
             };
-            let values = decode::row(&row)?;
-            *slot = Some(active);
-            Ok(Some((Pulled::Values(values), names)))
-        }
-        Ok(None) => {
-            active.operation.restore();
-            state.finished.cancel();
-            Ok(None)
-        }
-        Err(error) => Err(failure(&error.into(), &state.connection.pool.secrets)),
-    }
+            Ok((Pulled::Values(decode::row(&row)?), names))
+        })
+        .await?;
+    pulled.transpose()
 }
 
 /// `streamNext(stream, tagged, abort)`: `[values, names?, kinds?]`, the
 /// names and kinds on the first row, or `null` at the end. A failure, an abort or a decode error discards the connection.
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = cx.argument::<JsBox<StreamHandle>>(0)?.0.clone();
     let tagged = cx.argument::<JsBoolean>(1)?.value(&mut cx);
@@ -228,9 +156,9 @@ fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
         };
         let values = match pulled {
             Pulled::Values(values) => values,
-            Pulled::Disjoint(rows) => {
+            Pulled::Decoded(decoded) => {
                 let pair = JsArray::new(cx, 1);
-                let rows = crate::connect::job::Settled::into_js(Box::new(rows), cx)?;
+                let rows = decoded.into_js(cx)?;
                 pair.set(cx, 0, rows)?;
                 return Ok(pair.upcast());
             }
@@ -259,19 +187,17 @@ fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
 /// `streamClose(stream)`: end the stream, discarding its connection if rows
 /// remained, and resolve once it is released.
-// [spec:pgorm:req:bindings.streams]
+// [spec:pgorm:req:bindings.streams+1]
 fn stream_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
-    let state = cx.argument::<JsBox<StreamHandle>>(0)?.0.clone();
-    state.cancelled.cancel();
+    let stream = cx.argument::<JsBox<StreamHandle>>(0)?.0.clone();
     let work = async move {
-        drop(state.active.lock().await.take());
-        state.finished.cancel();
+        stream.state.close().await;
         Ok(())
     };
     settle::promise(&mut cx, work, |cx, ()| Ok(cx.undefined().upcast()))
 }
 
 fn stream_closed(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let closed = cx.argument::<JsBox<StreamHandle>>(0)?.0.closed();
+    let closed = cx.argument::<JsBox<StreamHandle>>(0)?.0.state.closed();
     Ok(cx.boolean(closed))
 }

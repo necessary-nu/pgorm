@@ -32,13 +32,11 @@ values it binds:
 import assert from "node:assert/strict";
 import { pipeline as pl } from "@necessary/pgorm";
 
-const cake = (column: string) => pl.col("cake", column);
-
-const { sql, values } = pl.from(Cake.table)
-  .filter(cake("gluten_free").eq(pl.literal(true)))
-  .sort(cake("price").desc())
+const { sql, values } = pl.from(Cake)
+  .filter(pl.col(Cake, "glutenFree").eq(pl.literal(true)))
+  .sort(pl.col(Cake, "price").desc())
   .take(2)
-  .select(cake("name"), cake("price"))
+  .select(pl.col(Cake, "name"), pl.col(Cake, "price"))
   .inspect();
 
 assert.equal(
@@ -48,25 +46,38 @@ assert.equal(
 assert.deepEqual(values, []);
 ```
 
-The pipeline reads a relation, not a model. A source is a `Table`, read under
-its alias if it has one; a table's name; another pipeline; a named source,
+A source is a declared model, read as its table and under its alias if it has
+one; a `Table`, likewise; a table's name; another pipeline; a named source,
 [below](#a-table-meeting-itself); or a [registered Rust
-entity](24-registered-entities.md). A declared model is none of those, so a
-pipeline reads its `table`, and a model given whole is refused with a
-`TypeError`. Its columns are written with `pipeline.col(table, column)`, by
-their SQL names: the compiler has no catalog, so every column names its
-relation, and the SQL leaves the qualifier out where only one relation is
-read. Rust's pipeline starts from an entity and names its columns by the
-entity's `Column` variants, its comparison operators coming from the
-`ExprOps` trait; a JavaScript pipeline's expressions are the namespace's own,
-and do not mix with the statement builders' `Expr` or a model's columns.
+entity](24-registered-entities.md). `pipeline.col(model, field)` is a model's
+column, as Rust's is the entity's own `Column` variant: the field's column,
+qualified by the name the model is read under, written under its SQL name,
+which the SQL leaves unqualified where only one relation is read. It compares
+as the field's declared kind does. A value compared with it, in a comparison,
+`coalesce` or `inArray`, converts through the field's declaration as the
+model's own column converts one, so a label the declaration does not list, or
+`null`, is a `ConstructionError` before anything is sent, and the TypeScript
+declarations refuse both; and it is bound cast as Rust casts a value compared
+with an entity column of that kind, an enum's label to its enum:
 
-**Not available in JavaScript yet:** reading a declared model in a pipeline.
-Rust's `Pipeline::from` takes an entity, and its steps take the entity's
-columns, each compared as its column type says. JavaScript's pipeline takes a
-model's `table` and its columns' SQL names, and a column whose type needs a
-cast to be compared needs the cast written out, with `comparesAs`, as
-[Values from the program](#values-from-the-program) shows.
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError, pipeline as pl } from "@necessary/pgorm";
+
+const lemon = pl.from(Cake).filter(pl.col(Cake, "flavor").eq("lemon")).select(pl.col(Cake, "name"));
+assert.equal(lemon.inspect().sql, "SELECT name FROM cake WHERE flavor = CAST($1::text AS public.flavor)");
+assert.deepEqual((await lemon.all(pool)).map((row) => row.name), ["Lemon Drizzle"]);
+
+// @ts-expect-error: "banana" is not one of the flavor's labels
+assert.throws(() => pl.col(Cake, "flavor").eq("banana"), ConstructionError);
+```
+
+`pipeline.col(table, column)` writes a column of a relation no model
+describes, by the relation's name and the column's SQL name, and carries no
+type: the compiler has no catalog, so every column names its relation. A
+JavaScript pipeline's expressions are the namespace's own, its comparison
+methods standing where Rust's come from the `ExprOps` trait, and do not mix
+with the statement builders' `Expr` or a model's own columns.
 
 `pipeline.literal(value)` writes a constant into the SQL. That is the other
 way round from Rust, where a literal `true` is written into the SQL and a
@@ -83,13 +94,11 @@ plain object keyed by the names the SQL gives its columns:
 import assert from "node:assert/strict";
 import { pipeline as pl } from "@necessary/pgorm";
 
-const cake = (column: string) => pl.col("cake", column);
-
-const dearest = await pl.from(Cake.table)
-  .filter(cake("gluten_free").eq(pl.literal(true)))
-  .sort(cake("price").desc())
+const dearest = await pl.from(Cake)
+  .filter(pl.col(Cake, "glutenFree").eq(pl.literal(true)))
+  .sort(pl.col(Cake, "price").desc())
   .take(2)
-  .select(cake("name"), cake("price"))
+  .select(pl.col(Cake, "name"), pl.col(Cake, "price"))
   .all(pool);
 
 assert.deepEqual(
@@ -98,13 +107,54 @@ assert.deepEqual(
 );
 ```
 
-Rust decodes a pipeline's rows through `into_tuple` or `into_model`, by
-position or into a type of your choosing. JavaScript's rows are the plain
-rows every query gives, each value decoded by its column's type ([Values and
-types](13-values.md)), so a `numeric` reads as a `Decimal` and an enum as its
-label. A pipeline also runs through a pool's `query`, `one`, `optional` and
-`stream`, as any statement does, with their cardinality: there `one` wants
-exactly one row.
+The rows are the plain rows every query gives, each value decoded by its
+column's type ([Values and types](13-values.md)), so a `numeric` reads as a
+`Decimal` and an enum as its label. A pipeline also runs through a pool's
+`query`, `one`, `optional` and `stream`, as any statement does, with their
+cardinality: there `one` wants exactly one row.
+
+Rust decodes a pipeline's rows through `into_model` and `into_tuple`, into a
+type of your choosing or by position, and a JavaScript pipeline stages the
+same reads. `intoModel(model)` reads each row as a model's record, each field
+from the result column of its SQL name, the result's columns exactly the
+model's and each held to its declaration, as the model's own queries hold
+them. A column the model reads through a cast — a `money` column, a domain
+over an enum, a `selectAs` ([Values](13-values.md)) — is read cast, the
+pipeline ending in a projection of the model's columns, as Rust's ends in one
+for an entity's model; the pipeline's own `all`, `one` and `optional` read
+the columns as the server sends them, so such a model is read through
+`intoModel` or `selectSources`. Given a function instead, `intoModel` gives
+what the function makes of each row. `intoTuple()` reads each row as an array of its values in column order,
+by position, so a result with two columns of one name is read whole. Each
+gives a `PipelineSelector`, whose `all`, `one` and `optional` run as the
+pipeline's own do and whose `inspect(terminal)` shows what each sends;
+Rust's `all::<M>()` is `intoModel(M).all(db)`:
+
+```ts
+import assert from "node:assert/strict";
+import { pipeline as pl } from "@necessary/pgorm";
+
+const glutenFree = pl.from(Cake)
+  .filter(pl.col(Cake, "glutenFree").eq(pl.literal(true)))
+  .sort(pl.col(Cake, "price"));
+
+const cakes = await glutenFree.intoModel(Cake).all(pool);
+assert.deepEqual(cakes.map((cake) => [cake.name, cake.glutenFree]), [
+  ["Vanilla Sponge", true],
+  ["Lemon Drizzle", true],
+  ["Chocolate Torte", true],
+]);
+
+const priced = glutenFree.select(pl.col(Cake, "name"), pl.col(Cake, "price"));
+const label = await priced.intoModel((row) => `${row.name} at ${row.price}`).one(pool);
+assert.equal(label, "Vanilla Sponge at 2.90");
+const pairs = await priced.intoTuple().all(pool);
+assert.deepEqual(pairs.map(([name, price]) => [name, String(price)]), [
+  ["Vanilla Sponge", "2.90"],
+  ["Lemon Drizzle", "3.20"],
+  ["Chocolate Torte", "6.00"],
+]);
+```
 
 ## The steps
 
@@ -277,8 +327,10 @@ A column whose type needs a cast to be compared names that type with
 `comparesAs`: the column and each value beside it are then cast to it. A
 column over a domain whose base is an enum needs it, since PostgreSQL resolves
 no comparison for the domain, and so does a `money` column compared with a
-`Decimal`. Rust's pipeline takes the cast from the entity's column type; a
-JavaScript pipeline over a table has no column type to take it from:
+`Decimal`. Rust's pipeline takes the cast from the entity's column type, as a
+JavaScript pipeline takes it from a model's column, its `columnType` and
+`saveAs` included; `pipeline.col(table, column)` over a table has no column
+type to take it from:
 
 ```ts
 import assert from "node:assert/strict";
@@ -308,14 +360,12 @@ two tables is qualified as written:
 import assert from "node:assert/strict";
 import { pipeline as pl } from "@necessary/pgorm";
 
-const cake = (column: string) => pl.col("cake", column);
-const bakery = (column: string) => pl.col("bakery", column);
 const cakeName = pl.alias("cake");
 
-const inBergen = pl.from(Cake.table)
-  .join(Bakery.table, cake("bakery_id").eq(bakery("id")), { kind: "inner" })
-  .filter(bakery("city").eq(pl.literal("Bergen")))
-  .select(cake("name").as(cakeName), bakery("name"))
+const inBergen = pl.from(Cake)
+  .join(Bakery, pl.col(Cake, "bakeryId").eq(pl.col(Bakery, "id")), { kind: "inner" })
+  .filter(pl.col(Bakery, "city").eq(pl.literal("Bergen")))
+  .select(pl.col(Cake, "name").as(cakeName), pl.col(Bakery, "name"))
   .sort(cakeName);
 
 assert.equal(
@@ -332,36 +382,67 @@ assert.deepEqual(await inBergen.all(pool), [
 
 Rust ends a pipeline with `select_sources` to decode the relations it read as
 the entities themselves, each an `Option` of its model, because a right or
-full join can leave either side absent. In JavaScript, `selectSources` does
-that for a tuple of Rust entities an application
+full join can leave either side absent. `selectSources(...models)` does that
+for declared models, listing the relations the pipeline read: a model for one
+read under its table's name, the aliased model for one read under its alias.
+It projects each model's fields the way the model's own queries read them,
+every source under a prefix of its own, `s0_`, `s1_` and on, so two sources
+sharing a column name cannot meet. Each row is an array with one record per
+model listed, or `null` where the row has none of that model's columns; a
+model listed alone still gives a one-item array. A step that replaces the
+sources' own columns, such as `select` or an aggregation, leaves nothing to
+project per model, and is a `ConstructionError` before anything is sent.
+`selectSources` also takes a tuple of Rust entities an application
 [registered](24-registered-entities.md), its rows decoded into the entities'
 records.
 
-**Not available in JavaScript yet:** decoding a pipeline's rows into declared
-models' records. Rust's `select_sources` projects each listed entity's columns
-and decodes each as its model. JavaScript's `selectSources` takes only a
-source tuple an application registered from Rust, so a pipeline over declared
-models gives plain rows keyed by column name, as above.
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError, pipeline as pl } from "@necessary/pgorm";
+
+// A third bakery, which sells nothing yet.
+await Bakery.insert({ name: "Noon", city: "Tromsø" }).execute(pool);
+
+const menus = pl.from(Cake)
+  .join(Bakery, pl.col(Cake, "bakeryId").eq(pl.col(Bakery, "id")), { kind: "right" })
+  .filter(pl.col(Bakery, "city").ne("Oslo"))
+  .sort(pl.col(Bakery, "id"), pl.col(Cake, "id"))
+  .selectSources(Cake, Bakery);
+const rows = await menus.all(pool);
+assert.deepEqual(rows.map(([cake, bakery]) => [cake?.name ?? null, bakery?.name ?? null]), [
+  ["Carrot Cake", "Moonlight"],
+  ["Vanilla Sponge", "Moonlight"],
+  [null, "Noon"],
+]);
+
+const reshaped = pl.from(Cake).select(pl.col(Cake, "name")).selectSources(Cake);
+assert.throws(() => reshaped.inspect(), ConstructionError);
+```
+
+The [relational-read graph](07-relations.md) reads related models with types
+that say which side may be missing; `selectSources` is for the reads the
+graph does not make, such as a right join or models beside a computed column.
 
 ### A table meeting itself
 
 `pipeline.source(relation).named(name)` reads a relation under a name of your
 own, which is how a table is joined to itself. The name is then the relation's
-only name, and `pipeline.col(name, column)` writes its columns. The pairs of
-cakes sold by the same bakery:
+only name, and `pipeline.col(name, column)` writes its columns. A model read
+under an alias, `Cake.as("other")`, is the same relation under that name, its
+columns still typed by its fields, as Rust's `named` keeps an entity's. The
+pairs of cakes sold by the same bakery:
 
 ```ts
 import assert from "node:assert/strict";
 import { pipeline as pl } from "@necessary/pgorm";
 
-const cake = (column: string) => pl.col("cake", column);
-const other = (column: string) => pl.col("other", column);
+const Other = Cake.as("other");
 
-const pairs = pl.from(Cake.table)
-  .join(pl.source(Cake.table).named("other"), cake("bakery_id").eq(other("bakery_id")))
-  .filter(cake("id").lt(other("id")))
-  .sort(cake("id"), other("id"))
-  .select(cake("name").as(pl.alias("earlier")), other("name").as(pl.alias("later")));
+const pairs = pl.from(Cake)
+  .join(Other, pl.col(Cake, "bakeryId").eq(pl.col(Other, "bakeryId")))
+  .filter(pl.col(Cake, "id").lt(pl.col(Other, "id")))
+  .sort(pl.col(Cake, "id"), pl.col(Other, "id"))
+  .select(pl.col(Cake, "name").as(pl.alias("earlier")), pl.col(Other, "name").as(pl.alias("later")));
 
 assert.deepEqual(await pairs.all(pool), [
   { earlier: "Chocolate Fudge", later: "Lemon Drizzle" },
@@ -511,6 +592,57 @@ const names = (await everyone.all(pool)).map((row) => row.name).sort();
 assert.deepEqual(names, ["Kim", "Lee", "Moonlight", "Sunrise"]);
 ```
 
+A step after a combination reads the whole combined relation, as in Rust:
+the combination is written as a `WITH` query first and the step reads it, so
+`pl.from(Cake.table).append(Cake.table).select(pl.col("cake", "name"))`
+projects the rows of both operands, `WITH table_0 AS (SELECT * FROM cake
+UNION ALL SELECT * FROM cake) SELECT name FROM table_0`. A `distinct`
+directly after `append` still folds into `UNION DISTINCT`, as above.
+
+`intersect` keeps the rows both relations hold, and `remove` the rows of the
+first that the second does not, each row of the second cancelling one of the
+first. Like `append`, both combine whole rows by position, so neither operand
+needs a projection of its own, the operands may each read different columns
+first, and every step after them reads the combined relation, a `Table` read
+whole as much as a model. Sunrise's cakes that are not gluten-free, and those
+under 5.00:
+
+```ts
+import assert from "node:assert/strict";
+import { pipeline as pl } from "@necessary/pgorm";
+
+const cake = (column: string) => pl.col("cake", column);
+const sunrise = pl.from(Cake.table).filter(cake("bakery_id").eq(pl.literal(1)));
+
+const notGlutenFree = sunrise
+  .remove(pl.from(Cake.table).filter(cake("gluten_free").eq(pl.literal(true))))
+  .select(cake("name"));
+assert.equal(
+  notGlutenFree.inspect().sql,
+  "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 " +
+    "EXCEPT ALL SELECT * FROM cake WHERE gluten_free = true) SELECT name FROM table_1",
+);
+assert.deepEqual(await notGlutenFree.all(pool), [{ name: "Chocolate Fudge" }]);
+
+const affordable = sunrise
+  .intersect(pl.from(Cake.table).filter(cake("price").lt(pl.literal(5))))
+  .sort(cake("name"))
+  .select(cake("name"));
+assert.deepEqual(await affordable.all(pool), [
+  { name: "Chocolate Fudge" },
+  { name: "Lemon Drizzle" },
+]);
+```
+
+The operands correspond by position, so where both projections are written
+out a different number of columns is a `ConstructionError` before anything
+is sent, for all three; where an operand is a table read whole, its `*` is
+the server's to check. A column named against an operand's table still
+resolves after any of them. A chain reads in the order it is written:
+`a.append(b).intersect(c)` is `(a UNION ALL b) INTERSECT ALL c`, with the
+parentheses written in, and an operand that is itself a combination stays
+one operand.
+
 ## When a pipeline fails
 
 Building a pipeline cannot fail on what it will compile to: every method
@@ -544,7 +676,8 @@ A name no step introduced and no source describes is not caught here: the
 compiler has no catalog, so it takes the name as a column of the source, and
 the server answers for it when the statement runs, with a `DatabaseError`.
 
-**Not available in JavaScript yet:** compiling PRQL text. Rust's `prql!`
-macro compiles a PRQL query written out as text when the program is built
-([Raw SQL](10-raw-sql.md)); JavaScript composes PRQL only through this
-namespace's steps.
+A PRQL query written out whole as text compiles through the same compiler
+with `prql(text, values)`, the run-time counterpart of Rust's `prql!` macro,
+which holds its SQL to the grammar and its values to its placeholders
+([Raw SQL](10-raw-sql.md)). The pipeline is for a query assembled from parts;
+text is for one known whole.

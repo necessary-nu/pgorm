@@ -1,10 +1,14 @@
-from typing import Any
+from typing import Any, Literal
 from asyncio import CancelledError as CancelledError
 from ._schema import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
     schema_from_entity as schema_from_entity,
+    _model_schema as _model_schema, _model_table as _model_table, _renamed as _renamed,
+    _ModelColumnCasts as _ModelColumnCasts, _model_casts as _model_casts,
     MigrationFile as MigrationFile, migration_file as migration_file,
 )
+from ._migrations import SqlMigration as SqlMigration, _Migrations as _Migrations
+from ._codegen import _models_from_sql as _models_from_sql
 from ._schema_tables import (
     CreateTable as CreateTable, CreateIndex as CreateIndex,
     create_table as create_table, create_index as create_index, drop_table as drop_table,
@@ -52,13 +56,18 @@ from ._pipeline_functions import (
     pipeline_role as pipeline_role, pipeline_function as pipeline_function,
     pipeline_case as pipeline_case, pipeline_sources as pipeline_sources,
     pipeline_source_tuples as pipeline_source_tuples,
+    pipeline_model_col as pipeline_model_col, pipeline_tuples as pipeline_tuples,
 )
 
 __version__: str
 __pgorm_version__: str
+POSTGRES_TARGET: Literal[18, 19]
 
-class PgormError(Exception): ...
-class ConstructionError(PgormError): ...
+class PgormError(Exception):
+    is_retryable: bool
+class ConstructionError(PgormError):
+    parameter: int | None
+    reason: str | None
 class UnsupportedCapabilityError(ConstructionError): ...
 class ConnectionError(PgormError): ...
 class DatabaseError(PgormError):
@@ -77,12 +86,18 @@ class ForeignKeyViolationError(DatabaseError): ...
 class CheckViolationError(DatabaseError): ...
 class NotNullViolationError(DatabaseError): ...
 class ExclusionViolationError(DatabaseError): ...
-class DecodeError(PgormError): ...
+class DecodeError(PgormError):
+    reading: str | None
+    reason: str | None
+class RollbackFailedError(PgormError):
+    cause: BaseException | None
+    rollback: PgormError | None
 class TimeoutError(PgormError): ...
 class LifecycleError(PgormError): ...
 class InternalError(PgormError): ...
 
 def capabilities() -> dict[str, Any]: ...
+def _rollback_failed(cause: BaseException, rollback: BaseException) -> RollbackFailedError: ...
 def require_capability(operation: str) -> None: ...
 
 class TypeName:
@@ -129,7 +144,9 @@ from ._query_types import (
 from ._models import _model_result_names as _model_result_names, _model_count as _model_count
 from ._expressions import (
     Expr as Expr, _DeclaredColumn as _DeclaredColumn, Condition as Condition, col as col, bind as bind,
-    literal as literal, call as call, tuple_expr as tuple_expr, domain_value as domain_value,
+    literal as literal, call as call, func as func, template as template,
+    tuple_expr as tuple_expr, domain_value as domain_value, current_date as current_date,
+    current_time as current_time, current_timestamp as current_timestamp,
 )
 from ._statements import (
     GroupingElement as GroupingElement,
@@ -162,12 +179,17 @@ from ._json import (
     is_json as is_json, is_not_json as is_not_json,
 )
 from ._results import Record as Record, Field as Field
-from ._entities import Entity as Entity, EntityColumn as EntityColumn, EntityQuery as EntityQuery, entity as entity, entities as entities
+from ._entity_raw import EntityRawQuery as EntityRawQuery
+from ._entities import Entity as Entity, EntityQuery as EntityQuery, entity as entity, entities as entities
+from ._entity_columns import EntityColumn as EntityColumn
+from ._entity_reads import EntityRelation as EntityRelation, EntitySelection as EntitySelection, EntityPaginator as EntityPaginator, EntityCursor as EntityCursor, _RowDecoder as _RowDecoder
 from ._versions import (
-    Change as Change, Upserted as Upserted, EntityUpdate as EntityUpdate,
     EntityUpdateMany as EntityUpdateMany, EntityInsert as EntityInsert,
+    Change as Change, Upserted as Upserted, _change as _change, _inserted as _inserted,
+    _updated as _updated, EntityUpdate as EntityUpdate,
     EntityInsertMany as EntityInsertMany,
 )
+from ._entity_try_inserts import EntityTryInsert as EntityTryInsert, EntityTryInsertMany as EntityTryInsertMany
 from ._graphs import EntityGraph as EntityGraph, EntityGraphQuery as EntityGraphQuery, EntityGraphCursor as EntityGraphCursor, graph as graph, graphs as graphs
 from ._entity_models import EntityModel as EntityModel, ActiveModel as ActiveModel, ActiveValue as ActiveValue, ActiveState as ActiveState
 from ._disjoint import (
@@ -180,6 +202,8 @@ from ._one_of import (
 )
 from ._writes import (
     Insert as Insert, Update as Update, Delete as Delete, RawSQL as RawSQL,
+    sql as sql, prql as prql, _raw_select as _raw_select, _batch_execute as _batch_execute,
+    _describe as _describe,
     Conflict as Conflict, ConflictTarget as ConflictTarget, ConflictUpdate as ConflictUpdate,
 )
 from ._merge import (
@@ -190,14 +214,26 @@ from ._merge import (
 )
 from ._copy import (
     CopyFrom as CopyFrom, CopyTo as CopyTo, _CopyIn as _CopyIn, _CopyOut as _CopyOut,
-    _copy_in as _copy_in, _copy_out as _copy_out,
+    _copy_in as _copy_in, _copy_out as _copy_out, _copy_columns as _copy_columns,
 )
-from ._listen import Notification as Notification, _Listener as _Listener
+from ._copy_rows import (
+    CopyColumn as CopyColumn, CopyRowEncoder as CopyRowEncoder, CopyRowDecoder as CopyRowDecoder,
+)
+from ._listen import (
+    Notification as Notification, _Listener as _Listener, _connect_listener as _connect_listener,
+)
+from ._retrying import _Retrying as _Retrying
 from ._runtime import (
-    _Pool as _Pool, _Connection as _Connection, _Stream as _Stream,
-    _Transaction as _Transaction, STATEMENT_CACHE_CHANNEL as STATEMENT_CACHE_CHANNEL,
+    _Pool as _Pool, _PoolShape as _PoolShape, _HookConnection as _HookConnection,
+    _Connection as _Connection, _Stream as _Stream,
+    _Transaction as _Transaction,
+    STATEMENT_CACHE_CHANNEL as STATEMENT_CACHE_CHANNEL,
 )
 from ._from_items import (
     Table as Table, FromItem as FromItem, SampleMethod as SampleMethod,
     TableFunction as TableFunction,
+)
+from ._metrics import (
+    METRICS_HOOKS as METRICS_HOOKS, QueryContext as QueryContext,
+    QueryFingerprint as QueryFingerprint, _MetricsAnswer as _MetricsAnswer,
 )

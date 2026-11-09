@@ -39,7 +39,7 @@ const finished = await (await working.acquire()).transaction((transaction) =>
     await churn();
     const row = await running;
     await savepoint.execute("SELECT 1");
-    return `finished ${row.n} ${savepoint.parent.closed}`;
+    return `finished ${row.n} ${savepoint.parent?.closed}`;
   })
 );
 console.log(finished);

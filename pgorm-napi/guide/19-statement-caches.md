@@ -53,9 +53,10 @@ for (const [statementCacheSize, kept] of [[64, 1n], [0, 0n]] as const) {
 }
 ```
 
-Rust's `batch_execute` runs a script of several statements through the
-simple-query protocol, preparing nothing. JavaScript has no such method: each
-call runs one statement, prepared.
+`batchExecute` runs a script of several statements through the
+simple-query protocol, preparing nothing, as Rust's `batch_execute` does
+([Raw SQL](10-raw-sql.md)): nothing it runs is cached. Every other terminal
+runs one statement, prepared.
 
 ## When the server notices
 
@@ -153,9 +154,10 @@ await db.close();
 ```
 
 pgorm-migration's runner clears the caches of the pool it was given once a
-batch that applied a migration commits. JavaScript has no migration runner
-([Migrations](22-migrations.md)), so a program that changes such things
-itself calls `clearStatementCaches()` after.
+batch that applied a migration commits, so a program that migrates through
+`migrations(..).up` needs nothing more ([Migrations](22-migrations.md#statement-caches)).
+A program that changes such things with DDL of its own outside the runner
+calls `clearStatementCaches()` after.
 
 ## Clearing other processes' caches
 
@@ -231,5 +233,4 @@ assert.throws(() => new Pool(url, { statementCacheChannel: "" }), ConstructionEr
 assert.throws(() => new Pool(url, { statementCacheChannel: "c".repeat(64) }), ConstructionError);
 ```
 
-Rust's metrics layer does not see these clears, and JavaScript has no metrics
-layer ([Metrics](21-metrics.md)).
+The metrics layer does not see these clears ([Metrics](21-metrics.md)).

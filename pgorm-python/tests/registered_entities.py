@@ -8,7 +8,9 @@ import unittest
 import pgorm as p
 from pgorm import pipeline as pl
 from pgorm import schema as s
-from pgorm._registered.versions import InsertManyView, InsertView, UpdateManyView, UpdateView
+from pgorm._registered.versions import (
+    InsertManyView, InsertView, TryInsertManyView, TryInsertView, UpdateManyView, UpdateView,
+)
 
 
 class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
@@ -33,13 +35,14 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
     def active(self, identity, name="Nora"):
         return self.account.active().set("id", identity).set("display name", name)
 
-    # [spec:pgorm:req:bindings.entities+5/test]
+    # [spec:pgorm:req:bindings.entities+6/test]
     async def test_registration_declares_real_types_and_mapping(self):
         registrations = p.capabilities()["registrations"]["entities"]
         self.assertEqual([r["name"] for r in registrations],
-                         ["app.Account", "app.Auction", "app.Booking", "app.Label", "app.Listing", "app.Membership",
-                          "app.Note", "app.Old", "app.Pallet", "app.Parcel", "app.Room", "app.Sale",
-                          "app.Shipment", "app.Stay", "app.Temper", "app.Till"])
+                         ["app.Account", "app.AcmeTenantNote", "app.Auction", "app.Booking", "app.Label",
+                          "app.Listing", "app.Membership", "app.Note", "app.Old", "app.Pallet", "app.Parcel",
+                          "app.Room", "app.Sale", "app.Shipment", "app.Stay", "app.Temper", "app.TenantNote",
+                          "app.Till"])
         self.assertEqual(p.entities(), [r["name"] for r in registrations])
         info = self.account.describe()
         self.assertTrue(info["rust"]["entity"].endswith("account::Entity"))
@@ -57,7 +60,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             ("mood", 'enum "python_entities"."Mood"', ["calm", "busy"]),
         ])
         self.assertEqual(info["unique_keys"], [])
-        # [spec:pgorm:req:bindings.entities+5/test]    a registration's describe() reports the unique keys its entity's unique(..) declares, each its name, its columns by their SQL names in key order and nulls_not_distinct
+        # [spec:pgorm:req:bindings.entities+6/test]    a registration's describe() reports the unique keys its entity's unique(..) declares, each its name, its columns by their SQL names in key order and nulls_not_distinct
         self.assertEqual(
             p.entity("app.Label").describe()["unique_keys"],
             [{"name": "labels_text_parcel", "columns": ["text", "parcel_id"], "nulls_not_distinct": True}],
@@ -75,6 +78,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             "insert.execute", "insert.returning_pk", "insert.returning_model", "insert.returning_upsert",
             "insert_many.execute", "insert_many.returning_pks", "insert_many.returning_models",
             "insert_many.returning_upserts",
+            "try_insert.execute", "try_insert.returning_pk", "try_insert.returning_model",
+            "try_insert_many.execute", "try_insert_many.returning_pks", "try_insert_many.returning_models",
         ]
         operations = p.capabilities()["operations"]
         self.assertEqual([t for t in terminals if "entity." + t not in operations], [])
@@ -83,22 +88,53 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             "": self.account.find(), "active": active, "update": self.account.update(active),
             "update_many": self.account.update_many(), "insert": self.account.insert(active),
             "insert_many": self.account.insert_many([active]),
+            "try_insert": self.account.insert(active).on_conflict_do_nothing(),
+            "try_insert_many": self.account.insert_many([active]).on_empty_do_nothing(),
         }
         for terminal in terminals:
             owner, _, method = terminal.rpartition(".")
             with self.subTest(terminal=terminal):
                 self.assertTrue(callable(getattr(owners[owner], method)))
 
-    # [spec:pgorm:req:python.truth-testing+4/test]
+    # [spec:pgorm:req:python.truth-testing+5/test]
     async def test_write_terminals_refuse_truth_testing(self):
         active = self.active(1)
         writes = [self.account.update(active), self.account.update_many(),
-                  self.account.insert(active), self.account.insert_many([active])]
+                  self.account.insert(active), self.account.insert_many([active]),
+                  self.account.insert(active).on_conflict_do_nothing(),
+                  self.account.insert_many([active]).on_empty_do_nothing()]
         typed = [view(write, dict) for view, write in zip(
-            (UpdateView, UpdateManyView, InsertView, InsertManyView), writes)]
+            (UpdateView, UpdateManyView, InsertView, InsertManyView, TryInsertView, TryInsertManyView), writes)]
         for write in writes + typed:
             with self.subTest(write=type(write).__name__), self.assertRaises(p.ConstructionError):
                 bool(write)
+
+    # [spec:pgorm:req:bindings.entities+6/test]    an entity whose names are computed at run time,
+    # registered once per tenant: each registration reads and writes its own tenant's table
+    async def test_registered_instances_name_their_own_tables(self):
+        await self.pool.execute(p.RawSQL('CREATE SCHEMA python_acme'))
+        try:
+            await self.pool.execute(p.RawSQL('CREATE TABLE python_entities.tenant_notes (id integer PRIMARY KEY, body text NOT NULL)'))
+            await self.pool.execute(p.RawSQL('CREATE TABLE python_acme.tenant_notes (id integer PRIMARY KEY, body text NOT NULL)'))
+            default, acme = p.entity("app.TenantNote"), p.entity("app.AcmeTenantNote")
+            self.assertEqual((default.describe()["schema"], default.describe()["table"]), ("python_entities", "tenant_notes"))
+            self.assertEqual((acme.describe()["schema"], acme.describe()["table"]), ("python_acme", "tenant_notes"))
+            self.assertIn('FROM "python_acme"."tenant_notes"', acme.find().inspect().sql)
+            async with self.pool.connection() as connection:
+                await default.active().set("id", 1).set("body", "default").insert(connection)
+                written = await acme.active().set("id", 1).set("body", "acme").insert(connection)
+                self.assertEqual(dict(written), {"id": 1, "body": "acme"})
+                self.assertEqual([dict(row) for row in await acme.find().all(connection)], [{"id": 1, "body": "acme"}])
+                self.assertEqual([dict(row) for row in await default.find().all(connection)], [{"id": 1, "body": "default"}])
+                row = await connection.one(p.RawSQL("SELECT body FROM python_acme.tenant_notes WHERE id = 1"))
+                self.assertEqual(row["body"], "acme")
+                renamed = await written.into_active().set("body", "acme, again").update(connection)
+                self.assertEqual(renamed["body"], "acme, again")
+                self.assertEqual(await renamed.into_active().delete(connection), 1)
+                self.assertEqual(await acme.find().all(connection), [])
+                self.assertEqual(len(await default.find().all(connection)), 1)
+        finally:
+            await self.pool.execute(p.RawSQL('DROP SCHEMA python_acme CASCADE'))
 
     # [spec:pgorm:req:bindings.entity-writes+1/test]
     async def test_active_values_and_hooks_use_rust_states(self):
@@ -117,6 +153,17 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             loaded = model.into_active()
             self.assertEqual(loaded.get("id").state, p.ActiveState.Unchanged)
             self.assertEqual(loaded.get("note").state, p.ActiveState.Unchanged)
+            # [spec:pgorm:req:bindings.entity-active-changes/test]    set_if_not_equals sets only a different value
+            self.assertFalse(loaded.is_changed())
+            same = loaded.set_if_not_equals("display name", "Nora|before").set_if_not_equals("mood", "busy")
+            self.assertEqual(same.get("display name").state, p.ActiveState.Unchanged)
+            self.assertFalse(same.is_changed())
+            other = loaded.set_if_not_equals("display name", "Nell")
+            self.assertEqual(other.get("display name").state, p.ActiveState.Set)
+            self.assertTrue(other.is_changed())
+            self.assertFalse(loaded.is_changed())
+            with self.assertRaises(p.ConstructionError):
+                loaded.set_if_not_equals("version", "one")
             changed = loaded.set("display name", "Updated").not_set("note")
             updated = await changed.update(connection)
             self.assertEqual(updated["version"], 2)
@@ -202,7 +249,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             booking.active().set("spares", p.Value.array(p.CreatedRange("floatrange", "f64"), []))
 
-    # [spec:pgorm:req:bindings.entity-reads+3/test]
+    # [spec:pgorm:req:bindings.entity-reads+4/test]
     # [spec:pgorm:req:bindings.column-operators+3/test]    a registered column is its own expression,
     # every Expr method reading it as written, and describes nothing itself
     async def test_typed_select_reuses_real_entity_projection(self):
@@ -233,7 +280,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertNotEqual(query.inspect().sql, query.inspect(terminal="one").sql)
             self.assertEqual(query.inspect().params[0].kind, "i32")
 
-    # [spec:pgorm:req:bindings.entity-reads+3/test]    a registered column is a member of values and of
+    # [spec:pgorm:req:bindings.entity-reads+4/test]    a registered column is a member of values and of
     # a Select's rows through its ColumnTrait, a column whose domain is over an enum as the enum,
     # where the column's plain expression is refused with 42883
     async def test_column_membership_runs_through_column_trait(self):
@@ -266,7 +313,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             mood.is_in("busy")
 
-    # [spec:pgorm:req:bindings.entity-reads+3/test]    a registered column compares with an expression, or
+    # [spec:pgorm:req:bindings.entity-reads+4/test]    a registered column compares with an expression, or
     # any_(..) / all_(..) over one, as written, and a list holding an expression is a member as written
     async def test_expression_operands_compare_as_written(self):
         identifier, version = self.account.col("id"), self.account.col("version")
@@ -295,7 +342,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await ids(identifier.is_in([p.literal(1), 3])), [1, 3])
             self.assertEqual(await ids(identifier.is_not_in((version, 3))), [2])
 
-    # [spec:pgorm:req:bindings.entities+5/test]    a money column, and an array of it, is a decimal
+    # [spec:pgorm:req:bindings.entities+6/test]    a money column, and an array of it, is a decimal
     # column: described as one, set, compared and read back as a Decimal through the entity's own
     # casts, and compared as money by a pipeline that reads the registered column, where the column
     # named by text takes no Decimal
@@ -391,10 +438,10 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             takings.eq(None)
 
-    # [spec:pgorm:req:bindings.entity-reads+3/test]    any_(..) / all_(..) over a list compares through the
+    # [spec:pgorm:req:bindings.entity-reads+4/test]    any_(..) / all_(..) over a list compares through the
     # column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
     # a column whose domain is over an enum as the enum, where the plain expression is refused
-    # [spec:pgorm:req:bindings.quantifiers+3/test]    an empty list is typed by the registered column, = ANY
+    # [spec:pgorm:req:bindings.quantifiers+4/test]    an empty list is typed by the registered column, = ANY
     # of it false and <> ALL true, and refused as it is used where no registered column types it
     async def test_quantified_lists_take_the_column_casts(self):
         await self.pool.execute(p.RawSQL(
@@ -466,7 +513,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             span.contains(1.7)
 
-    # [spec:pgorm:req:bindings.errors+5/test]    a column the entity cannot read as its field's type is a
+    # [spec:pgorm:req:bindings.errors+6/test]    a column the entity cannot read as its field's type is a
     # DecodeError naming what the driver was reading and the decoder's reason, as JavaScript reports it
     async def test_decode_refusal_names_column_and_reason(self):
         await self.pool.execute(p.RawSQL(
@@ -479,8 +526,34 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             "error deserializing column 1: "
             "cannot convert between the Rust type `i32` and the Postgres type `text`",
         )
+        # [spec:pgorm:req:bindings.refusal-fields/test]    what the driver was reading and why, as fields
+        self.assertEqual(refused.exception.reading, "error deserializing column 1")
+        self.assertEqual(
+            refused.exception.reason,
+            "cannot convert between the Rust type `i32` and the Postgres type `text`",
+        )
 
-    # [spec:pgorm:req:bindings.entity-reads+3/test]
+    # [spec:pgorm:req:bindings.raw-models/test]    a registration's models from a raw statement, as Select::from_raw_sql
+    async def test_raw_statements_decode_into_registered_models(self):
+        await self.pool.execute(p.RawSQL(
+            "INSERT INTO python_entities.notes VALUES (1, 7, 'one'), (2, 7, 'two'), (3, 8, 'three')"))
+        query = self.note.find().from_raw_sql(p.RawSQL(
+            "SELECT * FROM python_entities.notes WHERE account_id = $1 ORDER BY id", [7]))
+        self.assertEqual([model["body"] for model in await query.all(self.pool)], ["one", "two"])
+        self.assertEqual(query.inspect().sql, "SELECT * FROM python_entities.notes WHERE account_id = $1 ORDER BY id")
+        one = await self.note.find().from_raw_sql(p.RawSQL(
+            "SELECT * FROM python_entities.notes WHERE id = 3")).one(self.pool)
+        self.assertEqual(one["account_id"], 8)
+        self.assertIsNone(await self.note.find().from_raw_sql(p.RawSQL(
+            "SELECT * FROM python_entities.notes WHERE id = 9")).optional(self.pool))
+        with self.assertRaises(p.DecodeError):
+            await self.note.find().from_raw_sql(p.RawSQL(
+                "SELECT id, body FROM python_entities.notes")).all(self.pool)
+        # [spec:pgorm:req:python.truth-testing+5/test]    a raw read refuses truth testing as a query does
+        with self.assertRaises(p.ConstructionError):
+            bool(query)
+
+    # [spec:pgorm:req:bindings.entity-reads+4/test]
     async def test_one_never_widens_a_zero_limit(self):
         async with self.pool.connection() as connection:
             await self.active(1).insert(connection)
@@ -591,8 +664,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 await after.into_active().delete(connection)
             self.assertIsNone(await self.account.find().where(self.account.col("id") == 98).optional(connection))
 
-    # [spec:pgorm:req:bindings.entity-reads+3/test]
-    # [spec:pgorm:req:bindings.errors+5/test]
+    # [spec:pgorm:req:bindings.entity-reads+4/test]
+    # [spec:pgorm:req:bindings.errors+6/test]
     async def test_decode_failure_does_not_become_absence(self):
         async with self.pool.connection() as connection:
             await self.active(1).insert(connection)
@@ -600,14 +673,14 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.DecodeError):
                 await self.account.find().optional(connection)
 
-    # [spec:pgorm:req:bindings.errors+5/test]
+    # [spec:pgorm:req:bindings.errors+6/test]
     async def test_parameter_failure_preserves_connection(self):
         async with self.pool.connection() as connection:
             with self.assertRaises(p.ConstructionError):
                 await connection.one(p.RawSQL("SELECT $1::integer AS n", [p.Value("text", "text")]))
             self.assertTrue(await connection.ping())
 
-    # [spec:pgorm:req:bindings.entities+5/test]
+    # [spec:pgorm:req:bindings.entities+6/test]
     # [spec:pgorm:req:bindings.cancellation/test]
     async def test_cancellation_interrupts_an_active_rust_hook(self):
         async with self.pool.connection() as connection:

@@ -39,7 +39,7 @@ where
 // [spec:pgorm:sem:exec.crud.insert+6/test]    the primary key comes from the
 // RETURNING row in every case, including the client-supplied-key one that used
 // to be answered from a cached tuple
-// [spec:pgorm:sem:query.build.insert+5/test]    which is why the builder caches
+// [spec:pgorm:sem:query.build.insert+6/test]    which is why the builder caches
 // no primary key to answer from
 #[pgorm_macros::test]
 async fn manual_key_comes_from_returning() -> Result<(), Error> {

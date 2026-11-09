@@ -6,8 +6,8 @@ use crate::{
 };
 use async_trait::async_trait;
 use pgorm_query::{
-    AliasName, ColumnRef, Expr, FromItem, IntoColumnRef, Name, NamedTable, SimpleExpr, TableName,
-    TypeName, ValueTuple, alias,
+    AliasName, ColumnRef, Expr, ExprTrait, FromItem, IntoColumnRef, Name, NamedTable, SimpleExpr,
+    TableName, TypeName, ValueTuple, alias,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -402,7 +402,7 @@ where
 fn root_graph<R: EntityTrait>(select: Select<R>) -> SelectGraph<R, ()> {
     let mut query = select.into_query();
     query.clear_selects();
-    SelectGraph::rooted(query)
+    SelectGraph::rooted(query, R::default().table_ref())
 }
 
 fn key_columns(identity: &Key) -> String {

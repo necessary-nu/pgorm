@@ -12,23 +12,25 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.pipeline]
+// [spec:pgorm:req:bindings.pipeline+1]
 // [spec:pgorm:req:bindings.pipeline-terminals]
 
-import type { Builder, BindValue, Compiled } from "./expressions.d.ts";
+import type { Builder, BindValue, Compiled, Expr } from "./expressions.d.ts";
 import type { Table } from "./select.d.ts";
 import type { Entity, EntityColumn, EntityRecord, SourceRegistrations } from "./entities.d.ts";
 import type { OperationOptions, Queryable, QueryOptions, RowFor, TypeName } from "./index.d.ts";
+import type { Columns, FieldOf, FieldOperand, Model, Row, RowOf } from "./models.d.ts";
 
 /** An operand: a pipeline expression, or a value the stage that takes it binds. */
 export type PipelineOperand = PipelineExpr | BindValue;
 
 /**
  * A relation a pipeline reads: a table, read under its alias when it has one,
- * a table's name, a pipeline, a named source, or a registered entity's table,
+ * a table's name, a pipeline, a named source, a declared model's table, read
+ * under the model's alias when it has one, or a registered entity's table,
  * its schema from the registration.
  */
-export type SourceInput = Table | string | Pipeline | Source | Entity<any>;
+export type SourceInput = Table | string | Pipeline | Source | Model<any> | Entity<any>;
 
 /** A name a stage introduces or a column has: an identifier, or an {@link alias}. */
 export type PipelineName = string | PipelineExpr;
@@ -96,6 +98,38 @@ export declare class PipelineExpr {
   as(name: PipelineName): PipelineExpr;
 }
 
+/**
+ * A declared model's column in a pipeline. A value its comparisons,
+ * `coalesce` and `inArray` take converts through the field's declaration,
+ * `I`, as the model column's own comparisons convert one, and binds cast as
+ * an entity column of its kind casts one: an enum's label to its enum. A
+ * pipeline expression is taken as written; `null` is a `ConstructionError`,
+ * since a comparison with it is never true. What an operator makes of the
+ * column is a plain {@link PipelineExpr}.
+ */
+export interface PipelineColumn<I extends BindValue = BindValue> extends PipelineExpr {
+  eq(other: I | PipelineExpr): PipelineExpr;
+  ne(other: I | PipelineExpr): PipelineExpr;
+  gt(other: I | PipelineExpr): PipelineExpr;
+  gte(other: I | PipelineExpr): PipelineExpr;
+  lt(other: I | PipelineExpr): PipelineExpr;
+  lte(other: I | PipelineExpr): PipelineExpr;
+  coalesce(other: I | PipelineExpr): PipelineExpr;
+  inArray(values: readonly (I | PipelineExpr)[]): PipelineExpr;
+}
+
+/** What field `F` of columns `C` is compared with in a pipeline: a value of its kind, never a statement builder's expression. */
+export type PipelineFieldOperand<C extends Columns, F extends keyof C> = Exclude<FieldOperand<C[F]>, Expr>;
+
+/**
+ * Field `field` of a declared model: the column its declaration names,
+ * qualified by the model's alias or its table's name, compared as its
+ * declared kind.
+ */
+export declare function col<C extends Columns, F extends FieldOf<C>>(
+  model: Model<C>,
+  field: F,
+): PipelineColumn<PipelineFieldOperand<C, F>>;
 /**
  * A column of the relation `table` names: prqlc has no catalog, so every
  * column is qualified. A registered entity's column is the entity's own,
@@ -221,10 +255,11 @@ export declare class Pipeline extends Builder {
   takeRange(start: number | bigint, end: number | bigint): Pipeline;
   join(source: SourceInput, on: PipelineOperand, options?: { readonly kind?: JoinKind }): Pipeline;
   joinWith(source: SourceInput, fn: BinderScalar, options?: { readonly kind?: JoinKind }): Pipeline;
-  /** `UNION ALL` with another relation of the same columns. */
+  /** `UNION ALL` with another relation, its columns matched by position. */
   append(source: SourceInput): Pipeline;
+  /** The rows both relations hold, each as many times as both hold it: `INTERSECT ALL`. */
   intersect(source: SourceInput): Pipeline;
-  /** The rows the other relation does not have: `EXCEPT`. */
+  /** The rows the other relation does not cancel, each of its rows cancelling one: `EXCEPT ALL`. */
   remove(source: SourceInput): Pipeline;
   distinct(): Pipeline;
   /**
@@ -236,6 +271,36 @@ export declare class Pipeline extends Builder {
     selection: SourceSelection<Row>,
     options?: { readonly qualifiers?: readonly string[] },
   ): SelectedSources<Row>;
+  /**
+   * The last stage: declared models, each restating a relation the pipeline
+   * read — a model for one read under its table's name, an aliased model for
+   * one read under that name — every row a tuple of one record per model,
+   * `null` where a join left that model's side absent. A pipeline reshaped
+   * before the selection is a `ConstructionError`.
+   */
+  selectSources<const M extends readonly [Model<any>, ...Model<any>[]]>(
+    ...models: M
+  ): PipelineSelector<{ -readonly [K in keyof M]: RowOf<M[K]> | null }>;
+  /** The rows read as a declared model's records, each field from the result column of its SQL name, as Rust's `into_model::<M>` reads them. */
+  intoModel<C extends Columns>(model: Model<C>): PipelineSelector<Row<C>>;
+  /** The rows read as what `fn` makes of each row's record. */
+  intoModel<T>(fn: (row: Record<string, unknown>) => T): PipelineSelector<T>;
+  /** The rows read by position, each an array of its values in column order, as Rust's `into_tuple` reads them. */
+  intoTuple(): PipelineSelector<unknown[]>;
+}
+
+/**
+ * A pipeline's rows staged for one shape of read, by `selectSources` over
+ * models, `intoModel` or `intoTuple`. `one` and `optional` take one row
+ * before the read's projection, as the pipeline's own do.
+ */
+export declare class PipelineSelector<R> {
+  private constructor();
+  inspect(terminal?: "all" | "one" | "optional"): Compiled;
+  all(db: Queryable, options?: OperationOptions): Promise<R[]>;
+  /** Exactly one row; none is a `DecodeError`. */
+  one(db: Queryable, options?: OperationOptions): Promise<R>;
+  optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
 }
 
 /** The names `sources` takes: any string, until a generated module lists them. */

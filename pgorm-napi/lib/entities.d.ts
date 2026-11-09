@@ -6,12 +6,12 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 
 import type { Compiled, ComparisonOperand, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Conflict, ConflictUpdate } from "./writes.d.ts";
-import type { Change, Upserted } from "./models.d.ts";
-import type { Multirange, OperationOptions, PlainValue, Queryable, Range, Value } from "./index.d.ts";
+import type { Change, TryInsertResult, Upserted } from "./models.d.ts";
+import type { Connection, Multirange, OperationOptions, PlainValue, Pool, Queryable, Range, Row, RowStream, Value } from "./index.d.ts";
 
 /** A registered entity's record when no generated module types it: its values by SQL column name. */
 export type EntityRecord = { readonly [column: string]: PlainValue };
@@ -181,6 +181,8 @@ export declare class Entity<T extends EntityTypes<any, any> = EntityTypes> {
   col<C extends EntityColumnName<T>>(column: C): EntityColumn<ColumnOperand<T, C>>;
   /** `E::find()`. */
   find(): EntityQuery<EntityRecordOf<T>>;
+  /** The relation the entity's `Relation` enum declares under `name`, for a query to join. */
+  relation(name: string): EntityRelation;
   /** An ActiveModel from `ActiveModelBehavior::new`, its defaults included. */
   active(): ActiveModel<T>;
   /** The record's ActiveModel by the real `IntoActiveModel`, every column `unchanged`. */
@@ -208,14 +210,73 @@ export declare class EntityQuery<R = EntityRecord> {
   /** `null` removes it. */
   limit(count: number | null): EntityQuery<R>;
   offset(count: number | null): EntityQuery<R>;
-  /** The SQL and values a terminal sends, `one` and `optional` with the limit Rust narrows to one row. */
-  inspect(terminal?: "all" | "one" | "optional"): Compiled;
+  /** The SQL and values a terminal sends, `one` and `optional` with the limit Rust narrows to one row, `count` the paginator's count. */
+  inspect(terminal?: "all" | "one" | "optional" | "count"): Compiled;
   /** Every row, by `Select::all`. */
   all(db: Queryable, options?: OperationOptions): Promise<R[]>;
   /** The first row, by `Select::one`; none is a {@link DecodeError}. */
   one(db: Queryable, options?: OperationOptions): Promise<R>;
   /** The first row, or `null`, by `Select::one_opt`. */
   optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
+  /** The relation's far end joined, by `QuerySelect::join`; the rows stay this entity's records. */
+  join(relation: EntityRelation, options?: { readonly kind?: "inner" | "left" | "right" | "full" }): EntityQuery<R>;
+  /** The query projected onto `columns`, by `select_only` and `columns`, read as plain records. */
+  select(...columns: string[]): EntitySelection;
+  /** How many rows the query reads, its limit, offset and ordering aside, by `PaginatorTrait::count`. */
+  count(db: Queryable, options?: OperationOptions): Promise<number>;
+  paginate(pageSize: number): EntityPaginator<R>;
+  /** A keyset cursor ordered by `columns`, by `Select::cursor_by`. */
+  cursor(...columns: string[]): EntityCursor<R>;
+  /** The records one per pull, as `Select::stream` decodes each row. */
+  stream(db: Pool | Connection, options?: OperationOptions): RowStream<R>;
+}
+
+/** A relation a registered entity's `Relation` enum declares, by its variant's name. */
+export declare class EntityRelation {
+  private constructor();
+  readonly entityName: string;
+  readonly name: string;
+}
+
+/** A registered query projected onto some of its columns: each row a plain record of those columns. */
+export declare class EntitySelection {
+  private constructor();
+  readonly columns: readonly string[];
+  inspect(terminal?: "all" | "one" | "optional"): Compiled;
+  all(db: Queryable, options?: OperationOptions): Promise<Row[]>;
+  /** The first row of the selection narrowed to one; none is a {@link DecodeError}. */
+  one(db: Queryable, options?: OperationOptions): Promise<Row>;
+  optional(db: Queryable, options?: OperationOptions): Promise<Row | null>;
+  stream(db: Pool | Connection, options?: OperationOptions): RowStream;
+}
+
+/** A registered read's pages, Rust's `Paginator`, holding no database and no current page. */
+export declare class EntityPaginator<R = EntityRecord> {
+  private constructor();
+  /** Page `page`, numbered from zero, by `Paginator::fetch_page`. */
+  fetchPage(db: Queryable, page: number, options?: OperationOptions): Promise<R[]>;
+  numItems(db: Queryable, options?: OperationOptions): Promise<number>;
+  numPages(db: Queryable, options?: OperationOptions): Promise<number>;
+  numItemsAndPages(db: Queryable, options?: OperationOptions): Promise<{ readonly items: number; readonly pages: number }>;
+  /** Each page in turn from the first, ending at the first empty one. */
+  pages(db: Queryable, options?: OperationOptions): AsyncGenerator<R[], void, undefined>;
+  /** The statement reading page `page`, or with `"count"` the one counting the rows. */
+  inspect(page: number | "count"): Compiled;
+}
+
+/** A registered read's keyset cursor. Every method returns a new cursor. */
+export declare class EntityCursor<R = EntityRecord> {
+  protected constructor();
+  /** Short of the row whose order-column values these are. */
+  before(...values: unknown[]): this;
+  after(...values: unknown[]): this;
+  first(rows: number): this;
+  last(rows: number): this;
+  asc(): this;
+  desc(): this;
+  /** The statement `all` sends, `Cursor::statement`. */
+  inspect(): Compiled;
+  all(db: Queryable, options?: OperationOptions): Promise<R[]>;
 }
 
 /** An ActiveModel column's state, and its value unless it is `notSet`. */
@@ -235,6 +296,14 @@ export declare class ActiveModel<T extends EntityTypes<any, any> = EntityTypes> 
   get<C extends EntityColumnName<T>>(column: C): ActiveState<EntityRecordOf<T>[C]>;
   /** The column `set` to a value converted to its declared kind. */
   set<C extends EntityColumnName<T>>(column: C, value: EntityInputOf<T, C> | Value): ActiveModel<T>;
+  /**
+   * The column `set` to a value unless it holds that value unchanged, as
+   * pgorm's `set_if_not_equals` sets it, so {@link isChanged} then says
+   * whether there is anything to write.
+   */
+  setIfNotEquals<C extends EntityColumnName<T>>(column: C, value: EntityInputOf<T, C> | Value): ActiveModel<T>;
+  /** Whether any column is set, `ActiveModelTrait::is_changed`. */
+  isChanged(): boolean;
   notSet(column: EntityColumnName<T>): ActiveModel<T>;
   /** The column back to `unchanged`, if it held a value. */
   reset(column: EntityColumnName<T>): ActiveModel<T>;
@@ -274,6 +343,10 @@ export type EntityKey = PlainValue | readonly PlainValue[];
 export declare class EntityInsert<T extends EntityTypes<any, any> = EntityTypes> {
   private constructor();
   onConflict(action: Conflict | ConflictUpdate): EntityInsert<T>;
+  /** `DO NOTHING` on the primary key's columns, or on any key for an entity with none; the try-insert answers `conflicted` where it wrote no row. */
+  onConflictDoNothing(): EntityTryInsert<T>;
+  /** A try-insert keeping this insert's conflict clause, answering `empty`, nothing sent, for an ActiveModel that sets no column. */
+  onEmptyDoNothing(): EntityTryInsert<T>;
   /** A batch of its ActiveModel and `active`, as `Insert::add` makes one. */
   add(active: ActiveModel<T>): EntityInsertMany<T>;
   /** A batch of its ActiveModel and `actives`, as `Insert::add_many` makes one. */
@@ -292,6 +365,10 @@ export declare class EntityInsert<T extends EntityTypes<any, any> = EntityTypes>
 export declare class EntityInsertMany<T extends EntityTypes<any, any> = EntityTypes> {
   private constructor();
   onConflict(action: Conflict | ConflictUpdate): EntityInsertMany<T>;
+  /** `DO NOTHING` on the primary key's columns, or on any key for an entity with none; the try-insert answers `conflicted` where it wrote no row. */
+  onConflictDoNothing(): EntityTryInsertMany<T>;
+  /** A try-insert keeping this batch's conflict clause, answering `empty`, nothing sent, for a batch of none. */
+  onEmptyDoNothing(): EntityTryInsertMany<T>;
   /** The batch with `active` after its own, as `Insert::add` adds one. */
   add(active: ActiveModel<T>): EntityInsertMany<T>;
   /** The batch with `actives` after its own, as `Insert::add_many` adds them. */
@@ -304,6 +381,40 @@ export declare class EntityInsertMany<T extends EntityTypes<any, any> = EntityTy
   returningModels(db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>[]>;
   /** What the insert did with each row it wrote, by `exec_returning_upserts`; a row its conflict clause held back is left out. */
   returningUpserts(db: Queryable, options?: OperationOptions): Promise<Upserted<EntityRecordOf<T>>[]>;
+}
+
+/** An insert of one ActiveModel that may write nothing, `TryInsert<A, OneRow>`, answering as `TryInsertResult` does. */
+export declare class EntityTryInsert<T extends EntityTypes<any, any> = EntityTypes> {
+  private constructor();
+  /** The conflict clause in place of the one it had, as `TryInsert::on_conflict` sets it. */
+  onConflict(action: Conflict | ConflictUpdate): EntityTryInsert<T>;
+  /** The try-insert of its ActiveModel and then `active`, its conflict clause kept, as `TryInsert::add` makes it. */
+  add(active: ActiveModel<T>): EntityTryInsertMany<T>;
+  /** The try-insert of its ActiveModel and then `actives`, its conflict clause kept, as `TryInsert::add_many` makes it. */
+  addMany(actives: readonly ActiveModel<T>[]): EntityTryInsertMany<T>;
+  /** The rows written, by `TryInsert::exec`: `conflicted` when its conflict clause wrote none, `empty` when its ActiveModel sets nothing. */
+  execute(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<number>>;
+  /** The written row's key, by `TryInsert::exec_returning_pk`. */
+  returningPk(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<EntityKey>>;
+  /** The written row's record, by `TryInsert::exec_returning_model`. */
+  returningModel(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<EntityRecordOf<T>>>;
+}
+
+/** An insert of ActiveModels that may write nothing, `TryInsert<A, ManyRows>`, answering as `TryInsertResult` does. */
+export declare class EntityTryInsertMany<T extends EntityTypes<any, any> = EntityTypes> {
+  private constructor();
+  /** The conflict clause in place of the one it had, as `TryInsert::on_conflict` sets it. */
+  onConflict(action: Conflict | ConflictUpdate): EntityTryInsertMany<T>;
+  /** The try-insert with `active` after its own rows, its conflict clause kept, as `TryInsert::add` adds it. */
+  add(active: ActiveModel<T>): EntityTryInsertMany<T>;
+  /** The try-insert with `actives` after its own rows, its conflict clause kept, as `TryInsert::add_many` adds them. */
+  addMany(actives: readonly ActiveModel<T>[]): EntityTryInsertMany<T>;
+  /** The rows written, by `TryInsert::exec`: `conflicted` when its conflict clause wrote none, `empty` for a batch of none. */
+  execute(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<number>>;
+  /** Each written row's key in the order written, by `TryInsert::exec_returning_pks`. */
+  returningPks(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<EntityKey[]>>;
+  /** Each written row's record in the order written, by `TryInsert::exec_returning_models`. */
+  returningModels(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<EntityRecordOf<T>[]>>;
 }
 
 /** The names of the graph shapes this module registers. */
@@ -336,27 +447,29 @@ export declare class EntityGraphQuery<Row = EntityRecord | (EntityRecord | null)
   orderBy(...orderings: OrderBy[]): EntityGraphQuery<Row>;
   /** A column of decoded source `source` — 0 the root, i the i-th slot — qualified as the query names it. */
   col(source: number, column: string): Expr;
-  inspect(terminal?: "all" | "optional"): Compiled;
+  inspect(terminal?: "all" | "optional" | "count"): Compiled;
   all(db: Queryable, options?: OperationOptions): Promise<Row[]>;
   /** The first row or `null`: no row, apart from a row whose optional slot is absent. */
   optional(db: Queryable, options?: OperationOptions): Promise<Row | null>;
-  /** A keyset cursor ordered by a root column, every source's primary key after it. */
-  cursor(column: string): EntityGraphCursor<Row>;
+  /** A keyset cursor ordered by root columns, every source's primary key after them. */
+  cursor(...columns: string[]): EntityGraphCursor<Row>;
+  /** A keyset cursor ordered by columns of decoded source `source`, the first slot 1, by `cursor_by_on`. */
+  cursorOn(source: number, ...columns: string[]): EntityGraphCursor<Row>;
+  /** How many rows the graph reads, by `PaginatorTrait::count`. */
+  count(db: Queryable, options?: OperationOptions): Promise<number>;
+  /** Pages whose boundaries fall between rows of the join, not between roots. */
+  paginate(pageSize: number): EntityPaginator<Row>;
+  /** Each root with its one `Opt` slot's records, by `all_grouped`; any other shape is refused. */
+  allGrouped(db: Queryable, options?: OperationOptions): Promise<[EntityRecord, EntityRecord[]][]>;
+  /** The rows one per pull, as `SelectGraph::stream` decodes each. */
+  stream(db: Pool | Connection, options?: OperationOptions): RowStream<Row>;
 }
 
 /** A keyset cursor over a registered graph. Every method returns a new cursor. */
-export declare class EntityGraphCursor<Row = EntityRecord | (EntityRecord | null)[]> {
-  private constructor();
-  before(value: unknown): EntityGraphCursor<Row>;
-  after(value: unknown): EntityGraphCursor<Row>;
-  /** Short of the row whose whole key this is: the order column, the root's other key, then each slot's. */
-  beforeWith(...values: unknown[]): EntityGraphCursor<Row>;
-  afterWith(...values: unknown[]): EntityGraphCursor<Row>;
-  first(rows: number): EntityGraphCursor<Row>;
-  last(rows: number): EntityGraphCursor<Row>;
-  asc(): EntityGraphCursor<Row>;
-  desc(): EntityGraphCursor<Row>;
-  all(db: Queryable, options?: OperationOptions): Promise<Row[]>;
+export declare class EntityGraphCursor<Row = EntityRecord | (EntityRecord | null)[]> extends EntityCursor<Row> {
+  /** Short of the row whose order-column values or whole key these are: the order columns, the ordered source's other key, then each other source's. */
+  beforeWith(...values: unknown[]): this;
+  afterWith(...values: unknown[]): this;
 }
 
 export {};

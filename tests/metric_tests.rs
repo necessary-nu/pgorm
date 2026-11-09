@@ -128,7 +128,7 @@ impl MetricsCollector for RecordingMetrics {
     }
 }
 
-// [spec:pgorm:sem:metric.layer.tx+4/test]    a closure that fails reports its begin and its rollback, with the statements inside instrumented
+// [spec:pgorm:sem:metric.layer.tx+5/test]    a closure that fails reports its begin and its rollback, with the statements inside instrumented
 #[pgorm_macros::test]
 pub async fn instrumented_begin_and_rollback() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_rollback_metrictx").await;
@@ -170,7 +170,7 @@ pub async fn instrumented_begin_and_rollback() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+4/test]    a closure that succeeds reports its begin and its commit
+// [spec:pgorm:sem:metric.layer.tx+5/test]    a closure that succeeds reports its begin and its commit
 #[pgorm_macros::test]
 pub async fn instrumented_begin_and_commit() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_commit_metrictx").await;
@@ -203,7 +203,7 @@ pub async fn instrumented_begin_and_commit() -> Result<(), Error> {
 /// A `COMMIT` the server refuses ends the transaction without committing, so
 /// it reports the rollback hook — and reports the error itself too, under the
 /// operation `"commit"`, rather than leaving a counter to imply it.
-// [spec:pgorm:sem:metric.layer.tx+4/test]    a failed commit reaches an error hook
+// [spec:pgorm:sem:metric.layer.tx+5/test]    a failed commit reaches an error hook
 // [spec:pgorm:def:metric.layer.collector+3/test]    what the rollback hook counts
 #[pgorm_macros::test]
 pub async fn a_failed_commit_reports_error_and_rollback() -> Result<(), Error> {
@@ -341,7 +341,7 @@ async fn widget_count<C: ConnectionTrait>(db: &C) -> Result<i64, Error> {
 }
 
 // [spec:pgorm:req:metric.layer.delegate+5/test]    an instrumented closure's handle is passed as `&txn`
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    every closure's `&mut` handle is a connection
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    every closure's `&mut` handle is a connection
 #[pgorm_macros::test]
 pub async fn instrumented_handle_is_a_connection() -> Result<(), Error> {
     use pgorm::EntityTrait;
@@ -391,7 +391,7 @@ pub async fn instrumented_handle_is_a_connection() -> Result<(), Error> {
 }
 
 // [spec:pgorm:req:metric.layer.delegate+5/test]    a cache hit is still a reported call
-// [spec:pgorm:def:conn.pool.conn-trait+9/test]    the wrapper inherits the routing it delegates to
+// [spec:pgorm:def:conn.pool.conn-trait+10/test]    the wrapper inherits the routing it delegates to
 #[pgorm_macros::test]
 pub async fn cached_statements_still_report_each_call() -> Result<(), Error> {
     const SQL: &str = "SELECT id FROM widget WHERE id = 1";
@@ -484,7 +484,7 @@ pub async fn instrumented_batch_execute_reports_no_rows() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+4/test]    a dropped closure future records no ending
+// [spec:pgorm:sem:metric.layer.tx+5/test]    a dropped closure future records no ending
 #[pgorm_macros::test]
 pub async fn dropped_instrumented_transaction_records_nothing() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_drop_metrictx").await;
@@ -518,7 +518,7 @@ pub async fn dropped_instrumented_transaction_records_nothing() -> Result<(), Er
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+4/test]    a savepoint inside an instrumented transaction reports its own begin and ending
+// [spec:pgorm:sem:metric.layer.tx+5/test]    a savepoint inside an instrumented transaction reports its own begin and ending
 #[pgorm_macros::test]
 pub async fn instrumented_savepoints_report_their_ends() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_savepoint_metrictx").await;
@@ -568,7 +568,7 @@ pub async fn instrumented_savepoints_report_their_ends() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+4/test]    an instrumented transaction runs in a spawned task
+// [spec:pgorm:sem:metric.layer.tx+5/test]    an instrumented transaction runs in a spawned task
 #[pgorm_macros::test]
 pub async fn instrumented_transaction_runs_in_spawned_task() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_spawned_metrictx").await;
@@ -597,6 +597,116 @@ pub async fn instrumented_transaction_runs_in_spawned_task() -> Result<(), Error
     assert_eq!(metrics.count("transaction_begin"), 2);
     assert_eq!(metrics.count("transaction_commit"), 2);
 
+    ctx.delete().await;
+
+    Ok(())
+}
+
+// [spec:pgorm:sem:metric.layer.tx+5/test]    a configured transaction on an instrumented connection is reported, its mode applied, in a spawned task
+#[pgorm_macros::test]
+pub async fn instrumented_transaction_with_mode_is_reported() -> Result<(), Error> {
+    let ctx = TestContext::new("metric_layer_tx_with_metrictx").await;
+    let metrics = RecordingMetrics::default();
+    let pool = InstrumentedPool::new(ctx.db.clone(), metrics.clone());
+
+    let refused = tokio::spawn(async move {
+        let mut conn = pool.get().await?;
+        conn.execute("CREATE TABLE widget (id int primary key)", &[])
+            .await?;
+        let read_only = pgorm::TransactionMode::ReadOnly { isolation: None };
+        let refused = conn
+            .transaction_with(read_only, async |txn| {
+                txn.execute("INSERT INTO widget (id) VALUES (1)", &[]).await
+            })
+            .await;
+        let shown = conn
+            .transaction_with(read_only, async |txn| {
+                txn.query_one("SHOW transaction_read_only", &[]).await
+            })
+            .await
+            .map_err(|e| Error::Custom(e.to_string()))?;
+        assert_eq!(shown.get::<_, String>(0), "on");
+        Ok::<_, Error>(refused.is_err())
+    })
+    .await
+    .expect("the spawned task completes")?;
+
+    assert!(refused, "a read-only transaction refuses the write");
+    assert_eq!(
+        metrics.events(),
+        vec![
+            "connection_acquired",
+            "query_success:execute:Some(0)",
+            "transaction_begin",
+            "query_error:execute",
+            "transaction_rollback",
+            "transaction_begin",
+            "query_success:query_one:Some(1)",
+            "transaction_commit",
+        ]
+    );
+
+    ctx.delete().await;
+
+    Ok(())
+}
+
+// [spec:pgorm:sem:metric.layer.tx+5/test]    every attempt a retried transaction makes is reported as a transaction of its own
+#[pgorm_macros::test]
+pub async fn instrumented_transaction_with_retry_reports_each_attempt() -> Result<(), Error> {
+    let ctx = TestContext::new("metric_layer_tx_retry_metrictx").await;
+    let metrics = RecordingMetrics::default();
+    let pool = InstrumentedPool::new(ctx.db.clone(), metrics.clone());
+    let mut conn = pool.get().await?;
+
+    let serializable = pgorm::TransactionMode::ReadWrite {
+        isolation: Some(pgorm::IsolationLevel::Serializable),
+    };
+    let mut attempts = 0;
+    let answer = conn
+        .transaction_with_retry(serializable, 3, async |txn| {
+            attempts += 1;
+            if attempts < 3 {
+                // SQLSTATE 40001, which `is_retryable` takes for a
+                // serialization failure worth replaying.
+                txn.execute(
+                    "DO $$ BEGIN RAISE EXCEPTION 'conflict' USING ERRCODE = '40001'; END $$",
+                    &[],
+                )
+                .await?;
+            }
+            let row = txn.query_one("SELECT 42", &[]).await?;
+            Ok::<_, Error>(row.get::<_, i32>(0))
+        })
+        .await
+        .map_err(|e| Error::Custom(e.to_string()))?;
+
+    assert_eq!(answer, 42);
+    assert_eq!(attempts, 3);
+    assert_eq!(metrics.count("transaction_begin"), 3);
+    assert_eq!(metrics.count("transaction_rollback"), 2);
+    assert_eq!(metrics.count("transaction_commit"), 1);
+    assert_eq!(metrics.count("query_error:execute"), 2);
+
+    drop(conn);
+    ctx.delete().await;
+
+    Ok(())
+}
+
+// [spec:pgorm:def:metric.layer+3/test]    into_inner gives the connection back, and what runs on it is unreported
+#[pgorm_macros::test]
+pub async fn into_inner_gives_back_an_unreported_connection() -> Result<(), Error> {
+    let ctx = TestContext::new("metric_layer_into_inner_metrictx").await;
+    let metrics = RecordingMetrics::default();
+    let pool = InstrumentedPool::new(ctx.db.clone(), metrics.clone());
+
+    let conn = pool.get().await?.into_inner();
+    conn.query_one("SELECT 1", &[]).await?;
+
+    assert_eq!(metrics.events(), vec!["connection_acquired"]);
+
+    drop(conn);
     ctx.delete().await;
 
     Ok(())
@@ -733,7 +843,7 @@ pub async fn logging_metrics_emits_expected_levels() {
     assert!(!events[7].1.contains("rows"), "{:?}", events[7]);
 }
 
-// [spec:pgorm:def:metric.layer+2/test]    three wrappers, their inner()/metrics() accessors, and the pool's
+// [spec:pgorm:def:metric.layer+3/test]    three wrappers, their inner()/metrics() accessors, and the pool's
 // tag()/status()/clear_statement_caches()
 // [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    the instrumented pool clears the pool it wraps
 #[pgorm_macros::test]

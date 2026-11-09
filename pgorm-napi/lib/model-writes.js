@@ -5,29 +5,21 @@
 // one set to NULL; RETURNING the fields as records; and the terminals that
 // read a written row's two versions, as pgorm's `exec_returning_change(s)`
 // and `exec_returning_upsert(s)` read them.
-// [spec:pgorm:req:bindings.model-writes+2]
+// [spec:pgorm:req:bindings.model-writes+3]
 
-import { runStatement } from "./connections.js";
+import { runStatement } from "./runs.js";
 import { ConstructionError, DecodeError } from "./errors.js";
-import { col } from "./expressions.js";
-import { columnValue } from "./model-columns.js";
+import { columnValue, omissible, saved } from "./model-columns.js";
 import { decodeAll, decodeOne, decodeOptional } from "./model-decode.js";
-import { fieldOf, projected } from "./model-shape.js";
-import { native } from "./operations.js";
-import { predicateOf } from "./model-queries.js";
+import { fieldOf, isModel, shapeOf } from "./model-shape.js";
+import { predicateOf } from "./model-clauses.js";
 import { Conflict, ConflictUpdate } from "./conflicts.js";
+import { change, NEW, OLD, picked, returned, rowsOf, upserted, versions, written } from "./model-rows.js";
+import { tryMany, tryOne } from "./model-try-inserts.js";
 import { deleteFrom, insert, update } from "./writes.js";
 
 /** Marks a construction from within the module. */
 const MADE = Symbol("pgorm-napi model write");
-
-/**
- * The names a RETURNING list reads a written row's versions by: always
- * renamed, as pgorm renames them, so a table called `old` or `new` cannot
- * take the keyword.
- */
-const OLD = "pgorm_old";
-const NEW = "pgorm_new";
 
 /**
  * The fields `values` sets, in declaration order whatever order it names
@@ -52,137 +44,14 @@ function assignments(shape, values, write) {
   if (write === "insert") {
     for (const field of shape.fields) {
       const { column } = field;
-      const optional = column.nullable || column.default || column.generated !== null;
-      if (!optional && !Object.hasOwn(given, field.field)) {
+      if (!omissible(column) && !Object.hasOwn(given, field.field)) {
         throw new ConstructionError(`${field.field} is required: it is not nullable and has no default`);
       }
     }
   }
   return shape.fields
     .filter((field) => Object.hasOwn(given, field.field))
-    .map((field) => [field, columnValue(field.column, field.field, given[field.field])]);
-}
-
-/**
- * The RETURNING items reading `fields` as the records decode them.
- *
- * @param {readonly import("./model-shape.js").Field[]} fields
- */
-function returned(fields) {
-  return fields.map((field) => projected(field, col(field.sql), field.sql));
-}
-
-/**
- * The RETURNING list of both versions of every field, the old under `o_` and
- * the new under `n_`, and the sources they decode as.
- *
- * @param {import("./model-shape.js").Shape} shape
- */
-function versions(shape) {
-  /** @type {import("./model-decode.js").Source[]} */
-  const sources = [];
-  const items = [[OLD, "o_"], [NEW, "n_"]].flatMap(([row, prefix]) => {
-    const names = shape.fields.map((field) => native.modelResultName(prefix, field.sql));
-    sources.push({ fields: shape.fields, names, optional: row === OLD });
-    return shape.fields.map((field, index) => projected(field, col(field.sql, { table: row }), /** @type {string} */ (names[index])));
-  });
-  return { items, sources };
-}
-
-/**
- * @param {unknown} pair
- */
-function change(pair) {
-  const [old, now] = /** @type {[unknown, unknown]} */ (pair);
-  if (old === null) throw new DecodeError("an updated row returned no old version");
-  return Object.freeze({ old, new: now });
-}
-
-/**
- * @param {unknown} pair
- */
-function upserted(pair) {
-  const [old, now] = /** @type {[unknown, unknown]} */ (pair);
-  return Object.freeze(old === null ? { kind: "inserted", new: now } : { kind: "updated", old, new: now });
-}
-
-/**
- * The fields `names` picks out of `shape`, every field when it names none.
- *
- * @param {import("./model-shape.js").Shape} shape
- * @param {readonly unknown[]} names
- */
-export function picked(shape, names) {
-  const fields = names.length === 0 ? shape.fields : names.map((name) => fieldOf(shape, name));
-  if (new Set(fields).size !== fields.length) throw new ConstructionError("a field is selected once");
-  return fields;
-}
-
-/**
- * A write with a RETURNING list of a model's fields: its terminals decode
- * each returned row into a record.
- */
-export class ModelRows {
-  /** @type {import("./writes.js").Insert | import("./writes.js").Update | import("./writes.js").Delete | null} */
-  #statement;
-  /** @type {import("./model-decode.js").Source[]} */
-  #sources;
-
-  /**
-   * @param {import("./writes.js").Insert | import("./writes.js").Update | import("./writes.js").Delete | null} statement
-   * @param {readonly import("./model-shape.js").Field[]} fields
-   * @param {symbol} token
-   */
-  constructor(statement, fields, token) {
-    if (token !== MADE) throw new TypeError("ModelRows come from a model write's returning()");
-    this.#statement = statement;
-    this.#sources = [{ fields, names: fields.map((field) => field.sql), optional: false }];
-  }
-
-  get statement() {
-    return written(this.#statement);
-  }
-
-  inspect() {
-    return written(this.#statement).inspect();
-  }
-
-  /**
-   * @param {unknown} db
-   * @param {{ signal?: AbortSignal }} [options]
-   */
-  async all(db, options) {
-    if (this.#statement === null) return [];
-    return await decodeAll(db, this.#statement, this.#sources, options);
-  }
-
-  /**
-   * @param {unknown} db
-   * @param {{ signal?: AbortSignal }} [options]
-   */
-  async one(db, options) {
-    if (this.#statement === null) throw new DecodeError("expected exactly one row, and the insert wrote none");
-    return await decodeOne(db, this.#statement, this.#sources, options);
-  }
-
-  /**
-   * @param {unknown} db
-   * @param {{ signal?: AbortSignal }} [options]
-   */
-  async optional(db, options) {
-    if (this.#statement === null) return null;
-    return await decodeOptional(db, this.#statement, this.#sources, options);
-  }
-}
-
-/**
- * @template T
- * @param {T | null} statement
- * @returns {T}
- */
-function written(statement) {
-  if (statement === null) throw new ConstructionError("an insert of no rows writes nothing and has no statement");
-  return statement;
+    .map((field) => [field, saved(field.column, columnValue(field.column, field.field, given[field.field]))]);
 }
 
 /**
@@ -190,6 +59,7 @@ function written(statement) {
  *   shape: import("./model-shape.js").Shape,
  *   statement: import("./writes.js").Insert | null,
  *   columns: readonly string[] | null,
+ *   conflict: Conflict | ConflictUpdate | null,
  * }} InsertState
  */
 
@@ -199,7 +69,9 @@ let stateOf;
 /**
  * What a model's INSERT of one row and of a batch share: its rows' statement,
  * the SQL names of the fields they set — `null` for an insert of no rows, an
- * empty list for a row of defaults — and the methods both kinds have.
+ * empty list for a row of defaults — its conflict clause, kept apart from the
+ * statement so that an insert of no rows, which has none, keeps it for the
+ * rows added after, and the methods both kinds have.
  */
 class Inserting {
   /** @type {InsertState} */
@@ -209,11 +81,12 @@ class Inserting {
    * @param {import("./model-shape.js").Shape} shape
    * @param {import("./writes.js").Insert | null} statement
    * @param {readonly string[] | null} columns
+   * @param {Conflict | ConflictUpdate | null} conflict
    * @param {symbol} token
    */
-  constructor(shape, statement, columns, token) {
+  constructor(shape, statement, columns, conflict, token) {
     if (token !== MADE) throw new TypeError(`a ${new.target.name} comes from a model's insert() or insertMany()`);
-    this.#state = { shape, statement, columns };
+    this.#state = { shape, statement, columns, conflict };
   }
 
   static {
@@ -226,7 +99,8 @@ class Inserting {
 
   /**
    * What a conflict does: the statement builders' `Conflict`, naming SQL
-   * columns.
+   * columns. An insert of no rows takes one too, still sending nothing.
+   * [spec:pgorm:req:bindings.model-writes+3]
    *
    * @param {unknown} action
    * @returns {this}
@@ -237,7 +111,7 @@ class Inserting {
     }
     const { shape, statement, columns } = this.#state;
     const Kind = /** @type {new (...args: unknown[]) => this} */ (this.constructor);
-    return new Kind(shape, written(statement).onConflict(action), columns, MADE);
+    return new Kind(shape, statement && statement.onConflict(action), columns, action, MADE);
   }
 
   /**
@@ -258,15 +132,15 @@ class Inserting {
    */
   addMany(rows) {
     if (!Array.isArray(rows)) throw new TypeError("addMany takes an array of rows");
-    const { shape, statement, columns } = this.#state;
-    return new ModelInsertMany(shape, ...appended(shape, statement, columns, rows), MADE);
+    const { shape, statement, columns, conflict } = this.#state;
+    return new ModelInsertMany(shape, ...appended(shape, statement, columns, rows, conflict), conflict, MADE);
   }
 
   /** @param {...string} fields */
   returning(...fields) {
     const { shape, statement } = this.#state;
     const picks = picked(shape, fields);
-    return new ModelRows(statement && statement.returning(returned(picks)), picks, MADE);
+    return rowsOf(statement && statement.returning(returned(picks)), picks);
   }
 
   /**
@@ -280,6 +154,32 @@ class Inserting {
     if (statement === null) return 0;
     return await runStatement(db, "execute", statement, options);
   }
+}
+
+/**
+ * What a try-insert reads of `insert`: whether it writes nothing — no rows,
+ * or a row that sets no field, which pgorm's `TryInsert` answers `Empty`
+ * without sending — and whether a conflict clause is attached.
+ *
+ * @param {ModelInsert | ModelInsertMany} insert
+ */
+export function attempt(insert) {
+  const { statement, columns, conflict } = stateOf(insert);
+  return { empty: statement === null || columns?.length === 0, conflict: conflict !== null };
+}
+
+/**
+ * `insert` with `ON CONFLICT` on the primary key `DO NOTHING`, or `ON
+ * CONFLICT DO NOTHING` for a model with no primary key, as pgorm's
+ * `on_conflict_do_nothing` writes it.
+ *
+ * @template {Inserting} I
+ * @param {I} insert
+ * @returns {I}
+ */
+function doNothing(insert) {
+  const key = stateOf(insert).shape.primaryKey.map((field) => field.sql);
+  return insert.onConflict(key.length > 0 ? Conflict.on(...key).doNothing() : Conflict.doNothing());
 }
 
 /**
@@ -332,6 +232,24 @@ export class ModelInsert extends Inserting {
     const pair = await decodeOptional(db, written(statement), sources, options);
     return pair === null ? null : upserted(pair);
   }
+
+  /**
+   * The insert skipping a row that conflicts on the primary key, as pgorm's
+   * `on_conflict_do_nothing`: a `ModelTryInsert`, whose terminals say
+   * whether the row was written.
+   */
+  onConflictDoNothing() {
+    return tryOne(doNothing(this));
+  }
+
+  /**
+   * The insert as a `ModelTryInsert`, its statement unchanged, as pgorm's
+   * `on_empty_do_nothing` makes one: a row that sets no field is empty and
+   * sends nothing.
+   */
+  onEmptyDoNothing() {
+    return tryOne(this);
+  }
 }
 
 /** A model's INSERT of a batch: Rust's `Insert<A, ManyRows>`. */
@@ -358,6 +276,32 @@ export class ModelInsertMany extends Inserting {
     if (statement === null) return [];
     return (await decodeAll(db, statement, sources, options)).map(upserted);
   }
+
+  /**
+   * The batch skipping each row that conflicts on the primary key, as
+   * pgorm's `on_conflict_do_nothing`: a `ModelTryInsertMany`.
+   */
+  onConflictDoNothing() {
+    return tryMany(doNothing(this));
+  }
+
+  /**
+   * The batch as a `ModelTryInsertMany`, its statement unchanged, as pgorm's
+   * `on_empty_do_nothing` makes one: a batch of no rows is empty.
+   */
+  onEmptyDoNothing() {
+    return tryMany(this);
+  }
+}
+
+/**
+ * The FROM item a write reads beside its own table: another model's table, or
+ * a table or FROM item of the statement builders.
+ *
+ * @param {unknown} source
+ */
+function sourceOf(source) {
+  return isModel(source) ? shapeOf(source).table : source;
 }
 
 /** A model's UPDATE. */
@@ -366,16 +310,20 @@ export class ModelUpdate {
   #shape;
   /** @type {import("./writes.js").Update} */
   #statement;
+  /** @type {boolean} Whether it reads another table through FROM. */
+  #sourced;
 
   /**
    * @param {import("./model-shape.js").Shape} shape
    * @param {import("./writes.js").Update} statement
    * @param {symbol} token
+   * @param {boolean} [sourced]
    */
-  constructor(shape, statement, token) {
+  constructor(shape, statement, token, sourced = false) {
     if (token !== MADE) throw new TypeError("a ModelUpdate comes from a model's update()");
     this.#shape = shape;
     this.#statement = statement;
+    this.#sourced = sourced;
   }
 
   get statement() {
@@ -395,17 +343,31 @@ export class ModelUpdate {
 
   /** @param {unknown} predicate */
   where(predicate) {
-    return new ModelUpdate(this.#shape, this.#statement.where(predicateOf(predicate)), MADE);
+    return new ModelUpdate(this.#shape, this.#statement.where(predicateOf(predicate)), MADE, this.#sourced);
   }
 
   allRows() {
-    return new ModelUpdate(this.#shape, this.#statement.allRows(), MADE);
+    return new ModelUpdate(this.#shape, this.#statement.allRows(), MADE, this.#sourced);
+  }
+
+  // [spec:pgorm:req:bindings.model-write-sources]
+  /**
+   * The update reading `source` too, PostgreSQL's `UPDATE .. FROM`, as
+   * Rust's `Update::many(..).from(..)` adds it: another model's table, or a
+   * table or FROM item of the statement builders, whose columns its values
+   * and conditions may name.
+   *
+   * @param {unknown} source
+   */
+  from(source) {
+    return new ModelUpdate(this.#shape, this.#statement.from(/** @type {any} */ (sourceOf(source))), MADE, true);
   }
 
   /** @param {...string} fields */
   returning(...fields) {
     const picks = picked(this.#shape, fields);
-    return new ModelRows(this.#statement.returning(returned(picks)), picks, MADE);
+    const table = this.#sourced ? this.#shape.qualifier : undefined;
+    return rowsOf(this.#statement.returning(returned(picks, table)), picks);
   }
 
   /**
@@ -451,16 +413,20 @@ export class ModelDelete {
   #shape;
   /** @type {import("./writes.js").Delete} */
   #statement;
+  /** @type {boolean} Whether it reads another table through USING. */
+  #sourced;
 
   /**
    * @param {import("./model-shape.js").Shape} shape
    * @param {import("./writes.js").Delete} statement
    * @param {symbol} token
+   * @param {boolean} [sourced]
    */
-  constructor(shape, statement, token) {
+  constructor(shape, statement, token, sourced = false) {
     if (token !== MADE) throw new TypeError("a ModelDelete comes from a model's delete()");
     this.#shape = shape;
     this.#statement = statement;
+    this.#sourced = sourced;
   }
 
   get statement() {
@@ -473,17 +439,31 @@ export class ModelDelete {
 
   /** @param {unknown} predicate */
   where(predicate) {
-    return new ModelDelete(this.#shape, this.#statement.where(predicateOf(predicate)), MADE);
+    return new ModelDelete(this.#shape, this.#statement.where(predicateOf(predicate)), MADE, this.#sourced);
   }
 
   allRows() {
-    return new ModelDelete(this.#shape, this.#statement.allRows(), MADE);
+    return new ModelDelete(this.#shape, this.#statement.allRows(), MADE, this.#sourced);
+  }
+
+  // [spec:pgorm:req:bindings.model-write-sources]
+  /**
+   * The delete reading `source` too, PostgreSQL's `DELETE .. USING`, as
+   * Rust's `Delete::many(..).using(..)` adds it: another model's table, or a
+   * table or FROM item of the statement builders, whose columns its
+   * conditions may name.
+   *
+   * @param {unknown} source
+   */
+  using(source) {
+    return new ModelDelete(this.#shape, this.#statement.using(/** @type {any} */ (sourceOf(source))), MADE, true);
   }
 
   /** @param {...string} fields */
   returning(...fields) {
     const picks = picked(this.#shape, fields);
-    return new ModelRows(this.#statement.returning(returned(picks)), picks, MADE);
+    const table = this.#sourced ? this.#shape.qualifier : undefined;
+    return rowsOf(this.#statement.returning(returned(picks, table)), picks);
   }
 
   /**
@@ -505,26 +485,28 @@ function unaliased(shape) {
 /**
  * `statement`, the INSERT of rows setting `columns`, with `rows` after them,
  * each setting the same fields; the first row of an insert of none names
- * them.
+ * them, and the statement it starts takes `conflict`.
  *
  * @param {import("./model-shape.js").Shape} shape
  * @param {import("./writes.js").Insert | null} statement
  * @param {readonly string[] | null} columns
  * @param {readonly unknown[]} rows
+ * @param {Conflict | ConflictUpdate | null} [conflict]
  * @returns {[import("./writes.js").Insert | null, readonly string[] | null]}
  */
-function appended(shape, statement, columns, rows) {
+function appended(shape, statement, columns, rows, conflict = null) {
   unaliased(shape);
   let [current, names] = [statement, columns];
   for (const row of rows) {
     const set = assignments(shape, row, "insert");
     const sql = set.map(([field]) => field.sql);
     if (current === null || names === null) {
+      const started = conflict === null ? insert(shape.table) : insert(shape.table).onConflict(conflict);
       if (sql.length === 0) {
-        [current, names] = [insert(shape.table).defaultValues(), []];
+        [current, names] = [started.defaultValues(), []];
         continue;
       }
-      [current, names] = [insert(shape.table).columns(...sql), sql];
+      [current, names] = [started.columns(...sql), sql];
     } else if (names.length === 0) {
       throw new ConstructionError("rows that set no field are inserted one at a time");
     } else if (sql.length !== names.length || sql.some((name, index) => name !== names?.[index])) {
@@ -542,7 +524,7 @@ function appended(shape, statement, columns, rows) {
  * @param {unknown} values
  */
 export function insertOne(shape, values) {
-  return new ModelInsert(shape, ...appended(shape, null, null, [values]), MADE);
+  return new ModelInsert(shape, ...appended(shape, null, null, [values]), null, MADE);
 }
 
 /**
@@ -554,7 +536,7 @@ export function insertOne(shape, values) {
  */
 export function insertMany(shape, rows) {
   if (!Array.isArray(rows)) throw new TypeError("insertMany takes an array of rows");
-  return new ModelInsertMany(shape, ...appended(shape, null, null, rows), MADE);
+  return new ModelInsertMany(shape, ...appended(shape, null, null, rows), null, MADE);
 }
 
 /**

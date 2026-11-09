@@ -3,8 +3,8 @@
 // Expressions over pgorm-query's builders. An operand that is not an
 // expression is a value, bound as a parameter: nothing a caller passes becomes
 // SQL text, and an identifier is quoted wherever it appears.
-// [spec:pgorm:req:bindings.expressions+3]
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.expressions+4]
+// [spec:pgorm:req:bindings.quantifiers+4]
 
 import { arg, args, Builder, Deferred, Handle, made, trusted, TRUSTED } from "./builder.js";
 import { ConstructionError } from "./errors.js";
@@ -155,6 +155,57 @@ export function call(name, ...operands) {
   return new Expr(native.exprCall(name, args(operands)), TRUSTED);
 }
 
+/**
+ * A call of the function `name`, any function the server has, each operand
+ * bound unless it is an expression: Rust's `Func::named`. The name is an
+ * identifier, written bare when it is a lowercase name PostgreSQL does not
+ * restrict and quoted otherwise, so it names a function and is never read
+ * as syntax.
+ * [spec:pgorm:req:bindings.named-functions]
+ *
+ * @param {string} name
+ * @param {...unknown} operands
+ */
+export function func(name, ...operands) {
+  return new Expr(native.exprFunc(name, args(operands)), TRUSTED);
+}
+
+// [spec:pgorm:req:bindings.current-keywords]
+/** `CURRENT_DATE`, the date the transaction started. */
+export function currentDate() {
+  return new Expr(native.exprCurrent("date"), TRUSTED);
+}
+
+/** `CURRENT_TIME`, the time of day the transaction started. */
+export function currentTime() {
+  return new Expr(native.exprCurrent("time"), TRUSTED);
+}
+
+/** `CURRENT_TIMESTAMP`, the instant the transaction started. */
+export function currentTimestamp() {
+  return new Expr(native.exprCurrent("timestamp"), TRUSTED);
+}
+
+/**
+ * A piece of SQL the builders have no method for, written as a tagged
+ * template: its text is SQL, and each interpolation goes between the
+ * pieces, an expression embedded as it is and any other value bound, as
+ * Rust's `Expr::template` binds its values. Called as a function with a
+ * string, it refuses, so text built at run time cannot become a template by
+ * accident: the text is the program's, as Rust's `&'static str` holds it to
+ * be.
+ * [spec:pgorm:req:bindings.template]
+ *
+ * @param {TemplateStringsArray} strings
+ * @param {...unknown} values
+ */
+export function template(strings, ...values) {
+  if (!Array.isArray(strings) || !Array.isArray(/** @type {{ raw?: unknown }} */ (strings).raw) || !Object.isFrozen(strings)) {
+    throw new TypeError("a template is a tagged template literal, template`..`, whose text is the program's own");
+  }
+  return new Expr(native.exprTemplate([...strings], args(values)), TRUSTED);
+}
+
 /** @param {...unknown} items */
 export function tuple(...items) {
   return new Expr(native.exprTuple(args(items)), TRUSTED);
@@ -262,7 +313,7 @@ function listable(source) {
  * empty one or one of ranges of no inferable kind, is kept for a registered
  * column to type, and refused, with the error inferring it met, wherever it
  * is used beside anything else.
- * [spec:pgorm:req:bindings.quantifiers+3]
+ * [spec:pgorm:req:bindings.quantifiers+4]
  *
  * @param {"any" | "all"} quantifier
  * @param {unknown} source

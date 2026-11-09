@@ -1,14 +1,16 @@
-use super::selected_backend::{Query, Terminal};
+use super::selected::statement;
+use crate::panics::future_into_py;
 use crate::{
+    entities::PyEntityModel,
     errors::InternalError,
     execution::Executor,
     transactions::work::{Output, Work},
 };
+use pgorm_bindings::entity::{Read as Terminal, Selected as Query};
 use pyo3::{
     prelude::*,
     types::{PyList, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
 
 // [spec:pgorm:req:bindings.pipeline-sources+3]
 pub(super) fn read<'py>(
@@ -18,7 +20,7 @@ pub(super) fn read<'py>(
     terminal: Terminal,
 ) -> PyResult<Bound<'py, PyAny>> {
     let target = Executor::extract(py, connection)?;
-    query.compile(terminal)?;
+    statement(&query, terminal)?;
     future_into_py(py, async move {
         let Output::Graph(rows) = target.run(Work::Sources(query, terminal)).await? else {
             return Err(InternalError::new_err("unexpected selected source result"));
@@ -27,6 +29,10 @@ pub(super) fn read<'py>(
             let rows = rows
                 .into_iter()
                 .map(|row| {
+                    let row: Vec<Option<PyEntityModel>> = row
+                        .into_iter()
+                        .map(|model| model.map(|inner| PyEntityModel { inner }))
+                        .collect();
                     for model in row.iter().flatten() {
                         model.validate(py)?;
                     }

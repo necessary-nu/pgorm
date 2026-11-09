@@ -16,7 +16,7 @@ use tokio_postgres::types::{Kind, Type};
 use super::decode::{Field, typed};
 use crate::{
     errors::DecodeError,
-    values::{CreatedKind, PyTypeName, PyValue},
+    values::{CreatedKind, PyValue, TypeName},
 };
 
 /// The built-in range type over `subtype`, which a range type a schema
@@ -57,7 +57,7 @@ fn built_in(ty: &Type) -> bool {
 /// `None` for a column of any other type. A range type a schema created reads
 /// as its own kind, named as the column's type is, whatever its subtype.
 // [spec:pgorm:req:bindings.values]
-// [spec:pgorm:def:exec.decode.range+4]
+// [spec:pgorm:def:exec.decode.range+5]
 pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option<PyValue>> {
     let index = field.index();
     let (subtype, multi) = match ty.kind() {
@@ -124,7 +124,7 @@ fn created(
         Value::String(v.map(|v| Box::new(v.0)))
     })?;
     let kind = CreatedKind {
-        name: PyTypeName {
+        name: TypeName {
             name: ty.name().to_owned(),
             schema: Some(ty.schema().to_owned()),
         },

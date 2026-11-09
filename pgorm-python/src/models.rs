@@ -20,7 +20,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 /// The result-set name of each of `columns` under `prefix`, the plain
 /// concatenation below PostgreSQL's identifier bound and the bounded spelling
 /// with its hash past it.
-// [spec:pgorm:req:bindings.graphs]
+// [spec:pgorm:req:bindings.graphs+2]
 #[pyfunction(name = "_model_result_names")]
 fn result_names(prefix: &str, columns: Vec<String>) -> Vec<String> {
     columns

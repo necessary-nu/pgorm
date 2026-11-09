@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pgorm as p
 from pgorm import app, pipeline as pl, schema as s
 from pgorm._registered.compat import check
-from pgorm._registered.entities import Change, Inserted, Updated
 import registered_entities as fixture
 
 
@@ -73,12 +72,12 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
         renamed = p.Conflict.on("id").update("display name")
         async with self.pool.connection() as connection:
             first = await app.Account.insert(active(1, "One")).returning_upsert(connection)
-            self.assertIsInstance(first, Inserted)
+            self.assertIsInstance(first, p.Upserted.Inserted)
             self.assertIsInstance(first.model, app.AccountModel)
             change = await app.Account.update(
                 first.model.into_active().set_note("noted")
             ).returning_change(connection)
-            self.assertIsInstance(change, Change)
+            self.assertIsInstance(change, p.Change)
             self.assertIsInstance(change.new, app.AccountModel)
             self.assertEqual((change.old.note, change.new.note), (None, "noted"))
             changes = await (
@@ -94,7 +93,7 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
                 .returning_upserts(connection)
             )
             match rows:
-                case [Updated(change), Inserted(model)]:
+                case [p.Upserted.Updated(change), p.Upserted.Inserted(model)]:
                     self.assertIsInstance(change.old, app.AccountModel)
                     self.assertEqual((change.old.display_name, change.new.display_name), ("One", "Again"))
                     self.assertEqual(model.display_name, "Two")
@@ -119,6 +118,14 @@ class GeneratedApplication(unittest.IsolatedAsyncioTestCase):
             for view in (app.Account.insert(active(9, "Nine")), app.Account.insert_many([])):
                 with self.subTest(view=type(view).__name__), self.assertRaises(p.ConstructionError):
                     bool(view)
+            # [spec:pgorm:req:bindings.raw-models/test]    a generated view reads a raw statement into its own models
+            raw = app.Account.find().from_raw_sql(p.RawSQL(
+                'SELECT id, "display name", note, version, mood::text AS mood FROM python_entities.accounts WHERE id = $1',
+                [3],
+            ))
+            self.assertEqual([type(model) for model in await raw.all(connection)], [app.AccountModel])
+            with self.assertRaises(p.ConstructionError):
+                bool(raw)
 
     # [spec:pgorm:req:bindings.codegen/test]
     async def test_graph_views_keep_optional_models(self):
@@ -490,6 +497,18 @@ class GeneratedContract(unittest.TestCase):
             stub,
         )
         self.assertIn("Offers: DisjointView[OffersRow]", stub)
+        # [spec:pgorm:req:bindings.codegen-coverage/test]    a one-of reference and a source tuple are generated beside the entities
+        self.assertIn("LabelTarget: p.OneOfEntity", stub)
+        self.assertIn(
+            "AccountWithNoteRow: TypeAlias = tuple[AccountModel | None, NoteModel | None]", stub
+        )
+        self.assertIn("AccountWithNote: pl.SourceSelection", stub)
+        self.assertIsInstance(app.LabelTarget, p.OneOfEntity)
+        self.assertEqual(app.AccountWithNote.name, "app.AccountWithNote")
+        self.assertEqual(
+            [target["field"] for target in app.LabelTarget.describe()["targets"]],
+            ["parcel_id", "pallet_id"],
+        )
         described = app.Account.describe()
         columns = {column["name"]: column for column in described["columns"]}
         self.assertEqual(columns["id"]["rust_type"], "i32")

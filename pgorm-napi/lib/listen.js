@@ -2,7 +2,7 @@
 
 // A dedicated listening connection: the channels it listens on, and the
 // notifications it receives, pulled one at a time.
-// [spec:pgorm:req:bindings.listen+2]
+// [spec:pgorm:req:bindings.listen+3]
 
 import { LifecycleError } from "./errors.js";
 import { abortable, native, signalOf } from "./operations.js";
@@ -191,6 +191,28 @@ export class Listener {
   [Symbol.asyncDispose]() {
     return this.close();
   }
+}
+
+/**
+ * A listener on a connection of its own, belonging to no pool: the connection
+ * string and TLS options are read as a pool's are, and `capacity` as
+ * `pool.listener()`'s. Only its own close, or its iteration abandoned,
+ * closes it.
+ * [spec:pgorm:req:bindings.tls]
+ *
+ * @param {string} dsn
+ * @param {import("./index.d.ts").ConnectListenerOptions} [options]
+ * @returns {Promise<Listener>}
+ */
+export async function connectListener(dsn, options = {}) {
+  if (typeof dsn !== "string") throw new TypeError("dsn is a connection string");
+  const { capacity, signal } = listenerOptions(options);
+  const handle = await abortable(
+    signal,
+    (token) => native.connectListener(dsn, options, capacity, token),
+    (/** @type {unknown} */ opened) => native.listenerClose(opened),
+  );
+  return new Listener(handle, LISTENER);
 }
 
 /**

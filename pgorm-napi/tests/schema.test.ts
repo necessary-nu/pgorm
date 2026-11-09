@@ -342,7 +342,7 @@ test("an ALTER TABLE with no action has nothing to inspect, and every terminal r
   assert.deepStrictEqual(createTable("t").inspect().values, []);
 });
 
-// [spec:pgorm:req:bindings.schema-api+2/test]
+// [spec:pgorm:req:bindings.schema-api+3/test]
 // [spec:pgorm:req:napi.typing+1/test]
 test("every complete DDL statement is a DDL, a Statement the terminals take, made only by the module", () => {
   const statements: DDL[] = [

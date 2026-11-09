@@ -80,9 +80,8 @@ struct RawIdentifierTest {
 
 // `skip` accumulates rather than being recomputed, so it holds wherever it is
 // written: ahead of another key in the same list, and split across two
-// `#[pgorm(...)]` attributes. Both fields here are skipped by the
-// `FromQueryResult` `PartialModel` writes, which steps over the projection's
-// own keys.
+// `#[pgorm(...)]` attributes. Both fields here are skipped, by the projection
+// and by the `FromQueryResult` `PartialModel` writes, so only `_baz` is read.
 #[derive(PartialModel)]
 struct SkipAnywhereTest {
     #[pgorm(skip, from_expr = Expr::val(1))]
@@ -90,6 +89,8 @@ struct SkipAnywhereTest {
     #[pgorm(from_expr = Expr::val(2))]
     #[pgorm(skip)]
     _bar: i32,
+    #[pgorm(from_expr = Expr::val(3))]
+    _baz: i32,
 }
 
 fn raw<M>(sql: &str) -> SelectorRaw<SelectModel<M>>
@@ -99,7 +100,7 @@ where
     (sql, Values(Vec::new())).into_model::<M>()
 }
 
-// [spec:pgorm:def:exec.crud+1/test]    `SelectorRaw::from_statement` decoding
+// [spec:pgorm:def:exec.crud+2/test]    `SelectorRaw::from_statement` decoding
 // through `SelectModel`, i.e. `SelectorTrait::from_raw_query_result` with an
 // empty prefix
 // [spec:pgorm:sem:macros.derive.from-query-result+4/test]    field-named reads, generics, and `skip`
@@ -140,13 +141,14 @@ async fn from_query_result_derive() -> Result<(), Error> {
         .await?;
     assert_eq!(row.r#type, "four");
 
-    // `skip` holds from any position, so neither field is read and the statement
-    // needs no columns at all.
-    let row = raw::<SkipAnywhereTest>(r#"SELECT 5 AS "unrelated""#)
+    // `skip` holds from any position, so neither skipped field is read and the
+    // statement needs only the third's column.
+    let row = raw::<SkipAnywhereTest>(r#"SELECT 5 AS "unrelated", 3 AS "_baz""#)
         .one(&db)
         .await?;
     assert_eq!(row._foo, 0);
     assert_eq!(row._bar, 0);
+    assert_eq!(row._baz, 3);
 
     drop(db);
     ctx.delete().await;

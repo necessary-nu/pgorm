@@ -588,11 +588,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgorm-case-style"
+version = "0.2.0"
+dependencies = [
+ "heck",
+]
+
+[[package]]
 name = "pgorm-codegen"
 version = "0.2.0"
 dependencies = [
  "heck",
  "pg_query",
+ "pgorm-case-style",
  "pgorm-query",
  "prettyplease 0.3.0",
  "proc-macro2",
@@ -600,6 +608,7 @@ dependencies = [
  "rust_decimal",
  "syn 3.0.6",
  "tracing",
+ "unicode-ident",
 ]
 
 [[package]]

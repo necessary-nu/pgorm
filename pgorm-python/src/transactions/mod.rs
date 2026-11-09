@@ -1,76 +1,70 @@
-//! Transaction handles communicate with a Rust task owning the borrowed scope.
+//! Transaction handles over pgorm-bindings' frames: a task on the runtime
+//! serves each borrowed transaction and savepoint inside the closure pgorm
+//! opens it around, and Python's handles send it owned work.
 mod capabilities;
 mod copy;
 mod native;
-mod scope;
-mod state;
 pub(crate) mod work;
 
 use crate::{
-    errors::{LifecycleError, database_error},
-    runtime::{ConnectionState, Operation},
+    errors::{Raise, raised},
+    runtime::{ConnectionState, Loop, Operation, Owned},
 };
 pub(crate) use capabilities::operations as capabilities;
-pub(crate) use copy::Lease;
-pub(crate) use native::{NativeTransaction, mode};
+pub(crate) use copy::{copy_in, copy_out, describe_in};
+pub(crate) use native::{NativeRetrying, NativeTransaction, mode};
 use pgorm::TransactionMode;
+pub(crate) use pgorm_bindings::transaction::Lease;
+use pgorm_bindings::transaction::Retrying;
 use pyo3::prelude::*;
-pub(crate) use state::State;
-use state::{Finished, Pending};
 use std::sync::Arc;
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
+use work::{Output, Work};
 
-// [spec:pgorm:req:bindings.transactions]
+/// One transaction or savepoint, as its Python handle reaches it.
+pub(crate) type State = pgorm_bindings::transaction::State<Loop>;
+
+impl Owned for State {
+    /// Refuse from another event loop, and once the frame is closed.
+    fn check_owner(&self, py: Python<'_>) -> PyResult<()> {
+        self.connection().pool.check_owner(py)?;
+        self.ensure_open().py()
+    }
+}
+
+// [spec:pgorm:req:bindings.transactions+2]
 pub(crate) async fn begin(
     connection: Arc<ConnectionState>,
     mode: TransactionMode,
 ) -> PyResult<Arc<State>> {
-    let mut operation = Operation::begin(connection.clone())?;
-    let (state, receiver) = State::channel(connection.clone(), None);
-    let (opened, receive) = oneshot::channel();
-    let mut pending = Pending::new(state.root.aborted.clone());
-    let owner = state.clone();
-    tokio::spawn(async move {
-        let _finished = Finished(owner.root.finished.clone());
-        let result = tokio::select! {
-            _ = owner.root.aborted.cancelled() => None,
-            _ = connection.cancelled.cancelled() => None,
-            _ = connection.pool.cancelled.cancelled() => None,
-            result = async {
-                let connection = match operation.connection_mut() {
-                    Ok(connection) => connection,
-                    Err(error) => { let _ = opened.send(Err(error)); return None; }
-                };
-                let mut frame = scope::Frame::new(owner.clone(), receiver, opened);
-                let halt = frame.halt.clone();
-                let ended = halt
-                    .run(connection.transaction_with(mode, async |tx| frame.serve(tx).await))
-                    .await;
-                match frame.end(ended) {
-                    scope::Ended::Ran(completion) => Some(completion),
-                    scope::Ended::Refused(opened, error) => {
-                        let _ = opened.send(Err(database_error(error, &owner.connection.pool.secrets)));
-                        None
-                    }
-                }
-            } => result,
-        };
-        match result {
-            Some(completion) => {
-                if completion.healthy {
-                    operation.restore();
-                } else {
-                    drop(operation);
-                }
-                completion.respond();
-                owner.released.cancel();
-            }
-            None => drop(operation),
-        }
-    });
-    receive
+    let operation = Operation::begin(connection).py()?;
+    pgorm_bindings::transaction::begin(operation, mode, &CancellationToken::new())
         .await
-        .map_err(|_| LifecycleError::new_err("transaction owner ended during begin"))??;
-    pending.complete();
-    Ok(state)
+        .py()
+}
+
+// [spec:pgorm:req:bindings.transaction-retry]
+pub(crate) fn begin_retrying(
+    connection: Arc<ConnectionState>,
+    mode: TransactionMode,
+    retries: u32,
+) -> PyResult<Arc<Retrying<Loop>>> {
+    let operation = Operation::begin(connection).py()?;
+    Ok(Retrying::begin(operation, mode, retries))
+}
+
+/// Run `work` in the frame, its lock taken for it.
+pub(crate) async fn run(state: &Arc<State>, work: Work) -> PyResult<Output> {
+    let lock = state.lock().py()?;
+    let pool = state.connection().pool.clone();
+    state
+        .request(
+            lock,
+            move |db| {
+                Box::pin(async move { work.run(db).await.map_err(|error| pool.failure(&error)) })
+            },
+            &CancellationToken::new(),
+        )
+        .await
+        .map_err(raised)
 }

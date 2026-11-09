@@ -3,15 +3,21 @@
 
 import assert from "node:assert/strict";
 import { copyFrom, copyTo } from "@necessary/pgorm";
-import { Bakery } from "../../../guide/bakery.ts";
+import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of await pool.copyOut(copyTo(Bakery.select("name", "city").statement, "binary"))) {
-    chunks.push(chunk);
-  }
-  const written = await pool.copyIn(copyFrom("bakery", "binary").columns(["name", "city"]), chunks);
-  assert.equal(written, 2);
-  assert.equal(await Bakery.find().count(pool), 4);
+  const sunrise = copyTo(Cake.find().where(Cake.col("bakeryId").eq(1)).statement, "binary");
+  const cakes = [];
+  for await (const cake of (await pool.copyOutRows(sunrise)).models(Cake)) cakes.push(cake);
+  assert.equal(cakes.length, 3);
+
+  const into = copyFrom("cake", "binary").columns(["name", "flavor", "price", "gluten_free", "bakery_id"]);
+  // The binary COPY TO read on a connection of its own, and the COPY FROM writes on another.
+  const sink = await pool.copyInRows(into);
+  assert.deepEqual(sink.columns.map((column) => column.name), ["name", "flavor", "price", "gluten_free", "bakery_id"]);
+  for (const cake of cakes) await sink.sendModel({ ...cake, bakeryId: 2 }, Cake);
+  assert.equal(await sink.finish(), 3);
+
+  assert.equal(await Cake.find().where(Cake.col("bakeryId").eq(2)).count(pool), 5);
 }

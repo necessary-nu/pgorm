@@ -493,63 +493,50 @@ PostgreSQL's `money` stores an amount in the currency of the server's
 column is read cast to `numeric`, each value is written cast to `money`, and
 the server rounds a value to the currency's places.
 
-Here Python differs from Rust. A Rust entity declares the column
-`column_type = ColumnType::Money` and its field is a `Decimal`; a Python
-model has no `money` kind, and a query that reads a `money` column as it is
-raises `DecodeError`. Write the two casts in the statement, with the [query
-builder](11-query-builder.md):
+A model declares the column `column_type="money"` and its field the
+`"decimal"` kind, as a Rust entity declares `column_type = ColumnType::Money`
+on a `Decimal` field, and the model's reads, writes and comparisons take
+pgorm's casts for `money`:
 
 ```python
 import asyncio
 import os
 from decimal import Decimal
 
-from pgorm import Pool, Table, TypeName, bind, col, insert, select
+from pgorm import Column, Model, Pool
 from pgorm import schema as s
 
-NUMERIC = TypeName("numeric")
-MONEY = TypeName("money")
+TipJar = Model("tip_jar", {
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "amount": Column("decimal", column_type="money"),
+})
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        await pool.execute(
-            s.create_table("tip_jar")
-            .column(s.ColumnDef("id", "integer").not_null().auto_increment())
-            .column(s.ColumnDef("amount", "money").not_null())
-            .primary_key("id")
-        )
-        tip_jar = Table("tip_jar")
-        amount = col("amount", table="tip_jar")
+        await pool.execute(s.from_model(TipJar).table)
 
-        tips = await pool.one(
-            insert(tip_jar)
-            .columns("amount")
-            .values(bind(Decimal("12.345")).cast(MONEY))
-            .returning(amount.cast(NUMERIC).as_("amount"))
-        )
+        tips = await TipJar.insert({"amount": Decimal("12.345")}).returning().one(pool)
         # Rounded to the currency's two places.
         assert tips["amount"] == Decimal("12.35")
 
-        query = (
-            select(col("id", table="tip_jar"), amount.cast(NUMERIC).as_("amount"))
-            .from_(tip_jar)
-            .where(amount > bind(Decimal(10)).cast(MONEY))
-        )
+        query = TipJar.find().where(TipJar.col("amount") > Decimal(10))
         assert query.inspect().sql == (
             'SELECT "tip_jar"."id", CAST("tip_jar"."amount" AS numeric) AS "amount" '
             'FROM "tip_jar" WHERE "tip_jar"."amount" > CAST($1::numeric AS money)'
         )
-        assert [row["amount"] for row in await pool.query(query)] == [Decimal("12.35")]
+        assert [row["amount"] for row in await query.all(pool)] == [Decimal("12.35")]
 
 
 asyncio.run(main())
 ```
 
-A Rust entity with a `money` column, reached through a
-[registration](24-registrations.md), does this itself: its column's kind is
-`decimal`, and its queries and writes carry the casts. A binary
-[`COPY`](17-copy.md) of rows reads a `money` column as a `Decimal` too.
+A statement written with the [query builder](11-query-builder.md) takes the
+same casts by hand: `col("amount").cast(TypeName("numeric"))` to read and
+`bind(amount).cast(TypeName("money"))` to write. A Rust entity with a
+`money` column, reached through a [registration](24-registrations.md), reads
+it so too, and a binary [`COPY`](17-copy.md) of rows reads a `money` column
+as a `Decimal`.
 
 ## JSON
 
@@ -857,9 +844,11 @@ has no months, and it keeps only its days signed, so `-1 hour` would arrive
 as `-1 day +23 hours`. Build an `Interval` instead.
 
 An interval column restricted to some fields, such as `interval HOUR TO
-MINUTE`, is not available in Python's schema statements yet: write its
-`CREATE TABLE` as [raw SQL](10-raw-sql.md). Its values read as any
-interval's do.
+MINUTE`, is declared `column_type=pgorm.schema.DataType("interval",
+fields="hour_to_minute")`, the fields in snake_case and a `precision` only
+where the last field is seconds (`fields="day_to_second", precision=3`), as
+Rust's `ColumnType::Interval(IntervalSpec::Fields(..))`; the same `DataType`
+goes to `ColumnDef`. Its values read as any interval's do.
 
 ## Ranges and multiranges
 
@@ -1115,20 +1104,41 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Here Python differs from Rust: a Rust entity says its column is the domain,
-with `column_type = ColumnType::Domain { name, schema, base }`, and a Python
-model says nothing of it, declaring only the kind the domain is over. A
-domain over a domain decodes as the type at the bottom.
+A model whose table it writes says the column is the domain with
+`column_type=pgorm.schema.DataType.domain("grams", "integer")`, as a Rust
+entity says `column_type = ColumnType::Domain { name, schema, base }`; the
+field keeps the kind the domain is over. A domain over a domain decodes as
+the type at the bottom.
 
 A domain over an enum is read and written as the enum, so its field's kind is
-the enum's `TypeName`. PostgreSQL resolves no comparison operator for such a
-domain, and a Rust entity compares its column cast to the enum. A Python
-model does not know its column is a domain, so cast the column yourself:
-`Special.col("flavor").expr().cast(FLAVOR) == Value("lemon", FLAVOR)`
-compares as the enum, where `Special.col("flavor") == "lemon"` fails with
-"operator does not exist". PostgreSQL cannot build a foreign key on such a
-column, and [Schema generation](14-schema.md) from a registered entity
-refuses a relation over one.
+the enum's `TypeName`, and its `column_type` the domain. PostgreSQL resolves
+no comparison operator for such a domain, so the model compares its column
+cast to the enum, as a Rust entity does, reads it as its text and writes each
+label cast to the domain:
+
+```python
+from pgorm import Column, Model, TypeName
+from pgorm import schema as s
+
+FLAVOR = TypeName("flavor", schema="public")
+SPECIAL = TypeName("special_flavor", schema="public")
+
+Special = Model("special", {
+    "id": Column("i32", primary_key=True, auto_increment=True),
+    "flavor": Column(FLAVOR, values=["lemon", "vanilla"], column_type=s.DataType.domain(SPECIAL, FLAVOR)),
+})
+
+lemon = Special.find().where(Special.col("flavor") == "lemon").inspect()
+assert lemon.sql == (
+    'SELECT "special"."id", CAST("special"."flavor" AS text) AS "flavor" FROM "special" '
+    'WHERE CAST("special"."flavor" AS public.flavor) = CAST($1::text AS public.flavor)'
+)
+```
+
+An enum column's `column_type` must be a domain over that enum, any other a
+`ConstructionError`. PostgreSQL cannot build a foreign key on such a column,
+and [Schema generation](14-schema.md) refuses a relation over one when it
+can tell.
 
 ## Network addresses, bytes and vectors
 
@@ -1209,125 +1219,160 @@ else:
 
 ## Newtypes
 
-Here Python differs from Rust. A Rust newtype over any of these types derives
-`ValueType` and then goes wherever its inner type goes: as a field, as a
-bound value, as a decoded column. Python has no counterpart: a field's values
-are its kind's Python type exactly, and a subclass of that type is refused
-as the value is made, an `int` subclass for an integer kind and a `StrEnum`
-for a text or enum kind alike. A type that only exists for the type checker
-is no obstacle. `typing.NewType` makes values of the inner type itself, so a
-`CakeId` is an `int` wherever pgorm sees it:
-
-```python
-from typing import NewType
-
-import pgorm
-from pgorm import Value
-
-from bakery import Cake
-
-CakeId = NewType("CakeId", int)
-
-lemon_drizzle = CakeId(2)
-compiled = Cake.find().where(Cake.col("id") == lemon_drizzle).inspect()
-assert [value.value for value in compiled.params] == [2]
-
-
-class Grams(int):
-    pass
-
-
-try:
-    Value(Grams(500), "i32")
-except pgorm.ConstructionError:
-    pass
-else:
-    raise AssertionError("a subclass of int is not an int")
-```
-
-A type stored as JSON is converted by the program, as [JSON](#json) showed,
-and a range type the schema creates is named by its `CreatedRange`. A Rust
-entity's newtype fields reach a Python program through a
-[registration](24-registrations.md), which reads and writes them as the kind
-of the column's type, with the Rust conversions in between.
-
-## Custom reads and writes
-
-Sometimes a column needs SQL around it on its way in or out, because pgorm
-has no kind that reads it directly. Here Python differs from Rust. A Rust
-field says so with four attributes: `select_as` and `save_as` read the column
-cast to a type and write each value cast to one, and `select_with` and
-`save_with` (beside `save_array_with` for the arrays `eq_any` and `ne_all`
-compare with) read and write through functions over the expression. A Python
-model has none of them: it reads each field as its column is, and writes
-each value as its kind's. A Python program writes the casts in the statement
-instead, with the [query builder](11-query-builder.md): `expr.cast(type)` is
-`select_as`, `bind(value).cast(type)` is `save_as`, and a function of its own
-that returns an expression is `select_with` or `save_with`. A Rust entity
-that declares them brings them along through a
-[registration](24-registrations.md), since the Rust entity builds the
-statements.
-
-The bakery keeps the days of the week it opens as a `bit(7)`, Monday first,
-and the program reads and writes it as an integer. No kind reads `bit`, so
-the column is read cast to `bigint`, and each value written as its seven
-binary digits, cast to `varbit` for PostgreSQL to fit to the column:
+A Rust newtype over any of these types derives `ValueType` and then goes
+wherever its inner type goes: as a field, as a bound value, as a decoded
+column. A model's column says the same with two functions: `decode`, which
+turns each value a record reads into the program's own, and `encode`, its
+inverse, which turns the program's value into one of the kind before every
+write and comparison converts it. A value `decode` refuses, by raising,
+makes the read a `DecodeError`, never a record holding the value, which is how
+a JSON column's documents are checked as they are read, as a Rust
+`JsonValueType` field's are. `None` passes through neither. An enum stored as
+numbers, Rust's `rs_type = i16, db_type = ColumnType::SmallInteger`, is a
+column of that kind decoded as a Python `IntEnum`:
 
 ```python
 import asyncio
+import enum
 import os
+from dataclasses import dataclass
+from typing import Any
 
-from pgorm import Expr, Pool, Table, TypeName, bind, col, insert, select
+import pgorm
+from pgorm import Column, Model, Pool
 from pgorm import schema as s
 
-OPENING = Table("opening")
-DAYS = col("days", table="opening")
+
+class Shelf(enum.IntEnum):
+    TOP = 1
+    BOTTOM = 2
 
 
-def days_in(days: int) -> Expr:
-    return bind(format(days, "07b")).cast(TypeName("varbit"))
+@dataclass(frozen=True)
+class Contact:
+    name: str
+    phone: str
+
+    @staticmethod
+    def read(document: Any) -> "Contact":
+        return Contact(str(document["name"]), str(document["phone"]))
+
+    def json(self) -> dict[str, str]:
+        return {"name": self.name, "phone": self.phone}
 
 
-def days_out() -> Expr:
-    return DAYS.cast(TypeName("bigint"))
+Display = Model("display", {
+    "id": Column("i32", primary_key=True),
+    "shelf": Column("i16", decode=Shelf, encode=int),
+    "supplier": Column("json", nullable=True, decode=Contact.read, encode=Contact.json),
+})
 
 
 async def main() -> None:
     async with Pool(os.environ["DATABASE_URL"]) as pool:
-        await pool.execute(
-            s.create_table("opening")
-            .column(s.ColumnDef("bakery_id", "integer").not_null())
-            .column(s.ColumnDef("days", s.DataType("bit", length=7)).not_null())
-            .primary_key("bakery_id")
-        )
+        await pool.execute(s.from_model(Display).table)
+        row = await Display.insert({
+            "id": 1, "shelf": Shelf.TOP, "supplier": Contact("Flour & Co", "555-0100"),
+        }).returning().one(pool)
+        assert row["shelf"] is Shelf.TOP
+        assert row["supplier"] == Contact("Flour & Co", "555-0100")
 
-        # Monday to Saturday.
-        sunrise = await pool.one(
-            insert(OPENING)
-            .columns("bakery_id", "days")
-            .values(1, days_in(0b111_1110))
-            .returning(days_out().as_("days"))
-        )
-        assert sunrise["days"] == 0b111_1110
+        tops = await Display.find().where(Display.col("shelf") == Shelf.TOP).all(pool)
+        assert [top["id"] for top in tops] == [1]
 
-        every_day = (
-            select(col("bakery_id", table="opening"), days_out().as_("days"))
-            .from_(OPENING)
-            .where(DAYS == days_in(0b111_1111))
-        )
-        assert every_day.inspect().sql == (
-            'SELECT "opening"."bakery_id", CAST("opening"."days" AS bigint) AS "days" '
-            'FROM "opening" WHERE "opening"."days" = CAST($1::text AS varbit)'
-        )
-        assert await pool.query(every_day) == []
+        # A document without a phone is no Contact, and is refused as it is read.
+        await pool.execute(pgorm.RawSQL(
+            "INSERT INTO display (id, shelf, supplier) VALUES (2, 2, '{\"name\": \"Nobody\"}')"
+        ))
+        try:
+            await Display.find_by_key({"id": 2}).one(pool)
+        except pgorm.DecodeError:
+            pass
+        else:
+            raise AssertionError("a contact without a phone was read")
 
 
 asyncio.run(main())
 ```
 
-A cast's type is a `TypeName`, so it takes no modifier such as `bit(7)`'s
-length: that is why the value goes through `varbit`, where Rust writes
-`CAST($1::int8 AS bit(7))`. A type whose name needs quoting is a `TypeName`
+Rust's `display` is the program's own spelling of the enum, its `str()`. A
+type that only exists for the type checker needs neither function:
+`typing.NewType` makes values of the inner type itself, so a `CakeId` is an
+`int` wherever pgorm sees it. A subclass of a kind's type is refused as the
+value is made, where no `encode` turns it into one. A Rust entity's newtype
+fields reach a Python program through a [registration](24-registrations.md),
+which reads and writes them with the Rust conversions in between.
+
+## Custom reads and writes
+
+Sometimes a column needs SQL around it on its way in or out, because pgorm
+has no kind that reads it directly. A Rust field says so with five
+attributes, and a model's column takes the same five: `select_as` and
+`save_as` read the column cast to a type and write each value cast to one,
+and `select_with` and `save_with` read and write through functions from an
+expression to an expression, the value bound before `save_with` sees it,
+with `save_array_with` beside `save_with` for the array `any_(..)` and
+`all_(..)` compare the column with. As in Rust, `save_with` and
+`save_array_with` come together, and either alone is a `ConstructionError`.
+A comparison's value takes the column's write too, and so does a list
+`any_(..)` or `all_(..)` ranges over, bound as one array: a `save_as`
+column's array is cast to the array of its type, a `money` column's to
+`money[]`, a domain over an enum's to the enum's array, as Rust's
+`save_array_as` casts it. A type is a built-in type's name, a `TypeName`, or
+a `DataType`, whose length or precision the cast writes: `bit(7)`.
+
+The bakery keeps the days of the week it opens as a `bit(7)`, Monday first,
+and the program reads and writes it as an integer. No kind reads `bit`, so
+the column is read cast to `bigint`, and each value written cast to
+`bit(7)`, as the Rust entity's `select_as = "bigint", save_as = "bit(7)"`:
+
+```python
+import asyncio
+import os
+
+from pgorm import Column, Model, Pool, any_
+from pgorm import schema as s
+
+DAYS = s.DataType("bit", length=7)
+
+Opening = Model("opening", {
+    "bakery_id": Column("i32", primary_key=True),
+    "days": Column("i64", column_type=DAYS, select_as="bigint", save_as=DAYS),
+})
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await pool.execute(s.from_model(Opening).table)
+
+        # Monday to Saturday.
+        sunrise = await Opening.insert({"bakery_id": 1, "days": 0b111_1110}).returning().one(pool)
+        assert sunrise["days"] == 0b111_1110
+
+        every_day = Opening.find().where(Opening.col("days") == 0b111_1111)
+        assert every_day.inspect().sql == (
+            'SELECT "opening"."bakery_id", CAST("opening"."days" AS bigint) AS "days" '
+            'FROM "opening" WHERE "opening"."days" = CAST($1::int8 AS bit(7))'
+        )
+        assert await every_day.all(pool) == []
+
+        some_days = Opening.find().where(Opening.col("days") == any_([0b111_1110, 0b000_0011]))
+        assert some_days.inspect().sql.endswith(
+            'WHERE "opening"."days" = ANY(CAST($1::int8[] AS bit(7)[]))'
+        )
+        assert [row["bakery_id"] for row in await some_days.all(pool)] == [1]
+
+
+asyncio.run(main())
+```
+
+A statement written with the [query builder](11-query-builder.md) writes the
+casts itself: `expr.cast(type)` is `select_as`, `bind(value).cast(type)` is
+`save_as`, and a function of its own that returns an expression is
+`select_with` or `save_with`. A cast there takes a `TypeName`, which has no
+length, so a value bound for `bit(7)` goes through `varbit`, where a model's
+`save_as` names `bit(7)` itself, and an array `any_(..)` compares with is
+the statement's to cast as well. A type whose name needs quoting is a `TypeName`
 like any other, and an array of it is `cast(type, array=True)`. Here is
 Rust's shelf label, read as `text` and compared with a list of labels as one
 array:

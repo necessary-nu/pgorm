@@ -2,28 +2,18 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal } from "@necessary/pgorm";
-import { Cake } from "../../../guide/bakery.ts";
+import { Bakery, Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  assert.equal(Cake.columns.flavor.kind.toString(), `"public"."flavor"`);
-  assert.deepEqual(Cake.columns.flavor.values, ["chocolate", "vanilla", "lemon", "carrot"]);
+  const cakeBakery = Cake.belongsTo(Bakery, { from: "bakeryId", to: "id" });
+  const bakeryCakes = Bakery.hasMany(Cake, { from: "id", to: "bakeryId" });
 
-  const carrot = await Cake.find().where(Cake.col("flavor").eq("carrot")).one(pool);
-  assert.equal(carrot.name, "Carrot Cake");
+  assert.equal(cakeBakery.cardinality, "one");
+  assert.equal(bakeryCakes.cardinality, "many");
+  assert.deepEqual([cakeBakery.fromFields, cakeBakery.toFields], [["bakeryId"], ["id"]]);
 
-  // A label the declaration does not list is refused before anything is sent.
-  assert.throws(
-    () =>
-      Cake.insert({
-        name: "Banana Bread",
-        // @ts-expect-error: "banana" is not one of the flavor's labels
-        flavor: "banana",
-        price: new Decimal("3.00"),
-        glutenFree: false,
-        bakeryId: 1,
-      }),
-    ConstructionError,
-  );
+  const lemonDrizzle = await Cake.findByKey({ id: 2 }).one(pool);
+  const sunrise = await cakeBakery.find(lemonDrizzle).one(pool);
+  assert.equal(sunrise.name, "Sunrise");
 }

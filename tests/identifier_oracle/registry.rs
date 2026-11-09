@@ -36,6 +36,7 @@ use pgorm::pgorm_query::{
     SampleMethod, Search, SearchOrder, SqlTemplate, TableFunction, TableSample, TypeName,
     WindowStatement, WithClause,
 };
+use pgorm_query::ExprTrait;
 
 use super::oracle::{
     Policy::{FunctionName, Quoted, TypePart},
@@ -556,7 +557,7 @@ fn query_sites() -> Vec<Site> {
                 sql(Query::select()
                     .column(fixed("c"))
                     .from(fixed("t"))
-                    .order_by_expr(Expr::col(fixed("c")).collate(n_(n)).into(), Order::Asc))
+                    .order_by_expr(Expr::col(fixed("c")).collate(n_(n)), Order::Asc))
             },
         },
         Site {

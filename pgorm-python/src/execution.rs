@@ -3,91 +3,48 @@
 mod target;
 pub(crate) use target::{Executor, Target};
 
-use pgorm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText};
-use tokio_postgres::{
-    Row, RowStream,
-    types::{BorrowToSql, ToSql},
+use pyo3::{prelude::*, types::PyList};
+
+use crate::{
+    errors::InternalError,
+    panics::future_into_py,
+    transactions::work::{Output, Work},
 };
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Database<'a> {
-    Connection(&'a DatabaseConnection),
-    Transaction(&'a DatabaseTransaction<'a>),
-}
+/// What an operation runs on: a connection or a transaction, plain or, from
+/// an instrumented pool, pgorm's metrics wrapper around one.
+pub(crate) use pgorm_bindings::Database;
 
-macro_rules! native {
-    ($db:expr, $method:ident $(, $arg:expr)*) => {
-        match $db {
-            Database::Connection(connection) => connection.$method($($arg),*).await,
-            Database::Transaction(transaction) => transaction.$method($($arg),*).await,
-        }
-    };
-}
-
-// [spec:pgorm:req:bindings.transactions]
-#[pgorm::entity::prelude::async_trait::async_trait]
-impl ConnectionTrait for Database<'_> {
-    async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        native!(self, execute, statement, params)
-    }
-
-    async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        native!(self, execute_raw, statement, params)
-    }
-
-    async fn query_one<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Row, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        native!(self, query_one, statement, params)
-    }
-
-    async fn query_opt<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        native!(self, query_opt, statement, params)
-    }
-
-    async fn query_all<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        native!(self, query_all, statement, params)
-    }
-
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        native!(self, query_raw, statement, params)
-    }
-
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
-        native!(self, batch_execute, sql)
-    }
+/// Run `work` on `target` and give the rows `rows` takes from its output as
+/// Python reads them, each made by `each`: a list, or with `single` the first
+/// row or `None`. An output of another kind is the binding's own failure, a
+/// `what` result it did not expect.
+pub(crate) fn listed<'py, T: Send + 'static>(
+    py: Python<'py>,
+    target: Executor,
+    work: Work,
+    single: bool,
+    what: &'static str,
+    rows: fn(Output) -> Option<Vec<T>>,
+    each: fn(Python<'_>, T) -> PyResult<Py<PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    future_into_py(py, async move {
+        let Some(rows) = rows(target.run(work).await?) else {
+            return Err(InternalError::new_err(format!("unexpected {what} result")));
+        };
+        Python::attach(|py| {
+            let mut rows = rows
+                .into_iter()
+                .map(|row| each(py, row))
+                .collect::<PyResult<Vec<_>>>()?;
+            if single {
+                return Ok(if rows.is_empty() {
+                    py.None()
+                } else {
+                    rows.swap_remove(0)
+                });
+            }
+            Ok(PyList::new(py, rows)?.into_any().unbind())
+        })
+    })
 }

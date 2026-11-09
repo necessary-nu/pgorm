@@ -2,14 +2,21 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { col, Table, update } from "@necessary/pgorm";
+import { DecodeError } from "@necessary/pgorm";
+import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const rename = update(new Table("cake")).set("name", "Lemon Drizzle Loaf").where(col("id").eq(2));
-  const { sql, values } = rename.inspect();
-  assert.equal(sql, `UPDATE "cake" SET "name" = $1 WHERE "id" = $2`);
+  const glutenFree = await Cake.findByStatement(
+    "SELECT *, 'unread' AS note FROM cake WHERE gluten_free = $1 ORDER BY id",
+    [true],
+  ).all(pool);
+  assert.deepEqual(glutenFree.map((cake) => cake.name), ["Lemon Drizzle", "Vanilla Sponge", "Chocolate Torte"]);
 
-  assert.equal(await pool.execute(sql, values), 1);
-  assert.equal(await pool.execute(rename), 1);
+  const lemon = await Cake.findByStatement("SELECT * FROM cake WHERE id = $1", [2]).one(pool);
+  assert.equal(lemon.flavor, "lemon");
+  assert.equal(lemon.bakeryId, 1);
+
+  // The statement returns no price, which Cake reads.
+  await assert.rejects(Cake.findByStatement("SELECT id, name FROM cake").all(pool), DecodeError);
 }

@@ -9,7 +9,7 @@
 
 use neon::{prelude::*, types::JsBigInt};
 use pgorm::pgorm_query::{
-    Condition, Expr, IntoCondition, Name, SelectStatement, SimpleExpr, TypeName,
+    Condition, Expr, ExprTrait, IntoCondition, Name, SelectStatement, SimpleExpr, TypeName,
 };
 
 use super::{Node, Ordering};
@@ -123,9 +123,9 @@ pub(crate) fn rust_type(named: &values::TypeName) -> TypeName {
 
 /// A value to bind: anything a parameter takes, inferred or declared with
 /// `Value`, written as its kind needs — an enum's label cast to the enum, a
-/// created range's text cast to its range type through `Expr::as_range`.
+/// created range's text cast to its range type through `ExprTrait::as_range`.
 /// Nothing here interpolates: the value is a placeholder's.
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 pub(crate) fn bound<'cx>(cx: &mut Cx<'cx>, data: Handle<'cx, JsValue>) -> NeonResult<SimpleExpr> {
     let codec = Codec::get(cx)?;
     let Some(tagged) = read::infer(cx, codec, data)? else {
@@ -154,7 +154,7 @@ pub(crate) fn literal<'cx>(cx: &mut Cx<'cx>, data: Handle<'cx, JsValue>) -> Neon
 }
 
 /// `expr` cast as a value of `tag` must be: an enum's label to the enum, a
-/// created range's text to its range type through `Expr::as_range`, and an
+/// created range's text to its range type through `ExprTrait::as_range`, and an
 /// array of either to the type's array.
 fn typed(expr: SimpleExpr, tag: Tag) -> SimpleExpr {
     match tag {
@@ -366,15 +366,9 @@ pub(crate) fn pick<'cx, T: Clone>(
     } else {
         None
     };
-    match text.and_then(|text| choices.iter().find(|(spelling, _)| *spelling == text)) {
-        Some((_, meaning)) => Ok(meaning.clone()),
-        None => {
-            let quoted: Vec<String> = choices
-                .iter()
-                .map(|(spelling, _)| format!("{spelling:?}"))
-                .collect();
-            cx.throw_type_error(format!("{what} is one of {}", quoted.join(", ")))
-        }
+    match pgorm_bindings::pick(text.as_deref(), what, choices) {
+        Ok(meaning) => Ok(meaning),
+        Err(refusal) => cx.throw_type_error(refusal.into_message()),
     }
 }
 

@@ -1,39 +1,40 @@
 //! Concrete Rust entity registrations, owned by one native extension module.
 
 mod active;
-pub(crate) mod backend;
 mod column;
-pub(crate) mod generic;
+pub(crate) mod input;
 mod inserts;
 pub(crate) mod io;
-pub(crate) mod metadata;
 mod model;
 pub(crate) mod query;
+pub(crate) mod reads;
+pub(crate) mod reads_py;
 mod registry;
-mod relations;
-#[cfg(test)]
-mod variants;
+mod selection;
 mod versions;
 
 pub use active::{ActiveState, PyActiveModel, PyActiveValue};
 pub use column::PyEntityColumn;
 pub(crate) use inserts::TERMINALS as insert_terminals;
-pub use inserts::{PyEntityInsert, PyEntityInsertMany};
+pub use inserts::{PyEntityInsert, PyEntityInsertMany, PyEntityTryInsert, PyEntityTryInsertMany};
 pub use model::PyEntityModel;
-pub use query::PyEntityQuery;
+pub use query::{PyEntityQuery, PyEntityRawQuery};
+pub use reads_py::{PyEntityCursor, PyEntityPaginator};
 pub(crate) use registry::NativeRegistry;
 pub use registry::Registry;
+pub use selection::{PyEntityRelation, PyEntitySelection};
 pub(crate) use versions::TERMINALS as version_terminals;
 pub use versions::{PyChange, PyEntityUpdate, PyEntityUpdateMany, PyUpserted};
 
-use crate::identifiers::Identifier;
+use crate::{config::DIALECT, errors::Raise, identifiers::Identifier};
+use pgorm_bindings::entity::EntityBackend;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 #[pyclass(name = "Entity", module = "pgorm", frozen, from_py_object)]
 pub struct PyEntity {
-    pub(crate) backend: Arc<dyn backend::EntityBackend>,
+    pub(crate) backend: Arc<dyn EntityBackend>,
 }
 
 #[pymethods]
@@ -44,8 +45,10 @@ impl PyEntity {
     }
 
     fn describe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        py.import("json")?
-            .call_method1("loads", (self.backend.info().describe().to_string(),))
+        py.import("json")?.call_method1(
+            "loads",
+            (self.backend.info().describe(DIALECT).to_string(),),
+        )
     }
 
     fn col<'py>(
@@ -54,7 +57,7 @@ impl PyEntity {
         name: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyEntityColumn>> {
         let name = Identifier::new(name)?.name;
-        self.backend.info().column(&name)?;
+        self.backend.info().column(&name).py()?;
         Bound::new(py, PyEntityColumn::new(self.backend.clone(), name)?)
     }
 
@@ -62,6 +65,16 @@ impl PyEntity {
         PyEntityQuery {
             inner: self.backend.select(),
         }
+    }
+
+    /// The relation the entity's `Relation` enum declares under `name`, for
+    /// a query to join.
+    fn relation(&self, name: &str) -> PyResult<PyEntityRelation> {
+        self.backend.relation(name).py()?;
+        Ok(PyEntityRelation {
+            entity: self.backend.clone(),
+            name: name.to_owned(),
+        })
     }
 
     fn active(&self) -> PyActiveModel {
@@ -102,16 +115,28 @@ pub(crate) fn install(module: &Bound<'_, PyModule>, registry: Registry) -> PyRes
     module.add_class::<PyEntity>()?;
     module.add_class::<PyEntityColumn>()?;
     module.add_class::<PyEntityQuery>()?;
+    module.add_class::<PyEntityRawQuery>()?;
+    module.add_class::<PyEntitySelection>()?;
+    module.add_class::<PyEntityPaginator>()?;
+    module.add_class::<reads_py::PyEntityPages>()?;
+    module.add_class::<PyEntityCursor>()?;
+    module.add_class::<PyEntityRelation>()?;
+    module.add_class::<reads::NativeRowDecoder>()?;
     module.add_class::<PyEntityModel>()?;
     module.add_class::<PyActiveModel>()?;
     module.add_class::<PyActiveValue>()?;
     module.add_class::<ActiveState>()?;
     module.add_class::<PyChange>()?;
     module.add_class::<PyUpserted>()?;
+    module.add_function(wrap_pyfunction!(versions::make_change, module)?)?;
+    module.add_function(wrap_pyfunction!(versions::make_inserted, module)?)?;
+    module.add_function(wrap_pyfunction!(versions::make_updated, module)?)?;
     module.add_class::<PyEntityUpdate>()?;
     module.add_class::<PyEntityUpdateMany>()?;
     module.add_class::<PyEntityInsert>()?;
     module.add_class::<PyEntityInsertMany>()?;
+    module.add_class::<PyEntityTryInsert>()?;
+    module.add_class::<PyEntityTryInsertMany>()?;
     module.add("_registry", registry::NativeRegistry(registry))?;
     module.add_function(wrap_pyfunction!(registry::entity, module)?)?;
     module.add_function(wrap_pyfunction!(registry::entities, module)?)?;
@@ -129,6 +154,21 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
         ("entity.all", "pgorm::Select<E>::all"),
         ("entity.one", "pgorm::Select<E>::one"),
         ("entity.optional", "pgorm::Select<E>::one_opt"),
+        ("entity.count", "pgorm::PaginatorTrait::count"),
+        ("entity.stream", "pgorm::Select<E>::stream"),
+        (
+            "entity.paginate",
+            "pgorm::PaginatorTrait::paginate, Paginator::{fetch_page,num_items_and_pages}",
+        ),
+        (
+            "entity.cursor",
+            "pgorm::Select<E>::cursor_by, pgorm::Cursor",
+        ),
+        (
+            "entity.join",
+            "pgorm::QuerySelect::join, RelationTrait::def",
+        ),
+        ("entity.select", "pgorm::QuerySelect::{select_only,columns}"),
         ("entity.model", "pgorm::ModelTrait"),
         (
             "entity.active",

@@ -8,7 +8,7 @@ from os import PathLike
 import re
 from typing import Any
 
-from .config import CodegenError, identifier, validate
+from .config import FAMILIES, CodegenError, identifier, validate
 from .source import Call, Code, bracket, flat, from_import, literal, string, union
 from .types import FieldType, field_type
 
@@ -224,6 +224,39 @@ def disjoint_code(
     return [alias, decoder, statement], [alias, bracket(f"{name}: {view}[", arguments, "]")]
 
 
+# [spec:pgorm:req:bindings.codegen-coverage]
+def source_code(
+    entry: dict[str, Any], source: dict[str, Any], entities: dict[str, dict[str, Any]]
+) -> tuple[list[str], list[str]]:
+    """A registered source tuple's row type, each source's model or ``None``
+    where the row lacks it, and the selection itself, for a pipeline's
+    ``select_sources``. The module's top-level blocks, and the stub's."""
+    by_rust = {entity["rust"]: entity for entity in entities.values()}
+    slots = []
+    for path in entry["rust"]:
+        if path not in by_rust:
+            raise CodegenError("a source tuple's entity is missing from generated entity exports")
+        slots.append(by_rust[path]["python"] + "Model | None")
+    if len(slots) != len(source.get("entities", slots)):
+        raise CodegenError("the installed source tuple lists other entities")
+    name = entry["python"]
+    alias = bracket(f"{name}Row: TypeAlias = tuple[", slots, "]")
+    registration = string(entry["name"])
+    return (
+        [alias, f"{name} = pl.sources({registration})"],
+        [alias, f"{name}: pl.SourceSelection"],
+    )
+
+
+# [spec:pgorm:req:bindings.codegen-coverage]
+def one_of_code(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """A registered one-of enum, the reference its reads, loads and ``CHECK``
+    are written from. The module's top-level block, and the stub's."""
+    name = entry["python"]
+    registration = string(entry["name"])
+    return [f"{name} = p.one_of_entity({registration})"], [f"{name}: p.OneOfEntity"]
+
+
 # The names the module and its stub may import, by module, and the
 # expression of each that the generated code is searched for.
 IMPORTS: list[tuple[str | None, list[tuple[str, str]]]] = [
@@ -240,7 +273,7 @@ IMPORTS: list[tuple[str | None, list[tuple[str, str]]]] = [
         ],
     ),
     ("uuid", [("UUID", "UUID")]),
-    (None, [("pgorm as p", "p")]),
+    (None, [("pgorm as p", "p"), ("pgorm.pipeline as pl", "pl")]),
     (
         "pgorm._registered",
         [
@@ -300,7 +333,7 @@ def emit(project: str | PathLike[str]) -> Path:
         raise CodegenError(
             "project must contain a scaffolded application.json"
         ) from error
-    raw_keys = {"schema_version", "module", "entity_crate", "entities", "graphs", "disjoints"}
+    raw_keys = {"schema_version", "module", "entity_crate", *FAMILIES}
     if not isinstance(description, dict) or set(description) - raw_keys - {
         "entity_package",
         "compatibility",
@@ -331,7 +364,7 @@ def emit(project: str | PathLike[str]) -> Path:
         raise CodegenError("installed native build is incompatible with this scaffold")
     expected = {**expected, "features": actual["features"]}
     registrations = {}
-    for family in ("entities", "graphs", "disjoints"):
+    for family in FAMILIES:
         registrations[family] = {
             entry["name"]: entry for entry in actual["registrations"][family]
         }
@@ -347,10 +380,16 @@ def emit(project: str | PathLike[str]) -> Path:
     stubs: list[str] = []
     names = []
     entities = {entry["name"]: entry for entry in description["entities"]}
-    for family in ("entities", "graphs", "disjoints"):
+    for family in FAMILIES:
         for entry in description[family]:
             registered = registrations[family][entry["name"]]
-            if family == "entities":
+            if family == "one_ofs":
+                generated, stub = one_of_code(entry)
+                names.append(entry["python"])
+            elif family == "sources":
+                generated, stub = source_code(entry, registered, entities)
+                names.extend([entry["python"], entry["python"] + "Row"])
+            elif family == "entities":
                 generated, stub = entity_code(entry, registered)
                 names.extend(
                     [entry["python"], entry["python"] + "Model", entry["python"] + "Active"]

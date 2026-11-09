@@ -141,61 +141,64 @@ fields, as the query it came from does; Rust's needs `into_model` or
 
 ### Ties and secondary keys
 
-In Rust, `add_secondary_order_by` appends a column to a cursor's ordering
-after its key, which is how a cursor over a join is made total. `after` and
-`before` still take the key alone, and so resume past every row sharing the
-boundary's key, while `after_with` and `before_with` take the whole ordering
-and resume from exactly one row.
-
-A JavaScript model query's cursor orders by its key and nothing else, so its
-key is the whole ordering: a cursor by bakery that should be total names the
-id in its key, and its boundary, the bakery and the id, resumes from exactly
-one row, as Rust's `after_with` does.
+`addSecondaryOrderBy(model, field)` appends a column of the queried model or
+a joined one to the cursor's ordering, after its key, which is how a cursor
+over a join is made total; the model names the table as the query names it,
+an aliased model its alias, as Rust's `add_secondary_order_by(table,
+column)` names it. `after` and `before` still take the key alone, and so
+resume past every row sharing the boundary's key, while `afterWith` and
+`beforeWith` take the whole ordering, the appended columns included, and
+resume from exactly one row:
 
 ```ts
 import assert from "node:assert/strict";
 
 // By bakery, then by id within each bakery.
-const byBakery = Cake.find().cursor("bakeryId", "id");
+const byBakery = Cake.find().cursor("bakeryId").addSecondaryOrderBy(Cake, "id");
 
 const first = await byBakery.first(2).all(pool);
 assert.deepEqual(first.map((cake) => cake.id), [1, 2]);
 
-// Bakery 1 has a third cake, which comes next.
-const rest = await byBakery.after(1, 2).first(2).all(pool);
+// Bakery 1 has a third cake, which `after(1)` would skip.
+const rest = await byBakery.afterWith(1, 2).first(2).all(pool);
 assert.deepEqual(rest.map((cake) => cake.id), [5, 3]);
+const skipped = await byBakery.after(1).first(2).all(pool);
+assert.deepEqual(skipped.map((cake) => cake.id), [3, 4]);
 ```
 
-**Not available in JavaScript yet:** a secondary ordering on a model query's
-cursor. Rust's `add_secondary_order_by` breaks ties by a column of the
-queried table or a joined one, apart from the key, so that `after` can resume
-past a whole run of one key while `after_with` resumes inside it. A
-JavaScript model cursor's `afterWith` and `beforeWith` take what `after` and
-`before` take.
-
-A [graph](07-relations.md) has cursors too, by its root's fields, and adds
-every decoded source's primary key to the ordering itself; there `afterWith`
-takes the whole ordering.
+A [graph](07-relations.md) has cursors too, `cursor` by its root's fields and
+`cursorOn` by one of its slots', as Rust's `cursor_by` and `cursor_by_on`, and
+adds every decoded source's primary key to the ordering itself; there
+`afterWith` takes the whole ordering.
 
 ## Paginating raw SQL
 
-**Not available in JavaScript yet:** pages and counts over SQL text. Rust's
-`SelectorRaw::paginate` wraps a statement you wrote as a subquery and pages
-over it, reading it with PostgreSQL's own parser and refusing anything but a
-single `SELECT`, and its `count` counts it. A JavaScript `Paginator` comes
-only from a model query or a graph. SQL text pages by binding its own
-`LIMIT` and `OFFSET`, as [Raw SQL](10-raw-sql.md) runs any statement:
+A query written as SQL pages and counts too. `fromStatement(sql, params)`
+holds a statement whose rows are plain objects, and a model's
+`findByStatement(sql, params)` one whose rows are its records ([Raw
+SQL](10-raw-sql.md)); each is a `SelectorRaw`, whose `paginate(pageSize)`
+gives the `Paginator` a model query gives and whose `count(db)` counts the
+rows. As Rust's `SelectorRaw::paginate`, it wraps the statement as a subquery
+and pages over that, so the statement's own `ORDER BY` still decides the
+pages. pgorm reads the statement with PostgreSQL's own parser to do so, and
+refuses anything but a single `SELECT` (a `WITH .. SELECT`, a `VALUES` list
+and a `UNION` count as one) with a `ConstructionError` as `paginate` is
+called, or as `count` runs:
 
 ```ts
 import assert from "node:assert/strict";
+import { ConstructionError, fromStatement } from "@necessary/pgorm";
 
-const page = (number: number) =>
-  pool.query("SELECT name, price FROM cake WHERE bakery_id = $1 ORDER BY price LIMIT $2 OFFSET $3", [1, 2, number * 2]);
+const pages = fromStatement("SELECT name, price FROM cake WHERE bakery_id = $1 ORDER BY price", [1]).paginate(2);
+assert.deepEqual(await pages.numItemsAndPages(pool), { items: 3, pages: 2 });
+const first = await pages.fetchPage(pool, 0);
+assert.deepEqual(first.map((row) => [row.name, String(row.price)]), [["Lemon Drizzle", "3.20"], ["Chocolate Fudge", "4.50"]]);
 
-const first = await page(0);
-assert.equal(first[0]!.name, "Lemon Drizzle");
-assert.equal(String(first[0]!.price), "3.20");
-assert.equal((await page(1)).length, 1);
+const cakes = Cake.findByStatement("SELECT * FROM cake WHERE gluten_free ORDER BY id").paginate(2);
+assert.deepEqual((await cakes.fetchPage(pool, 1)).map((cake) => cake.name), ["Chocolate Torte"]);
+assert.equal(await Cake.findByStatement("SELECT * FROM cake").count(pool), 5);
+
+assert.throws(() => fromStatement("DELETE FROM cake").paginate(2), ConstructionError);
 ```
 
 ## Streams
@@ -204,9 +207,9 @@ assert.equal((await page(1)).length, 1);
 [`RowStream`](../lib/index.d.ts), each row decoded when it is pulled. It pulls
 one row from the server per `next()`, so a large result never sits in memory
 whole, and an unread result holds the server back. `stream` exists on a model
-query and on a [graph](07-relations.md), and a pool's or a connection's
-`stream(sql, params)` streams the rows of any statement, SQL text or built,
-as plain objects.
+query and on a [graph](07-relations.md), and a pool's, a connection's or a
+transaction's `stream(sql, params)` streams the rows of any statement, SQL
+text or built, as plain objects.
 
 ```ts
 import assert from "node:assert/strict";
@@ -232,13 +235,15 @@ assert.deepEqual(bakers, ["Ada", "Bo"]);
 
 A stream on a pool takes a connection of its own; a stream on a connection
 holds that connection, which refuses other work with a `LifecycleError` until
-the stream ends. The connection is freed at the last row. Here JavaScript
-differs from Rust in two ways:
+the stream ends, and a stream in a transaction holds the transaction the same
+way. The connection or the transaction is freed at the last row. Here
+JavaScript differs from Rust in two ways:
 
 - **Leaving early discards the connection.** A `for await` loop that breaks
   off, `return()` or `close()` before the last row closes the stream, and the
   connection it read from is discarded rather than returned, because rows
-  were left unread on it. A Rust stream dropped early leaves its connection
+  were left unread on it; a transaction it read in ends with its connection,
+  nothing committed. A Rust stream dropped early leaves its connection
   usable, which reads and discards the rest before its next statement.
 - **A row that fails to decode ends the stream.** It rejects the pull it
   arrives on with a `DecodeError`, and a `for await` loop then throws. A Rust
@@ -256,8 +261,25 @@ await stream.close();
 assert.equal(stream.closed, true);
 ```
 
-**Not available in JavaScript yet:** streaming inside a transaction. Rust's
-`stream` reads from a connection or a transaction alike. A JavaScript
-`Transaction` has no `stream`, and a model query's `stream` takes a pool or a
-connection, refusing a transaction with a `TypeError`; inside a transaction,
-read with `all` or in [pages](#pages) instead.
+A transaction streams as Rust's `stream` and `query_raw` read inside one. A
+model query's, a graph's and a disjoint read's `stream` take the transaction
+as they take a connection, and so does a transaction's own `stream(sql,
+params)`. While the stream is open the transaction refuses other statements
+with a `LifecycleError`; once its last row is read, the transaction runs
+statements again and commits as its callback ends:
+
+```ts
+import assert from "node:assert/strict";
+import { LifecycleError } from "@necessary/pgorm";
+
+const names = await pool.transaction(async (tx) => {
+  await tx.execute("UPDATE cake SET price = price + 1 WHERE bakery_id = 2");
+  const names: string[] = [];
+  for await (const cake of Cake.find().where(Cake.col("bakeryId").eq(2)).orderBy(Cake.col("name").asc()).stream(tx)) {
+    names.push(`${cake.name} ${cake.price}`);
+    await assert.rejects(tx.one("SELECT 1 AS one"), LifecycleError);
+  }
+  return names;
+});
+assert.deepEqual(names, ["Carrot Cake 4.80", "Vanilla Sponge 3.90"]);
+```

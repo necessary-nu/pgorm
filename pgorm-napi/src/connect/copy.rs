@@ -34,12 +34,12 @@ use neon::{
     prelude::*,
     types::{Finalize, JsUint8Array, buffer::TypedArray},
 };
-use pgorm::{CopyInSink, CopyOutStream, CopyRowDecoder, CopyRowEncoder, CopyTrait};
+use pgorm::{CopyOutStream, CopyRowDecoder, CopyRowEncoder, CopyTrait};
 use tokio::sync::{Mutex, Semaphore, TryAcquireError, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    Abort, ConnectionHandle, ConnectionState, Operation, Outcome, PoolHandle, PoolState,
+    Abort, ConnectionHandle, ConnectionState, Held, Operation, Outcome, PoolHandle, PoolState,
     abort_argument,
 };
 use crate::{
@@ -48,8 +48,11 @@ use crate::{
     statements::{CopyFrom, CopyTo},
 };
 
+mod columns;
+mod framing;
 mod rows;
 
+pub(crate) use columns::{columns_to_js, described};
 use rows::RowsIn;
 pub(crate) use rows::{copy_from_rows_at, copy_to_rows_at};
 
@@ -69,6 +72,8 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("copyRowsEncode", rows::copy_rows_encode)?;
     cx.export_function("copyRowsNext", rows::copy_rows_next)?;
     cx.export_function("copyRowsColumns", rows::copy_rows_columns)?;
+    columns::export(cx)?;
+    framing::export(cx)?;
     Ok(())
 }
 
@@ -299,17 +304,6 @@ impl Drop for CopyInHandle {
     }
 }
 
-async fn open_in<'a, C>(db: &'a mut C, copy: &CopyFrom) -> Result<CopyInSink<'a>, pgorm::Error>
-where
-    C: CopyTrait + Send,
-{
-    match copy {
-        CopyFrom::Text(statement) => db.copy_in(statement).await,
-        CopyFrom::Csv(statement) => db.copy_in(statement).await,
-        CopyFrom::Binary(statement) => db.copy_in(statement).await,
-    }
-}
-
 /// Run a `COPY … FROM STDIN` on `db`: open it, report the opening on
 /// `opened`, feed it what JavaScript writes and finish it when JavaScript
 /// says, returning whether `db`'s connection is kept.
@@ -338,7 +332,7 @@ where
                 let _ = opened.send(Err(failure));
                 return Settle::Discard;
             }
-            described = rows::describe_in(db, copy) => described,
+            described = copy.columns(db) => described,
         };
         match described {
             Ok(columns) => {
@@ -360,7 +354,7 @@ where
             let _ = opened.send(Err(failure));
             return Settle::Discard;
         }
-        sink = open_in(db, copy) => sink,
+        sink = copy.open(db) => sink,
     };
     let mut sink = match sink {
         Ok(sink) => sink,
@@ -529,7 +523,11 @@ fn pool_copy_in(mut cx: FunctionContext) -> JsResult<JsPromise> {
                 return;
             }
         };
-        match copy_in(&mut connection, &copy, link, opened, &stop, &pool.secrets).await {
+        let settle = match &mut connection {
+            Held::Plain(db) => copy_in(db, &copy, link, opened, &stop, &pool.secrets).await,
+            Held::Metered(db) => copy_in(db, &copy, link, opened, &stop, &pool.secrets).await,
+        };
+        match settle {
             Settle::Keep => drop(connection),
             Settle::Discard => connection.discard(),
         }
@@ -556,7 +554,8 @@ fn connection_copy_in(mut cx: FunctionContext) -> JsResult<JsPromise> {
         let stop = Stop::connection(abort, &operation.state);
         let secrets = operation.state.pool.secrets.clone();
         let settle = match operation.connection_mut() {
-            Ok(db) => copy_in(db, &copy, link, opened, &stop, &secrets).await,
+            Ok(Held::Plain(db)) => copy_in(db, &copy, link, opened, &stop, &secrets).await,
+            Ok(Held::Metered(db)) => copy_in(db, &copy, link, opened, &stop, &secrets).await,
             Err(failure) => {
                 let _ = opened.send(Err(failure));
                 Settle::Discard
@@ -756,17 +755,6 @@ impl Drop for CopyOutHandle {
     }
 }
 
-async fn open_out<'a, C>(db: &'a mut C, copy: &CopyTo) -> Result<CopyOutStream<'a>, pgorm::Error>
-where
-    C: CopyTrait + Send,
-{
-    match copy {
-        CopyTo::Text(statement) => db.copy_out(statement).await,
-        CopyTo::Csv(statement) => db.copy_out(statement).await,
-        CopyTo::Binary(statement) => db.copy_out(statement).await,
-    }
-}
-
 /// The next piece of a COPY TO's data: the chunk the server sends next and
 /// those already arrived behind it, up to [`GATHER`] bytes, or `None` at the
 /// end. An end or a failure met behind gathered data is held in `tail` for
@@ -831,7 +819,7 @@ where
                 let _ = opened.send(Err(failure));
                 return Settle::Discard;
             }
-            described = rows::describe_out(db, copy) => described,
+            described = copy.columns(db) => described,
         };
         match described {
             Ok(columns) => {
@@ -852,7 +840,7 @@ where
             let _ = opened.send(Err(failure));
             return Settle::Discard;
         }
-        stream = open_out(db, copy) => stream,
+        stream = copy.open(db) => stream,
     };
     let mut stream = match stream {
         Ok(stream) => stream,
@@ -935,7 +923,11 @@ fn pool_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
                 return;
             }
         };
-        match copy_out(&mut connection, &copy, link, opened, &stop, &pool.secrets).await {
+        let settle = match &mut connection {
+            Held::Plain(db) => copy_out(db, &copy, link, opened, &stop, &pool.secrets).await,
+            Held::Metered(db) => copy_out(db, &copy, link, opened, &stop, &pool.secrets).await,
+        };
+        match settle {
             Settle::Keep => drop(connection),
             Settle::Discard => connection.discard(),
         }
@@ -962,7 +954,8 @@ fn connection_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
         let stop = Stop::connection(abort, &operation.state);
         let secrets = operation.state.pool.secrets.clone();
         let settle = match operation.connection_mut() {
-            Ok(db) => copy_out(db, &copy, link, opened, &stop, &secrets).await,
+            Ok(Held::Plain(db)) => copy_out(db, &copy, link, opened, &stop, &secrets).await,
+            Ok(Held::Metered(db)) => copy_out(db, &copy, link, opened, &stop, &secrets).await,
             Err(failure) => {
                 let _ = opened.send(Err(failure));
                 Settle::Discard

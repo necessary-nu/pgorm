@@ -1,5 +1,8 @@
 {
   "nodeModulesDir": "none",
+  "compilerOptions": {
+    "checkJs": true
+  },
   "exclude": [
     "tests/codegen-entities/"
   ],

@@ -298,7 +298,7 @@ pub fn source_prefix(index: usize) -> String {
 /// quoted where it has to be, and only a `TypeName::raw` type expression —
 /// program text — is written as it stands.
 // [spec:pgorm:sem:query.graph.writer+4]
-// [spec:pgorm:sem:pipeline.select-sources+4]
+// [spec:pgorm:sem:pipeline.select-sources+6]
 // [spec:pgorm:req:sql.ast.cast-shape+2]
 pub(crate) fn source_read_cast<C: ColumnTrait>(col: &C) -> Option<TypeName> {
     use pgorm_query::SimpleExpr;
@@ -393,7 +393,7 @@ pub(crate) fn project_source<F: EntityTrait>(
 /// let _: SelectGraph<cake::Entity, (Opt<vendor::Entity>,)> = cake::Entity::graph()
 ///     .join_maybe::<fruit::Entity>(cake::Relation::Fruit.def());
 /// ```
-// [spec:pgorm:def:query.graph+1]
+// [spec:pgorm:def:query.graph+2]
 #[doc(alias("SelectTwo", "SelectTwoMany"))]
 pub struct SelectGraph<E: EntityTrait, S = (), R = Unsliced> {
     pub(crate) query: SelectStatement,
@@ -450,7 +450,7 @@ impl<E: EntityTrait, S, R> Clone for SelectGraph<E, S, R> {
     }
 }
 
-// [spec:pgorm:def:query.graph+1]
+// [spec:pgorm:def:query.graph+2]
 impl<E: EntityTrait> SelectGraph<E, ()> {
     /// Start a graph at its root entity, selected `FROM` its table and
     /// projected under the `s0_` prefix.
@@ -458,21 +458,19 @@ impl<E: EntityTrait> SelectGraph<E, ()> {
     /// The same construction [`EntityTrait::graph`](crate::EntityTrait::graph)
     /// and [`Default`] perform.
     pub fn new() -> Self {
-        let mut query = SelectStatement::new();
-        query.from(E::default().table_ref());
-        Self::rooted(query)
+        E::graph_in(E::default())
     }
 
-    /// The graph over `query`, whose `FROM` reads `E`'s table, its root
-    /// projected under the `s0_` prefix.
-    // [spec:pgorm:def:query.graph+1]
-    pub(crate) fn rooted(query: SelectStatement) -> Self {
+    /// The graph over `query`, whose `FROM` reads `table`, one of `E`'s, its
+    /// root projected under the `s0_` prefix.
+    // [spec:pgorm:def:query.graph+2]
+    pub(crate) fn rooted(query: SelectStatement, table: TableName) -> Self {
         let mut graph = SelectGraph {
             query,
             qualifiers: Vec::new(),
             visits: vec![Visit {
                 qualifier: Name::new(E::default()),
-                table: Some(E::default().table_ref()),
+                table: Some(table),
                 apart: false,
             }],
             marker: PhantomData,
@@ -482,7 +480,7 @@ impl<E: EntityTrait> SelectGraph<E, ()> {
     }
 }
 
-// [spec:pgorm:def:query.graph+1]
+// [spec:pgorm:def:query.graph+2]
 impl<E: EntityTrait> Default for SelectGraph<E, ()> {
     fn default() -> Self {
         Self::new()
@@ -542,7 +540,7 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     ///     true
     /// );
     /// ```
-    // [spec:pgorm:def:query.graph+1]
+    // [spec:pgorm:def:query.graph+2]
     #[doc(alias("find_also_linked", "find_with_linked"))]
     pub fn via(mut self, rel: RelationDef) -> Self {
         self.edge(JoinType::LeftJoin, rel, None, None);
@@ -702,7 +700,7 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     ///
     /// A hop and a slot are both this join; a slot is one whose joined side
     /// is then projected ([`slot_edge`](Self::slot_edge)).
-    // [spec:pgorm:def:query.graph+1]
+    // [spec:pgorm:def:query.graph+2]
     // [spec:pgorm:sem:query.graph.slots+2]
     // [spec:pgorm:req:query.graph.aliases+2]
     fn edge(
@@ -969,7 +967,7 @@ assert_eq!(
     (S1, S2, S3, S4, S5),
 );
 
-// [spec:pgorm:def:query.graph+1]
+// [spec:pgorm:def:query.graph+2]
 impl<E: EntityTrait, S, R> QueryFilter for SelectGraph<E, S, R> {
     type QueryStatement = SelectStatement;
 
@@ -978,7 +976,7 @@ impl<E: EntityTrait, S, R> QueryFilter for SelectGraph<E, S, R> {
     }
 }
 
-// [spec:pgorm:def:query.graph+1]
+// [spec:pgorm:def:query.graph+2]
 impl<E: EntityTrait, S, R> QueryOrder for SelectGraph<E, S, R> {
     type QueryStatement = SelectStatement;
 
@@ -987,7 +985,7 @@ impl<E: EntityTrait, S, R> QueryOrder for SelectGraph<E, S, R> {
     }
 }
 
-// [spec:pgorm:def:query.graph+1]
+// [spec:pgorm:def:query.graph+2]
 impl<E: EntityTrait, S, R> QueryTrait for SelectGraph<E, S, R> {
     type QueryStatement = SelectStatement;
 
@@ -1004,7 +1002,7 @@ impl<E: EntityTrait, S, R> QueryTrait for SelectGraph<E, S, R> {
     }
 }
 
-// [spec:pgorm:def:query.graph+1/test]    construction projects the root under
+// [spec:pgorm:def:query.graph+2/test]    construction projects the root under
 // `s0_` and selects from its table, `via` joins without consuming a prefix,
 // and the filter / order / query traits reach the same statement
 // [spec:pgorm:sem:query.graph.slots+2/test]    the slot kind fixes the join
@@ -1026,7 +1024,7 @@ mod tests {
     use super::*;
     use crate::tests_cfg::{cake, cake_filling, filling, fruit, lunch_set, vendor};
     use crate::{ColumnTrait, QueryFilter, RelationTrait};
-    use pgorm_query::{Expr, IntoCondition, alias};
+    use pgorm_query::{Expr, ExprTrait, IntoCondition, alias};
     use pretty_assertions::assert_eq;
 
     #[track_caller]

@@ -14,6 +14,47 @@ use pgorm_query::{CopyBinary, CopyFormat, CopyFromStatement, CopyToStatement};
 use super::copy_rows::{self, CopyColumn, CopyRowSink, CopyRowStream};
 use crate::{DatabaseConnection, DatabaseTransaction, Error};
 
+/// Refuse SQL text holding a `COPY`, before anything is sent: the statement
+/// methods, `batch_execute`'s simple query among them, run what they are given
+/// as a statement, and a `COPY` is not one. Its data flows beside it, so the
+/// driver meets a `COPY` response it reads as a protocol failure — after the
+/// server has started it, and a `COPY … FROM STDIN` is then left waiting for
+/// data nothing will send. [`CopyTrait`] is the route a `COPY` runs by.
+///
+/// Every statement pgorm composes, and nearly every one written by hand,
+/// spells no `copy` at all, so that is asked first, of the bytes; only text
+/// holding one is scanned, by PostgreSQL's own lexer, for a statement whose
+/// first token is the `COPY` keyword, a comment before it skipped and a
+/// `copy` inside a string, an identifier or a comment no keyword.
+// [spec:pgorm:req:conn.copy.statement]
+pub(crate) fn refuse_copy_statement(sql: &str) -> Result<(), Error> {
+    use pg_query::protobuf::Token;
+
+    if !sql
+        .as_bytes()
+        .windows(4)
+        .any(|word| word.eq_ignore_ascii_case(b"copy"))
+    {
+        return Ok(());
+    }
+    // Text the lexer refuses is left for the server to refuse.
+    let Ok(tokens) = pg_query::scan_tokens(sql) else {
+        return Ok(());
+    };
+    let mut starts_statement = true;
+    for token in tokens {
+        let kind = token.token;
+        if kind == Token::SqlComment as i32 || kind == Token::CComment as i32 {
+            continue;
+        }
+        if starts_statement && kind == Token::Copy as i32 {
+            return Err(Error::CopyStatement);
+        }
+        starts_statement = kind == Token::Ascii59 as i32;
+    }
+    Ok(())
+}
+
 /// COPY's data flow: `COPY … FROM STDIN` and `COPY … TO STDOUT` on a
 /// connection or a transaction.
 ///

@@ -1,8 +1,11 @@
 use pgorm_pool::GenericClient;
+use pgorm_query::TypeName;
 use tokio_postgres::{Statement, types::Type};
 
+use crate::query::graph::source_read_cast;
 use crate::{
-    DatabaseConnection, DatabaseTransaction, Error, FromQueryResult, VerifyError, error::query_err,
+    ColumnTrait, DatabaseConnection, DatabaseTransaction, Error, FromQueryResult, VerifyError,
+    error::query_err,
 };
 
 /// One column a [`FromQueryResult`] target reads out of a row, as the target
@@ -11,15 +14,23 @@ use crate::{
 /// The `accepts` function is the field's own decode test — `TryGetable::accepts`
 /// for the field's Rust type — so a column's PostgreSQL type is judged by the
 /// same mapping that would decode it.
-// [spec:pgorm:def:exec.verify]    the reflected column shape
-#[derive(Debug, Clone, Copy)]
+///
+/// A column the type reads through a cast also carries that cast, the type
+/// [`selected_as`](ExpectedColumn::selected_as) took off the entity column's
+/// own [`select_as`](crate::ColumnTrait::select_as): an enum column read as
+/// its `text`, a `money` column as `numeric`. A reader that writes the
+/// projection itself, as a pipeline's model terminals do, casts the column
+/// to it, so the decode receives what it accepts.
+// [spec:pgorm:def:exec.verify+1]    the reflected column shape
+#[derive(Debug, Clone)]
 pub struct ExpectedColumn {
     name: &'static str,
     rust_type: &'static str,
     accepts: fn(&Type) -> bool,
+    read_cast: Option<TypeName>,
 }
 
-// [spec:pgorm:def:exec.verify]
+// [spec:pgorm:def:exec.verify+1]
 impl ExpectedColumn {
     /// Declare a column read under `name` and decoded into `rust_type`, whose
     /// PostgreSQL types are the ones `accepts` answers `true` for.
@@ -32,7 +43,31 @@ impl ExpectedColumn {
             name,
             rust_type,
             accepts,
+            read_cast: None,
         }
+    }
+
+    /// The same column, read under the cast `column` is selected through:
+    /// the type its `select_as` casts it to, or no cast for a column that
+    /// `select_as` leaves as it is. The `Model` and `PartialModel` derives
+    /// report each column an entity's field reads this way:
+    ///
+    /// ```
+    /// use pgorm::{FromQueryResult, tests_cfg::lunch_set};
+    ///
+    /// let casts: Vec<_> = lunch_set::Model::expected_columns()
+    ///     .unwrap()
+    ///     .iter()
+    ///     .map(|column| (column.name(), column.read_cast().map(|cast| cast.to_sql_string())))
+    ///     .collect();
+    /// assert_eq!(
+    ///     casts,
+    ///     [("id", None), ("name", None), ("tea", Some("text".to_owned()))]
+    /// );
+    /// ```
+    pub fn selected_as<C: ColumnTrait>(mut self, column: &C) -> Self {
+        self.read_cast = source_read_cast(column);
+        self
     }
 
     /// The column name looked up in the row.
@@ -43,6 +78,12 @@ impl ExpectedColumn {
     /// The Rust type the column is decoded into, as the field spells it.
     pub fn rust_type(&self) -> &'static str {
         self.rust_type
+    }
+
+    /// The type the column is cast to when it is selected, or `None` for a
+    /// column read as the server sends it.
+    pub fn read_cast(&self) -> Option<&TypeName> {
+        self.read_cast.as_ref()
     }
 }
 
@@ -60,7 +101,7 @@ impl ExpectedColumn {
 /// ```no_run
 /// # #[cfg(feature = "macros")]
 /// # {
-/// # use pgorm::{error::*, DatabasePool, FromQueryResult, VerifyStatement};
+/// # use pgorm::{error::*, DatabasePool, FromQueryResult, Values, VerifyStatement};
 /// #
 /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
 /// #[derive(Debug, FromQueryResult)]
@@ -73,12 +114,12 @@ impl ExpectedColumn {
 /// let sql = r#"SELECT "name", COUNT(*) AS "num_of_cakes" FROM "cake" GROUP BY("name")"#;
 ///
 /// db.verify::<SelectResult>(sql).await?;
-/// let res: Vec<SelectResult> = SelectResult::find_by_statement(sql, vec![]).all(&db).await?;
+/// let res: Vec<SelectResult> = SelectResult::find_by_statement(sql, Values(vec![])).all(&db).await?;
 /// # Ok(())
 /// # }
 /// # }
 /// ```
-// [spec:pgorm:def:exec.verify]
+// [spec:pgorm:def:exec.verify+1]
 pub trait VerifyStatement {
     /// Prepare `sql` and check `M`'s reported columns against the result
     /// columns PostgreSQL says the statement returns.
@@ -96,10 +137,55 @@ pub trait VerifyStatement {
     fn verify<M>(&self, sql: &str) -> impl Future<Output = Result<(), Error>> + Send
     where
         M: FromQueryResult + 'static;
+
+    /// Prepare `sql` and give the result columns PostgreSQL says it returns,
+    /// in order, without running it.
+    ///
+    /// This is the description [`verify`](VerifyStatement::verify) checks a
+    /// target against, for a decode target whose columns are known only at
+    /// run time, such as a model a language binding declares.
+    // [spec:pgorm:def:exec.verify.describe]
+    fn describe(
+        &self,
+        sql: &str,
+    ) -> impl Future<Output = Result<Vec<DescribedColumn>, Error>> + Send;
+}
+
+/// One result column of a statement, as the server describes it before the
+/// statement runs.
+// [spec:pgorm:def:exec.verify.describe]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DescribedColumn {
+    name: String,
+    type_: Type,
+}
+
+impl DescribedColumn {
+    /// The column's name, as a row reads it by.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The column's PostgreSQL type.
+    pub fn type_(&self) -> &Type {
+        &self.type_
+    }
+}
+
+/// The result columns `statement` describes.
+fn described(statement: &Statement) -> Vec<DescribedColumn> {
+    statement
+        .columns()
+        .iter()
+        .map(|column| DescribedColumn {
+            name: column.name().to_owned(),
+            type_: column.type_().clone(),
+        })
+        .collect()
 }
 
 /// Compare `M`'s reported columns against a prepared statement's result columns.
-// [spec:pgorm:def:exec.verify]    name presence then type acceptance
+// [spec:pgorm:def:exec.verify+1]    name presence then type acceptance
 // [spec:pgorm:req:exec.verify.limits+1]    and nothing else: the statement's
 // parameters, its columns' nullability, and the columns `M` does not read are
 // all left alone
@@ -149,7 +235,7 @@ where
     Ok(())
 }
 
-// [spec:pgorm:def:exec.verify]    pooled connection
+// [spec:pgorm:def:exec.verify+1]    pooled connection
 impl VerifyStatement for DatabaseConnection {
     async fn verify<M>(&self, sql: &str) -> Result<(), Error>
     where
@@ -158,9 +244,14 @@ impl VerifyStatement for DatabaseConnection {
         let statement = GenericClient::prepare(&self.0, sql).await?;
         check::<M>(&statement)
     }
+
+    async fn describe(&self, sql: &str) -> Result<Vec<DescribedColumn>, Error> {
+        let statement = GenericClient::prepare(&self.0, sql).await?;
+        Ok(described(&statement))
+    }
 }
 
-// [spec:pgorm:def:exec.verify]    open transaction
+// [spec:pgorm:def:exec.verify+1]    open transaction
 impl VerifyStatement for DatabaseTransaction<'_> {
     async fn verify<M>(&self, sql: &str) -> Result<(), Error>
     where
@@ -173,9 +264,18 @@ impl VerifyStatement for DatabaseTransaction<'_> {
         let statement = GenericClient::prepare(transaction, sql).await?;
         check::<M>(&statement)
     }
+
+    async fn describe(&self, sql: &str) -> Result<Vec<DescribedColumn>, Error> {
+        let Some(transaction) = self.0.as_ref() else {
+            return Err(query_err("transaction already consumed"));
+        };
+
+        let statement = GenericClient::prepare(transaction, sql).await?;
+        Ok(described(&statement))
+    }
 }
 
-// [spec:pgorm:def:exec.verify]    borrowed connections and wrappers
+// [spec:pgorm:def:exec.verify+1]    borrowed connections and wrappers
 impl<T> VerifyStatement for &T
 where
     T: VerifyStatement + Sync + ?Sized,
@@ -185,5 +285,12 @@ where
         M: FromQueryResult + 'static,
     {
         T::verify::<M>(self, sql)
+    }
+
+    fn describe(
+        &self,
+        sql: &str,
+    ) -> impl Future<Output = Result<Vec<DescribedColumn>, Error>> + Send {
+        T::describe(self, sql)
     }
 }

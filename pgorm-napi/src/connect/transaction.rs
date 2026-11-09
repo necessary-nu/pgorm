@@ -9,28 +9,20 @@
 //! the child finishes, and refuses a second request while one runs, rather
 //! than queue or race it.
 
-use std::{fmt, future::Future, sync::Arc, time::Duration};
+use std::sync::Arc;
 
-use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
-use pgorm::{
-    DatabaseTransaction, IsolationLevel, TransactionError, TransactionMode, TransactionTrait,
-};
-use tokio::sync::{Mutex, OwnedMutexGuard, mpsc, oneshot};
-use tokio_util::sync::CancellationToken;
+use pgorm::{IsolationLevel, TransactionMode};
+use tokio::sync::{OwnedMutexGuard, oneshot};
+
+use pgorm_bindings::transaction::{self, Flow, Job, Tx};
 
 use super::{
-    Abort, ConnectionHandle, ConnectionState, Operation, Outcome, Statement, abort_argument,
-    copy::{
-        self, CopyInHandle, CopyOutHandle, InLink, InState, OutLink, OutState, Release, Settle,
-    },
-    job::{Database, Job, Output, taken},
+    Abort, ConnectionHandle, Operation, Statement, abort_argument,
+    copy::{self, CopyInHandle, CopyOutHandle, InState, OutState, Release, Settle},
+    job::taken,
 };
-use crate::{
-    errors::{Failure, Redactions, failure},
-    settle,
-    statements::{CopyFrom, CopyTo},
-};
+use crate::{settle, statements::copy_at};
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("connectionBegin", connection_begin)?;
@@ -43,642 +35,29 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("transactionJob", transaction_job)?;
     cx.export_function("transactionCopyIn", transaction_copy_in)?;
     cx.export_function("transactionCopyOut", transaction_copy_out)?;
+    cx.export_function("transactionCopyColumns", transaction_copy_columns)?;
+    cx.export_function("transactionStream", stream::transaction_stream)?;
+    cx.export_function("transactionFinishAttempt", transaction_finish_attempt)?;
+    retry::export(cx)?;
     Ok(())
 }
 
-type Finish = oneshot::Sender<Result<(), Failure>>;
-
-enum Command {
-    Run {
-        statement: Statement,
-        reply: oneshot::Sender<Result<Outcome, Failure>>,
-    },
-    Job {
-        job: Job,
-        reply: oneshot::Sender<Result<Output, Failure>>,
-    },
-    Finish {
-        commit: bool,
-        reply: Finish,
-    },
-    Begin {
-        child: Arc<State>,
-        receiver: mpsc::UnboundedReceiver<Command>,
-        opened: Finish,
-        parent_lock: OwnedMutexGuard<()>,
-    },
-    /// A COPY, which holds the frame's lock until it ends.
-    CopyIn {
-        copy: Box<CopyFrom>,
-        link: InLink,
-        opened: Finish,
-        abort: Abort,
-        release: Release,
-        lock: OwnedMutexGuard<()>,
-    },
-    CopyOut {
-        copy: Box<CopyTo>,
-        link: OutLink,
-        opened: Finish,
-        abort: Abort,
-        release: Release,
-        lock: OwnedMutexGuard<()>,
-    },
-}
-
-/// What every frame of one transaction shares: `aborted` ends the whole
-/// transaction and discards its connection, `finished` fires once its task
-/// has ended.
-struct Root {
-    aborted: CancellationToken,
-    finished: CancellationToken,
-}
+mod retry;
+mod stream;
 
 /// One transaction or savepoint, as its JavaScript handle reaches it.
-pub(crate) struct State {
-    connection: Arc<ConnectionState>,
-    commands: mpsc::UnboundedSender<Command>,
-    busy: Arc<Mutex<()>>,
-    abandoned: CancellationToken,
-    finished: CancellationToken,
-    root: Arc<Root>,
-    released: CancellationToken,
-}
-
-impl fmt::Debug for State {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("State")
-            .field("closed", &self.closed())
-            .finish_non_exhaustive()
-    }
-}
-
-/// Cancels a token when dropped, however the frame holding it ends.
-struct Finished(CancellationToken);
-
-impl Drop for Finished {
-    fn drop(&mut self) {
-        self.0.cancel();
-    }
-}
-
-/// A request whose outcome is unknown once abandoned: dropped before it
-/// completes — its caller aborted — it ends the whole transaction, whose
-/// connection is then discarded.
-// [spec:pgorm:req:bindings.cancellation]
-struct Pending {
-    aborted: CancellationToken,
-    complete: bool,
-}
-
-impl Pending {
-    fn new(aborted: CancellationToken) -> Self {
-        Self {
-            aborted,
-            complete: false,
-        }
-    }
-
-    fn complete(&mut self) {
-        self.complete = true;
-    }
-}
-
-impl Drop for Pending {
-    fn drop(&mut self) {
-        if !self.complete {
-            self.aborted.cancel();
-        }
-    }
-}
-
-struct Completion {
-    healthy: bool,
-    reply: Option<Finish>,
-    result: Result<(), Failure>,
-}
-
-impl Completion {
-    fn discarded() -> Self {
-        Self {
-            healthy: false,
-            reply: None,
-            result: Err(Failure::Lifecycle(
-                "the transaction's connection was discarded".to_owned(),
-            )),
-        }
-    }
-
-    fn respond(self) {
-        if let Some(reply) = self.reply {
-            let _ = reply.send(self.result);
-        }
-    }
-}
-
-impl State {
-    fn channel(
-        connection: Arc<ConnectionState>,
-        parent: Option<&Arc<Self>>,
-    ) -> (Arc<Self>, mpsc::UnboundedReceiver<Command>) {
-        let (commands, receiver) = mpsc::unbounded_channel();
-        let root = parent.map_or_else(
-            || {
-                Arc::new(Root {
-                    aborted: CancellationToken::new(),
-                    finished: CancellationToken::new(),
-                })
-            },
-            |parent| parent.root.clone(),
-        );
-        let abandoned = parent.map_or_else(CancellationToken::new, |parent| {
-            parent.abandoned.child_token()
-        });
-        (
-            Arc::new(Self {
-                connection,
-                commands,
-                busy: Arc::new(Mutex::new(())),
-                abandoned,
-                finished: CancellationToken::new(),
-                root,
-                released: CancellationToken::new(),
-            }),
-            receiver,
-        )
-    }
-
-    fn closed(&self) -> bool {
-        self.finished.is_cancelled()
-            || self.abandoned.is_cancelled()
-            || self.root.aborted.is_cancelled()
-            || self.root.finished.is_cancelled()
-            || self.connection.ensure_open().is_err()
-    }
-
-    fn ensure_open(&self) -> Result<(), Failure> {
-        if self.closed() {
-            Err(Failure::Lifecycle("the transaction is closed".to_owned()))
-        } else {
-            Ok(())
-        }
-    }
-
-    /// The frame's lock, refusing rather than waiting when a request or an
-    /// open savepoint holds it. Taken on the JavaScript thread as each request
-    /// is made, so requests are refused in the order JavaScript made them.
-    // [spec:pgorm:req:bindings.transactions]
-    fn lock(&self) -> Result<OwnedMutexGuard<()>, Failure> {
-        self.ensure_open()?;
-        self.busy.clone().try_lock_owned().map_err(|_| {
-            Failure::Lifecycle(
-                "the transaction is busy: a statement runs on it, or a savepoint of it is open"
-                    .to_owned(),
-            )
-        })
-    }
-
-    fn send(&self, command: Command) -> Result<(), Failure> {
-        self.commands
-            .send(command)
-            .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
-    }
-
-    /// Run a statement, holding the lock taken as JavaScript started it.
-    async fn run(
-        &self,
-        _lock: OwnedMutexGuard<()>,
-        statement: Statement,
-        abort: &Abort,
-    ) -> Result<Outcome, Failure> {
-        let (reply, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Run { statement, reply })?;
-        let outcome = abort
-            .guard(async {
-                receive
-                    .await
-                    .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
-            })
-            .await?;
-        pending.complete();
-        outcome
-    }
-
-    /// Run a registered entity's job, holding the lock taken as JavaScript
-    /// started it, as a statement holds it.
-    async fn run_job(
-        &self,
-        _lock: OwnedMutexGuard<()>,
-        job: Job,
-        abort: &Abort,
-    ) -> Result<Output, Failure> {
-        let (reply, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Job { job, reply })?;
-        let outcome = abort
-            .guard(async {
-                receive
-                    .await
-                    .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))
-            })
-            .await?;
-        pending.complete();
-        outcome
-    }
-
-    async fn finish(&self, _lock: OwnedMutexGuard<()>, commit: bool) -> Result<(), Failure> {
-        let (reply, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Finish { commit, reply })?;
-        let outcome = receive
-            .await
-            .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))?;
-        pending.complete();
-        outcome?;
-        self.released.cancelled().await;
-        Ok(())
-    }
-
-    /// What ends a COPY in this frame from outside it.
-    fn copy_stop(&self, abort: Abort) -> copy::Stop {
-        copy::Stop::frame(abort, &self.connection, &self.abandoned, &self.root.aborted)
-    }
-
-    /// Free the frame once a COPY in it has ended: its lock first, so that a
-    /// statement JavaScript runs as the COPY settles finds it free. A COPY
-    /// whose connection is discarded ends the whole transaction, nothing in
-    /// it committed, as an aborted statement does, and the frame is told so.
-    // [spec:pgorm:req:bindings.copy]
-    fn after_copy(&self, settle: Settle, lock: OwnedMutexGuard<()>, release: Release) -> bool {
-        drop(lock);
-        let discarded = settle == Settle::Discard;
-        if discarded {
-            self.root.aborted.cancel();
-        }
-        drop(release);
-        discarded
-    }
-
-    /// A savepoint, which holds this frame's lock until it finishes.
-    async fn begin(
-        self: &Arc<Self>,
-        parent_lock: OwnedMutexGuard<()>,
-        abort: &Abort,
-    ) -> Result<Arc<Self>, Failure> {
-        let (child, receiver) = Self::channel(self.connection.clone(), Some(self));
-        let (opened, receive) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.send(Command::Begin {
-            child: child.clone(),
-            receiver,
-            opened,
-            parent_lock,
-        })?;
-        abort
-            .guard(async {
-                receive
-                    .await
-                    .map_err(|_| Failure::Lifecycle("the transaction has ended".to_owned()))?
-            })
-            .await?;
-        pending.complete();
-        Ok(child)
-    }
-}
-
-/// How a frame's command loop ended short of discarding it: the error its
-/// closure returns, so that pgorm rolls the frame back.
-enum Exit {
-    /// JavaScript rolled the frame back; the reply goes once the rollback has.
-    RolledBack(Finish),
-    /// The frame's handle was collected unfinished.
-    Abandoned,
-}
-
-/// What ends a frame by dropping its transaction's future rather than letting
-/// it finish, which rolls back without awaiting the server: `discard`, which
-/// the frame cancels as it gives its connection up, and `ending`, which an
-/// abandoned frame's closure cancels as it returns, leaving the rollback five
-/// seconds before the connection is discarded instead.
-#[derive(Clone, Default)]
-struct Halt {
-    discard: CancellationToken,
-    ending: CancellationToken,
-}
-
-impl Halt {
-    async fn run<T>(&self, transaction: impl Future<Output = T>) -> Option<T> {
-        tokio::select! {
-            () = self.discard.cancelled() => None,
-            () = async {
-                self.ending.cancelled().await;
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            } => None,
-            ended = transaction => Some(ended),
-        }
-    }
-
-    /// Give the frame's connection up. The closure never returns, so pgorm
-    /// awaits no rollback on a connection in an unknown state, and
-    /// [`Halt::run`] drops the transaction instead.
-    async fn discard<T>(&self) -> T {
-        self.discard.cancel();
-        std::future::pending().await
-    }
-}
-
-/// How a frame's transaction ended, for the code that opened it.
-enum Ended {
-    /// `BEGIN` or `SAVEPOINT` was refused, the closure never ran, and the
-    /// wait for the frame to open is still to be answered.
-    Refused(Finish, pgorm::Error),
-    Ran(Completion),
-}
-
-/// One frame: its commands, and what outlives the closure serving them.
-struct Frame {
-    state: Arc<State>,
-    commands: mpsc::UnboundedReceiver<Command>,
-    secrets: Redactions,
-    /// Answered from inside the closure as it starts, so a refused opening
-    /// finds it unanswered.
-    opened: Option<Finish>,
-    /// A commit's reply, held outside the closure because the `COMMIT` runs
-    /// once the closure has returned and the reply carries its failure.
-    committed: Option<Finish>,
-    /// Set as the frame opens and dropped with the frame, once its `COMMIT`
-    /// or `ROLLBACK` has finished too.
-    finished: Option<Finished>,
-    halt: Halt,
-}
-
-impl Frame {
-    fn new(state: Arc<State>, commands: mpsc::UnboundedReceiver<Command>, opened: Finish) -> Self {
-        let secrets = state.connection.pool.secrets.clone();
-        Self {
-            state,
-            commands,
-            secrets,
-            opened: Some(opened),
-            committed: None,
-            finished: None,
-            halt: Halt::default(),
-        }
-    }
-
-    /// Serve the frame's commands inside its transaction, a savepoint's frame
-    /// nested inside while it is open: `Ok` once JavaScript commits, an `Exit`
-    /// once it rolls back or the handle is collected unfinished.
-    // [spec:pgorm:req:bindings.transactions]
-    fn serve<'a>(
-        &'a mut self,
-        tx: &'a mut DatabaseTransaction<'_>,
-    ) -> BoxFuture<'a, Result<(), Exit>> {
-        Box::pin(async move {
-            self.finished = Some(Finished(self.state.finished.clone()));
-            if self
-                .opened
-                .take()
-                .is_some_and(|opened| opened.send(Ok(())).is_err())
-            {
-                return self.halt.discard().await;
-            }
-            loop {
-                let command = tokio::select! {
-                    () = self.state.abandoned.cancelled() => None,
-                    command = self.commands.recv() => command,
-                };
-                let Some(command) = command else {
-                    self.halt.ending.cancel();
-                    return Err(Exit::Abandoned);
-                };
-                match command {
-                    Command::Run { statement, reply } => {
-                        let outcome = tokio::select! {
-                            () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            outcome = statement.run(&*tx, &self.secrets) => outcome,
-                        };
-                        if reply.send(outcome).is_err() {
-                            return self.halt.discard().await;
-                        }
-                    }
-                    Command::Job { job, reply } => {
-                        let outcome = tokio::select! {
-                            () = self.state.abandoned.cancelled() => return self.halt.discard().await,
-                            outcome = job(Database::Transaction(&*tx), &self.secrets) => outcome,
-                        };
-                        if reply.send(outcome).is_err() {
-                            return self.halt.discard().await;
-                        }
-                    }
-                    Command::Finish {
-                        commit: true,
-                        reply,
-                    } => {
-                        self.committed = Some(reply);
-                        return Ok(());
-                    }
-                    Command::Finish {
-                        commit: false,
-                        reply,
-                    } => return Err(Exit::RolledBack(reply)),
-                    Command::CopyIn {
-                        copy,
-                        link,
-                        opened,
-                        abort,
-                        release,
-                        lock,
-                    } => {
-                        let stop = self.state.copy_stop(abort);
-                        let settle =
-                            copy::copy_in(&mut *tx, &copy, link, opened, &stop, &self.secrets)
-                                .await;
-                        if self.state.after_copy(settle, lock, release) {
-                            return self.halt.discard().await;
-                        }
-                    }
-                    Command::CopyOut {
-                        copy,
-                        link,
-                        opened,
-                        abort,
-                        release,
-                        lock,
-                    } => {
-                        let stop = self.state.copy_stop(abort);
-                        let settle =
-                            copy::copy_out(&mut *tx, &copy, link, opened, &stop, &self.secrets)
-                                .await;
-                        if self.state.after_copy(settle, lock, release) {
-                            return self.halt.discard().await;
-                        }
-                    }
-                    Command::Begin {
-                        child,
-                        receiver,
-                        opened,
-                        parent_lock,
-                    } => {
-                        let mut frame = Frame::new(child.clone(), receiver, opened);
-                        let halt = frame.halt.clone();
-                        let ended = halt
-                            .run(tx.transaction(async |savepoint| frame.serve(savepoint).await))
-                            .await;
-                        let completion = match frame.end(ended) {
-                            Ended::Ran(completion) => completion,
-                            Ended::Refused(opened, error) => {
-                                if opened.send(Err(failure(&error, &self.secrets))).is_err() {
-                                    return self.halt.discard().await;
-                                }
-                                continue;
-                            }
-                        };
-                        drop(frame);
-                        let healthy = completion.healthy;
-                        drop(parent_lock);
-                        completion.respond();
-                        child.released.cancel();
-                        if !healthy {
-                            return self.halt.discard().await;
-                        }
-                    }
-                }
-            }
-        })
-    }
-
-    /// What the frame's transaction ended in: `None` is a future [`Halt`]
-    /// dropped. A frame whose `COMMIT` or `ROLLBACK` failed has left its
-    /// connection in a state nobody knows, so it is not healthy, and the reply
-    /// carries the failure.
-    fn end(&mut self, ended: Option<Result<(), TransactionError<Exit>>>) -> Ended {
-        let Some(ended) = ended else {
-            return Ended::Ran(Completion::discarded());
-        };
-        Ended::Ran(match ended {
-            Ok(()) => Completion {
-                healthy: true,
-                reply: self.committed.take(),
-                result: Ok(()),
-            },
-            Err(TransactionError::Connection(error)) => {
-                if let Some(opened) = self.opened.take() {
-                    return Ended::Refused(opened, error);
-                }
-                Completion {
-                    healthy: false,
-                    reply: self.committed.take(),
-                    result: Err(failure(&error, &self.secrets)),
-                }
-            }
-            Err(TransactionError::Transaction(Exit::RolledBack(reply))) => Completion {
-                healthy: true,
-                reply: Some(reply),
-                result: Ok(()),
-            },
-            Err(TransactionError::Transaction(Exit::Abandoned)) => Completion {
-                healthy: true,
-                reply: None,
-                result: Ok(()),
-            },
-            Err(TransactionError::RollbackFailed { cause, rollback }) => Completion {
-                healthy: false,
-                reply: match cause {
-                    Exit::RolledBack(reply) => Some(reply),
-                    Exit::Abandoned => None,
-                },
-                result: Err(failure(&rollback, &self.secrets)),
-            },
-            // A failure with no arm here leaves the connection in a state
-            // nobody knows, as a failed ROLLBACK does.
-            Err(_) => Completion {
-                healthy: false,
-                reply: self.committed.take(),
-                result: Err(Failure::Internal(
-                    "the transaction failed in a way pgorm-napi does not represent".to_owned(),
-                )),
-            },
-        })
-    }
-}
-
-/// Open a transaction on `connection`, which it holds until it finishes: a
-/// task takes the connection out of its slot and serves the transaction from
-/// inside the closure pgorm opens it around.
-// [spec:pgorm:req:bindings.transactions]
-async fn begin(
-    mut operation: Operation,
-    mode: TransactionMode,
-    abort: Abort,
-) -> Result<Arc<State>, Failure> {
-    let connection = operation.state.clone();
-    let (state, receiver) = State::channel(connection, None);
-    let (opened, receive) = oneshot::channel::<Result<(), Failure>>();
-    let mut pending = Pending::new(state.root.aborted.clone());
-    let owner = state.clone();
-    tokio::spawn(async move {
-        let _finished = Finished(owner.root.finished.clone());
-        let served = tokio::select! {
-            () = owner.root.aborted.cancelled() => None,
-            () = owner.connection.closing() => None,
-            served = async {
-                let db = match operation.connection_mut() {
-                    Ok(db) => db,
-                    Err(error) => {
-                        let _ = opened.send(Err(error));
-                        return None;
-                    }
-                };
-                let mut frame = Frame::new(owner.clone(), receiver, opened);
-                let halt = frame.halt.clone();
-                let ended = halt
-                    .run(db.transaction_with(mode, async |tx| frame.serve(tx).await))
-                    .await;
-                match frame.end(ended) {
-                    Ended::Ran(completion) => Some(completion),
-                    Ended::Refused(opened, error) => {
-                        let _ = opened.send(Err(failure(&error, &frame.secrets)));
-                        None
-                    }
-                }
-            } => served,
-        };
-        match served {
-            Some(completion) => {
-                if completion.healthy {
-                    operation.restore();
-                } else {
-                    drop(operation);
-                }
-                completion.respond();
-                owner.released.cancel();
-            }
-            None => drop(operation),
-        }
-    });
-    abort
-        .guard(async {
-            receive
-                .await
-                .map_err(|_| Failure::Lifecycle("the transaction ended as it began".to_owned()))?
-        })
-        .await?;
-    pending.complete();
-    Ok(state)
-}
+pub(crate) type State = pgorm_bindings::transaction::State;
 
 /// The JavaScript `Transaction`'s native half. Collected unfinished, it rolls
 /// back as a backstop; `commit`, `rollback` and `close` are what end it.
 #[derive(Debug)]
-pub(crate) struct TransactionHandle(Arc<State>);
+pub(crate) struct TransactionHandle(pub(crate) Arc<State>);
 
 impl Finalize for TransactionHandle {}
 
 impl Drop for TransactionHandle {
     fn drop(&mut self) {
-        self.0.abandoned.cancel();
+        self.0.abandon();
     }
 }
 
@@ -730,7 +109,8 @@ fn connection_begin(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(operation) => operation,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    settle::promise(&mut cx, begin(operation, mode, abort), |cx, state| {
+    let work = async move { transaction::begin(operation, mode, abort.token()).await };
+    settle::promise(&mut cx, work, |cx, state| {
         Ok(cx.boxed(TransactionHandle(state)).upcast())
     })
 }
@@ -745,7 +125,16 @@ fn transaction_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(lock) => lock,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work = async move { state.run(lock, statement, &abort).await };
+    let secrets = state.connection().pool.secrets.clone();
+    let work = async move {
+        state
+            .request(
+                lock,
+                move |db| Box::pin(async move { statement.run(&db, &secrets).await }),
+                abort.token(),
+            )
+            .await
+    };
     settle::promise(&mut cx, work, move |cx, outcome| {
         outcome.into_js(cx, tagged)
     })
@@ -759,7 +148,7 @@ fn transaction_begin(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(lock) => lock,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work = async move { state.begin(lock, &abort).await };
+    let work = async move { state.begin(lock, abort.token()).await };
     settle::promise(&mut cx, work, |cx, child| {
         Ok(cx.boxed(TransactionHandle(child)).upcast())
     })
@@ -783,9 +172,9 @@ fn transaction_finish(mut cx: FunctionContext) -> JsResult<JsPromise> {
 /// discarding its connection, and resolve once its task has ended.
 fn transaction_abort(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
-    state.root.aborted.cancel();
+    state.abort();
     let work = async move {
-        state.root.finished.cancelled().await;
+        state.finished().await;
         Ok(())
     };
     settle::promise(&mut cx, work, |cx, ()| Ok(cx.undefined().upcast()))
@@ -796,10 +185,7 @@ fn transaction_abort(mut cx: FunctionContext) -> JsResult<JsPromise> {
 fn transaction_wait_closed(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
     let work = async move {
-        tokio::select! {
-            () = state.released.cancelled() => {}
-            () = state.root.finished.cancelled() => {}
-        }
+        state.wait_closed().await;
         Ok(())
     };
     settle::promise(&mut cx, work, |cx, ()| Ok(cx.undefined().upcast()))
@@ -812,7 +198,7 @@ fn transaction_closed(mut cx: FunctionContext) -> JsResult<JsBoolean> {
 
 /// `transactionJob(transaction, job, abort)`: a registered entity's job in
 /// the transaction, holding its lock as a statement does.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 // [spec:pgorm:req:bindings.registered-pools]
 fn transaction_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
@@ -825,8 +211,49 @@ fn transaction_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Ok(lock) => lock,
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    let work = async move { state.run_job(lock, job, &abort).await };
+    let secrets = state.connection().pool.secrets.clone();
+    let work = async move {
+        state
+            .request(
+                lock,
+                move |db| Box::pin(async move { job(db, &secrets).await }),
+                abort.token(),
+            )
+            .await
+    };
     settle::promise(&mut cx, work, |cx, output| output.into_js(cx))
+}
+
+/// `transactionCopyColumns(transaction, copy, abort)`: a COPY's columns,
+/// described in the transaction, holding its lock as a statement does; a
+/// refused description fails the transaction as a refused statement does.
+// [spec:pgorm:req:bindings.copy-rows+2]
+fn transaction_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let state = state(&mut cx)?;
+    let copy = Box::new(copy_at(&mut cx, 1)?);
+    let abort = abort_argument(&mut cx, 2)?;
+    let lock = match state.lock() {
+        Ok(lock) => lock,
+        Err(failure) => return settle::rejected(&mut cx, failure),
+    };
+    let secrets = state.connection().pool.secrets.clone();
+    let work = async move {
+        state
+            .request_on(
+                lock,
+                move |tx| {
+                    Box::pin(async move {
+                        match tx {
+                            Tx::Plain(tx) => copy::described(&mut **tx, &copy, &secrets).await,
+                            Tx::Metered(tx) => copy::described(&mut **tx, &copy, &secrets).await,
+                        }
+                    })
+                },
+                abort.token(),
+            )
+            .await
+    };
+    settle::promise(&mut cx, work, copy::columns_to_js)
 }
 
 /// `transactionCopyIn(transaction, copy, abort, rows)`: a COPY FROM in the
@@ -843,15 +270,23 @@ fn transaction_copy_in(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     let (shared, link, release) = InState::channel(rows);
     let (opened, receive) = oneshot::channel();
-    let command = Command::CopyIn {
-        copy,
-        link,
-        opened,
-        abort,
-        release,
-        lock,
-    };
-    copy::opened(&mut cx, shared, state.send(command), receive, CopyInHandle)
+    let stop = copy_stop(&state, abort);
+    let secrets = state.connection().pool.secrets.clone();
+    let frame = state.clone();
+    let job: Job = Box::new(move |tx| {
+        Box::pin(async move {
+            let settle = match tx {
+                Tx::Plain(tx) => {
+                    copy::copy_in(&mut **tx, &copy, link, opened, &stop, &secrets).await
+                }
+                Tx::Metered(tx) => {
+                    copy::copy_in(&mut **tx, &copy, link, opened, &stop, &secrets).await
+                }
+            };
+            after_copy(&frame, settle, lock, release)
+        })
+    });
+    copy::opened(&mut cx, shared, state.send_job(job), receive, CopyInHandle)
 }
 
 /// `transactionCopyOut(transaction, copy, abort, rows)`: a COPY TO in the
@@ -868,13 +303,55 @@ fn transaction_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     let (shared, link, release) = OutState::channel(rows);
     let (opened, receive) = oneshot::channel();
-    let command = Command::CopyOut {
-        copy,
-        link,
-        opened,
-        abort,
-        release,
-        lock,
+    let stop = copy_stop(&state, abort);
+    let secrets = state.connection().pool.secrets.clone();
+    let frame = state.clone();
+    let job: Job = Box::new(move |tx| {
+        Box::pin(async move {
+            let settle = match tx {
+                Tx::Plain(tx) => {
+                    copy::copy_out(&mut **tx, &copy, link, opened, &stop, &secrets).await
+                }
+                Tx::Metered(tx) => {
+                    copy::copy_out(&mut **tx, &copy, link, opened, &stop, &secrets).await
+                }
+            };
+            after_copy(&frame, settle, lock, release)
+        })
+    });
+    copy::opened(&mut cx, shared, state.send_job(job), receive, CopyOutHandle)
+}
+
+/// What ends a COPY in the frame `state` from outside it.
+fn copy_stop(state: &State, abort: Abort) -> copy::Stop {
+    let [abandoned, aborted] = state.stops();
+    copy::Stop::frame(abort, state.connection(), &abandoned, &aborted)
+}
+
+/// Free the frame once a COPY in it has ended: its lock first, so that a
+/// statement JavaScript runs as the COPY settles finds it free. A COPY whose
+/// connection is discarded ends the whole transaction, nothing in it
+/// committed, as an aborted statement does.
+// [spec:pgorm:req:bindings.copy]
+fn after_copy(state: &State, settle: Settle, lock: OwnedMutexGuard<()>, release: Release) -> Flow {
+    drop(lock);
+    let flow = state.copy_ended(settle == Settle::Discard);
+    drop(release);
+    flow
+}
+
+/// `transactionFinishAttempt(transaction, commit, retryable)`: end one
+/// attempt of a retrying transaction, resolving `true` once pgorm has opened
+/// the next attempt and `false` once the transaction has ended.
+// [spec:pgorm:req:bindings.transaction-retry]
+fn transaction_finish_attempt(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let state = state(&mut cx)?;
+    let commit = cx.argument::<JsBoolean>(1)?.value(&mut cx);
+    let retryable = cx.argument::<JsBoolean>(2)?.value(&mut cx);
+    let lock = match state.lock() {
+        Ok(lock) => lock,
+        Err(failure) => return settle::rejected(&mut cx, failure),
     };
-    copy::opened(&mut cx, shared, state.send(command), receive, CopyOutHandle)
+    let work = async move { state.finish_attempt(lock, commit, retryable).await };
+    settle::promise(&mut cx, work, |cx, again| Ok(cx.boolean(again).upcast()))
 }

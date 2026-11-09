@@ -2,29 +2,40 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { bind, call, col, select, Table, With } from "@necessary/pgorm";
+import { ConstructionError, merge, MergeAction, Table } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const days = new Table("days");
-  const order = new Table("order");
-  const calendar = select(bind(Temporal.PlainDate.from("2026-11-01")).cast("date").as("day"))
-    .unionAll(
-      select(col("day").add(bind(1).cast("integer")))
-        .from(days)
-        .where(col("day").lt(bind(Temporal.PlainDate.from("2026-11-04")).cast("date"))),
-    );
+  await pool.execute("CREATE TABLE price_list (name text NOT NULL, new_price numeric(10, 2) NOT NULL)");
+  await pool.execute("INSERT INTO price_list VALUES ('Chocolate Fudge', 4.80), ('Lemon Drizzle', 3.20)");
 
-  const query = select(days.col("day"), call("count", order.col("id")).as("orders"))
-    .from(days)
-    .join(order, order.col("placed_at").cast("date").eq(days.col("day")), { kind: "left" })
-    .groupBy(days.col("day"))
-    .orderBy(days.col("day").asc())
-    .with(With.recursive("days", calendar, { columns: ["day"] }));
+  const cake = new Table("cake");
+  const priceList = new Table("price_list");
+  const pending = merge(cake, priceList, cake.col("name").eq(priceList.col("name")));
+  // @ts-expect-error: a MERGE with no WHEN arm is no statement
+  await assert.rejects(pool.query(pending), ConstructionError);
 
-  const rows = await pool.query(query);
-  assert.deepEqual(
-    rows.map((row) => [String(row.day), row.orders]),
-    [["2026-11-01", 0n], ["2026-11-02", 1n], ["2026-11-03", 1n], ["2026-11-04", 0n]],
+  const reprice = pending
+    .whenMatched(MergeAction.update("price", priceList.col("new_price")), {
+      condition: cake.col("price").ne(priceList.col("new_price")),
+    })
+    .whenNotMatchedBySource(MergeAction.delete(), { condition: cake.col("bakery_id").eq(1) })
+    .returningAction()
+    .returning([cake.col("name")]);
+
+  assert.equal(
+    reprice.inspect().sql,
+    [
+      `MERGE INTO "cake" USING "price_list" ON "cake"."name" = "price_list"."name"`,
+      `WHEN MATCHED AND "cake"."price" <> "price_list"."new_price" THEN UPDATE SET "price" = "price_list"."new_price"`,
+      `WHEN NOT MATCHED BY SOURCE AND "cake"."bakery_id" = $1 THEN DELETE`,
+      `RETURNING merge_action(), "cake"."name"`,
+    ].join(" "),
   );
+
+  const changes = (await pool.query(reprice)).map((row) => [row.merge_action, row.name]).sort();
+  assert.deepEqual(changes, [
+    ["DELETE", "Chocolate Torte"],
+    ["UPDATE", "Chocolate Fudge"],
+  ]);
 }

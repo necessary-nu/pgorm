@@ -94,6 +94,48 @@ assert_eq!(
 # }
 ```
 
+An entity's own model decodes straight out of a pipeline over the entity. A
+pipeline that projects nothing selects `*`, which sends an enum column as the
+enum, while the model reads it as its text, as the entity's own queries
+select it. So when the type you decode reads a column through a cast, the
+terminal ends the pipeline by selecting the columns the type reads, each
+cast column under its cast:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("pipeline_models").await;
+# let db = scratch.pool.get().await?;
+use pgorm::pipeline::{ExprOps, Pipeline};
+use pgorm_guide_support::cake::{self, Column as C, Flavor};
+
+let lemon: cake::Model = Pipeline::from(cake::Entity)
+    .filter(C::Flavor.eq("lemon"))
+    .one(&db)
+    .await?;
+assert_eq!(lemon.name, "Lemon Drizzle");
+assert_eq!(lemon.flavor, Flavor::Lemon);
+
+let (sql, _) = Pipeline::from(cake::Entity)
+    .filter(C::Flavor.eq("lemon"))
+    .into_sql()?;
+assert_eq!(sql, "SELECT * FROM cake WHERE flavor = CAST('lemon' AS flavor)");
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+`into_sql` shows the pipeline as written; the cake read runs
+`SELECT id, name, CAST(flavor AS text) AS flavor, price, gluten_free, bakery_id`
+over it. A type that reads no column through a cast decodes from the
+pipeline's own SQL. The added projection names columns bare, the way the
+type reads them, so it needs a relation in which each of those names means
+one column. After a join of two tables that share one, such as `id`, it is
+refused as ambiguous, and
+[`select_sources`](crate::pipeline::Pipeline::select_sources), below, is the
+way to decode each table's model.
+
 ## The steps
 
 | Step | What it does | SQL it usually becomes |
@@ -335,14 +377,14 @@ assert_eq!(
 # }
 ```
 
-To decode the entities themselves rather than columns of your choosing, end
-with [`select_sources`](crate::pipeline::Pipeline::select_sources), listing
-the relations the pipeline read. It projects each source's columns the way
-the entity's own queries read them, an enum column as its text among them,
-which the `*` an unprojected pipeline selects does not: `all::<cake::Model>()`
-over one fails to decode the cake's flavor. Each listed source decodes as an
-`Option` of its model, because a right or full join can leave either side
-absent:
+To decode the joined entities themselves rather than columns of your
+choosing, end with
+[`select_sources`](crate::pipeline::Pipeline::select_sources), listing the
+relations the pipeline read. It projects each source's columns the way the
+entity's own queries read them, an enum column as its text among them, each
+source under a prefix of its own, so two tables sharing a column name stay
+apart. Each listed source decodes as an `Option` of its model, because a
+right or full join can leave either side absent:
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
@@ -434,6 +476,39 @@ assert_eq!(
 takes such a table as an alias token, or
 [`from_schema`](crate::pipeline::Pipeline::from_schema) as a schema and a
 table.
+
+A program that knows such a table's column types at run time, as a language
+binding knows its declared models', reads it through the same writers an
+entity's columns go through.
+[`col_typed`](crate::pipeline::col_typed) types a column by the
+[`ColumnType`](crate::pgorm_query::ColumnType) given, so it compares as an
+entity column of that type does, and
+[`select_described`](crate::pipeline::Pipeline::select_described) is
+`select_sources` for relations listed column by column, each read under its
+`s{i}_` prefix, with decoding left to the program:
+
+```rust
+use pgorm::pgorm_query::{ColumnType, Name};
+use pgorm::pipeline::{DescribedSource, ExprOps, Pipeline, alias, col_typed};
+
+let flavor = ColumnType::Enum {
+    name: Name::runtime("flavor"),
+    schema: None,
+    variants: vec![Name::runtime("lemon")],
+};
+let cake = alias("cake");
+let (sql, _) = Pipeline::from(cake)
+    .filter(col_typed(cake, alias("flavor"), &flavor).eq("lemon"))
+    .select_described([DescribedSource::new(cake)
+        .column(alias("id"), None)
+        .column(alias("name"), None)])?
+    .into_sql()?;
+assert_eq!(
+    sql,
+    "SELECT id AS s0_id, name AS s0_name FROM cake WHERE flavor = CAST('lemon' AS flavor)"
+);
+# Ok::<(), pgorm::pipeline::PipelineError>(())
+```
 
 ## Windows
 
@@ -625,6 +700,97 @@ assert_eq!(
 # Ok(())
 # }
 ```
+
+A step after a combination reads the whole combined relation. The
+combination is written as a `WITH` query first and the step reads it, so a
+projection or a grouping after an `append` applies to the rows of both
+relations rather than to the first one's alone. Every cake, counted twice:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("pipeline_append_then_group").await;
+# let db = scratch.pool.get().await?;
+use pgorm::pipeline::{ExprOps, Pipeline, alias, count_rows};
+use pgorm_guide_support::cake::{self, Column as C};
+
+let cakes = alias("cakes");
+let twice = Pipeline::from(cake::Entity)
+    .append(cake::Entity)
+    .group(C::BakeryId)
+    .aggregate(count_rows().as_(cakes));
+
+let (sql, _) = twice.clone().into_sql()?;
+assert!(
+    sql.starts_with("WITH table_0 AS (SELECT * FROM cake UNION ALL SELECT * FROM cake")
+        && sql.ends_with("FROM table_0 GROUP BY bakery_id"),
+    "{sql}"
+);
+let mut rows: Vec<(i32, i64)> = twice.into_tuple()?.all(&db).await?;
+rows.sort();
+assert_eq!(rows, [(1, 6), (2, 4)]);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+[`intersect`](crate::pipeline::Pipeline::intersect) keeps the rows both
+relations hold, and [`remove`](crate::pipeline::Pipeline::remove) the rows of
+the first that the second does not, each row of the second cancelling one of
+the first. Like `append`, both combine whole rows by position, so neither
+operand needs a projection of its own, the operands may each read different
+columns first, and every step after them reads the combined relation. The
+same holds for a table no entity describes. Sunrise's cakes that are not
+gluten-free, and those under 5.00:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("pipeline_intersect_remove").await;
+# let db = scratch.pool.get().await?;
+use pgorm::pipeline::{ExprOps, Pipeline};
+use pgorm_guide_support::cake::{self, Column as C};
+
+let sunrise = || Pipeline::from(cake::Entity).filter(C::BakeryId.eq(1));
+let gluten_free = || Pipeline::from(cake::Entity).filter(C::GlutenFree.eq(true));
+let under_five = || Pipeline::from(cake::Entity).filter(C::Price.lt(5));
+
+let not_gluten_free = sunrise().remove(gluten_free()).select(C::Name);
+let (sql, _) = not_gluten_free.clone().into_sql()?;
+assert_eq!(
+    sql,
+    "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 \
+     EXCEPT ALL SELECT * FROM cake WHERE gluten_free = true) \
+     SELECT name FROM table_1"
+);
+let names: Vec<(String,)> = not_gluten_free.into_tuple()?.all(&db).await?;
+assert_eq!(names, [("Chocolate Fudge".to_owned(),)]);
+
+let affordable: Vec<(String,)> = sunrise()
+    .intersect(under_five())
+    .sort(C::Name)
+    .select(C::Name)
+    .into_tuple()?
+    .all(&db)
+    .await?;
+assert_eq!(
+    affordable,
+    [("Chocolate Fudge".to_owned(),), ("Lemon Drizzle".to_owned(),)]
+);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+The operands correspond by position, so where both projections are written
+out a different number of columns is refused when the pipeline compiles,
+for all three operations; where an operand is a table read whole, its `*` is
+the server's to check. A chain reads in the order it is written:
+`a.append(b).intersect(c)` is `(a UNION ALL b) INTERSECT ALL c`, with the
+parentheses written in, since `INTERSECT` otherwise binds tighter, and an
+operand that is itself a combination stays one operand.
 
 ## When a pipeline fails
 

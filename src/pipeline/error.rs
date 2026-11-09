@@ -5,7 +5,7 @@
 /// Construction itself is infallible; everything that can go wrong is
 /// reported here, at the [`into_sql`](super::Pipeline::into_sql) boundary,
 /// never as a panic.
-// [spec:pgorm:req:pipeline.errors+4]
+// [spec:pgorm:req:pipeline.errors+5]
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PipelineError {
@@ -76,18 +76,19 @@ pub enum PipelineError {
     /// project entity models out of a pipeline that no longer carries its
     /// sources' column namespaces.
     ///
-    /// The named stage — `select`, `group().aggregate()`, `intersect`,
-    /// `remove`, or a `distinct` that had to settle the pipeline into its own
-    /// binding — replaced, collapsed or renamed the sources' own columns, so
-    /// a per-source projection can no longer resolve. Refused before prqlc
+    /// The named stage — `select`, `group().aggregate()`, a `distinct` that
+    /// had to settle the pipeline into its own binding, or a set operation
+    /// (`append`, `intersect`, `remove`) whose result more than one listed
+    /// source would be read from — replaced, collapsed or combined the
+    /// sources' own columns, so a per-source projection cannot resolve. Refused before prqlc
     /// compiles, so the answer names the stage rather than an opaque
     /// unresolved-name diagnostic; decode a reshaped pipeline with
     /// [`into_model`](super::Pipeline::into_model) or
     /// [`into_tuple`](super::Pipeline::into_tuple) instead, or move the
     /// reshaping after the terminal cannot-follow boundary by not doing it
-    /// at all — `filter`, `derive`, `sort`, `take`, `join`, `window` and
-    /// `append` all leave the sources addressable.
-    // [spec:pgorm:sem:pipeline.select-sources+4]
+    /// at all — `filter`, `derive`, `sort`, `take`, `join` and `window` all
+    /// leave the sources addressable, and a set operation leaves one.
+    // [spec:pgorm:sem:pipeline.select-sources+6]
     #[error(
         "select_sources after `{0}`: the stage replaced the sources' own column namespaces, \
          so entity models can no longer be projected; list sources before reshaping, or decode \
@@ -96,7 +97,7 @@ pub enum PipelineError {
     ReshapedSources(&'static str),
 }
 
-// [spec:pgorm:req:pipeline.errors+4]
+// [spec:pgorm:req:pipeline.errors+5]
 impl From<PipelineError> for crate::Error {
     fn from(err: PipelineError) -> Self {
         crate::Error::Query(crate::error::RuntimeError::Internal(err.to_string()))
@@ -115,7 +116,7 @@ impl From<PipelineError> for crate::Error {
 /// name and renders, and a name past the 63-byte identifier limit is a
 /// different question, about what it may collide with once the server
 /// truncates it.
-// [spec:pgorm:req:pipeline.errors+4]
+// [spec:pgorm:req:pipeline.errors+5]
 // [spec:pgorm:req:security.ident-oracle.nul+2] (the pipeline's refusal class)
 pub(super) fn unquotable(name: &str) -> bool {
     name.contains(['"', '\0']) || name.starts_with('$') || name == "*"
@@ -123,7 +124,7 @@ pub(super) fn unquotable(name: &str) -> bool {
 
 /// The closed set of names an alias must not take: every top-level binding of
 /// prqlc 0.13's `std` module, its submodule names, and the PRQL keywords.
-// [spec:pgorm:req:pipeline.errors+4]
+// [spec:pgorm:req:pipeline.errors+5]
 pub(super) const RESERVED: &[&str] = &[
     "_append_by_name",
     "_eq",

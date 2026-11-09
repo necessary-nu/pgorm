@@ -2,35 +2,39 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, model, Range } from "@necessary/pgorm";
+import { column, Interval, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
   await pool.execute(
-    "CREATE TABLE season (id serial PRIMARY KEY, cake varchar NOT NULL, on_sale daterange NOT NULL, batch_sizes int4range NOT NULL)",
+    "CREATE TABLE recipe (id serial PRIMARY KEY, name varchar NOT NULL, proving interval NOT NULL, keeps_for interval NOT NULL)",
   );
-  const Season = model("season", {
+  const Recipe = model("recipe", {
     columns: {
       id: column("i32", { primaryKey: true, default: true }),
-      cake: column("text"),
-      onSale: column("daterange", { name: "on_sale" }),
-      batchSizes: column("int4range", { name: "batch_sizes" }),
+      name: column("text"),
+      proving: column("interval"),
+      keepsFor: column("interval", { name: "keeps_for" }),
     },
   });
 
-  const date = (text: string) => Temporal.PlainDate.from(text);
-  const gingerbread = await Season.insert({
-    cake: "Gingerbread",
-    onSale: new Range(date("2026-11-15"), date("2027-01-07")),
-    batchSizes: new Range(12, 48, "[]"),
+  const HOUR = 3_600_000_000n;
+  const sourdough = await Recipe.insert({
+    name: "Sourdough",
+    proving: new Interval({ microseconds: 14n * HOUR }),
+    keepsFor: new Interval({ days: 3 }),
   }).returning().one(pool);
 
-  // A discrete range comes back in PostgreSQL's canonical form: [12,49).
-  assert.equal(gingerbread.batchSizes.toString(), "[12,49)");
-  assert.deepEqual([gingerbread.batchSizes.lower, gingerbread.batchSizes.upper], [12, 49]);
+  assert.equal(sourdough.proving.microseconds, 14n * HOUR);
+  assert.equal(sourdough.keepsFor.toString(), "P3D");
+  assert.equal(sourdough.proving.toDuration().toString(), "PT14H");
 
-  // What is on sale over the Christmas week?
-  const christmas = new Range(date("2026-12-21"), date("2026-12-28"));
-  const onSale = await Season.select("cake").where(Season.col("onSale").overlaps(christmas)).all(pool);
-  assert.deepEqual(onSale, [{ cake: "Gingerbread" }]);
+  const slow = await Recipe.find()
+    .where(Recipe.col("proving").gt(Temporal.Duration.from({ hours: 12 })))
+    .count(pool);
+  assert.equal(slow, 1);
+
+  // Fields of different signs, which a Duration cannot hold.
+  assert.equal(new Interval({ months: 1, days: -2 }).toString(), "P1M-2D");
+  assert.throws(() => new Interval({ months: 1, days: -2 }).toDuration(), RangeError);
 }

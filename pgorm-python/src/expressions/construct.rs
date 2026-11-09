@@ -1,4 +1,6 @@
-use pgorm::pgorm_query::{ColumnRef, Condition, Expr, Func, Query, SimpleExpr};
+use pgorm::pgorm_query::{
+    ColumnRef, Condition, ConditionExpression, Expr, Func, Query, SimpleExpr,
+};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 
 use super::{PyExpr, compiled::Compiled};
@@ -39,6 +41,27 @@ pub(crate) fn domain_value() -> PyExpr {
     PyExpr::from_rust(Expr::domain_value().into())
 }
 
+/// `CURRENT_DATE`, the date the transaction started.
+// [spec:pgorm:req:bindings.current-keywords]
+#[pyfunction]
+pub(crate) fn current_date() -> PyExpr {
+    PyExpr::from_rust(Expr::current_date().into())
+}
+
+/// `CURRENT_TIME`, the time of day the transaction started.
+// [spec:pgorm:req:bindings.current-keywords]
+#[pyfunction]
+pub(crate) fn current_time() -> PyExpr {
+    PyExpr::from_rust(Expr::current_time().into())
+}
+
+/// `CURRENT_TIMESTAMP`, the instant the transaction started.
+// [spec:pgorm:req:bindings.current-keywords]
+#[pyfunction]
+pub(crate) fn current_timestamp() -> PyExpr {
+    PyExpr::from_rust(Expr::current_timestamp().into())
+}
+
 #[pyfunction]
 pub(crate) fn bind(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
     value_expr(value, false)
@@ -63,7 +86,7 @@ fn value_expr(value: &Bound<'_, PyAny>, literal: bool) -> PyResult<PyExpr> {
 /// An operand: an expression, or a value to bind. `ANY (..)` and `ALL (..)`
 /// are refused by name, since only the operators PostgreSQL reads one after
 /// take them, and those read them before coercing.
-// [spec:pgorm:req:bindings.quantifiers+3]
+// [spec:pgorm:req:bindings.quantifiers+4]
 pub(crate) fn coerce(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
     if let Ok(expr) = value.extract::<PyRef<'_, PyExpr>>() {
         Ok(expr.clone())
@@ -134,6 +157,22 @@ impl PyCondition {
         Ok(Self { inner })
     }
 
+    // [spec:pgorm:req:bindings.condition-option]
+    /// The condition with `other` added, or as it is when `other` is `None`,
+    /// as Rust's `Condition::add_option` adds an optional condition.
+    fn add_option(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let other: Option<ConditionExpression> = if other.is_none() {
+            None
+        } else if let Ok(other) = other.extract::<PyRef<'_, Self>>() {
+            Some(other.inner.clone().into())
+        } else {
+            Some(require_expr(other)?.inner.into())
+        };
+        Ok(Self {
+            inner: self.inner.clone().add_option(other),
+        })
+    }
+
     fn __invert__(&self) -> Self {
         Self {
             inner: self.inner.clone().not(),
@@ -178,48 +217,63 @@ pub(crate) fn require_expr(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
         .map_err(|_| PyTypeError::new_err("expected a query expression"))
 }
 
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 #[pyfunction]
 #[pyo3(signature = (name, *arguments))]
 pub(crate) fn call(name: &str, arguments: &Bound<'_, PyTuple>) -> PyResult<PyExpr> {
     let args = sequence(arguments.as_any())?;
-    let expr = match (name, args.as_slice()) {
-        ("lower", [value]) => Func::lower(value.clone()),
-        ("upper", [value]) => Func::upper(value.clone()),
-        ("abs", [value]) => Func::abs(value.clone()),
-        ("char_length", [value]) => Func::char_length(value.clone()),
-        ("count", [value]) => Func::count(value.clone()),
-        ("count_distinct", [value]) => Func::count_distinct(value.clone()),
-        ("sum", [value]) => Func::sum(value.clone()),
-        ("avg", [value]) => Func::avg(value.clone()),
-        ("min", [value]) => Func::min(value.clone()),
-        ("max", [value]) => Func::max(value.clone()),
-        ("round", [value]) => Func::round(value.clone()),
-        ("round", [value, precision]) => {
-            Func::round_with_precision(value.clone(), precision.clone())
-        }
-        ("coalesce", [_, ..]) => Func::coalesce(args),
-        ("random", []) => Func::random(),
-        ("gen_random_uuid", []) => Func::gen_random_uuid(),
-        ("uuidv4", []) => Func::uuidv4(),
-        ("uuidv7", []) => Func::uuidv7(),
-        ("uuidv7", [shift]) => Func::uuidv7_shifted(shift.clone()),
-        ("uuid_extract_timestamp", [value]) => Func::uuid_extract_timestamp(value.clone()),
-        ("uuid_extract_version", [value]) => Func::uuid_extract_version(value.clone()),
-        ("generate_series", [start, stop]) => Func::generate_series(start.clone(), stop.clone()),
-        ("generate_series", [start, stop, step]) => {
-            Func::generate_series_step(start.clone(), stop.clone(), step.clone())
-        }
-        ("unnest", [array]) => Func::unnest(array.clone()),
-        ("json_to_record", [json]) => Func::json_to_record(json.clone()),
-        ("jsonb_to_record", [jsonb]) => Func::jsonb_to_record(jsonb.clone()),
-        ("json_to_recordset", [json]) => Func::json_to_recordset(json.clone()),
-        ("jsonb_to_recordset", [jsonb]) => Func::jsonb_to_recordset(jsonb.clone()),
-        _ => {
-            return Err(crate::UnsupportedCapabilityError::new_err(
-                "unsupported function or argument count",
+    pgorm_bindings::call(name, &args)
+        .map(PyExpr::from_rust)
+        .map_err(|refusal| crate::UnsupportedCapabilityError::new_err(refusal.into_message()))
+}
+
+/// A call of the function `name`, any function the server has, with each
+/// argument bound unless it is an expression: Rust's `Func::named`. The name
+/// is an identifier, written bare when it is a lowercase name PostgreSQL
+/// does not restrict and quoted otherwise, so it names a function and is
+/// never read as syntax.
+// [spec:pgorm:req:bindings.named-functions]
+#[pyfunction]
+#[pyo3(signature = (name, *arguments))]
+pub(crate) fn func(name: &Bound<'_, PyAny>, arguments: &Bound<'_, PyTuple>) -> PyResult<PyExpr> {
+    let name = Identifier::new(name)?.name();
+    let args = sequence(arguments.as_any())?;
+    Ok(PyExpr::from_rust(Func::named(name).args(args).into()))
+}
+
+/// A piece of SQL the builder has no method for, written as a t-string:
+/// its text is SQL, and each interpolation goes between the pieces, an
+/// expression embedded as it is and any other value bound, as Rust's
+/// `Expr::template` binds its values. A `str` is refused, so text built at
+/// run time cannot become a template by accident: the text is the
+/// program's, as Rust's `&'static str` holds it to be.
+// [spec:pgorm:req:bindings.template]
+#[pyfunction]
+pub(crate) fn template(text: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+    let py = text.py();
+    let templatelib = py.import("string.templatelib")?;
+    if !text.is_instance(&templatelib.getattr("Template")?)? {
+        return Err(PyTypeError::new_err(
+            "a template is a t-string, t\"..\", whose text is the program's own",
+        ));
+    }
+    let pieces: Vec<String> = text.getattr("strings")?.extract()?;
+    let mut values = Vec::new();
+    for interpolation in text.getattr("interpolations")?.try_iter()? {
+        let interpolation = interpolation?;
+        if !interpolation.getattr("conversion")?.is_none()
+            || !interpolation
+                .getattr("format_spec")?
+                .extract::<String>()?
+                .is_empty()
+        {
+            return Err(ConstructionError::new_err(
+                "a template's interpolation is a value bound as it is: it takes no conversion or format",
             ));
         }
-    };
-    Ok(PyExpr::from_rust(expr.into()))
+        values.push(coerce(&interpolation.getattr("value")?)?.inner);
+    }
+    let template = pgorm::pgorm_query::SqlTemplate::from_pieces(&pieces, values)
+        .map_err(|error| ConstructionError::new_err(error.to_string()))?;
+    Ok(PyExpr::from_rust(SimpleExpr::Template(template)))
 }

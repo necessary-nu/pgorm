@@ -70,7 +70,7 @@ pub(super) fn name<'brand>(name: &str) -> Expr<'brand> {
 /// name becomes ambiguous the moment a join enters the pipeline. Minting the
 /// reference from a `(table, column)` [`SqlName`] pair makes the qualified form
 /// the only representable one.
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 pub fn col<'brand>(table: impl IntoName, column: impl IntoName) -> Expr<'brand> {
     branded(adapter::ident_in(
         vec![SqlName::to_string(&*table.into_name())],
@@ -82,12 +82,12 @@ pub fn col<'brand>(table: impl IntoName, column: impl IntoName) -> Expr<'brand> 
 /// condition whose column name exists on both sides.
 ///
 /// An embedded pipeline has no name the caller can write
-/// (`[spec:pgorm:req:pipeline.compose]`), so when its column shares a name
+/// (`[spec:pgorm:req:pipeline.compose+2]`), so when its column shares a name
 /// with one of the consumer's, `that(column)` qualifies it by role instead:
 /// `that(ID)` is the joined relation's `id`. The qualification is scoped to
 /// the join condition; stages after the join refer to the column by its own
 /// name, renamed in the embedded pipeline's projection if it collides.
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+2]
 pub fn that<'brand>(column: impl IntoName) -> Expr<'brand> {
     branded(adapter::ident_in(
         vec!["that".to_owned()],
@@ -99,7 +99,7 @@ pub fn that<'brand>(column: impl IntoName) -> Expr<'brand> {
 /// counterpart of [`that`], for the join condition whose consumer is itself
 /// an embedded pipeline with no name to qualify by. Scoped to the join
 /// condition, like [`that`].
-// [spec:pgorm:req:pipeline.compose]
+// [spec:pgorm:req:pipeline.compose+2]
 pub fn this<'brand>(column: impl IntoName) -> Expr<'brand> {
     branded(adapter::ident_in(
         vec!["this".to_owned()],
@@ -110,7 +110,7 @@ pub fn this<'brand>(column: impl IntoName) -> Expr<'brand> {
 /// An entity column read under `qualifier`, carrying the enum it compares as
 /// when its domain is over one: what the column says of its type holds under
 /// any name its relation is read by.
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &C) -> Expr<'brand> {
     let mut expr = branded(adapter::ident_in(
@@ -124,7 +124,7 @@ pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &
 
 /// An entity column is a table-qualified expression: the column enum carries
 /// its entity, so the qualification is recovered rather than restated.
-// [spec:pgorm:sem:pipeline.qualify+3]
+// [spec:pgorm:sem:pipeline.qualify+4]
 // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
 impl<'brand, C: ColumnTrait> From<C> for Expr<'brand> {
     fn from(column: C) -> Self {

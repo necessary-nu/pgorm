@@ -382,7 +382,7 @@ async fn composed_scopes_bind_params_in_order() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.terminal/test]    the model terminal goes straight
+// [spec:pgorm:sem:pipeline.terminal+1/test]    the model terminal goes straight
 // from a pipeline to entity models on a connection
 #[pgorm_macros::test]
 async fn terminal_decodes_entity_models() {
@@ -422,7 +422,7 @@ async fn terminal_decodes_entity_models() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    a union of two filtered
+// [spec:pgorm:req:pipeline.compose+2/test]    a union of two filtered
 // pipelines, one bound param each: the values interleave with their $N
 #[pgorm_macros::test]
 async fn union_of_filtered_pipelines_binds_both_params() {
@@ -452,7 +452,7 @@ async fn union_of_filtered_pipelines_binds_both_params() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    top spenders joined back to
+// [spec:pgorm:req:pipeline.compose+2/test]    top spenders joined back to
 // their customers: params bound in the consumer and in the embedded pipeline
 #[pgorm_macros::test]
 async fn top_spenders_join_binds_across_pipelines() {
@@ -483,7 +483,7 @@ async fn top_spenders_join_binds_across_pipelines() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.compose/test]    remove drops one matching row
+// [spec:pgorm:req:pipeline.compose+2/test]    remove drops one matching row
 // per row of the removed pipeline, with a param on each side
 #[pgorm_macros::test]
 async fn remove_pipeline_subtracts_matching_rows() {
@@ -518,7 +518,7 @@ async fn remove_pipeline_subtracts_matching_rows() {
 /// instead of once — the doubling five campaign items reported, all of them
 /// shrinking to this shape. The row count is the whole point, so it is
 /// asserted against the server rather than against a rendering.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+2/test]
 #[pgorm_macros::test]
 async fn an_appended_relation_intersects_as_one_whole() {
     let ctx = TestContext::new("pipeline_set_op_association").await;
@@ -554,7 +554,7 @@ async fn an_appended_relation_intersects_as_one_whole() {
 /// SQL executes at all. The shape is the filed reproducer's: the source nested
 /// twice, every column renamed, a derived constant, an ordering over all of
 /// them, and a nested projection that keeps only some.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+2/test]
 #[pgorm_macros::test]
 async fn a_nested_source_reads_only_exposed_columns() {
     let ctx = TestContext::new("pipeline_nested_source_scope").await;
@@ -599,7 +599,7 @@ async fn a_nested_source_reads_only_exposed_columns() {
 /// The other face of the same leak: an ordering that reaches an outer ORDER BY
 /// qualified by a relation the final FROM does not carry, which PostgreSQL
 /// rejects with SQLSTATE 42P01 (`nested-source-from-entry`).
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+2/test]
 #[pgorm_macros::test]
 async fn a_nested_ordering_names_a_relation_in_scope() {
     let ctx = TestContext::new("pipeline_nested_ordering_scope").await;
@@ -996,7 +996,7 @@ async fn composed_prune_renumbers_across_the_join() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    two sources whose column
+// [spec:pgorm:sem:pipeline.select-sources+6/test]    two sources whose column
 // names collide decode whole models under their own prefixes — the
 // _expr_N dissolution, proven by rows rather than by the emitted string
 #[pgorm_macros::test]
@@ -1050,7 +1050,7 @@ async fn select_sources_decodes_colliding_columns() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    a named restatement
+// [spec:pgorm:sem:pipeline.select-sources+6/test]    a named restatement
 // decodes both occurrences of one table: employee beside manager, whole
 // models on each side
 #[pgorm_macros::test]
@@ -1096,7 +1096,7 @@ async fn select_sources_named_self_join_decodes_both_sides() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    under a right join the
+// [spec:pgorm:sem:pipeline.select-sources+6/test]    under a right join the
 // *left* side is the absent one, and the first listed source decodes None —
 // what the all-optional row type exists to carry
 #[pgorm_macros::test]
@@ -1169,7 +1169,7 @@ async fn right_join_leaves_the_first_position_none() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the allowed set composes
+// [spec:pgorm:sem:pipeline.select-sources+6/test]    the allowed set composes
 // live ahead of the terminal: filter, derive, sort, take and a join, then
 // whole models out
 #[pgorm_macros::test]
@@ -1206,7 +1206,7 @@ async fn select_sources_composes_with_allowed_stages_live() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    one and one_opt carry the
+// [spec:pgorm:sem:pipeline.select-sources+6/test]    one and one_opt carry the
 // terminal's take-1 semantics: first row of the sorted pipeline, RecordNotFound
 // or None when nothing matches
 #[pgorm_macros::test]
@@ -1249,7 +1249,7 @@ async fn select_sources_one_takes_one() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    the widest list the
+// [spec:pgorm:sem:pipeline.select-sources+6/test]    the widest list the
 // terminal takes, decoded live: six sources, each position read back from
 // its own s{i}_ prefix into its own model — two of them the same table under
 // two names, so a crossed prefix decodes cleanly into the wrong row — and a
@@ -1418,7 +1418,7 @@ mod cast_probe {
     pub enum Relation {}
 }
 
-// [spec:pgorm:sem:pipeline.select-sources+4/test]    a select_as override and
+// [spec:pgorm:sem:pipeline.select-sources+6/test]    a select_as override and
 // the enum-array default alike reach the sources projection: a numeric column
 // read as text decodes, and a tea[] column reads back under text[]
 #[pgorm_macros::test]
@@ -1470,6 +1470,120 @@ async fn select_sources_applies_read_casts() -> Result<(), pgorm::Error> {
     Ok(())
 }
 
+// [spec:pgorm:sem:pipeline.terminal+1/test]    the model terminals decode an
+// entity's model whatever its columns read through: an enum, an enum array,
+// a select_as override, and a partial model's enum column
+#[pgorm_macros::test]
+async fn model_terminals_apply_read_casts() -> Result<(), pgorm::Error> {
+    let ctx = TestContext::new("pipeline_model_read_casts").await;
+    let db = ctx.db.get().await?;
+    db.batch_execute(
+        r#"CREATE TABLE cast_probe (id integer PRIMARY KEY, amount numeric NOT NULL);
+           INSERT INTO cast_probe VALUES (1, 12.5);
+           CREATE TYPE tea AS ENUM ('EverydayTea', 'BreakfastTea');
+           CREATE TABLE tea_pot (id integer PRIMARY KEY, teas tea[] NOT NULL);
+           INSERT INTO tea_pot VALUES (1, ARRAY['EverydayTea']::tea[]);
+           CREATE TABLE kettle (id integer PRIMARY KEY, tea tea NOT NULL);
+           INSERT INTO kettle VALUES (1, 'EverydayTea'), (2, 'BreakfastTea');"#,
+    )
+    .await?;
+
+    assert_eq!(
+        Pipeline::from(cast_probe::Entity)
+            .all::<cast_probe::Model, _>(&db)
+            .await?,
+        [cast_probe::Model {
+            id: 1,
+            amount: "12.5".to_owned(),
+        }]
+    );
+    assert_eq!(
+        Pipeline::from(tea_pot::Entity)
+            .one::<tea_pot::Model, _>(&db)
+            .await?,
+        tea_pot::Model {
+            id: 1,
+            teas: vec![Tea::EverydayTea],
+        }
+    );
+
+    let breakfast = Pipeline::from(kettle::Entity)
+        .filter(kettle::Column::Tea.eq("BreakfastTea"))
+        .one_opt::<kettle::Model, _>(&db)
+        .await?;
+    assert_eq!(
+        breakfast,
+        Some(kettle::Model {
+            id: 2,
+            tea: Tea::BreakfastTea,
+        })
+    );
+    let kettles: Vec<kettle::Model> = Pipeline::from(kettle::Entity)
+        .sort(kettle::Column::Id)
+        .into_model::<kettle::Model>()?
+        .all(&db)
+        .await?;
+    assert_eq!(kettles.len(), 2);
+
+    // A partial model reads `kind`, which the pipeline names, under the cast
+    // of the column it names.
+    let brews: Vec<kettle::Brew> = Pipeline::from(kettle::Entity)
+        .derive(kettle::Column::Tea.as_(alias("kind")))
+        .sort(kettle::Column::Id)
+        .all(&db)
+        .await?;
+    assert_eq!(
+        brews,
+        [
+            kettle::Brew {
+                id: 1,
+                kind: Tea::EverydayTea,
+            },
+            kettle::Brew {
+                id: 2,
+                kind: Tea::BreakfastTea,
+            },
+        ]
+    );
+    // The partial model's renamed enum column reads through its cast on the
+    // entity's own select too.
+    let selected: Vec<kettle::Brew> =
+        pgorm::QueryOrder::order_by_asc(kettle::Entity::find(), kettle::Column::Id)
+            .into_partial_model::<kettle::Brew>()
+            .all(&db)
+            .await?;
+    assert_eq!(selected, brews);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+mod kettle {
+    use super::Tea;
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "kettle")]
+    pub struct Model {
+        #[pgorm(primary_key, auto_increment = false)]
+        pub id: i32,
+        pub tea: Tea,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+
+    /// A partial model reading the enum under a name of its own.
+    #[derive(Debug, PartialEq, PartialModel)]
+    #[pgorm(entity = Entity)]
+    pub struct Brew {
+        pub id: i32,
+        #[pgorm(from_col = Column::Tea)]
+        pub kind: Tea,
+    }
+}
+
 mod tea_pot {
     use pgorm::entity::prelude::*;
 
@@ -1504,7 +1618,7 @@ use tea_pot::Tea;
 /// four sightings, two of them identical, and two names shared across
 /// different ids. Deduplicating whole rows removes only the identical pair;
 /// deduplicating the projected name removes far more.
-// [spec:pgorm:req:pipeline.compose/test]
+// [spec:pgorm:req:pipeline.compose+2/test]
 #[pgorm_macros::test]
 async fn deduplicating_then_projecting_keeps_its_rows() -> Result<(), pgorm::Error> {
     let ctx = TestContext::new("pipeline_distinct_star_projection").await;
@@ -1559,6 +1673,369 @@ async fn deduplicating_then_projecting_keeps_its_rows() -> Result<(), pgorm::Err
         .collect();
     narrowed.sort();
     assert_eq!(narrowed, projected);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+/// Rows of `sql`, each one's first two columns, sorted: the server's own
+/// answer, in SQL this suite wrote.
+async fn pairs(db: &impl ConnectionTrait, sql: &str) -> Vec<(i32, Option<i64>)> {
+    let mut rows: Vec<(i32, Option<i64>)> = db
+        .query_all(sql, &[])
+        .await
+        .expect("the control query runs")
+        .iter()
+        .map(|row| (row.get(0), row.get(1)))
+        .collect();
+    rows.sort();
+    rows
+}
+
+/// A pipeline's rows, read as `pairs` reads the control's.
+async fn piped(db: &impl ConnectionTrait, pipeline: Pipeline) -> Vec<(i32, Option<i64>)> {
+    let mut rows: Vec<(i32, Option<i64>)> = pipeline
+        .into_tuple()
+        .expect("the pipeline compiles")
+        .all(db)
+        .await
+        .expect("the pipeline runs");
+    rows.sort();
+    rows
+}
+
+/// A stage after a set operation reads the combined relation whole. Rendered
+/// into the first operand's query a stage would read that operand alone — a
+/// projection on its `SELECT`, the other operand a wildcard — and under
+/// `INTERSECT` and `EXCEPT` a projection pushed into both operands compares
+/// fewer columns, so each pipeline is held to SQL written by hand here.
+// [spec:pgorm:req:pipeline.compose+2/test]
+#[pgorm_macros::test]
+async fn stages_read_a_set_operation_whole() -> Result<(), pgorm::Error> {
+    let ctx = TestContext::new("pipeline_set_operation_stages").await;
+    let db = ctx.db.get().await?;
+    let (shelf, store) = (alias("shelf"), alias("store"));
+    let (id, kind, n) = (alias("id"), alias("kind"), alias("n"));
+    db.batch_execute(
+        "CREATE TABLE shelf (id integer NOT NULL, kind integer NOT NULL);
+         CREATE TABLE store (id integer NOT NULL, kind integer NOT NULL);
+         INSERT INTO shelf VALUES (1, 10), (2, 20), (2, 21), (3, 30);
+         INSERT INTO store VALUES (2, 20), (2, 22), (4, 40), (4, 40);",
+    )
+    .await?;
+    let both = |table: AliasName| Pipeline::from(table).select((col(table, id), col(table, kind)));
+
+    // A projection after append: every row of both, the second column
+    // standing in for the one the tuple reads.
+    assert_eq!(
+        piped(
+            &db,
+            Pipeline::from(shelf)
+                .append(store)
+                .derive(count_rows().as_(n))
+                .select((id, n))
+        )
+        .await,
+        pairs(
+            &db,
+            "SELECT id, count(*) OVER () FROM (SELECT * FROM shelf UNION ALL SELECT * FROM store) u"
+        )
+        .await
+    );
+    // A grouping after append counts both operands' rows.
+    assert_eq!(
+        piped(
+            &db,
+            Pipeline::from(shelf)
+                .append(store)
+                .group(id)
+                .aggregate(count_rows().as_(n))
+        )
+        .await,
+        pairs(
+            &db,
+            "SELECT id, count(*) FROM (SELECT * FROM shelf UNION ALL SELECT * FROM store) u GROUP BY id"
+        )
+        .await
+    );
+    // INTERSECT then a projection intersects whole rows, then projects:
+    // (2, 20) is in both, the two (2, _) rows that differ are not.
+    assert_eq!(
+        piped(
+            &db,
+            both(shelf)
+                .intersect(both(store))
+                .derive(count_rows().as_(n))
+                .select((id, n))
+        )
+        .await,
+        pairs(
+            &db,
+            "SELECT id, count(*) OVER () FROM \
+             (SELECT id, kind FROM shelf INTERSECT ALL SELECT id, kind FROM store) i"
+        )
+        .await
+    );
+    // EXCEPT then a projection, the same way round.
+    assert_eq!(
+        piped(
+            &db,
+            both(shelf)
+                .remove(both(store))
+                .group(id)
+                .aggregate(count_rows().as_(n))
+        )
+        .await,
+        pairs(
+            &db,
+            "SELECT id, count(*) FROM \
+             (SELECT id, kind FROM shelf EXCEPT ALL SELECT id, kind FROM store) e GROUP BY id"
+        )
+        .await
+    );
+    // A deduplicated union, then a projection.
+    assert_eq!(
+        piped(
+            &db,
+            Pipeline::from(shelf)
+                .append(store)
+                .distinct()
+                .group(id)
+                .aggregate(count_rows().as_(n))
+        )
+        .await,
+        pairs(
+            &db,
+            "SELECT id, count(*) FROM (SELECT * FROM shelf UNION SELECT * FROM store) u GROUP BY id"
+        )
+        .await
+    );
+    // A filter, a sort and a take after append read the union too.
+    let first: Vec<(i32, i32)> = Pipeline::from(shelf)
+        .append(store)
+        .filter(id.gt(1))
+        .sort((id, kind))
+        .take(3)
+        .select((id, kind))
+        .into_tuple()?
+        .all(&db)
+        .await?;
+    assert_eq!(first, [(2, 20), (2, 20), (2, 21)]);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+/// Single-column rows of `sql`, sorted.
+async fn ints(db: &impl ConnectionTrait, sql: &str) -> Vec<i32> {
+    let mut rows: Vec<i32> = db
+        .query_all(sql, &[])
+        .await
+        .expect("the control query runs")
+        .iter()
+        .map(|row| row.get(0))
+        .collect();
+    rows.sort();
+    rows
+}
+
+/// A pipeline's single-column rows, read as `ints` reads the control's.
+async fn piped_ints(db: &impl ConnectionTrait, pipeline: Pipeline) -> Vec<i32> {
+    let mut rows: Vec<(i32,)> = pipeline
+        .into_tuple()
+        .expect("the pipeline compiles")
+        .all(db)
+        .await
+        .expect("the pipeline runs");
+    rows.sort();
+    rows.into_iter().map(|(value,)| value).collect()
+}
+
+/// Every stage reads the result of a set operation over operands nothing
+/// projected — plain tables, whose columns pgorm cannot see, and entities,
+/// whose tables prqlc reads as wildcards all the same — and over operands
+/// that each read a different column first. Each pipeline is held to SQL
+/// written by hand here.
+// [spec:pgorm:req:pipeline.compose+2/test]
+#[pgorm_macros::test]
+async fn stages_read_set_operations_of_unprojected_operands() -> Result<(), pgorm::Error> {
+    let ctx = TestContext::new("pipeline_set_operation_wildcards").await;
+    create_tables(&ctx.db).await?;
+    let db = ctx.db.get().await?;
+    let seeded = seed(&db).await;
+    let (shelf, store) = (alias("shelf"), alias("store"));
+    let (id, kind, n) = (alias("id"), alias("kind"), alias("n"));
+    db.batch_execute(
+        "CREATE TABLE shelf (id integer NOT NULL, kind integer NOT NULL);
+         CREATE TABLE store (id integer NOT NULL, kind integer NOT NULL);
+         INSERT INTO shelf VALUES (1, 10), (2, 20), (2, 20), (2, 21), (3, 30);
+         INSERT INTO store VALUES (2, 20), (2, 22), (4, 40), (4, 40);",
+    )
+    .await?;
+
+    for (verb, combined, operator) in [
+        (
+            "intersect",
+            Pipeline::intersect as fn(Pipeline, AliasName) -> Pipeline,
+            "INTERSECT ALL",
+        ),
+        ("remove", Pipeline::remove, "EXCEPT ALL"),
+        ("append", Pipeline::append, "UNION ALL"),
+    ] {
+        let rows = || combined(Pipeline::from(shelf), store);
+        let control = format!("(SELECT * FROM shelf {operator} SELECT * FROM store) c");
+        assert_eq!(
+            piped_ints(&db, rows().select(id)).await,
+            ints(&db, &format!("SELECT id FROM {control}")).await,
+            "{verb} then select"
+        );
+        assert_eq!(
+            piped_ints(&db, rows().filter(kind.gt(20)).select(id)).await,
+            ints(&db, &format!("SELECT id FROM {control} WHERE kind > 20")).await,
+            "{verb} then filter"
+        );
+        assert_eq!(
+            piped(&db, rows().derive(count_rows().as_(n)).select((id, n))).await,
+            pairs(&db, &format!("SELECT id, count(*) OVER () FROM {control}")).await,
+            "{verb} then derive"
+        );
+        assert_eq!(
+            piped(&db, rows().group(id).aggregate(count_rows().as_(n))).await,
+            pairs(
+                &db,
+                &format!("SELECT id, count(*) FROM {control} GROUP BY id")
+            )
+            .await,
+            "{verb} then group"
+        );
+        assert_eq!(
+            piped(
+                &db,
+                rows()
+                    .window(row_number().as_(n), sort_by((id, kind)))
+                    .select((id, n))
+            )
+            .await,
+            pairs(
+                &db,
+                &format!("SELECT id, row_number() OVER (ORDER BY id, kind) FROM {control}")
+            )
+            .await,
+            "{verb} then window"
+        );
+        let sorted: Vec<(i32, i32)> = rows()
+            .sort((kind.desc(), id))
+            .select((id, kind))
+            .into_tuple()?
+            .all(&db)
+            .await?;
+        let control_sorted: Vec<(i32, i32)> = db
+            .query_all(
+                &format!("SELECT id, kind FROM {control} ORDER BY kind DESC, id"),
+                &[],
+            )
+            .await?
+            .iter()
+            .map(|row| (row.get(0), row.get(1)))
+            .collect();
+        assert_eq!(sorted, control_sorted, "{verb} then sort");
+    }
+
+    // Operands that each read a different column of the same table first.
+    let high = || Pipeline::from(shelf).filter(id.gt(1));
+    let low = || Pipeline::from(shelf).filter(kind.lt(30));
+    for (verb, combined, operator) in [
+        (
+            "intersect",
+            Pipeline::intersect as fn(Pipeline, Pipeline) -> Pipeline,
+            "INTERSECT ALL",
+        ),
+        ("remove", Pipeline::remove, "EXCEPT ALL"),
+        ("append", Pipeline::append, "UNION ALL"),
+    ] {
+        assert_eq!(
+            piped(
+                &db,
+                combined(high(), low())
+                    .group(id)
+                    .aggregate(count_rows().as_(n))
+            )
+            .await,
+            pairs(
+                &db,
+                &format!(
+                    "SELECT id, count(*) FROM (SELECT * FROM shelf WHERE id > 1 {operator} \
+                     SELECT * FROM shelf WHERE kind < 30) c GROUP BY id"
+                )
+            )
+            .await,
+            "{verb} of operands read apart"
+        );
+    }
+
+    // Entity sources: an entity column read after the operation is repointed
+    // at the binding the result is settled into.
+    let large = || Pipeline::from(order::Entity).filter(O::Total.gt(9));
+    let cheap = || Pipeline::from(order::Entity).filter(O::Total.lt(26));
+    for (verb, combined, operator) in [
+        (
+            "intersect",
+            Pipeline::intersect as fn(Pipeline, Pipeline) -> Pipeline,
+            "INTERSECT ALL",
+        ),
+        ("remove", Pipeline::remove, "EXCEPT ALL"),
+        ("append", Pipeline::append, "UNION ALL"),
+    ] {
+        let control = format!(
+            "(SELECT * FROM \"order\" WHERE total > 9 {operator} \
+             SELECT * FROM \"order\" WHERE total < 26) c"
+        );
+        assert_eq!(
+            piped(
+                &db,
+                combined(large(), cheap())
+                    .filter(O::Total.gt(15))
+                    .group(O::CustomerId)
+                    .aggregate(count_rows().as_(n))
+            )
+            .await,
+            pairs(
+                &db,
+                &format!("SELECT customer_id, count(*) FROM {control} WHERE total > 15 GROUP BY customer_id")
+            )
+            .await,
+            "{verb} of entities then filter and group"
+        );
+        assert_eq!(
+            piped(
+                &db,
+                combined(large(), cheap())
+                    .window(row_number().as_(n), sort_by((O::Total, O::Id)))
+                    .select((O::CustomerId, n))
+            )
+            .await,
+            pairs(
+                &db,
+                &format!(
+                    "SELECT customer_id, row_number() OVER (ORDER BY total, id) FROM {control}"
+                )
+            )
+            .await,
+            "{verb} of entities then window"
+        );
+    }
+    // The whole result, decoded as models: only Alice's 30 is in the large
+    // orders and not in the cheap ones.
+    let only_large: Vec<order::Model> = large().remove(cheap()).all(&db).await?;
+    assert_eq!(
+        only_large
+            .iter()
+            .map(|order| (order.customer_id, order.total))
+            .collect::<Vec<_>>(),
+        [(seeded.alice, rust_dec(30.0))]
+    );
 
     drop(db);
     ctx.delete().await;

@@ -18,7 +18,7 @@ use pgorm::{
 const CHECKSUM_COLUMN: &str = "checksum";
 
 /// The table `migration_table_name()` resolves to unless a migrator overrides it.
-// [spec:pgorm:def:migration.runner+4]    the ledger's default physical name
+// [spec:pgorm:def:migration.runner+5]    the ledger's default physical name
 pub const DEFAULT_LEDGER_TABLE: &str = "pgorm_migrations";
 
 /// The name this crate inherited from SeaORM and no longer creates. A database
@@ -30,7 +30,7 @@ pub const LEGACY_LEDGER_TABLE: &str = "seaql_migrations";
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 /// Status of migration
-// [spec:pgorm:def:migration.runner+4]    reported status vocabulary
+// [spec:pgorm:def:migration.runner+5]    reported status vocabulary
 pub enum MigrationStatus {
     /// Not yet applied
     Pending,
@@ -66,12 +66,12 @@ impl Migration {
 }
 
 /// Performing migrations on a database
-// [spec:pgorm:def:migration.runner+4]    runner surface
+// [spec:pgorm:def:migration.runner+5]    runner surface
 // [spec:pgorm:req:migration.up-only]    no down/fresh/refresh/reset
 #[async_trait::async_trait]
-pub trait MigratorTrait: Send {
+pub trait MigratorTrait: Send + Sync {
     /// Vector of migrations in time sequence
-    fn migrations() -> Vec<Box<dyn MigrationTrait>>;
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>>;
 
     /// Name of the migration table, it is `pgorm_migrations` by default
     ///
@@ -79,7 +79,7 @@ pub trait MigratorTrait: Send {
     /// adoption applies to the default name alone, so a custom-named ledger is
     /// never renamed and never adopted from.
     // [spec:pgorm:req:migration.ledger-upgrade+2]    an override opts out of adoption
-    fn migration_table_name() -> Name {
+    fn migration_table_name(&self) -> Name {
         ledger::Entity.into_name()
     }
 
@@ -92,17 +92,17 @@ pub trait MigratorTrait: Send {
     /// read and write names the table qualified by it. Legacy-name adoption
     /// applies only to the default name with no schema, so a ledger given one
     /// is never adopted into.
-    // [spec:pgorm:def:migration.runner+4]    the ledger's schema
+    // [spec:pgorm:def:migration.runner+5]    the ledger's schema
     // [spec:pgorm:req:migration.ledger-upgrade+2]    a schema opts out of adoption
-    fn migration_table_schema() -> Option<Name> {
+    fn migration_table_schema(&self) -> Option<Name> {
         None
     }
 
     /// Get list of migrations wrapped in `Migration` struct, failing if two of
     /// them answer `name()` with the same string
     // [spec:pgorm:sem:migration.name+4]    duplicates are rejected here, ahead of every other step
-    fn get_migration_files() -> Result<Vec<Migration>, Error> {
-        let migrations = Self::migrations();
+    fn get_migration_files(&self) -> Result<Vec<Migration>, Error> {
+        let migrations = self.migrations();
 
         let mut seen: HashSet<&str> = HashSet::new();
         let mut duplicates: BTreeSet<String> = BTreeSet::new();
@@ -145,12 +145,12 @@ pub trait MigratorTrait: Send {
     /// The hash is spelled out here rather than taken from `DefaultHasher`
     /// because the key has to agree between processes that need not share a
     /// compiler version, let alone a `HashMap` seed.
-    // [spec:pgorm:sem:migration.up+5]
-    fn lock_key() -> i64 {
+    // [spec:pgorm:sem:migration.up+6]
+    fn lock_key(&self) -> i64 {
         const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
         const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-        let name = SqlName::to_string(&*Self::migration_table_name());
+        let name = SqlName::to_string(&*self.migration_table_name());
         let mut hash = FNV_OFFSET;
         for byte in name.as_bytes() {
             hash ^= u64::from(*byte);
@@ -166,9 +166,9 @@ pub trait MigratorTrait: Send {
     /// `pg_advisory_xact_lock` is released at end of transaction: taken in
     /// autocommit it would be surrendered before the caller's next statement,
     /// which is the shape of the bug rather than the fix.
-    // [spec:pgorm:sem:migration.up+5]
-    async fn lock(db: &DatabaseTransaction<'_>) -> Result<(), Error> {
-        let key = Self::lock_key();
+    // [spec:pgorm:sem:migration.up+6]
+    async fn lock(&self, db: &DatabaseTransaction<'_>) -> Result<(), Error> {
+        let key = self.lock_key();
         db.execute("SELECT pg_advisory_xact_lock($1)", &[&key])
             .await?;
         tracing::debug!("Acquired migration advisory lock {key}");
@@ -184,9 +184,10 @@ pub trait MigratorTrait: Send {
     /// checksum column is read without it.
     // [spec:pgorm:req:migration.read-only+1]    a read locates the ledger, never creates it
     async fn get_migration_models(
+        &self,
         db: &(impl ConnectionTrait),
     ) -> Result<Vec<ledger::Model>, Error> {
-        let Some(ledger) = ReadableLedger::locate(db, LedgerTable::of::<Self>()).await? else {
+        let Some(ledger) = ReadableLedger::locate(db, LedgerTable::of(self)).await? else {
             return Ok(Vec::new());
         };
 
@@ -209,20 +210,21 @@ pub trait MigratorTrait: Send {
         }
 
         let (stmt, values) = stmt.build();
-        ledger::Model::find_by_statement(stmt, values.0)
+        ledger::Model::find_by_statement(&stmt, values)
             .all(db)
             .await
     }
 
     /// Get list of migrations with status
-    // [spec:pgorm:sem:migration.up+5]    pending set difference + missing-file detection
+    // [spec:pgorm:sem:migration.up+6]    pending set difference + missing-file detection
     // [spec:pgorm:req:migration.checksum+1]    recorded digests are checked on every read
     // [spec:pgorm:req:migration.read-only+1]    status is computed from a read alone
     async fn get_migration_with_status(
+        &self,
         db: &(impl ConnectionTrait),
     ) -> Result<Vec<Migration>, Error> {
-        let mut migration_files = Self::get_migration_files()?;
-        let migration_models = Self::get_migration_models(db).await?;
+        let mut migration_files = self.get_migration_files()?;
+        let migration_models = self.get_migration_models(db).await?;
 
         let applied_checksums: HashMap<String, Option<String>> = migration_models
             .into_iter()
@@ -275,8 +277,12 @@ pub trait MigratorTrait: Send {
     /// A read, like every accessor here: against a database with no ledger at
     /// all, every migration is pending and nothing is installed to say so.
     // [spec:pgorm:req:migration.read-only+1]
-    async fn get_pending_migrations(db: &(impl ConnectionTrait)) -> Result<Vec<Migration>, Error> {
-        Ok(Self::get_migration_with_status(db)
+    async fn get_pending_migrations(
+        &self,
+        db: &(impl ConnectionTrait),
+    ) -> Result<Vec<Migration>, Error> {
+        Ok(self
+            .get_migration_with_status(db)
             .await?
             .into_iter()
             .filter(|file| file.status == MigrationStatus::Pending)
@@ -287,8 +293,12 @@ pub trait MigratorTrait: Send {
     ///
     /// A read, like every accessor here.
     // [spec:pgorm:req:migration.read-only+1]
-    async fn get_applied_migrations(db: &(impl ConnectionTrait)) -> Result<Vec<Migration>, Error> {
-        Ok(Self::get_migration_with_status(db)
+    async fn get_applied_migrations(
+        &self,
+        db: &(impl ConnectionTrait),
+    ) -> Result<Vec<Migration>, Error> {
+        Ok(self
+            .get_migration_with_status(db)
             .await?
             .into_iter()
             .filter(|file| file.status == MigrationStatus::Applied)
@@ -307,8 +317,8 @@ pub trait MigratorTrait: Send {
     /// not touched.
     // [spec:pgorm:req:migration.ledger-upgrade+2]    detect, then rename in place
     #[doc(alias = "seaql_migrations")]
-    async fn adopt_legacy_ledger(db: &(impl ConnectionTrait)) -> Result<(), Error> {
-        if !LedgerTable::of::<Self>().adopts_legacy() {
+    async fn adopt_legacy_ledger(&self, db: &(impl ConnectionTrait)) -> Result<(), Error> {
+        if !LedgerTable::of(self).adopts_legacy() {
             return Ok(());
         }
 
@@ -344,7 +354,7 @@ pub trait MigratorTrait: Send {
         // favour, not failures, so they are caught and the block does nothing.
         // The handler's subtransaction keeps them off a caller's transaction,
         // which inside `up` is carrying the whole migration batch.
-        let key = Self::lock_key();
+        let key = self.lock_key();
         db.execute(
             &format!(
                 "DO $adopt$ BEGIN \
@@ -371,16 +381,16 @@ pub trait MigratorTrait: Send {
     /// then the table if either is absent, and widens a table that predates the
     /// checksum column. `up` calls it; no read does, so asking a question never
     /// needs the privileges to answer it by changing the schema.
-    // [spec:pgorm:def:migration.runner+4]    self-provisioning ledger under migration_table_name(), in its schema
+    // [spec:pgorm:def:migration.runner+5]    self-provisioning ledger under migration_table_name(), in its schema
     // [spec:pgorm:req:migration.checksum+1]    a ledger predating the column is widened in place
     // [spec:pgorm:req:migration.ledger-upgrade+2]    adoption precedes creation, widening follows it
     // [spec:pgorm:req:migration.read-only+1]    the write path a read is split away from
-    async fn install(db: &(impl ConnectionTrait)) -> Result<(), Error> {
+    async fn install(&self, db: &(impl ConnectionTrait)) -> Result<(), Error> {
         // Ahead of the create, or the create would answer a legacy database
         // with an empty ledger beside the populated one.
-        Self::adopt_legacy_ledger(db).await?;
+        self.adopt_legacy_ledger(db).await?;
 
-        let ledger = LedgerTable::of::<Self>();
+        let ledger = LedgerTable::of(self);
         create_ledger_schema(db, &ledger).await?;
 
         let stmt = Table::create(ledger.qualified())
@@ -419,10 +429,10 @@ pub trait MigratorTrait: Send {
     /// so a readiness probe or a CI gate can call it against a connection with
     /// no DDL privileges at all.
     // [spec:pgorm:req:migration.read-only+1]
-    async fn status(db: &(impl ConnectionTrait)) -> Result<(), Error> {
+    async fn status(&self, db: &(impl ConnectionTrait)) -> Result<(), Error> {
         info!("Checking migration status");
 
-        for Migration { migration, status } in Self::get_migration_with_status(db).await? {
+        for Migration { migration, status } in self.get_migration_with_status(db).await? {
             info!("Migration '{}'... {}", migration.name(), status);
         }
 
@@ -436,8 +446,8 @@ pub trait MigratorTrait: Send {
     /// the one a pool given that channel as its
     /// [`statement_cache_channel`](pgorm::ManagerConfig::statement_cache_channel)
     /// listens on.
-    // [spec:pgorm:sem:migration.up+5]    the channel the runner notifies
-    fn statement_cache_channel() -> Option<String> {
+    // [spec:pgorm:sem:migration.up+6]    the channel the runner notifies
+    fn statement_cache_channel(&self) -> Option<String> {
         Some(pgorm::STATEMENT_CACHE_CHANNEL.to_owned())
     }
 
@@ -449,27 +459,27 @@ pub trait MigratorTrait: Send {
     /// answers `true` is committed with its ledger row before the next one
     /// runs, and the rest run in a new transaction that takes the lock again;
     /// each commit clears and notifies as the end of a batch does.
-    // [spec:pgorm:sem:migration.up+5]
+    // [spec:pgorm:sem:migration.up+6]
     // [spec:pgorm:req:migration.commit-after]
-    async fn up(db: DatabasePool, mut steps: Option<u32>) -> Result<(), Error> {
+    async fn up(&self, db: DatabasePool, mut steps: Option<u32>) -> Result<(), Error> {
         tracing::debug!("Applying migrations");
-        let channel = Self::statement_cache_channel();
+        let channel = self.statement_cache_channel();
         loop {
             let channel = channel.clone();
-            let batch = exec_with_connection(&db, move |manager| {
+            let batch = exec_with_connection(&db, self, move |migrator, manager| {
                 tracing::debug!("Exec up");
                 let channel = channel.clone();
                 Box::pin(async move {
-                    let batch = exec_up::<Self>(manager, steps).await?;
+                    let batch = exec_up(migrator, manager, steps).await?;
                     // Sent inside the batch's transaction, the notification is
                     // delivered exactly when the batch commits, and never if it
                     // rolls back.
-                    // [spec:pgorm:sem:migration.up+5]    other processes' pools hear of a committed batch
+                    // [spec:pgorm:sem:migration.up+6]    other processes' pools hear of a committed batch
                     // [spec:pgorm:req:migration.commit-after]    and of each commit inside one
                     if batch.applied > 0
                         && let Some(channel) = channel
                     {
-                        pgorm::notify(manager, &channel, "").await?;
+                        pgorm::notify(&*manager, &channel, "").await?;
                     }
                     Ok(batch)
                 })
@@ -505,17 +515,17 @@ struct Batch {
 
 /// Where a migrator's ledger lives: `migration_table_name()`, qualified by
 /// `migration_table_schema()` when that is set.
-// [spec:pgorm:def:migration.runner+4]    every read and write names the qualified table
+// [spec:pgorm:def:migration.runner+5]    every read and write names the qualified table
 struct LedgerTable {
     schema: Option<Name>,
     name: Name,
 }
 
 impl LedgerTable {
-    fn of<M: MigratorTrait + ?Sized>() -> Self {
+    fn of<M: MigratorTrait + ?Sized>(migrator: &M) -> Self {
         Self {
-            schema: M::migration_table_schema(),
-            name: M::migration_table_name(),
+            schema: migrator.migration_table_schema(),
+            name: migrator.migration_table_name(),
         }
     }
 
@@ -550,7 +560,7 @@ impl LedgerTable {
 /// database's `CREATE` privilege before it checks whether the schema exists: a
 /// role that owns a schema made for it, without `CREATE` on the database, would
 /// be refused on every run although there is nothing to create.
-// [spec:pgorm:def:migration.runner+4]    the schema is created before the ledger
+// [spec:pgorm:def:migration.runner+5]    the schema is created before the ledger
 async fn create_ledger_schema(
     db: &impl ConnectionTrait,
     ledger: &LedgerTable,
@@ -677,16 +687,18 @@ impl ReadableLedger {
     }
 }
 
-// [spec:pgorm:sem:migration.up+5]    one connection, one transaction: the whole batch, or one part of a batch a migration splits
-async fn exec_with_connection<T, F>(db: &DatabasePool, f: F) -> Result<T, Error>
+// [spec:pgorm:sem:migration.up+6]    one connection, one transaction: the whole batch, or one part of a batch a migration splits
+async fn exec_with_connection<M, T, F>(db: &DatabasePool, migrator: &M, f: F) -> Result<T, Error>
 where
+    M: ?Sized + Sync,
     F: for<'b> Fn(
-        &'b DatabaseTransaction<'_>,
+        &'b M,
+        &'b mut DatabaseTransaction<'_>,
     ) -> Pin<Box<dyn Future<Output = Result<T, Error>> + Send + 'b>>,
 {
     let mut conn = db.get().await?;
     match conn
-        .transaction(async |transaction| f(transaction).await)
+        .transaction(async |transaction| f(migrator, transaction).await)
         .await
     {
         Ok(outcome) => Ok(outcome),
@@ -711,9 +723,13 @@ where
 /// Applies the pending migrations inside `db`, answering how many it applied
 /// and, where a migration asked to be committed before the rest, the step
 /// bound left for them.
-// [spec:pgorm:sem:migration.up+5]    lock, then declaration-order application, step bound, ledger append
+// [spec:pgorm:sem:migration.up+6]    lock, then declaration-order application, step bound, ledger append
 // [spec:pgorm:req:migration.commit-after]    the lock is retaken and the pending set recomputed per transaction
-async fn exec_up<M>(db: &DatabaseTransaction<'_>, mut steps: Option<u32>) -> Result<Batch, Error>
+async fn exec_up<M>(
+    migrator: &M,
+    db: &mut DatabaseTransaction<'_>,
+    mut steps: Option<u32>,
+) -> Result<Batch, Error>
 where
     M: MigratorTrait + ?Sized,
 {
@@ -721,7 +737,7 @@ where
     // so it is rejected before the lock is taken and before the ledger exists —
     // there is no reason to make a concurrent runner queue behind it.
     // [spec:pgorm:sem:migration.name+4]
-    M::get_migration_files()?;
+    migrator.get_migration_files()?;
 
     // Before anything reads or writes the ledger: a concurrent runner is made
     // to wait here rather than collide with the ledger's primary key or race
@@ -731,8 +747,8 @@ where
     // adoption inside `install` under it, so a batch cannot begin against a
     // ledger another runner is in the middle of renaming.
     // [spec:pgorm:req:migration.ledger-upgrade+2]
-    M::lock(db).await?;
-    M::install(db).await?;
+    migrator.lock(db).await?;
+    migrator.install(&*db).await?;
 
     if let Some(steps) = steps {
         info!("Applying {} pending migrations", steps);
@@ -740,7 +756,11 @@ where
         info!("Applying all pending migrations");
     }
 
-    let mut migrations = M::get_pending_migrations(db).await?.into_iter().peekable();
+    let mut migrations = migrator
+        .get_pending_migrations(&*db)
+        .await?
+        .into_iter()
+        .peekable();
     if migrations.len() == 0 {
         info!("No pending migrations");
     }
@@ -766,8 +786,8 @@ where
             applied_at: set(now.as_secs() as i64),
             checksum: set(migration.checksum()),
         })
-        .table_name(LedgerTable::of::<M>().qualified())
-        .exec(db)
+        .table_name(LedgerTable::of(migrator).qualified())
+        .exec(&*db)
         .await?;
         applied += 1;
 

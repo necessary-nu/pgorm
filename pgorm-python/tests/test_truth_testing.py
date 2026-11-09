@@ -5,14 +5,14 @@ import pkgutil
 import unittest
 
 import pgorm as p
-from pgorm import _native, pipeline as pl, schema as s
+from pgorm import _native, copy_rows, pipeline as pl, pool_options, raw_methods, schema as s
 from pgorm.schema import changes
-from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, versions as version_views
-from pgorm.codegen import source
+from pgorm._registered import disjoints as disjoint_views, entities as views, graphs as graph_views, reads as read_views, versions as version_views
+from pgorm.codegen import models as codegen_models, source
 from pgorm.codegen.types import FieldType
 from pgorm.models import (
-    Column, Model, ModelRecord, Relation, cursors, disjoint_query, graphs, model, one_of, queries,
-    record, writes,
+    Column, Linked, Model, ModelRecord, Related, Relation, active, clauses, cursors, disjoint_query,
+    graphs, model, one_of, projections, record, try_inserts, writes,
 )
 from pgorm.runtime import PoolStatus
 
@@ -26,31 +26,49 @@ EXEMPT = {
     # Rows, models and their write state, and what a write answers: data read
     # after SQL ran. A record or a model is a mapping, false with no fields.
     p.Record, p.Field, p.EntityModel, p.ActiveModel, p.ActiveValue, p.ActiveState,
-    p.Change, p.Upserted, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
-    version_views.Change, version_views.Inserted, version_views.Updated,
+    p.Change, p.Upserted, p.TryInsertResult, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
+    # A migration's name and status, as a migrator read them from its ledger.
+    s.Migration,
     # Pools, connections, transactions and the private native handles under
     # them and under the streams: live resources, not SQL, and true as any
     # open resource is. The streams themselves refuse, since a stream's truth
     # would say nothing of whether rows remain.
-    p.Pool, p.Connection, p.Transaction,
-    _native._Pool, _native._Connection, _native._Transaction, _native._Stream,
+    p.Pool, p.InstrumentedPool, p.Connection, p.Transaction, p.MultiPool, p.HookConnection,
+    raw_methods.RawStatements,
+    _native._Pool, _native._Connection, _native._Transaction, _native._Retrying, _native._Stream,
+    _native._HookConnection, _native._PoolShape, pool_options.PoolShape,
+    # A COPY's columns and the binary format's two sides: declarations and
+    # codecs, not SQL. The row sink refuses, as the streams do.
+    p.CopyColumn, p.CopyRowEncoder, p.CopyRowDecoder, p.CopyRowSink, copy_rows.RowCopies,
     _native._CopyIn, _native._CopyOut, _native._Listener, _native._Disjoint,
-    _native._DisjointChange,
-    # Registrations and declarations: they name what a query reads and are
-    # true as any declared object is; the queries they start refuse.
-    p.Entity, p.EntityGraph, Model, Column, Relation, pl.SourceSelection, pl.Binder,
-    model.UniqueKey, model._DeclaredKey,
+    _native._DisjointChange, _native._RowDecoder, _native._EntityPages, _native._MetricsAnswer,
+    _native._Migrations,
+    # The metrics layer's collectors, objects a program writes and hands to a
+    # pool, and what a query hook is told about a statement that already ran:
+    # `if query.fingerprint:` tests for a fingerprint.
+    p.MetricsCollector, p.NoOpMetrics, p.LoggingMetrics, p.QueryContext, p.QueryFingerprint,
+    # The protocol a migration a program writes satisfies, as a collector
+    # satisfies MetricsCollector, handed to a migrator.
+    s.MigrationTrait,
+    # Registrations and declarations, and the native casts a declared column
+    # holds: they name what a query reads and are true as any declared object
+    # is; the queries they start refuse.
+    p.Entity, p.EntityGraph, p.EntityRelation, Model, Column, _native._ModelColumnCasts, Relation,
+    Related, Linked, pl.SourceSelection, pl.Binder,
+    model.UniqueKey, model._DeclaredKey, active.ModelHooks, p.PartialModel, p.FromExpr, p.Skip,
     views.EntityView, graph_views.GraphView, FieldType,
-    # The layout the codegen writes source with: build-time values no query
-    # reads.
-    source.Code, source.Call, source.Ternary, source.Layout,
+    # The layout the codegen writes source with, and the unkinded set
+    # models_from_sql reads, a TypedDict whose instances are dicts: build-time
+    # values no query reads.
+    source.Code, source.Call, source.Ternary, source.Layout, codegen_models.UnkindedDisjoint,
     p.Disjoint, p.DisjointEntity, disjoint_query._Disjoint,
     p.OneOf, p.OneOfEntity, one_of._OneOf, one_of._Reader, _native._OneOf,
     disjoint_views.DisjointView, disjoint_views.WritableDisjointView, disjoint_views._Decoded,
     # The private state a model query, graph, cursor or paginator holds and
     # builds its statements from: data the application never handles, held by
     # a query that refuses.
-    queries.Recipe, queries.Joined, graphs.State, graphs.Table, graphs.Edge,
+    clauses.Recipe, clauses.Joined, clauses.Lock, projections.Item, graphs.State, graphs.Table,
+    graphs.Edge,
     cursors.Keyed, cursors.Position, cursors.Pageable, record.Source,
 }
 
@@ -60,16 +78,22 @@ EXEMPT = {
 # truth-test their instances.
 BUILT_ELSEWHERE = {
     p.EntityColumn, p.EntityQuery, p.EntityUpdate, p.EntityUpdateMany, p.EntityInsert,
-    p.EntityInsertMany, p.EntityGraphQuery, p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
+    p.EntityInsertMany, p.EntityTryInsert, p.EntityTryInsertMany, p.EntityGraphQuery,
+    p.EntityGraphCursor, pl.SelectedSources, s.EntitySchema,
+    p.EntityCursor, p.EntityPaginator, p.EntitySelection, read_views.PaginatorView, read_views.CursorView,
     views.QueryView, graph_views.GraphQueryView, graph_views.GraphCursorView,
     version_views.UpdateView, version_views.UpdateManyView, version_views._InsertView,
-    version_views.InsertView, version_views.InsertManyView, p.Notification, p.Listener, p.RowStream,
-    p.CopyOutStream, p.CopyRowStream,
+    version_views.InsertView, version_views.InsertManyView, version_views._TryInsertView,
+    version_views.TryInsertView, version_views.TryInsertManyView, p.Notification, p.Listener, p.RowStream,
+    p.CopyOutStream, p.CopyRowStream, p.EntityRawQuery, views.RawQueryView,
 }
 
 # Bases the model writes share and no program builds: every write refuses
 # through the __bool__ they give it, and each is sampled through a write.
-BASES = {writes._Write, writes._Insert, writes._Guarded, changes._Part}
+BASES = {
+    writes._Write, writes._Insert, writes._Guarded, try_inserts._Tried, try_inserts._TriedRows,
+    changes._Part, clauses.Clauses,
+}
 
 
 def defined_classes():
@@ -130,6 +154,8 @@ def other_samples():
     return [
         s.DataType("integer"), s.ColumnDef("id", "integer"), s.create_table(table),
         s.migration_file("m20260101_000001_create_items", [s.create_table(table)]),
+        s.SqlMigration("m20260101_000001_create_items", "CREATE TABLE items (id integer)"),
+        s.Migrations([]), s.MigrationStatus.Pending,
         s.create_index(table, "id"), s.drop_table(table), s.create_domain("d", "integer"),
         s.alter_table(table), s.alter_table(table).drop_column("id"), s.create_type("t"),
         s.alter_type("t"), s.alter_type("t").drop_attribute("a"),
@@ -143,7 +169,13 @@ def other_samples():
         pl.Over(), pl.source(table),
         model.col("id"), model.find(), model.delete(), model.insert({"id": 1}), model.insert_many([]),
         model.update({"id": 2}), model.insert({"id": 1}).returning("id"),
-        model.graph(), model.find().cursor("id"), model.find().paginate(2),
+        model.graph(), model.find().cursor("id"), model.find().paginate(2), pl.from_(model).into_tuple(),
+        model.find().select_only(), model.find().into_tuple(),
+        model.find_by_statement(p.RawSQL("SELECT 1")), p.from_statement(p.RawSQL("SELECT 1")),
+        model.active({"id": 1}),
+        model.insert({"id": 1}).on_conflict_do_nothing(), model.insert_many([]).on_empty_do_nothing(),
+        model.insert({"id": 1}).on_empty_do_nothing().returning(),
+        model.insert_many([{"id": 1}]).on_conflict_do_nothing().returning("id"),
         *disjoint_samples(),
     ]
 
@@ -165,7 +197,7 @@ def disjoint_samples():
 
 
 class TruthTesting(unittest.TestCase):
-    # [spec:pgorm:req:python.truth-testing+4/test]
+    # [spec:pgorm:req:python.truth-testing+5/test]
     def test_every_query_class_refuses_truth_testing(self):
         samples = statement_samples() + expression_samples() + other_samples()
         for sample in samples:
@@ -188,7 +220,7 @@ class TruthTesting(unittest.TestCase):
                     any("__bool__" in vars(own) for own in kind.__mro__ if own.__module__.startswith("pgorm"))
                 )
 
-    # [spec:pgorm:req:python.truth-testing+4/test]
+    # [spec:pgorm:req:python.truth-testing+5/test]
     def test_exempt_values_keep_python_truth(self):
         self.assertTrue(p.Value(0))
         self.assertFalse(p.Multirange([]))

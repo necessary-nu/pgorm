@@ -22,18 +22,22 @@ mod rows;
 
 use std::{fmt, num::NonZeroU64, sync::Arc};
 
+use crate::panics::future_into_py;
 use pgorm::pgorm_query::{IntoCondition, SelectStatement, Value};
-use pgorm::{DisjointShape, DisjointTable, DisjointValues, Error};
+use pgorm::{DisjointTable, DisjointValues, Error};
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
     types::{PyList, PyTuple},
 };
-use pyo3_async_runtimes::tokio::future_into_py;
+
+use pgorm_bindings::entity::{
+    DisjointCore, Entity, KindRow, RowCodec, active_values, foreign_active,
+};
 
 use crate::{
-    entities::{PyActiveModel, backend::EntityBackend},
-    errors::{ConstructionError, DecodeError, InternalError},
+    entities::{PyActiveModel, input},
+    errors::{ConstructionError, DecodeError, InternalError, Raise},
     execution::Executor,
     expressions::Compiled,
     statements::{PySelect, condition},
@@ -42,34 +46,14 @@ use crate::{
 };
 
 pub(crate) use described::table_of;
-pub(crate) use registered::{Registered, disjoint_entities, disjoint_entity};
-
-/// How a disjoint read's rows become records: as `Record`s a model views by
-/// field, or as the registered entities' own models.
-pub(crate) enum Codec {
-    Models,
-    Entities {
-        base: Arc<dyn EntityBackend>,
-        kinds: Vec<Option<Arc<dyn EntityBackend>>>,
-    },
-}
-
-/// One disjoint model or registration: its shape, its codec, and its
-/// description.
-pub(crate) struct Core {
-    pub(crate) shape: DisjointShape,
-    pub(crate) codec: Codec,
-    pub(crate) description: serde_json::Value,
-    /// The registered enum's type, which no second registration may name.
-    pub(crate) rust: Option<std::any::TypeId>,
-}
+pub(crate) use registered::{disjoint_entities, disjoint_entity};
 
 /// A disjoint model or a registered disjoint enum, as Python's `Disjoint`
 /// and `DisjointEntity` hold it.
 // [spec:pgorm:req:bindings.disjoint+2]
 #[pyclass(name = "_Disjoint", module = "pgorm._native", frozen)]
 pub struct NativeDisjoint {
-    pub(crate) core: Arc<Core>,
+    pub(crate) core: Arc<DisjointCore>,
 }
 
 impl fmt::Debug for NativeDisjoint {
@@ -84,11 +68,7 @@ impl fmt::Debug for NativeDisjoint {
 /// limit.
 fn compiled(query: &SelectStatement) -> PyResult<Compiled> {
     let (sql, values) = query.build();
-    if values.0.len() > 65535 {
-        return Err(ConstructionError::new_err(
-            "statement exceeds PostgreSQL's 65535-parameter limit",
-        ));
-    }
+    pgorm_bindings::parameter_count(values.0.len()).py()?;
     Ok(Compiled { sql, values })
 }
 
@@ -106,7 +86,7 @@ impl NativeDisjoint {
     pub(crate) fn row_decode(&self) -> crate::results::RowDecode {
         let core = self.core.clone();
         Arc::new(move |row| {
-            let item = core.decode(row)?;
+            let item = rows::decode(&core, row)?;
             Python::attach(|py| item.into_python(py))
         })
     }
@@ -116,7 +96,7 @@ impl NativeDisjoint {
     fn values(
         &self,
         table: &DisjointTable,
-        entity: Option<&Arc<dyn EntityBackend>>,
+        entity: Option<&Entity>,
         given: &Bound<'_, PyAny>,
     ) -> PyResult<DisjointValues> {
         match entity {
@@ -136,28 +116,10 @@ impl NativeDisjoint {
                 let active = given.extract::<PyRef<'_, PyActiveModel>>().map_err(|_| {
                     PyTypeError::new_err("a registered disjoint entity writes an ActiveModel")
                 })?;
-                if active.inner.info().name != entity.info().name {
-                    return Err(PyTypeError::new_err(format!(
-                        "the ActiveModel is {}'s, not {}'s",
-                        active.inner.info().name,
-                        entity.info().name
-                    )));
+                if let Some(refusal) = foreign_active(entity.info(), active.inner.info()) {
+                    return Err(PyTypeError::new_err(refusal));
                 }
-                let pairs = entity
-                    .info()
-                    .columns
-                    .iter()
-                    .map(|column| {
-                        active
-                            .inner
-                            .get(&column.name)
-                            .map(|value| (column.name.clone(), value))
-                    })
-                    .collect::<Result<Vec<_>, Error>>()
-                    .map_err(|error| ConstructionError::new_err(error.to_string()))?;
-                table
-                    .values(pairs)
-                    .map_err(|error| ConstructionError::new_err(error.to_string()))
+                active_values(table, entity, &active.inner).py()
             }
         }
     }
@@ -171,30 +133,27 @@ impl NativeDisjoint {
         kind: &str,
         row: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<(DisjointValues, Option<DisjointValues>)> {
-        let shape = &self.core.shape;
-        let (index, entry) = shape
-            .kind(kind)
-            .map_err(|error| ConstructionError::new_err(error.to_string()))?;
-        let (base_entity, kind_entity) = match &self.core.codec {
-            Codec::Models => (None, None),
-            Codec::Entities { base, kinds } => (Some(base), kinds[index].as_ref()),
-        };
-        let base = self.values(shape.base(), base_entity, base)?;
-        let row = match (entry.table(), row.filter(|row| !row.is_none())) {
-            (Some(table), Some(row)) => Some(self.values(table, kind_entity, row)?),
-            (Some(table), None) => Some(
-                table
-                    .values(Vec::<(String, _)>::new())
-                    .map_err(|error| ConstructionError::new_err(error.to_string()))?,
-            ),
-            (None, Some(_)) => {
-                return Err(ConstructionError::new_err(format!(
-                    "the kind `{kind}` has no table, so a write of it gives no row's values"
-                )));
+        let index = self.core.kind_index(kind).py()?;
+        let base = self.values(self.core.shape.base(), self.core.entities(index).0, base)?;
+        Ok((base, self.kind_row(kind, row)?))
+    }
+
+    /// The kind row's values, `None` for a kind without a table given none,
+    /// and empty for one with a table given none.
+    fn kind_row(
+        &self,
+        kind: &str,
+        row: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Option<DisjointValues>> {
+        let row = row.filter(|row| !row.is_none());
+        match (self.core.kind_row(kind, row.is_some()).py()?, row) {
+            (KindRow::Absent, _) => Ok(None),
+            (KindRow::Empty(values), _) => Ok(Some(values)),
+            (KindRow::Given { table, entity }, Some(row)) => {
+                self.values(table, entity, row).map(Some)
             }
-            (None, None) => None,
-        };
-        Ok((base, row))
+            (KindRow::Given { .. }, None) => Ok(None),
+        }
     }
 
     /// Values for the base's columns `columns`, in order: a model's already
@@ -215,16 +174,13 @@ impl NativeDisjoint {
             .iter()
             .zip(given)
             .map(|(column, value)| match &self.core.codec {
-                Codec::Models => value
+                RowCodec::Models => value
                     .extract::<PyRef<'_, PyValue>>()
                     .map(|value| value.inner.clone())
                     .map_err(|_| PyTypeError::new_err("a model's values are Values")),
-                Codec::Entities { base, .. } => base
-                    .info()
-                    .column(column)?
-                    .input
-                    .coerce(&value)
-                    .map(|value| value.inner),
+                RowCodec::Entities { base, .. } => {
+                    input::coerce(base.info().column(column).py()?, &value).map(|value| value.inner)
+                }
             })
             .collect()
     }
@@ -262,7 +218,7 @@ impl NativeDisjoint {
                 Fetch::All => {
                     let items = rows
                         .into_iter()
-                        .map(|row| core.decode(row))
+                        .map(|row| rows::decode(&core, row))
                         .collect::<PyResult<Vec<_>>>()?;
                     Python::attach(|py| {
                         let items = items
@@ -277,7 +233,7 @@ impl NativeDisjoint {
                         .into_iter()
                         .next()
                         .ok_or_else(|| DecodeError::new_err(Error::RecordNotFound.to_string()))?;
-                    let item = core.decode(row)?;
+                    let item = rows::decode(&core, row)?;
                     Python::attach(|py| item.into_python(py))
                 }
             }
@@ -296,23 +252,13 @@ impl NativeDisjoint {
 
     /// The kinds' values, in order.
     fn kinds(&self) -> Vec<String> {
-        self.core
-            .shape
-            .kinds()
-            .iter()
-            .map(|kind| kind.value().to_owned())
-            .collect()
+        self.core.kinds()
     }
 
     /// The SQL names of the base's key columns, in key order: what a
     /// registration's key names.
     fn key_columns(&self) -> Vec<String> {
-        self.core
-            .shape
-            .base()
-            .key()
-            .map(|column| column.name().to_string())
-            .collect()
+        self.core.key_names()
     }
 
     /// The names a read gives the columns of the decoded source `source`,
@@ -339,14 +285,7 @@ impl NativeDisjoint {
         select: PyRef<'_, PySelect>,
         key: &Bound<'_, PyAny>,
     ) -> PyResult<PySelect> {
-        let columns: Vec<String> = self
-            .core
-            .shape
-            .base()
-            .key()
-            .map(|column| column.name().to_string())
-            .collect();
-        let key = self.base_values(&columns, key)?;
+        let key = self.base_values(&self.core.key_names(), key)?;
         let mut next = select.clone();
         next.inner.cond_where(
             self.core
@@ -507,35 +446,8 @@ impl NativeDisjoint {
         row: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PySelect> {
         let shape = &self.core.shape;
-        let columns: Vec<String> = shape
-            .base()
-            .key()
-            .map(|column| column.name().to_string())
-            .collect();
-        let key = self.base_values(&columns, key)?;
-        let (index, entry) = shape
-            .kind(kind)
-            .map_err(|error| ConstructionError::new_err(error.to_string()))?;
-        let row = match (entry.table(), row.filter(|row| !row.is_none())) {
-            (Some(table), Some(row)) => {
-                let entity = match &self.core.codec {
-                    Codec::Models => None,
-                    Codec::Entities { kinds, .. } => kinds[index].as_ref(),
-                };
-                Some(self.values(table, entity, row)?)
-            }
-            (Some(table), None) => Some(
-                table
-                    .values(Vec::<(String, _)>::new())
-                    .map_err(|error| ConstructionError::new_err(error.to_string()))?,
-            ),
-            (None, Some(_)) => {
-                return Err(ConstructionError::new_err(format!(
-                    "the kind `{kind}` has no table, so a write of it gives no row's values"
-                )));
-            }
-            (None, None) => None,
-        };
+        let key = self.base_values(&self.core.key_names(), key)?;
+        let row = self.kind_row(kind, row)?;
         let inner = shape
             .change_kind(key, kind, row.as_ref())
             .map_err(|error| ConstructionError::new_err(error.to_string()))?;

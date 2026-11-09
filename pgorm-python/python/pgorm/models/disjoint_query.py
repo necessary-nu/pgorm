@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 
 from .. import _native as p
-from .queries import orderings_of, predicate_of
+from .clauses import orderings_of, predicate_of
 from .record import Database
 
 if TYPE_CHECKING:
@@ -144,11 +144,12 @@ class DisjointQuery(Generic[T]):
         there is none."""
         return self.owner._row(await self.owner._native.run(db, self.select, "one"))
 
-    async def stream(self, db: Connection | Pool) -> RowStream[T]:
+    async def stream(self, db: Database) -> RowStream[T]:
         """The rows as they arrive; a row that does not decode ends the
         stream as its error."""
         from ..results import RowStream
         from ..runtime import Connection, Pool
+        from ..transactions import Transaction
 
         if isinstance(db, Pool):
             connection = await db.acquire()
@@ -158,11 +159,11 @@ class DisjointQuery(Generic[T]):
                 await connection.close()
                 raise
             stream: RowStream[Any] = RowStream(native, connection, release_connection=True)
-        elif isinstance(db, Connection):
+        elif isinstance(db, (Connection, Transaction)):
             native = await db._native.stream(self.select, self.owner._native)
-            stream = RowStream(native, db, release_connection=False)
+            stream = RowStream(native, None, release_connection=False)
         else:
-            raise TypeError("a disjoint read's rows stream from a Pool or a Connection")
+            raise TypeError("a disjoint read's rows stream from a Pool, a Connection or a Transaction")
         return stream._decoding(self.owner._row)
 
     async def count(self, db: Database) -> int:

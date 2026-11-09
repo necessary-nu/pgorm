@@ -70,13 +70,15 @@ fn manifest() -> Value {
         "pgorm_version": env!("PGORM_VERSION"),
         "binding": {"name": "pyo3", "version": env!("PGORM_PYO3_VERSION"), "registry_abi": 1},
         "target": env!("PGORM_BINDING_TARGET"),
-        "features": ["macros", "with-json", "with-jiff", "with-uuid", "postgres-array"],
+        "features": ["macros", "with-json", "with-jiff", "with-uuid", "postgres-array", "metrics-fingerprint"],
         "transport": "in-process",
         "operations": {
             "pool": {"rust_api": "pgorm::connect_with", "features": []},
             "pool.acquire": {"rust_api": "pgorm::DatabasePool::get", "features": []},
             "pool.close": {"rust_api": "pgorm::DatabasePool::close", "features": []},
             "pool.clear_statement_caches": {"rust_api": "pgorm::DatabasePool::clear_statement_caches", "features": []},
+            "pool.instrumented": {"rust_api": "pgorm::metric::InstrumentedPool::new", "features": []},
+            "metrics.fingerprint": {"rust_api": "pgorm::metric::QueryContext::fingerprint", "features": ["metrics-fingerprint"]},
             "connection.ping": {"rust_api": "pgorm::ConnectionTrait::query_one", "features": []},
             "connection.close": {"rust_api": "pgorm::DatabaseConnection::drop", "features": []},
             "pool.listener": {"rust_api": "pgorm::DatabasePool::listener", "features": []},
@@ -105,7 +107,11 @@ fn manifest() -> Value {
             "model.relation": {"rust_api": "pgorm::RelationDef, join_condition", "features": [], "python_convenience": true},
             "model.graph": {"rust_api": "pgorm::SelectGraph, result_column_name", "features": [], "python_convenience": true},
             "model.cursor": {"rust_api": "pgorm::Cursor", "features": [], "python_convenience": true},
-            "model.paginate": {"rust_api": "pgorm::Paginator", "features": [], "python_convenience": true}
+            "model.paginate": {"rust_api": "pgorm::Paginator", "features": [], "python_convenience": true},
+            "model.clauses": {"rust_api": "pgorm::QuerySelect::{distinct, distinct_on, group_by, having, lock_with_tables_behavior, join, join_rev}", "features": [], "python_convenience": true},
+            "model.projection": {"rust_api": "pgorm::QuerySelect::{select_only, column, column_as, expr_as}, pgorm::Select::{into_tuple, into_values, into_model}", "features": [], "python_convenience": true},
+            "model.partial_model": {"rust_api": "pgorm::PartialModelTrait::select_cols, pgorm::Select::into_partial_model", "features": [], "python_convenience": true},
+            "model.cursor_secondary_order": {"rust_api": "pgorm::Cursor::{add_secondary_order_by, after_with, before_with}", "features": [], "python_convenience": true}
         },
         "value_types": ArrayType::kinds().map(|kind| kind.kind_name()).chain(["enum", "created_range", "created_multirange", "array"]).collect::<Vec<_>>(),
         "value_policy": {
@@ -126,7 +132,11 @@ fn manifest() -> Value {
             "uuid_extract_timestamp": [1], "uuid_extract_version": [1],
             "generate_series": [2, 3], "unnest": [1],
             "json_to_record": [1], "jsonb_to_record": [1],
-            "json_to_recordset": [1], "jsonb_to_recordset": [1]
+            "json_to_recordset": [1], "jsonb_to_recordset": [1],
+            "grouping": {"min_args": 1},
+            "to_tsvector": [1], "to_tsquery": [1], "plainto_tsquery": [1],
+            "phraseto_tsquery": [1], "websearch_to_tsquery": [1],
+            "ts_rank": [2], "ts_rank_cd": [2]
         },
         "result_forms": ["pool", "connection", "bool", "expression", "json_input", "pending_merge", "merge", "with", "condition", "compiled", "projection", "ordering", "record", "optional_record", "records", "affected_count", "async_stream", "entity", "entity_query", "entity_model", "active_model", "active_value", "graph", "graph_query", "graph_cursor", "graph_tuple", "model_descriptor", "model_column", "model_query", "model_write", "model_records", "pipeline", "pipeline_expression", "pipeline_binder", "pipeline_source", "pipeline_grouped", "pipeline_window", "source_selection", "selected_sources", "ddl", "create_table", "create_index", "entity_schema", "ddl_column", "ddl_type", "transaction"],
         "result_policy": {
@@ -148,15 +158,17 @@ fn manifest() -> Value {
             "one": "Rust Select::one/one_opt use LIMIT 1; all returns every selected model",
             "writes": "real ActiveModel insert/update/delete and before/after hooks on a clone",
             "execution": "acquired Connection or Transaction; native asyncio awaitable",
-            "stream": false
+            "stream": "Select::stream's per-row decode over a Pool's own connection or a Connection",
+            "reads": "PaginatorTrait::count and paginate, Select::cursor_by, QuerySelect::join of a declared Relation, select_only and columns read as records"
         },
         "graph_policy": {
             "source_arities": [1, 2, 3, 4, 5, 6, 7],
             "slots": ["Req", "Opt"], "registration_required": true,
             "decode": "SelectGraph / GraphRow with actual registered models and optional slots",
             "result": "bare model for one source; tuple in source order for joined shapes",
-            "cursor": "one root column plus Rust's declared primary-key tiebreaks",
-            "unsupported": ["unregistered shapes", "source arity beyond seven", "graph.stream", "graph.grouped", "slot-column cursors", "composite order-column cursors", "cursor SQL inspection"]
+            "cursor": "one to six columns of the root (cursor_by) or of one slot (cursor_by_on) plus Rust's declared primary-key tiebreaks",
+            "reads": "SelectGraph::stream, all_grouped of one Opt slot, PaginatorTrait::count and paginate, Cursor::statement",
+            "unsupported": ["unregistered shapes", "source arity beyond seven", "order keys beyond six columns"]
         },
         "codegen_policy": {
             "workflow": ["pgorm.codegen scaffold", "native application build and install", "pgorm.codegen emit", "final wheel build and install"],
@@ -182,7 +194,7 @@ fn manifest() -> Value {
             "unsupported_kinds": ["u64", "char"],
             "stream": true, "automatic_ddl": false
         },
-        "tls": {"modes": ["verify-full", "disable"], "default": "verify-full unless DSN explicitly disables TLS", "ca": "PEM, or the platform's trust store"},
+        "tls": {"modes": ["verify-full", "verify-ca", "require", "prefer", "disable"], "default": "verify-full unless DSN explicitly disables TLS; a weaker mode only as the explicit tls option", "ca": "PEM, or the platform's trust store", "client_certificate": "cert and key, PEM"},
         "pipeline_policy": {
             "construction": "owned native Pipeline; runtime table/entity/named pipeline sources",
             "parameters": "synchronous *_with callback; each binding minted once inside its real Rust brand",
@@ -223,7 +235,7 @@ fn manifest() -> Value {
     });
     // The release pgorm targets: 18 by default, 19 when it was built with
     // pg-19, through this crate's feature or any other's.
-    // [spec:pgorm:req:sql.target+1]
+    // [spec:pgorm:req:sql.target+2]
     if pgorm::pgorm_query::POSTGRES_TARGET == 19
         && let Some(features) = manifest["features"].as_array_mut()
     {
@@ -234,6 +246,7 @@ fn manifest() -> Value {
         operations.extend(crate::json::capabilities());
         operations.extend(crate::statements::capabilities());
         operations.extend(crate::results::capabilities());
+        operations.extend(crate::migrations::capabilities());
         operations.extend(crate::entities::capabilities());
         for (name, api) in crate::entities::version_terminals
             .into_iter()
@@ -261,7 +274,7 @@ fn manifest() -> Value {
         operations.extend(crate::schema::capabilities());
         operations.extend(crate::transactions::capabilities());
         operations.extend(crate::copy::capabilities());
-        // [spec:pgorm:req:bindings.connections+2]
+        // [spec:pgorm:req:bindings.connections+3]
         operations.insert(
             "pool.statement_cache_channel".to_owned(),
             json!({"rust_api": "pgorm::ManagerConfig::statement_cache_channel", "features": []}),
@@ -275,6 +288,17 @@ fn manifest() -> Value {
     manifest
 }
 
+/// A capability for each `(name, rust_api)` entry, none of them behind a
+/// cargo feature.
+pub(crate) fn plain<'a>(
+    entries: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> serde_json::Map<String, Value> {
+    entries
+        .into_iter()
+        .map(|(name, api)| (name.to_owned(), json!({"rust_api": api, "features": []})))
+        .collect()
+}
+
 /// Return a fresh, versioned description of this native build's public surface.
 #[pyfunction(pass_module)]
 pub(crate) fn capabilities<'py>(module: &Bound<'py, PyModule>) -> PyResult<Bound<'py, PyAny>> {
@@ -284,30 +308,32 @@ pub(crate) fn capabilities<'py>(module: &Bound<'py, PyModule>) -> PyResult<Bound
     manifest["registrations"]["entities"] = registry.0.describe().into();
     manifest["registrations"]["graphs"] = registry
         .0
-        .graphs
+        .0
+        .graphs()
         .values()
         .map(|graph| graph.info().describe())
         .collect::<Vec<_>>()
         .into();
     manifest["registrations"]["disjoints"] = registry
         .0
-        .disjoints
-        .by_name
+        .0
+        .disjoints()
         .values()
         .map(|disjoint| disjoint.description.clone())
         .collect::<Vec<_>>()
         .into();
     manifest["registrations"]["one_ofs"] = registry
         .0
-        .one_ofs
-        .by_name
+        .0
+        .one_ofs()
         .values()
         .map(|one_of| one_of.description.clone())
         .collect::<Vec<_>>()
         .into();
     manifest["registrations"]["sources"] = registry
         .0
-        .sources
+        .0
+        .source_tuples()
         .values()
         .map(|source| source.info().describe())
         .collect::<Vec<_>>()

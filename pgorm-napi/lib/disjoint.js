@@ -17,38 +17,10 @@ import { ConstructionError } from "./errors.js";
 import { Expr } from "./expressions.js";
 import { columnValue } from "./model-columns.js";
 import { decoder } from "./model-decode.js";
-import { fieldOf, shapeOf } from "./model-shape.js";
+import { described, fieldOf, shapeOf } from "./model-shape.js";
 import { Model } from "./models.js";
 import { native } from "./operations.js";
 import { TypeName } from "./values.js";
-
-// [spec:pgorm:req:bindings.model-unique-keys+2]
-/**
- * A model's table as the native shape is described from.
- *
- * @param {import("./model-shape.js").Shape} shape
- */
-export function described(shape) {
-  return {
-    schema: shape.schema,
-    table: shape.name,
-    columns: shape.fields.map(({ sql, column }) => ({
-      name: sql,
-      kind: column.kind,
-      array: column.array,
-      nullable: column.nullable,
-      default: column.default,
-      generated: column.generated,
-      values: column.values,
-    })),
-    key: shape.primaryKey.map((field) => field.sql),
-    uniqueKeys: shape.uniqueKeys.map((key) => ({
-      name: key.name,
-      columns: key.fields.map((field) => field.sql),
-      nullsNotDistinct: key.nullsNotDistinct,
-    })),
-  };
-}
 
 /**
  * @param {unknown} model
@@ -139,7 +111,7 @@ export class Disjoint extends Disjoined {
         const sources = source === null || model === null
           ? [own]
           : [own, { fields: model.fields, names: native.disjointResultNames(handle, source), optional: false }];
-        decode = decoder(sources, false);
+        decode = decoder(sources, { exhaustive: false });
         decoders.set(index, decode);
       }
       return decode;

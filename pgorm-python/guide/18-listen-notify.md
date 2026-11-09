@@ -68,11 +68,12 @@ Once `listen` returns, every notification on the channel from a transaction
 that commits afterwards is delivered. Once `unlisten` returns, none is,
 though one already received is still waiting to be read.
 
-Rust's `connect_listener`, which opens a listener from a connection
-configuration and a TLS connector of the program's own rather than a pool's,
-is not available in Python yet. A pool is cheap to make for the purpose,
-since a pool connects to nothing until it is asked for a connection, and its
-listener uses its URL and TLS options:
+A pool's listener belongs to its pool: closing the pool closes it.
+`pgorm.connect_listener(dsn, capacity=..., **tls)` opens one that belongs to
+no pool, as Rust's `connect_listener` does, from a connection string and the
+TLS options a `Pool` takes ([Connection configuration and
+TLS](20-configuration.md)). Only its own close, or leaving its iteration,
+closes it:
 
 ```python
 import asyncio
@@ -83,22 +84,27 @@ from pgorm import Pool
 
 
 async def main() -> None:
-    # A pool kept for its listener; it opens no connection of its own.
-    listening = Pool(os.environ["DATABASE_URL"], max_size=1)
-    listener = await listening.listener()
-    await listener.listen("deliveries")
-    await listener.unlisten_all()
-    assert listening.status().size == 0
+    url = os.environ["DATABASE_URL"]
+    alone = await pgorm.connect_listener(url, capacity=16)
+    await alone.listen("deliveries")
 
-    # Closing the pool closes its listener.
+    # A pool's listener closes with its pool; this one belongs to none.
+    listening = Pool(url, max_size=1)
+    of_the_pool = await listening.listener()
     await listening.close()
-    assert listener.closed
+    assert of_the_pool.closed and not alone.closed
     try:
-        await listener.listen("deliveries")
+        await of_the_pool.listen("deliveries")
     except pgorm.LifecycleError as error:
-        assert str(error) == "pool is closed"
+        assert str(error) == "the pool is closed"
     else:
         raise AssertionError("the listener closed with its pool")
+
+    async with Pool(url, max_size=1) as pool:
+        await pool.notify("deliveries", "flour")
+    notification = await anext(aiter(alone))
+    assert (notification.channel, notification.payload) == ("deliveries", "flour")
+    await alone.close()
 
 
 asyncio.run(main())
@@ -356,6 +362,5 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Rust's metrics layer records a `notify` through an instrumented connection
-as the statement it is, and does not see a listener at all. Python has no
-metrics layer yet ([Metrics](21-metrics.md)).
+The metrics layer reports a `notify` through an instrumented pool as the
+statement it is, and does not see a listener at all ([Metrics](21-metrics.md)).

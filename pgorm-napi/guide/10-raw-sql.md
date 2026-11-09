@@ -7,9 +7,10 @@ parameters, and the rows come back decoded into JavaScript values by the
 types the server reports.
 
 This chapter runs SQL text on a pool, a connection or a transaction, reads
-its rows, and says where the Rust guide's compile-time checks stand in
-JavaScript. It is the JavaScript dialect of the [Rust guide's
-chapter](../../docs/guide/09-raw-sql.md).
+its rows, decodes them into a model's records, checks a statement against a
+model before it runs, and holds SQL and PRQL text to PostgreSQL's grammar,
+the run-time counterparts of the Rust guide's compile-time checks. It is the
+JavaScript dialect of the [Rust guide's chapter](../../docs/guide/09-raw-sql.md).
 
 ## Running a statement
 
@@ -24,7 +25,8 @@ passed beside it as an array:
 | `one` | its one row; any other number of rows is a [`DecodeError`](../lib/index.d.ts) |
 | `optional` | its row, or `null`; more than one row is a `DecodeError` |
 | `query` | all of its rows |
-| `stream` | a stream of its rows, read as they arrive, on a pool or a connection |
+| `stream` | a stream of its rows, read as they arrive |
+| `batchExecute` | nothing: it runs a whole script of `;`-separated statements, with no parameters |
 
 Each row is a plain object keyed by column name, in column order, each value
 decoded by its column's type: a `numeric` as a `Decimal`, an `int4` as a
@@ -77,26 +79,24 @@ assert.equal(prepared.n, 1n);
 
 Because each terminal prepares what it runs, a statement is one statement. A
 script of several, separated by `;`, is refused by the server, since a
-prepared statement holds one command; run each statement of a script in
-turn.
-
-**Not available in JavaScript yet:** running a whole script of
-`;`-separated statements in one call, which Rust's `batch_execute` does
-through PostgreSQL's simple-query protocol, preparing nothing and taking no
-parameters.
+prepared statement holds one command. `batchExecute`, as Rust's
+`batch_execute`, sends a whole script as it is through PostgreSQL's
+simple-query protocol, preparing nothing. It takes no parameters, so it is
+for DDL and fixed scripts, never for values a user supplied. A pool runs it
+on a connection of its own; a connection and a transaction run it on what
+they hold:
 
 ```ts
 import assert from "node:assert/strict";
 import { DatabaseError } from "@necessary/pgorm";
 
+const script = "CREATE TABLE tray (id int); CREATE TABLE rack (id int)";
 await assert.rejects(
-  pool.execute("CREATE TABLE tray (id int); CREATE TABLE rack (id int)"),
+  pool.execute(script),
   (error) => error instanceof DatabaseError && error.sqlstate === "42601",
 );
 
-for (const statement of ["CREATE TABLE tray (id int)", "CREATE TABLE rack (id int)"]) {
-  await pool.execute(statement);
-}
+await pool.batchExecute(script);
 const { tables } = await pool.one(
   "SELECT count(*) AS tables FROM pg_tables WHERE tablename = ANY($1)",
   [["tray", "rack"]],
@@ -184,11 +184,45 @@ assert.equal(row.price.kind, "decimal");
 assert.ok(row.note.isNull);
 ```
 
-**Not available in JavaScript yet:** decoding the rows of SQL you wrote into
-a model's records, held to the model's declaration as its own reads are,
-which Rust does with `into_model`, `Select::from_raw_sql` and
-`FromQueryResult::find_by_statement`. A model's records come from the
-model's own reads ([Reading rows](05-reading.md)); SQL text gives plain rows.
+## Decoding rows into models
+
+A model's `findByStatement(sql, params)` decodes the rows of SQL you wrote
+into the model's records, as Rust's `FromQueryResult::find_by_statement`
+does. Each field is read from the column of its SQL name, `bakery_id` for
+`bakeryId`, and held to the kind the model declares, as the model's own
+reads hold it ([Reading rows](05-reading.md)); a column no field reads is
+left unread, and a field whose column the statement does not return is a
+`DecodeError`. An enum column reads as its label, so `SELECT *` decodes into
+`Cake` with no cast, where a Rust entity's model reads the enum from its
+text. It gives a `SelectorRaw`, whose `all`, `one`, `optional` and `stream`
+run the statement as written; pgorm adds nothing to it, so a query for the
+first of many says `LIMIT 1` itself:
+
+```ts
+import assert from "node:assert/strict";
+import { DecodeError } from "@necessary/pgorm";
+
+const glutenFree = await Cake.findByStatement(
+  "SELECT *, 'unread' AS note FROM cake WHERE gluten_free = $1 ORDER BY id",
+  [true],
+).all(pool);
+assert.deepEqual(glutenFree.map((cake) => cake.name), ["Lemon Drizzle", "Vanilla Sponge", "Chocolate Torte"]);
+
+const lemon = await Cake.findByStatement("SELECT * FROM cake WHERE id = $1", [2]).one(pool);
+assert.equal(lemon.flavor, "lemon");
+assert.equal(lemon.bakeryId, 1);
+
+// The statement returns no price, which Cake reads.
+await assert.rejects(Cake.findByStatement("SELECT id, name FROM cake").all(pool), DecodeError);
+```
+
+Rust starts the same decode from an entity's `find()` too, with
+`Select::from_raw_sql`; a JavaScript model's reads are built, and
+`findByStatement` is how a statement you wrote becomes its records.
+`fromStatement(sql, params)` gives a `SelectorRaw` of plain rows, as Rust's
+`SelectorRaw::from_statement` holds a statement: it runs as the terminals
+run the text, and pages and counts ([Pages, cursors and
+streams](06-pagination.md)).
 
 ## Checking a statement before it runs
 
@@ -197,10 +231,36 @@ running it, and checks every column a decode target reads against that
 description, so a mistake shows up before a query that happens to return no
 rows hides it.
 
-**Not available in JavaScript yet:** describing a statement's result without
-running it, and checking a decode target against the description, as Rust's
-`verify` does. A JavaScript row has no decode target to check: a column a
-program reads that the statement does not return is `undefined` in the row.
+`verify(sql, model)` on a pool, a connection or a transaction does the same
+for a declared model: it asks the server to describe the statement through
+pgorm's `VerifyStatement::describe`, and checks that each field's column is
+there and of a type the field's kind reads, the test a row's decode applies.
+A field that fails is a `DecodeError` naming the column. Nothing runs, so the
+statement's parameters are neither bound nor checked:
+
+```ts
+import assert from "node:assert/strict";
+import { column, DecodeError, model } from "@necessary/pgorm";
+
+const PriceList = model("cake", {
+  columns: { name: column("text"), priceInCents: column("i64", { name: "price_in_cents" }) },
+});
+
+await assert.rejects(
+  pool.verify("SELECT name, price FROM cake WHERE bakery_id = $1", PriceList),
+  (error) =>
+    error instanceof DecodeError &&
+    error.message === "`cake` reads column `price_in_cents`, which the statement does not return; it returns: name, price",
+);
+await assert.rejects(
+  pool.verify("SELECT name, price AS price_in_cents FROM cake WHERE bakery_id = $1", PriceList),
+  (error) =>
+    error instanceof DecodeError &&
+    error.message === "`cake` decodes column `price_in_cents` as `i64`, which cannot read PostgreSQL type `numeric`",
+);
+
+await pool.verify("SELECT name, (price * 100)::bigint AS price_in_cents FROM cake WHERE bakery_id = $1", PriceList);
+```
 
 ## Statements the query builder built
 
@@ -229,8 +289,8 @@ A typo in a SQL string shows up when the statement first runs, as the server's
 `DatabaseError` with SQLSTATE `42601`. Rust's `sql!` macro moves the check to
 compile time: it holds a string literal to PostgreSQL 18's own grammar while
 the crate compiles, and expands to the literal unchanged. JavaScript has no
-compile step for a macro to run in; a program's SQL text is checked by the
-server, when it runs:
+compile step for a macro to run in, so without a check a program's SQL text
+is checked by the server, when it runs:
 
 ```ts
 import assert from "node:assert/strict";
@@ -242,19 +302,105 @@ await assert.rejects(
 );
 ```
 
-**Not available in JavaScript yet:** holding SQL text to PostgreSQL's grammar
-before it is sent, as Rust's `sql!` does with the parser pgorm links, so a
-module could check its statements once, when it loads, rather than each at
-its first run.
+`sql(text)` is the check `sql!` makes, run when it is called: it holds the
+text to PostgreSQL 18's grammar with the parser pgorm links, the code `sql!`
+runs, and returns it unchanged. Called where a module defines its statements,
+it checks each once, as the module loads, rather than at its first run. SQL
+the grammar rejects is a `ConstructionError` that reprints the line with a
+caret under the token the parser stopped at; a `;`-separated script is held to
+the grammar statement by statement, for `batchExecute`:
+
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError, sql } from "@necessary/pgorm";
+
+const BAKERS_AT = sql("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name");
+
+const names = (await pool.query(BAKERS_AT, [1])).map((row) => row.name);
+assert.deepEqual(names, ["Ada", "Bo"]);
+
+assert.throws(
+  () => sql("SELECT name FROM baker\nORDER name"),
+  (error) =>
+    error instanceof ConstructionError &&
+    error.message === 'PostgreSQL rejected this SQL: syntax error at or near "name"\n\n  ORDER name\n        ^',
+);
+```
+
+The check is of the grammar alone, as `sql!`'s is: a table or a column that
+does not exist passes, and is the server's to refuse.
 
 ## PRQL
 
 [PRQL](https://prql-lang.org) is a query language that reads as a pipeline of
-steps. Rust's `prql!` macro compiles a PRQL literal to PostgreSQL SQL while
-the crate compiles, checks it against the grammar, and arity-checks its `$N`
-placeholders against its arguments. JavaScript reaches the same compiler
-through [the pipeline](12-pipeline.md), a builder that compiles when it runs,
-which binds each value through a binder of the step that takes it:
+steps, each taking the relation the one before it produced. Rust's `prql!`
+macro compiles a PRQL literal to PostgreSQL SQL while the crate compiles,
+checks it against the grammar, and arity-checks its `$N` placeholders against
+its arguments. `prql(text, values)` makes the same checks when it is called,
+through the same compiler: it holds the SQL to the grammar, and holds the
+values to the placeholders, one value for each distinct placeholder in order.
+It gives the pair `prql!` expands to, `{ sql, values }`, which runs as SQL
+text and its array do:
+
+```ts
+import assert from "node:assert/strict";
+import { Decimal, prql } from "@necessary/pgorm";
+
+const under = new Decimal("4.00");
+const { sql, values } = prql("from cake | filter price < $1 | sort name | select {name, price}", [under]);
+assert.equal(sql, "SELECT name, price FROM cake WHERE price < $1 ORDER BY name");
+assert.deepEqual(values, [under]);
+
+const rows = await pool.query(sql, values);
+assert.deepEqual(rows.map((row) => row.name), ["Carrot Cake", "Lemon Drizzle", "Vanilla Sponge"]);
+```
+
+`prql` refuses with a `ConstructionError` what `prql!` refuses at compile
+time: PRQL the compiler rejects, `take $1` among it, SQL the grammar
+rejects, a count of values that does not match the placeholders, and
+placeholders numbered with a gap:
+
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError, prql } from "@necessary/pgorm";
+
+// `$1` is used, and nothing binds it.
+assert.throws(
+  () => prql("from cake | filter price < $1"),
+  (error) =>
+    error instanceof ConstructionError &&
+    error.message === "the query has 1 placeholder(s) but 0 argument(s) were given: nothing binds $1",
+);
+assert.throws(() => prql("from cake | filter id > $1 | filter id < $3", [1, 2]), ConstructionError);
+```
+
+PRQL's `append`, `intersect` and `remove` are `UNION ALL`, `INTERSECT ALL`
+and `EXCEPT ALL`, combining whole rows by position as the
+[pipeline](12-pipeline.md)'s do, so neither relation needs its columns
+listed, and a step after one reads the whole result. pgorm's PRQL compiler
+departs from upstream PRQL there on purpose, which joins on the columns the
+two relations share. Two relations whose columns differ in number are a
+`ConstructionError`. Sunrise's cakes that are not gluten-free:
+
+```ts
+import assert from "node:assert/strict";
+import { prql } from "@necessary/pgorm";
+
+const { sql, values } = prql(
+  "from cake\nfilter bakery_id == 1\nremove (from cake | filter gluten_free)\nselect {name}",
+);
+assert.equal(
+  sql,
+  "WITH table_1 AS (SELECT * FROM cake WHERE bakery_id = 1 " +
+    "EXCEPT ALL SELECT * FROM cake WHERE gluten_free) SELECT name FROM table_1",
+);
+assert.deepEqual(await pool.query(sql, values), [{ name: "Chocolate Fudge" }]);
+```
+
+Like `prql!`, it does not know the schema. For a query assembled from parts
+at run time, such as a filter a user chose, [the pipeline](12-pipeline.md) is
+the same compiler with a builder in front of it, which binds each value
+through a binder of the step that takes it:
 
 ```ts
 import assert from "node:assert/strict";
@@ -273,7 +419,3 @@ assert.deepEqual(values.map((value) => String(value.value)), ["4.00"]);
 const rows = await cheap.all(pool);
 assert.deepEqual(rows.map((row) => row.name), ["Carrot Cake", "Lemon Drizzle", "Vanilla Sponge"]);
 ```
-
-**Not available in JavaScript yet:** compiling PRQL text to SQL, which
-Rust's `prql!` does for a PRQL literal and its arguments. JavaScript builds a
-PRQL query with the pipeline's steps only.

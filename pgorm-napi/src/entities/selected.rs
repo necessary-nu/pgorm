@@ -7,13 +7,9 @@ use std::sync::Arc;
 use neon::{prelude::*, types::Finalize};
 use pgorm::pipeline as pl;
 
-use super::{
-    adapter::Read,
-    convert::{GraphRows, entity_failure},
-    inspected,
-    sources::{Selected, SourcesFactory},
-    strings, throw,
-};
+use pgorm_bindings::entity::{Read, Selected, SourcesBackend};
+
+use super::{convert::GraphRows, inspected, strings, throw};
 use crate::{
     connect::job::{Job, JobHandle, Output},
     errors::Failure,
@@ -22,7 +18,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct SourcesHandle(Arc<dyn SourcesFactory>);
+struct SourcesHandle(Arc<dyn SourcesBackend>);
 
 impl Finalize for SourcesHandle {}
 
@@ -46,7 +42,8 @@ fn sources_names(mut cx: FunctionContext) -> JsResult<JsValue> {
     strings(
         &mut cx,
         registry
-            .sources
+            .0
+            .source_tuples()
             .keys()
             .cloned()
             .collect::<Vec<_>>()
@@ -59,7 +56,7 @@ fn sources_names(mut cx: FunctionContext) -> JsResult<JsValue> {
 fn sources_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     let registry = held!(cx, super::RegistryHandle, 0);
     let name = text!(cx, 1);
-    match registry.sources.get(&name) {
+    match registry.0.source_tuples().get(&name) {
         Some(factory) => Ok(cx.boxed(SourcesHandle(factory.clone())).upcast()),
         None => throw(
             &mut cx,
@@ -75,34 +72,24 @@ fn sources_describe(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(cx.string(factory.info().describe().to_string()).upcast())
 }
 
-/// The qualifiers at argument 2: one identifier per source, the sources'
-/// tables by default.
-fn qualifiers(cx: &mut FunctionContext, factory: &dyn SourcesFactory) -> NeonResult<Vec<String>> {
-    let entities = &factory.info().bindings.entities;
+/// The qualifiers at argument 2, one per source, or `null` for the sources'
+/// tables, as `SourcesInfo::qualifiers` takes them.
+fn qualifiers(cx: &mut FunctionContext, factory: &dyn SourcesBackend) -> NeonResult<Vec<String>> {
     let given = cx.argument::<JsValue>(2)?;
-    if given.is_a::<JsNull, _>(cx) || given.is_a::<JsUndefined, _>(cx) {
-        return Ok(entities.iter().map(|entity| entity.table.clone()).collect());
-    }
-    let list = given.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx)?;
-    if list.len() != entities.len() {
-        return read::refuse(
-            cx,
-            format!(
-                "the tuple has {} sources, and {} qualifiers were given",
-                entities.len(),
-                list.len()
-            ),
-        );
-    }
-    let mut names = Vec::with_capacity(list.len());
-    for item in list {
-        let name = read::text(cx, item, "a qualifier")?;
-        if name.is_empty() || name.len() > 63 || name.contains('\0') {
-            return read::refuse(cx, "a qualifier is 1–63 UTF-8 bytes without NUL");
+    let given = if given.is_a::<JsNull, _>(cx) || given.is_a::<JsUndefined, _>(cx) {
+        None
+    } else {
+        let list = given.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx)?;
+        let mut names = Vec::with_capacity(list.len());
+        for item in list {
+            names.push(read::text(cx, item, "a qualifier")?);
         }
-        names.push(name);
-    }
-    Ok(names)
+        Some(names)
+    };
+    factory
+        .info()
+        .qualifiers(given)
+        .or_else(|failure| throw(cx, failure))
 }
 
 /// `sourcesSelect(sources, pipeline, qualifiers)`: the pipeline with the
@@ -133,7 +120,7 @@ fn read_terminal(cx: &mut FunctionContext) -> NeonResult<Read> {
     match cx.argument::<JsString>(1)?.value(cx).as_str() {
         "all" => Ok(Read::All),
         "one" => Ok(Read::One),
-        "optional" => Ok(Read::OneOpt),
+        "optional" => Ok(Read::Optional),
         _ => cx.throw_type_error("a terminal is all, one or optional"),
     }
 }
@@ -145,7 +132,7 @@ fn read_terminal(cx: &mut FunctionContext) -> NeonResult<Read> {
 fn selected_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
     let selected = held!(cx, SelectedHandle, 0);
     let read = read_terminal(&mut cx)?;
-    match selected.compile(read != Read::All) {
+    match selected.compile(read) {
         Ok(compiled) => inspected(&mut cx, compiled),
         Err(error) => read::refuse(&mut cx, error.to_string()),
     }
@@ -156,7 +143,7 @@ fn selected_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
 fn selected_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let selected = held!(cx, SelectedHandle, 0);
     let read = read_terminal(&mut cx)?;
-    if let Err(error) = selected.compile(false) {
+    if let Err(error) = selected.compile(Read::All) {
         return read::refuse(&mut cx, error.to_string());
     }
     let job: Job = Box::new(move |db, secrets| {
@@ -164,15 +151,7 @@ fn selected_job(mut cx: FunctionContext) -> JsResult<JsValue> {
             let rows = selected
                 .run(db, read)
                 .await
-                .map_err(|error| entity_failure(&error, secrets))?;
-            let rows = rows
-                .into_iter()
-                .map(|row| {
-                    row.into_iter()
-                        .map(|model| model.map(|model| model.0))
-                        .collect()
-                })
-                .collect();
+                .map_err(|error| crate::errors::failure(&error, secrets))?;
             let entities = selected.info().bindings.entities.clone();
             Ok(Box::new(GraphRows(entities, rows)) as Output)
         })

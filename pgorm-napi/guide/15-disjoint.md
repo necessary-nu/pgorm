@@ -111,9 +111,13 @@ assert.throws(
 the kind type and the tables, in the order they run: the kind type, the base
 table, each kind's table, and one `ALTER TABLE` on the base adding what points
 back at the kinds' tables. It is Rust's `Schema::create_disjoint`. Each
-table's columns are typed from the models' kinds, so a `text` field is a
-`text` column and a `decimal` one a `numeric` of no fixed scale; the base's
-key is an identity column, which a model declares `generated: "byDefault"`:
+table's columns are written as [`fromModel`](14-schema.md) writes a model's:
+typed from the models' kinds unless a column's `columnType` names another,
+so a `text` field is a `text` column and a `decimal` one a `numeric` of no
+fixed scale, with the default, generation expression or identity the column
+states. A model's indexes and comments are not among the statements;
+`fromModel` of the model gives those. The base's key here is an identity
+column, which a model declares `generated: "byDefault"`:
 
 <!-- example: empty -->
 ```ts
@@ -357,8 +361,8 @@ assert.equal(kind, "card");
 assert.deepEqual(card, { paymentId: base.id, lastFour: "4242" });
 ```
 
-A disjoint read's pages count their rows as `[items, pages]`, where a model
-query's `numItemsAndPages` gives `{ items, pages }`.
+A disjoint read's pages count their rows as a model query's do:
+`numItemsAndPages` gives `{ items, pages }`.
 
 A row the constraints rule out can still be met in a database pgorm did not
 create, such as a card payment with no card row. A read reports it as a
@@ -455,9 +459,10 @@ assert.deepEqual(voucher, { paymentId: 1, code: "XMAS-2026" });
 A step that recreates the kind type changes the type prepared statements were
 planned with, so a program running steps itself clears its pool's statement
 caches after each, as above ([Statement caches and
-DDL](19-statement-caches.md)). Rust's pgorm-migration runs each step as one
-migration and clears the caches itself; JavaScript has no migration runner
-([Migrations](22-migrations.md)), so the program runs the steps.
+DDL](19-statement-caches.md)). pgorm-migration's runner runs each step as
+one migration and clears the caches itself, so a program that freezes the
+steps into files and runs them with `migrations(..).up` needs nothing more
+([Migrations](22-migrations.md)).
 
 ### Freezing a change into migrations
 
@@ -546,11 +551,11 @@ for (const file of [opened, ...added]) {
 assert.equal(readFileSync(`${migrations}/m20260301_000001_add_voucher_1.sql`, "utf8"), added[0]!.text);
 ```
 
-A file is one migration for a tool that runs a directory of SQL files, each in
-its transaction, such as Rust's pgorm-migration, which lists each with
-`sql_migration!` ([Migrations](22-migrations.md#generated-ddl-in-a-migration)).
-JavaScript cannot run such a file itself: a file of several statements is a
-script, which no JavaScript terminal runs in one call ([Raw SQL](10-raw-sql.md)).
+A file is one migration, run whole in the batch's transaction:
+`SqlMigration.readDir` reads the directory back for `migrations(..)` to run,
+its first step committing the batch before the next runs
+([Migrations](22-migrations.md#a-migrator-built-at-run-time)), and a Rust
+migration crate lists the same files with `sql_migration!`.
 
 ## Tables pgorm did not write
 

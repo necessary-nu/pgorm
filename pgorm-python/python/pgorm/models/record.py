@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, TypeAlias
 
 from .. import _native as p
+from . import casts
 
 if TYPE_CHECKING:
     from ..results import RowStream
@@ -17,11 +18,14 @@ if TYPE_CHECKING:
     from .model import Model
 
 Database: TypeAlias = "Connection | Pool | Transaction"
-Row: TypeAlias = "ModelRecord | tuple[ModelRecord | None, ...]"
+Row: TypeAlias = "ModelRecord | tuple[ModelRecord | None, ...] | p.Record"
+# A row's decode: its sources' records, or what a projection or a raw
+# statement reads it as.
+Decode: TypeAlias = "Sequence[Source] | Callable[[p.Record], Any]"
 
 
 # [spec:pgorm:req:bindings.model-records+1]
-# [spec:pgorm:req:python.records]
+# [spec:pgorm:req:python.records+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class ModelRecord(Mapping[str, Any]):
     """A row's fields of one model, keyed by field in declaration order.
@@ -37,6 +41,7 @@ class ModelRecord(Mapping[str, Any]):
     selected: tuple[str, ...]
     columns: tuple[str, ...]
     read: Mapping[str, p.Value]
+    _values: Mapping[str, Any]
 
     def __init__(
         self,
@@ -64,20 +69,24 @@ class ModelRecord(Mapping[str, Any]):
                 if name not in native:
                     raise p.DecodeError(f"the result has no column {name!r}")
         read = {}
+        values = {}
         for name, column in zip(fields, names):
             declared = model.columns[name]
             value = declared._decoded(native.tagged(column))
             if declared._read_as_text:
                 read[name] = value
+            if declared._read_as_text or declared.decode is not None:
+                values[name] = casts.read(declared, value)
         object.__setattr__(self, "model", model)
         object.__setattr__(self, "native", native)
         object.__setattr__(self, "selected", fields)
         object.__setattr__(self, "columns", names)
         object.__setattr__(self, "read", MappingProxyType(read))
+        object.__setattr__(self, "_values", MappingProxyType(values))
 
     def __getitem__(self, name: str) -> Any:
-        if name in self.read:
-            return self.read[name].value
+        if name in self._values:
+            return self._values[name]
         return self.native[self._column(name)]
 
     def __iter__(self) -> Iterator[str]:
@@ -116,9 +125,12 @@ def own_source(model: Model, fields: tuple[str, ...]) -> Source:
     return Source(model, fields, fields)
 
 
-def decoder(sources: Sequence[Source]) -> Callable[[p.Record], Any]:
+def decoder(sources: Decode) -> Callable[[p.Record], Any]:
     """The decode of a native row into its one source's record, or a tuple of
-    each source's, the row's columns held to exactly the sources' names."""
+    each source's, the row's columns held to exactly the sources' names; a
+    projection's decode as it is."""
+    if callable(sources):
+        return sources
     expected = tuple(name for source in sources for name in source.names)
 
     def decode(row: p.Record) -> Any:
@@ -141,13 +153,13 @@ def _record(row: p.Record, source: Source) -> ModelRecord | None:
     return ModelRecord(source.model, row, source.fields, source.names)
 
 
-async def decode_all(db: Database, statement: Any, sources: Sequence[Source]) -> list[Any]:
+async def decode_all(db: Database, statement: Any, sources: Decode) -> list[Any]:
     decode = decoder(sources)
     return [decode(row) for row in await db.query(statement)]
 
 
 async def decode_single(
-    db: Database, statement: Any, sources: Sequence[Source], *, optional: bool
+    db: Database, statement: Any, sources: Decode, *, optional: bool
 ) -> Any:
     """The one row ``statement`` reads, decoded: exactly one, or with
     ``optional`` at most one, None when it reads none."""
@@ -158,12 +170,13 @@ async def decode_single(
 
 
 async def decode_stream(
-    db: Connection | Pool, statement: Any, sources: Sequence[Source]
+    db: Database, statement: Any, sources: Decode
 ) -> RowStream[Any]:
     from ..runtime import Connection, Pool
+    from ..transactions import Transaction
 
-    if not isinstance(db, (Connection, Pool)):
-        raise TypeError("a model's rows stream from a Pool or a Connection")
+    if not isinstance(db, (Connection, Pool, Transaction)):
+        raise TypeError("a model's rows stream from a Pool, a Connection or a Transaction")
     stream = await db.stream(statement)
     return stream._decoding(decoder(sources))
 

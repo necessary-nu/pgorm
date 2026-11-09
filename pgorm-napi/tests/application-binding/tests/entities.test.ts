@@ -23,6 +23,8 @@ import {
   entity,
   EntityInsert,
   EntityInsertMany,
+  EntityTryInsert,
+  EntityTryInsertMany,
   type EntityRecord,
   graph,
   graphs,
@@ -33,6 +35,7 @@ import {
   select,
   Table,
   TypeName,
+  UniqueViolationError,
   Value,
 } from "../../../lib/index.js";
 import { scratchDatabase } from "../../support.ts";
@@ -118,11 +121,12 @@ function refused(pattern: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.entities+5/test]
+// [spec:pgorm:req:bindings.entities+6/test]
 // [spec:pgorm:req:bindings.relation-conditions/test]
 test("the module names its registrations and describes each, and refuses a name it does not register", () => {
   assert.deepStrictEqual(entities(), [
     "app.Account",
+    "app.AcmeTenantNote",
     "app.Auction",
     "app.Booking",
     "app.Label",
@@ -135,6 +139,7 @@ test("the module names its registrations and describes each, and refuses a name 
     "app.Sale",
     "app.Shipment",
     "app.Temper",
+    "app.TenantNote",
     "app.Till",
   ]);
   assert.deepStrictEqual(graphs(), ["app.AccountNotes", "app.AccountOnly", "app.MembershipOnly", "app.MixedNotes", "app.RequiredNotes"]);
@@ -147,7 +152,7 @@ test("the module names its registrations and describes each, and refuses a name 
   assert.equal(described.table, "accounts");
   assert.deepStrictEqual(described.primaryKey, ["id"]);
   assert.deepStrictEqual(described.uniqueKeys, []);
-  // [spec:pgorm:req:bindings.entities+5/test]    a registration's describe() reports the unique keys its entity's unique(..) declares, each its name, its columns by their SQL names in key order and nullsNotDistinct
+  // [spec:pgorm:req:bindings.entities+6/test]    a registration's describe() reports the unique keys its entity's unique(..) declares, each its name, its columns by their SQL names in key order and nullsNotDistinct
   assert.deepStrictEqual(entity("app.Label").describe().uniqueKeys, [
     { name: "labels_text_packet", columns: ["text", "packet_id"], nullsNotDistinct: true },
   ]);
@@ -182,7 +187,7 @@ test("the module names its registrations and describes each, and refuses a name 
   ]);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]
+// [spec:pgorm:req:bindings.entity-reads+4/test]
 test("a query reads records through Select's terminals, keyed by SQL column", async () => {
   await seed();
   const busy = await Account.find().where(Account.col("mood").eq("busy")).all(pool());
@@ -206,7 +211,7 @@ test("a query reads records through Select's terminals, keyed by SQL column", as
   assert.equal(counted.n, 1n);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]
+// [spec:pgorm:req:bindings.entity-reads+4/test]
 test("one and optional narrow a row limit and never widen one of zero", async () => {
   await seed();
   const none = Account.find().orderBy(Account.col("id").asc()).limit(0);
@@ -223,6 +228,34 @@ test("one and optional narrow a row limit and never widen one of zero", async ()
   assert.equal(String(five.inspect("one").values.at(-1)?.value), "1");
 });
 
+// [spec:pgorm:req:bindings.entities+6/test]    an entity whose names are computed at run
+// time, registered once per tenant: each registration reads and writes its own tenant's table
+test("a registered instance reads and writes its own tenant's table", async () => {
+  await pool().execute("CREATE SCHEMA napi_acme");
+  try {
+    await pool().execute("CREATE TABLE napi_entities.tenant_notes (id int4 PRIMARY KEY, body text NOT NULL)");
+    await pool().execute("CREATE TABLE napi_acme.tenant_notes (id int4 PRIMARY KEY, body text NOT NULL)");
+    const fallback = entity("app.TenantNote");
+    const acme = entity("app.AcmeTenantNote");
+    assert.deepStrictEqual([fallback.describe().schema, fallback.describe().table], ["napi_entities", "tenant_notes"]);
+    assert.deepStrictEqual([acme.describe().schema, acme.describe().table], ["napi_acme", "tenant_notes"]);
+    assert.match(acme.find().inspect("all").sql, /FROM "napi_acme"\."tenant_notes"/);
+    await fallback.active().set("id", 1).set("body", "default").insert(pool());
+    const written = await acme.active().set("id", 1).set("body", "acme").insert(pool());
+    assert.deepStrictEqual(written, { id: 1, body: "acme" });
+    assert.deepStrictEqual(await acme.find().all(pool()), [{ id: 1, body: "acme" }]);
+    assert.deepStrictEqual(await fallback.find().all(pool()), [{ id: 1, body: "default" }]);
+    const renamed = await acme.intoActive(written).set("body", "acme, again").update(pool());
+    assert.equal(renamed.body, "acme, again");
+    assert.equal(await acme.intoActive(renamed).delete(pool()), 1);
+    assert.deepStrictEqual(await acme.find().all(pool()), []);
+    assert.equal((await fallback.find().all(pool())).length, 1);
+  } finally {
+    await pool().execute("DROP SCHEMA napi_acme CASCADE");
+    await pool().execute("DROP TABLE napi_entities.tenant_notes");
+  }
+});
+
 // [spec:pgorm:req:bindings.entity-writes+1/test]
 test("an ActiveModel holds each column's state, and its writes run the application's hooks", async () => {
   const fresh = Account.active();
@@ -236,6 +269,16 @@ test("an ActiveModel holds each column's state, and its writes run the applicati
   assert.deepStrictEqual(inserted, { id: 1, "display name": "Ann|before", note: null, version: 1, mood: "calm" });
   const active = Account.intoActive(inserted);
   assert.deepStrictEqual(active.get("display name"), { state: "unchanged", value: "Ann|before" });
+  // [spec:pgorm:req:bindings.entity-active-changes/test]    setIfNotEquals sets only a different value
+  assert.equal(active.isChanged(), false);
+  const same = active.setIfNotEquals("display name", "Ann|before").setIfNotEquals("mood", "calm");
+  assert.deepStrictEqual(same.get("display name"), { state: "unchanged", value: "Ann|before" });
+  assert.equal(same.isChanged(), false);
+  const other = active.setIfNotEquals("display name", "Anna");
+  assert.deepStrictEqual(other.get("display name"), { state: "set", value: "Anna" });
+  assert.equal(other.isChanged(), true);
+  assert.equal(active.isChanged(), false);
+  assert.throws(() => active.setIfNotEquals("version", "one" as never), ConstructionError);
   const updated = await active.set("note", "seen").update(pool());
   assert.equal(updated.version, 2);
   assert.equal(updated.note, "seen");
@@ -257,13 +300,13 @@ test("an ActiveModel holds each column's state, and its writes run the applicati
   assert.throws(() => Account.active().set("mood", "wild"), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entities+5/test]    a registered entity whose columns are domains, over an
+// [spec:pgorm:req:bindings.entities+6/test]    a registered entity whose columns are domains, over an
 // integer, over an enum and an array of one over text, describes, reads, writes and compares
 // through them as through their base types
 // [spec:pgorm:req:bindings.schema-domains+2/test]    a domain column reports, binds and reads as the
 // kind it is over, and a check refuses a value written to it as a CheckViolationError naming the
 // domain
-// [spec:pgorm:req:bindings.entity-reads+3/test]    a column whose domain is over an enum compares as
+// [spec:pgorm:req:bindings.entity-reads+4/test]    a column whose domain is over an enum compares as
 // the enum
 test("a registered entity's domain columns read, write and compare as the types they are over", async () => {
   assert.deepStrictEqual(
@@ -314,7 +357,7 @@ test("a registered entity's domain columns read, write and compare as the types 
   assert.deepStrictEqual(ids(await Parcel.find().orderBy(byId).all(pool())), [1, 2, 3, 4]);
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]    a column whose domain is over an enum is a
+// [spec:pgorm:req:bindings.entity-reads+4/test]    a column whose domain is over an enum is a
 // member of a list of values and of a subquery's rows as the enum, either way round, where the
 // column's plain expression is refused with 42883
 // [spec:pgorm:req:bindings.pipeline-sources+3/test]    a registered column a pipeline reads
@@ -361,7 +404,7 @@ test("a registered column whose domain is over an enum is a member, and a pipeli
   await assert.rejects(rows(pl.from(Parcel).filter(pl.col("parcels", "mood").eq("busy"))), undefinedOperator);
 });
 
-// [spec:pgorm:req:bindings.entities+5/test]    a money column, and an array of it, is a decimal column:
+// [spec:pgorm:req:bindings.entities+6/test]    a money column, and an array of it, is a decimal column:
 // described as one, set, compared and read back as a Decimal through the entity's own casts, and
 // compared as money by a pipeline that reads the registered column, where the column named by text
 // takes no Decimal
@@ -453,13 +496,13 @@ test("a registered column's between and distinctness tests compare under its cas
   assert.throws(() => takings.isDistinctFrom(null as never), refused(/compared with null is never true/));
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]    any(..) / all(..) over a list compares through the
+// [spec:pgorm:req:bindings.entity-reads+4/test]    any(..) / all(..) over a list compares through the
 // column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
 // a column whose domain is over an enum as the enum, where the plain expression is refused; over an
 // expression it is compared as written
 // [spec:pgorm:req:bindings.column-operators+3/test]    a registered array column's containment and
 // overlap run through its ColumnTrait
-// [spec:pgorm:req:bindings.quantifiers+3/test]    an empty list is typed by the registered column, = ANY
+// [spec:pgorm:req:bindings.quantifiers+4/test]    an empty list is typed by the registered column, = ANY
 // of it false and <> ALL true, and refused as it is used where no registered column types it
 test("a registered column's quantified comparisons and containment compare under its casts", async () => {
   await seed();
@@ -499,7 +542,7 @@ test("a registered column's quantified comparisons and containment compare under
   assert.deepStrictEqual(await ids(Parcel.find().where(codes.overlaps(["c", "d"]))), [2]);
 });
 
-// [spec:pgorm:req:bindings.errors+5/test]    a column the entity cannot read as its field's type is a
+// [spec:pgorm:req:bindings.errors+6/test]    a column the entity cannot read as its field's type is a
 // DecodeError naming what the driver was reading and the decoder's reason, as Python reports it
 test("a decode refusal names the column the driver read and the decoder's reason", async () => {
   await pool().execute("ALTER TABLE napi_entities.notes ALTER COLUMN account_id TYPE text USING account_id::text");
@@ -519,10 +562,10 @@ test("a decode refusal names the column the driver read and the decoder's reason
   }
 });
 
-// [spec:pgorm:req:bindings.entity-reads+3/test]    any(..) / all(..) over a list of ranges compared
+// [spec:pgorm:req:bindings.entity-reads+4/test]    any(..) / all(..) over a list of ranges compared
 // with a column of a range type the schema created is the array of their texts cast to the type's
 // array
-// [spec:pgorm:req:bindings.quantifiers+3/test]    a list of ranges, of no kind the list alone names,
+// [spec:pgorm:req:bindings.quantifiers+4/test]    a list of ranges, of no kind the list alone names,
 // is typed by the registered column it meets
 test("a registered created range's quantified comparisons bind as the array of the ranges' texts", async () => {
   for (const [id, lower, upper] of [[1, 1.5, 2.5], [2, 5, 6]] as const) {
@@ -691,7 +734,74 @@ test("an entity's insert has Rust's other insert terminals of its row count, no 
   assert.equal((await Account.find().all(pool())).length, 7);
 });
 
-// [spec:pgorm:req:bindings.entity-graphs+3/test]
+// [spec:pgorm:req:bindings.entity-try-inserts/test]
+test("an entity's try-insert answers inserted, conflicted or empty, as TryInsert does", async () => {
+  const account = (id: number, name: string) => Account.active().set("id", id).set("display name", name);
+  const conflicted = { kind: "conflicted" };
+  const empty = { kind: "empty" };
+  await Account.insert(account(1, "Ann")).execute(pool());
+  const again = Account.insert(account(1, "Ann again")).onConflictDoNothing();
+  assert.ok(again instanceof EntityTryInsert && !(again instanceof EntityTryInsertMany));
+  assert.deepStrictEqual(await again.execute(pool()), conflicted);
+  assert.deepStrictEqual(await again.returningPk(pool()), conflicted);
+  assert.deepStrictEqual(await again.returningModel(pool()), conflicted);
+  assert.deepStrictEqual(await Account.insert(account(2, "Bob")).onConflictDoNothing().execute(pool()), {
+    kind: "inserted",
+    value: 1,
+  });
+  assert.deepStrictEqual(await Account.insert(account(3, "Cy")).onConflictDoNothing().returningPk(pool()), {
+    kind: "inserted",
+    value: 3,
+  });
+  const di = await Account.insert(account(4, "Di")).onEmptyDoNothing().returningModel(pool());
+  assert.equal(di.kind, "inserted");
+  if (di.kind === "inserted") assert.deepStrictEqual([di.value.id, di.value["display name"]], [4, "Di"]);
+  await assert.rejects(Account.insert(account(4, "Di")).onEmptyDoNothing().execute(pool()), UniqueViolationError);
+  const blank = Account.insert(Account.active().notSet("version").notSet("mood")).onEmptyDoNothing();
+  assert.deepStrictEqual(
+    [await blank.execute(pool()), await blank.returningPk(pool()), await blank.returningModel(pool())],
+    [empty, empty, empty],
+  );
+  const batch = Account.insertMany([account(5, "Ed"), account(1, "Ann")]).onConflictDoNothing();
+  assert.ok(batch instanceof EntityTryInsertMany);
+  assert.deepStrictEqual(await batch.returningPks(pool()), { kind: "inserted", value: [5] });
+  assert.deepStrictEqual(await batch.returningPks(pool()), conflicted);
+  const more = batch.add(account(6, "Flo")).addMany([account(7, "Gil")]);
+  assert.ok(more instanceof EntityTryInsertMany);
+  const written = await more.returningModels(pool());
+  assert.equal(written.kind, "inserted");
+  if (written.kind === "inserted") assert.deepStrictEqual(written.value.map((row) => row.id), [6, 7]);
+  assert.deepStrictEqual(await more.execute(pool()), conflicted);
+  const none = Account.insertMany([]).onConflictDoNothing();
+  assert.deepStrictEqual(
+    [await none.execute(pool()), await none.returningPks(pool()), await none.returningModels(pool())],
+    [empty, empty, empty],
+  );
+  // onConflict replaces the key's DO NOTHING, as TryInsert::on_conflict does,
+  // and onEmptyDoNothing keeps the clause the insert had.
+  const renamed = again.onConflict(Conflict.on("id").update("display name"));
+  assert.ok(renamed instanceof EntityTryInsert);
+  assert.deepStrictEqual(await renamed.execute(pool()), { kind: "inserted", value: 1 });
+  const kept = Account.insert(account(2, "Bob again")).onConflict(Conflict.on("id").doNothing()).onEmptyDoNothing();
+  assert.deepStrictEqual(await kept.execute(pool()), conflicted);
+  const names = Object.fromEntries((await Account.find().all(pool())).map((row) => [row.id, row["display name"]]));
+  assert.deepStrictEqual([names[1], names[2]], ["Ann again", "Bob"]);
+  assert.equal("returningUpsert" in again, false);
+  assert.equal("returningUpserts" in batch, false);
+  // @ts-expect-error: a try-insert has no upsert terminal, as Rust's TryInsert has none
+  assert.equal(typeof again.returningUpsert, "undefined");
+  assert.throws(() => again.add(Note.active()), mistyped(/app.Note's, not app.Account's/));
+  assert.throws(() => batch.add(Account.active().set("id", 9)), refused(/set the same columns/));
+  assert.throws(() => new (EntityTryInsert as unknown as new (...args: unknown[]) => unknown)({}, Symbol()), TypeError);
+  const team = Membership.active().set("account_id", 1).set("team", "red").set("role", "lead");
+  assert.deepStrictEqual(await Membership.insert(team).onConflictDoNothing().returningPk(pool()), {
+    kind: "inserted",
+    value: [1, "red"],
+  });
+  assert.deepStrictEqual(await Membership.insert(team).onConflictDoNothing().returningPk(pool()), conflicted);
+});
+
+// [spec:pgorm:req:bindings.entity-graphs+4/test]
 test("a registered graph decodes its root and slots, an absent optional slot null", async () => {
   await seed();
   type Pair = [Record<string, unknown>, Record<string, unknown> | null];
@@ -719,7 +829,7 @@ test("a registered graph decodes its root and slots, an absent optional slot nul
   assert.throws(() => graph("app.AccountNotes").find({ aliases: ["accounts"] }), refused(/names a source twice/));
 });
 
-// [spec:pgorm:req:bindings.entity-graphs+3/test]
+// [spec:pgorm:req:bindings.entity-graphs+4/test]
 test("a registered graph's cursor pages by keyset, resuming inside a root's slot rows", async () => {
   await seed();
   const cursor = graph("app.AccountNotes").find({ aliases: ["n"] }).cursor("id");
@@ -733,11 +843,13 @@ test("a registered graph's cursor pages by keyset, resuming inside a root's slot
   assert.deepStrictEqual(last.map(([account]) => account.id), [2, 3]);
   const descending = await cursor.desc().first(1).all(pool()) as [Record<string, unknown>, unknown][];
   assert.deepStrictEqual(descending.map(([account]) => account.id), [3]);
-  assert.throws(() => cursor.afterWith(1), refused(/takes 2 values, and 1 were given/));
+  assert.throws(() => cursor.afterWith(1, 10, 3), refused(/does not match 1 or 2 key column/));
+  const resumedAtRoot = await cursor.afterWith(1).first(5).all(pool()) as [Record<string, unknown>, unknown][];
+  assert.deepStrictEqual(resumedAtRoot.map(([account]) => account.id), [2, 3]);
   assert.throws(() => cursor.after("x"), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.entities+5/test]
+// [spec:pgorm:req:bindings.entities+6/test]
 // [spec:pgorm:req:bindings.registered-pools/test]
 test("an entity's operations run on a connection or a transaction, with a statement's refusals and aborts", async () => {
   await seed();

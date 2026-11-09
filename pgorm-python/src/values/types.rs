@@ -1,7 +1,8 @@
-use pgorm::pgorm_query::{ArrayType, Name, TypeName, Value};
+use pgorm::pgorm_query::ArrayType;
+pub(crate) use pgorm_bindings::{Tag, TypeName};
 use pyo3::prelude::*;
 
-use super::created::CreatedKind;
+use super::created::CreatedKindPy as _;
 use crate::{UnsupportedCapabilityError, errors::ConstructionError};
 
 /// The refusal of a value, or value kind, of pgorm's that this package has no
@@ -12,14 +13,18 @@ pub(crate) fn unrepresented() -> PyErr {
 }
 
 // [spec:pgorm:req:bindings.value-tags+1]
-/// An owned, identifier-only PostgreSQL type name, optionally schema qualified.
+/// An owned, identifier-only PostgreSQL type name, optionally schema
+/// qualified: pgorm-bindings' `TypeName` as Python holds it.
 #[pyclass(name = "TypeName", module = "pgorm", frozen, eq, from_py_object)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PyTypeName {
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub schema: Option<String>,
+pub struct PyTypeName(pub TypeName);
+
+impl std::ops::Deref for PyTypeName {
+    type Target = TypeName;
+
+    fn deref(&self) -> &TypeName {
+        &self.0
+    }
 }
 
 #[pymethods]
@@ -41,48 +46,40 @@ impl PyTypeName {
                 ));
             }
         }
-        Ok(Self { name, schema })
+        Ok(Self(TypeName { name, schema }))
+    }
+
+    #[getter]
+    fn name(&self) -> &str {
+        &self.0.name
+    }
+
+    #[getter]
+    fn schema(&self) -> Option<&str> {
+        self.0.schema.as_deref()
     }
 
     fn __repr__(&self) -> String {
-        format!("TypeName({:?}, schema={:?})", self.name, self.schema)
+        format!("TypeName({:?}, schema={:?})", self.0.name, self.0.schema)
     }
 }
 
-impl PyTypeName {
-    /// Lower through Rust's qualified identifier constructor, never verbatim SQL.
-    pub fn rust_type(&self) -> TypeName {
-        let name = TypeName::new(Name::runtime(&self.name));
-        match &self.schema {
-            Some(schema) => name.schema(Name::runtime(schema)),
-            None => name,
-        }
-    }
+/// A kind as Python reads and writes it: parsed from a kind name, a
+/// `TypeName` or a created range type, and spelled back as one.
+pub(crate) trait TagPy: Sized {
+    /// The kind `value` names.
+    fn parse(value: &Bound<'_, PyAny>) -> PyResult<Self>;
+    /// The `ArrayType` an array of the kind holds.
+    fn array_type(&self) -> PyResult<ArrayType>;
+    /// The kind as Python names it.
+    fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>>;
 }
 
-/// The kind a pgorm value declares itself.
-pub fn rust_tag(value: &Value) -> Tag {
-    let kind = Tag::Scalar(value.array_type());
-    if value.is_array() {
-        Tag::Array(Box::new(kind))
-    } else {
-        kind
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Tag {
-    Scalar(ArrayType),
-    Enum(PyTypeName),
-    Created(CreatedKind),
-    Array(Box<Tag>),
-}
-
-impl Tag {
+impl TagPy for Tag {
     // [spec:pgorm:req:bindings.argument-errors+1]
-    pub fn parse(value: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn parse(value: &Bound<'_, PyAny>) -> PyResult<Self> {
         if let Ok(name) = value.extract::<PyRef<'_, PyTypeName>>() {
-            Ok(Self::Enum(name.clone()))
+            Ok(Self::Enum(name.0.clone()))
         } else if let Some(kind) = super::created::extract(value) {
             Ok(Self::Created(kind))
         } else {
@@ -92,16 +89,7 @@ impl Tag {
         }
     }
 
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::Scalar(kind) => kind.kind_name(),
-            Self::Enum(_) => "enum",
-            Self::Created(kind) => kind.kind_name(),
-            Self::Array(_) => "array",
-        }
-    }
-
-    pub fn array_type(&self) -> PyResult<ArrayType> {
+    fn array_type(&self) -> PyResult<ArrayType> {
         match self {
             Self::Scalar(kind) => Ok(kind.clone()),
             Self::Enum(_) | Self::Created(_) => Ok(ArrayType::String),
@@ -111,9 +99,9 @@ impl Tag {
         }
     }
 
-    pub fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn to_python(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self {
-            Self::Enum(name) => Ok(Py::new(py, name.clone())?.into_any()),
+            Self::Enum(name) => Ok(Py::new(py, PyTypeName(name.clone()))?.into_any()),
             Self::Created(kind) => kind.to_python(py),
             _ => Ok(self.name().into_pyobject(py)?.into_any().unbind()),
         }

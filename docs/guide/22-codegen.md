@@ -390,3 +390,55 @@ assert_eq!(
 # Ok(())
 # }
 ```
+
+## Declared models for Python and JavaScript
+
+Python and JavaScript programs declare a table with a model built when the
+program runs, `pgorm.Model` and `model(..)`, rather than with an entity.
+pgorm-codegen writes those declarations too, from the same reading of the
+DDL: `python_models_from_sql` and `typescript_models_from_sql` take the text
+and a `ModelWriterOptions`, and each returns a `WriterOutput` of one module,
+`models.py` or `models.ts`, holding a model per table, its relations both
+ways, the junction paths, and the disjoint and one-of shapes, laid out as
+black and deno fmt lay their languages out. The bindings call them as
+`pgorm.codegen.models_from_sql` and `modelsFromSql`, and their guides teach
+them.
+
+```rust
+use pgorm_codegen::{ModelWriterOptions, python_models_from_sql, typescript_models_from_sql};
+
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let ddl = "CREATE TABLE bakery (id serial PRIMARY KEY, name varchar NOT NULL);";
+let python = python_models_from_sql(ddl, ModelWriterOptions::default())?;
+assert_eq!(python.files[0].name, "models.py");
+assert!(python.files[0].content.contains(
+    r#"Bakery = Model(
+    "bakery",
+    {
+        "id": Column("i32", primary_key=True, auto_increment=True),
+        "name": Column("text", column_type="varchar"),
+    },
+)"#
+));
+let typescript = typescript_models_from_sql(ddl, ModelWriterOptions::default())?;
+assert!(typescript.files[0].content.contains(
+    r#"export const Bakery = model("bakery", {
+  columns: {
+    id: column("i32", { primaryKey: true, autoIncrement: true }),
+    name: column("text", { columnType: "varchar" }),
+  },
+});"#
+));
+# Ok(())
+# }
+```
+
+The reading is the one entities are generated from, so the same DDL is
+refused the same way. What a Rust entity can say that a declared model
+cannot is refused by these writers alone: a foreign key `DEFERRABLE`, `NOT
+ENFORCED` or with a `PERIOD`, a `DEFAULT NULL`, a `bpchar` or a named type.
+And what only Rust's names forbid, such as a column named `1st`, which no
+Rust field can be named, stops the entities but not the declared models,
+whose fields are named by their columns: the Rust writer,
+and its syn, quote and prettyplease, are the crate's default `rust` feature,
+which the bindings build without.

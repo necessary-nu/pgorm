@@ -11,7 +11,7 @@ from pgorm import schema as s
 class SchemaObjectConstruction(unittest.TestCase):
     # [spec:pgorm:req:bindings.schema/test]    every complete statement is a DDL the terminals
     # take, and an ALTER with no action yet is none, with no inspect()
-    # [spec:pgorm:req:bindings.schema-api+2/test]
+    # [spec:pgorm:req:bindings.schema-api+3/test]
     def test_statements_are_ddl_pending_alters_not(self):
         statements = [
             s.create_table("t").column(s.ColumnDef("a", "integer")),
@@ -35,7 +35,7 @@ class SchemaObjectConstruction(unittest.TestCase):
                 self.assertFalse(hasattr(pending, "inspect"))
         self.assertEqual(s.drop_table(["a", p.Table("b", schema="x")]).inspect().sql, 'DROP TABLE "a", "x"."b"')
 
-    # [spec:pgorm:req:bindings.schema-api+2/test]    a statement is made by its factory, never by
+    # [spec:pgorm:req:bindings.schema-api+3/test]    a statement is made by its factory, never by
     # its class, which is exported for annotations and isinstance alone
     def test_statements_are_made_by_their_factories(self):
         query = p.select(p.col("a")).from_(p.Table("t"))

@@ -1,12 +1,13 @@
 //! `Expr`'s logic: `&`, `|` and `~` as SQL's AND, OR and NOT, and the
 //! refusal of Python truth testing.
 
+use pgorm::pgorm_query::ExprTrait;
 use pyo3::prelude::*;
 
 use super::{PyExpr, require_expr};
 use crate::errors::ConstructionError;
 
-// [spec:pgorm:req:bindings.expressions+3]
+// [spec:pgorm:req:bindings.expressions+4]
 // [spec:pgorm:req:python.naming+4]
 #[pymethods]
 impl PyExpr {

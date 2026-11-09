@@ -9,8 +9,6 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::{Error, LitStr, Token};
 
-use crate::oracle;
-
 /// `$crate, "path"`, as pgorm-migration's `sql_migration!` forwards it: the
 /// path to the crate defining `SqlMigration`, then the caller's literal.
 pub(crate) struct MigrationInput {
@@ -44,7 +42,7 @@ pub(crate) struct Script {
 
 /// The file's name and checked text as literals, with the file itself included
 /// so that editing it rebuilds the calling crate.
-// [spec:pgorm:def:migration.sql-file]
+// [spec:pgorm:def:migration.sql-file+1]
 // [spec:pgorm:req:migration.sql-file.compile+1]    the file is an input of the calling crate's build
 pub(crate) fn expand(input: &MigrationInput) -> Result<TokenStream, Error> {
     let literal = &input.path;
@@ -90,12 +88,8 @@ pub(crate) fn load(literal: &LitStr, manifest_dir: &Path) -> Result<Script, Erro
         .map_err(|_| refuse(format!("{relative} is not UTF-8 text")))?
         .replace("\r\n", "\n");
 
-    if let Err(error) = pg_query::parse(&text, pg_query::ParserOptions::DEFAULT) {
-        return Err(refuse(rejection(
-            &relative,
-            &text,
-            &oracle::parser_message(&error),
-        )));
+    if let Err(refused) = pgorm_sql_check::check_sql(&text) {
+        return Err(refuse(rejection(&relative, &text, &refused)));
     }
 
     Ok(Script { name, text, path })
@@ -104,16 +98,15 @@ pub(crate) fn load(literal: &LitStr, manifest_dir: &Path) -> Result<Script, Erro
 /// The message for a file the grammar refused: the parser's diagnostic and,
 /// when it quotes a token the file holds, that token's line, reprinted with a
 /// caret under it. A diagnostic quoting no token carries no position.
-fn rejection(relative: &str, text: &str, message: &str) -> String {
-    let offset = oracle::token_offset(text, message);
-    let mut rendered = format!("PostgreSQL rejected {relative}: {message}");
-    if let Some(offset) = offset {
+fn rejection(relative: &str, text: &str, refused: &pgorm_sql_check::Rejection) -> String {
+    let mut rendered = format!("PostgreSQL rejected {relative}: {}", refused.message());
+    if let Some(offset) = refused.offset() {
         let line = text
             .get(..offset)
             .map_or(1, |before| before.matches('\n').count() + 1);
         rendered.push_str(&format!(" (line {line})"));
-        if let Some(block) = oracle::caret_block(text, offset) {
-            rendered.push_str(&block);
+        if let Some(block) = refused.caret() {
+            rendered.push_str(block);
         }
     }
     rendered
@@ -161,7 +154,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:def:migration.sql-file/test]    the name is the file stem
+    // [spec:pgorm:def:migration.sql-file+1/test]    the name is the file stem
     // [spec:pgorm:req:migration.sql-file.checksum/test]    CRLF line endings are read as LF
     #[test]
     fn crlf_line_endings_are_read_as_lf() -> Result<(), Box<dyn std::error::Error>> {

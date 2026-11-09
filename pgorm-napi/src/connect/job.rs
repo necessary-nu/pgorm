@@ -11,13 +11,8 @@ use std::sync::{Mutex as SyncMutex, PoisonError};
 
 use futures_util::future::BoxFuture;
 use neon::{prelude::*, types::Finalize};
-use pgorm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, SqlText};
-use tokio_postgres::{
-    Row, RowStream,
-    types::{BorrowToSql, ToSql},
-};
 
-use super::{Operation, abort_argument, connection, on_connection, pool};
+use super::{Operation, abort_argument, connection, on_connection, on_pool, pool};
 use crate::{
     errors::{Failure, Redactions},
     settle,
@@ -29,88 +24,9 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-/// The executor a job runs on: a connection, or a transaction on one.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Database<'a> {
-    Connection(&'a DatabaseConnection),
-    Transaction(&'a DatabaseTransaction<'a>),
-}
-
-macro_rules! delegate {
-    ($db:expr, $method:ident $(, $arg:expr)*) => {
-        match $db {
-            Database::Connection(connection) => connection.$method($($arg),*).await,
-            Database::Transaction(transaction) => transaction.$method($($arg),*).await,
-        }
-    };
-}
-
-#[pgorm::entity::prelude::async_trait::async_trait]
-impl ConnectionTrait for Database<'_> {
-    async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        delegate!(self, execute, statement, params)
-    }
-
-    async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        delegate!(self, execute_raw, statement, params)
-    }
-
-    async fn query_one<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Row, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        delegate!(self, query_one, statement, params)
-    }
-
-    async fn query_opt<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        delegate!(self, query_opt, statement, params)
-    }
-
-    async fn query_all<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        delegate!(self, query_all, statement, params)
-    }
-
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        delegate!(self, query_raw, statement, params)
-    }
-
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
-        delegate!(self, batch_execute, sql)
-    }
-}
+/// The executor a job runs on: a connection, or a transaction on one,
+/// plain or, from an instrumented pool, pgorm's metrics wrapper around one.
+pub(crate) use pgorm_bindings::Database;
 
 /// What a job hands back, made into JavaScript on the JavaScript thread.
 pub(crate) trait Settled: Send {
@@ -164,20 +80,10 @@ fn pool_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     let abort = abort_argument(&mut cx, 2)?;
     let work = async move {
-        let connection = abort.guard(state.get()).await?;
-        let outcome = tokio::select! {
-            biased;
-            () = abort.token().cancelled() => Err(Failure::Cancelled),
-            () = state.closed.cancelled() => {
-                Err(Failure::Lifecycle("the pool closed while the statement ran".to_owned()))
-            }
-            outcome = job(Database::Connection(&connection), &state.secrets) => {
-                drop(connection);
-                return outcome;
-            }
-        };
-        connection.discard();
-        outcome
+        on_pool(&state, &abort, async |db| {
+            job(db.database(), &state.secrets).await
+        })
+        .await
     };
     settle::promise(&mut cx, work, |cx, output| output.into_js(cx))
 }
@@ -197,7 +103,7 @@ fn connection_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
     };
     let work = async move {
         on_connection(operation, &abort, async |db| {
-            job(Database::Connection(db), &secrets).await
+            job(db.database(), &secrets).await
         })
         .await
     };

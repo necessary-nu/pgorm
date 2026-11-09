@@ -143,7 +143,7 @@ class OneOf(_OneOf[ModelRecord]):
         *,
         optional: bool = False,
     ) -> None:
-        from .disjoint import _model, _table
+        from .disjoint import _model
 
         if type(name) is not str:
             raise TypeError("a one-of reference's name is a str")
@@ -164,9 +164,9 @@ class OneOf(_OneOf[ModelRecord]):
                 raise p.ConstructionError(f"{model.table.name} has no field {field!r}")
             held[value] = (field, target_model)
             described.append(
-                (value, field, model._sql(field), (target_model.table.name, _table(target_model)))
+                (value, field, model._sql(field), (target_model.table.name, target_model._described()))
             )
-        native = p._one_of_model(name, (model.table.name, _table(model)), described, optional)
+        native = p._one_of_model(name, (model.table.name, model._described()), described, optional)
         models = [target_model for _, target_model in held.values()]
         self._bind(native, _Reader(
             row_key=lambda record: [record.tagged(field) for field in model.primary_key],

@@ -1,0 +1,9 @@
+from collections.abc import Awaitable
+from typing import Never
+
+from ._runtime import _Transaction
+
+class _Retrying:
+    def __init__(self, _native_only: Never, /) -> None: ...
+    def attempt(self, /) -> Awaitable[_Transaction]: ...
+    def abort(self, /) -> None: ...

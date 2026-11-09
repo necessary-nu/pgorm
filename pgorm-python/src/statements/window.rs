@@ -8,7 +8,7 @@
 
 use pgorm::pgorm_query::{
     ExtendedWindow, FrameClause, FrameCurrentRow, FrameExclusion, FrameFollowing, FramePreceding,
-    FrameStart, FrameType, Func, FunctionCall, JsonArrayAgg, JsonObjectAgg, Name, OverStatement,
+    FrameStart, FrameType, FunctionCall, JsonArrayAgg, JsonObjectAgg, Name, OverStatement,
     SelectStatement, SimpleExpr, SqlJson, WindowDefinition, WindowFunction, WindowStatement,
 };
 use pyo3::{prelude::*, types::PyTuple};
@@ -71,7 +71,7 @@ impl PyFrameType {
         })
     }
 
-    // [spec:pgorm:req:python.truth-testing+4]
+    // [spec:pgorm:req:python.truth-testing+5]
     fn __bool__(&self) -> PyResult<bool> {
         Err(ConstructionError::new_err(
             "window frames cannot be tested as Python booleans",
@@ -532,23 +532,11 @@ pub(crate) fn window_function(
     name: &str,
     arguments: &Bound<'_, PyTuple>,
 ) -> PyResult<PyWindowFunction> {
-    let accepted = match name {
-        "row_number" | "rank" | "dense_rank" | "percent_rank" | "cume_dist" => Some(0..=0),
-        "ntile" | "first_value" | "last_value" => Some(1..=1),
-        "nth_value" => Some(2..=2),
-        "lag" | "lead" => Some(1..=3),
-        _ => None,
-    };
-    if !accepted.is_some_and(|counts| counts.contains(&arguments.len())) {
-        return Err(crate::UnsupportedCapabilityError::new_err(
-            "unsupported window function or argument count",
-        ));
-    }
     let arguments = arguments
         .iter()
         .map(|argument| coerce(&argument).map(|argument| argument.inner))
         .collect::<PyResult<Vec<_>>>()?;
-    Ok(PyWindowFunction {
-        inner: Func::named(Name::runtime(name)).args(arguments),
-    })
+    pgorm_bindings::window_function(name, arguments, crate::config::DIALECT)
+        .map(|inner| PyWindowFunction { inner })
+        .map_err(|refusal| crate::UnsupportedCapabilityError::new_err(refusal.into_message()))
 }

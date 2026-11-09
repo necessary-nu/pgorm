@@ -64,7 +64,25 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
 Registration takes an `E: EntityTrait + Send + Sync + 'static` whose model
 converts into its ActiveModel. A name or a Rust entity registered twice, a
 name outside 1–255 bytes, and a graph whose source entities are not
-registered first are refused with a `RegistrationError`. A graph's factory
+registered first are refused with a `RegistrationError`.
+
+`entity::<E>(name)` registers `E::default()`, and every statement of the
+registration names that value's table. An entity whose names are computed at
+run time, such as a schema per tenant, is registered once for each value it
+serves with `entity_in`, and each registration reads and writes its own
+value's table, as Rust's `Entity::find_in(entity)` and the other `_in`
+constructors do:
+
+```rust
+registry.entity::<note::Entity>("app.Note")?;
+registry.entity_in("app.AcmeNote", note::Entity { tenant: "acme" })?;
+```
+
+JavaScript picks the tenant by the name it asks for, `entity("app.AcmeNote")`,
+since a JavaScript program has no Rust value to hand over itself. A Rust type
+is registered once for each table its values name, so the same type and table
+under two names is the duplicate refused above. A graph or a source tuple
+over the type reads the metadata of its first registration. A graph's factory
 receives one alias per joined slot, in tuple order, and joins each slot under
 its alias; the root keeps its table's name. Rust's slotless shape and tuples
 of one to six `Req` or `Opt` slots are registrable, and so are source tuples
@@ -178,15 +196,78 @@ whether an `on_condition` adds a condition, enforcement and deferrability;
 and under `rust` the Rust types behind it. These are the keys Python's
 `describe()` reports, each spelled in camelCase.
 
-**Not available in JavaScript yet:** a registered entity's `Select<E>` has
-no `count`, `stream`, `paginate`, cursor or join from JavaScript, which Rust's
-`Select<E>` has. A registered graph has its cursor ([below](#graphs)).
+### Counts, pages, cursors, streams, joins and projections
+
+A query has the rest of Rust's `Select<E>` reads. `count(db)` is
+`PaginatorTrait::count`, and `inspect("count")` shows its statement.
+`paginate(pageSize)` is `PaginatorTrait::paginate`: its paginator holds no
+database and no current page, so `fetchPage(db, n)`, `numItems(db)`,
+`numPages(db)` and `numItemsAndPages(db)` each take the one they run on, and
+`pages(db)` is the loop over every page, as a model query's paginator's is
+([Pages, cursors and streams](06-pagination.md)). `cursor(...columns)` is
+`Select::cursor_by` over those columns in order, its `after(...values)` and
+`before(...values)` taking one value per column, converted and cast as a
+comparison's value is, and `inspect()` showing its statement.
+`stream(db)` reads the records one at a time, each decoded as
+`Select::stream` decodes a row, from a pool's connection of its own or a
+connection.
+
+`join(relation, { kind })` is `QuerySelect::join` of a relation the entity's
+Rust `Relation` enum declares, named by `entity.relation(name)`; the joined
+entity's columns go in the conditions, and the rows stay the query's own
+records. `select(...columns)` is `select_only` with `columns`, each read
+through its `select_as`: its rows are plain records of those columns, as a
+statement's are. Rust decodes such a projection into a type of the
+program's own, which JavaScript cannot name at run time:
+
+<!-- example: application -->
+```ts
+import assert from "node:assert/strict";
+import { createSchema, entity, fromEntity } from "@necessary/pgorm";
+
+const Account = entity("app.Account");
+const Note = entity("app.Note");
+await pool.execute(createSchema("napi_entities"));
+for (const registered of [Account, Note]) {
+  for (const statement of fromEntity(registered).enums) await pool.execute(statement);
+  await pool.execute(fromEntity(registered).table);
+}
+await pool.execute(
+  `INSERT INTO napi_entities.accounts VALUES (1, 'Ann', NULL, 1, 'calm'), (2, 'Bob', NULL, 1, 'busy'), (3, 'Cy', NULL, 1, 'calm')`,
+);
+await pool.execute(`INSERT INTO napi_entities.notes VALUES (10, 1, 'a1'), (11, 2, 'b1')`);
+
+const byId = Account.find().orderBy(Account.col("id").asc());
+assert.equal(await byId.count(pool), 3);
+const pages = byId.paginate(2);
+assert.deepEqual(await pages.numItemsAndPages(pool), { items: 3, pages: 2 });
+assert.deepEqual((await pages.fetchPage(pool, 1)).map((account) => account.id), [3]);
+
+const cursor = Account.find().cursor("mood", "id");
+assert.deepEqual((await cursor.first(2).all(pool)).map((account) => account.id), [1, 3]);
+assert.deepEqual((await cursor.after("calm", 3).all(pool)).map((account) => account.id), [2]);
+
+const streamed = [];
+for await (const account of byId.stream(pool)) streamed.push(account["display name"]);
+assert.deepEqual(streamed, ["Ann", "Bob", "Cy"]);
+
+const withB1 = Account.find().join(Account.relation("Note")).where(Note.col("body").eq("b1"));
+assert.deepEqual((await withB1.all(pool)).map((account) => account.id), [2]);
+assert.deepEqual(await byId.select("display name", "mood").all(pool), [
+  { "display name": "Ann", mood: "calm" },
+  { "display name": "Bob", mood: "busy" },
+  { "display name": "Cy", mood: "calm" },
+]);
+```
 
 ## Writing, hooks included
 
 `active()` is `ActiveModelBehavior::new`, the application's defaults
 included. `set`, `notSet` and `reset` return a new ActiveModel, and `get`
-reports a column as `notSet`, `set` or `unchanged` with its value. `insert`,
+reports a column as `notSet`, `set` or `unchanged` with its value.
+`setIfNotEquals(column, value)` sets a column only when the value differs
+from the one it holds, as Rust's `set_if_not_equals` does, so `isChanged()`
+then says whether there is anything to write. `insert`,
 `update` and `delete` are `ActiveModelTrait`'s, with the application's hooks
 around them; a hook's refusal is a `ConstructionError` carrying its message.
 The fixture's account appends `|before` to a new account's name, bumps its
@@ -209,6 +290,10 @@ assert.equal(draft.get("version").state, "set");
 const ann = await draft.insert(pool);
 assert.equal(ann["display name"], "Ann|before");
 assert.equal(ann.version, 1);
+
+// The same name is no change.
+assert.equal(Account.intoActive(ann).setIfNotEquals("display name", "Ann|before").isChanged(), false);
+assert.equal(Account.intoActive(ann).setIfNotEquals("note", "seen").isChanged(), true);
 
 const changed = await Account.intoActive(ann).set("note", "seen").update(pool);
 assert.equal(changed.version, 2);
@@ -243,6 +328,9 @@ hook runs around them:
 | `entity.insertMany(actives).returningPks(db)` | `Insert::many(actives).exec_returning_pks` |
 | `entity.insertMany(actives).returningModels(db)` | `Insert::many(actives).exec_returning_models` |
 | `insert.add(active)`, `insert.addMany(actives)` | `Insert::add`, `Insert::add_many` |
+| `entity.insert(active).onConflictDoNothing().execute(db)` | `Insert::one(active).on_conflict_do_nothing().exec` |
+| `entity.insert(active).onEmptyDoNothing().returningModel(db)` | `Insert::one(active).on_empty_do_nothing().exec_returning_model` |
+| `entity.insertMany(actives).onConflictDoNothing().returningPks(db)` | `Insert::many(actives).on_conflict_do_nothing().exec_returning_pks` |
 
 An insert is typed by its row count, as Rust's is: `insert` gives an
 `EntityInsert` and `insertMany` an `EntityInsertMany`, and `add` or
@@ -285,6 +373,42 @@ assert.equal(upserted?.kind, "updated");
 assert.equal(upserted?.new["display name"], "Anne");
 ```
 
+`onConflictDoNothing()` adds `ON CONFLICT (primary key) DO NOTHING`, as
+Rust's does, and turns an `EntityInsert` into an `EntityTryInsert`, or an
+`EntityInsertMany` into an `EntityTryInsertMany`: Rust's `TryInsert`.
+`onEmptyDoNothing()` makes one too, keeping the insert's own conflict clause.
+A try-insert has `onConflict`, which replaces its clause, `add` and
+`addMany`, and Rust's `TryInsert` terminals: `execute`, `returningPk` and
+`returningModel` for one row, `execute`, `returningPks` and `returningModels`
+for a batch, and no upsert terminal. Each resolves with the `TryInsertResult`
+a declared model's try-insert resolves with ([Writing rows](04-writing.md)):
+`{ kind: "inserted", value }` holding what the terminal wrote, `{ kind:
+"conflicted" }` when the conflict clause held every row back, or `{ kind:
+"empty" }` when there was nothing to write, a batch of no ActiveModels or one
+that sets no column, and nothing was sent.
+
+<!-- example: application -->
+```ts
+import assert from "node:assert/strict";
+import { createSchema, entity, fromEntity } from "@necessary/pgorm";
+
+const Account = entity("app.Account");
+await pool.execute(createSchema("napi_entities"));
+for (const statement of fromEntity(Account).enums) await pool.execute(statement);
+await pool.execute(fromEntity(Account).table);
+
+const ann = Account.active().set("id", 1).set("display name", "Ann");
+assert.deepEqual(await Account.insert(ann).onConflictDoNothing().execute(pool), { kind: "inserted", value: 1 });
+// Ann's key is taken now, so the second insert writes nothing.
+assert.deepEqual(await Account.insert(ann).onConflictDoNothing().returningPk(pool), { kind: "conflicted" });
+
+const bob = await Account.insert(Account.active().set("id", 2).set("display name", "Bob"))
+  .onEmptyDoNothing()
+  .returningModel(pool);
+assert.equal(bob.kind === "inserted" && bob.value["display name"], "Bob");
+assert.deepEqual(await Account.insertMany([]).onConflictDoNothing().returningModels(pool), { kind: "empty" });
+```
+
 ## Graphs
 
 A registered graph is the application's `SelectGraph`, each slot under the
@@ -292,10 +416,17 @@ alias JavaScript gives or `g1`, `g2`, .. by default. Rust writes the
 projection and decodes each row through `GraphRow`: a slotless graph's row
 is the root's record, otherwise a tuple of every source's, an `Opt` slot
 `null` where it matched nothing. `col(source, column)` qualifies a column as
-the query names it, `0` being the root. `cursor(column)` is
-`SelectGraph::cursor_by` on a root column: `before` and `after` bound that
-column, and `beforeWith` and `afterWith` the whole key, the column, the
-root's other key columns, then each slot's:
+the query names it, `0` being the root. `cursor(...columns)` is
+`SelectGraph::cursor_by` on up to six root columns, and
+`cursorOn(source, ...columns)` `cursor_by_on` on up to six columns of a slot,
+the first slot being `1`: `before` and `after` bound the order columns, and
+`beforeWith` and `afterWith` those or the whole key, the order columns, the
+ordered source's other key columns, then each other source's, the root's
+first; `inspect()` shows a cursor's statement. `stream(db)`, `count(db)` and
+`paginate(pageSize)` read, count and page the graph's rows as an entity's
+query does, and `allGrouped(db)` is `all_grouped`, which Rust has only on a
+graph of one `Opt` slot: each root once with an array of its slot's
+records:
 
 <!-- example: application -->
 ```ts
@@ -323,6 +454,13 @@ assert.deepEqual(
 
 const page = await notes.cursor("id").first(2).all(pool);
 assert.equal(page.length, 2);
+
+const byBody = await notes.cursorOn(1, "body").after("a1").all(pool);
+assert.deepEqual(byBody.map((row) => (row as [EntityRecord, EntityRecord | null])[1]?.body), ["a2"]);
+
+const grouped = await graph("app.AccountNotes").find().allGrouped(pool);
+assert.deepEqual(grouped.map(([account, list]) => [account.id, list.length]), [[1, 2], [2, 0]]);
+assert.equal(await notes.count(pool), 3);
 ```
 
 Without declarations of its own, the module types a graph's row as any

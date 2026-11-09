@@ -90,7 +90,7 @@ assert.deepEqual(await pool.query(query), [
 ]);
 
 const raise = update(cake).set("price", col("price").add(new Decimal("0.50"))).where(col("bakery_id").eq(2));
-assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1 WHERE "bakery_id" = $2`);
+assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "bakery_id" = $2`);
 assert.equal(await pool.execute(raise), 2);
 
 const deleted = await pool.query(deleteFrom(cake).where(col("id").eq(5)).returning([col("name")]));
@@ -100,11 +100,18 @@ assert.deepEqual(deleted, [{ name: "Chocolate Torte" }]);
 ## Where a bound value's type comes from
 
 Each value a statement binds is a parameter, and PostgreSQL decides its type
-from where it stands. Beside a column it takes the column's type, which is
-the common case: `"price" + $1` reads `$1` as a `numeric`. Where nothing
-around it says, the server cannot choose: a value in a `SELECT` list or a
-`VALUES` row, the argument of a function that takes any array such as
-`unnest`, a number added to a date. There, bind the value with
+from where it stands. Compared with a column or assigned to one, it takes the
+column's type, which is the common case: `"price" = $1` reads `$1` as a
+`numeric`. Where an operator or a function chooses its overload by the
+operand's own type, the builder writes that type beside the placeholder: an
+integer, a `Decimal`, a date, a time or an interval in arithmetic (`"price" +
+$1::numeric`, `"day" + $1::int4`), the arguments of `generate_series`,
+`unnest` and the aggregates `call` names (`UNNEST($1::int8[])`), a bound range
+that contains a value. A whole number is written `int4` when its value fits
+one, as PostgreSQL types the literal `1`, and `int8` when it does not. Text and
+fractional numbers stay bare there, the operand beside them typing them. Where
+nothing around a value says, the server still cannot choose: a value in a
+`SELECT` list or a `VALUES` row. There, bind the value with
 [`bind`](../lib/expressions.d.ts) and cast it with `cast`, which also tells the
 server the type the value is sent as, `CAST($1::int8 AS integer)`. The
 examples under [WITH](#with), [Table functions](#table-functions) and
@@ -161,8 +168,10 @@ of every expression for the operators: `eq`, `gt`, `between`, `isIn`,
 not an expression is bound as a parameter. [`Condition.all`](../lib/expressions.d.ts)
 and `Condition.any` group conditions under `AND` and `OR`.
 [`call`](../lib/expressions.d.ts) calls a function: the aggregates,
-`coalesce`, `lower`, `upper`, `round`, the UUID functions and the
-set-returning ones. [`caseWhen`](../lib/expressions.d.ts) writes a searched
+`coalesce`, `lower`, `upper`, `round`, the UUID functions, the full-text
+search functions and the set-returning ones, and
+[`func`](../lib/expressions.d.ts) any function by name.
+[`caseWhen`](../lib/expressions.d.ts) writes a searched
 `CASE`, and `caseOf` the simple form, comparing one operand with each arm's
 value.
 
@@ -206,12 +215,65 @@ assert.deepEqual(
 ```
 
 `call` reaches the functions pgorm-query has a constructor for, and refuses
-any other name with a `ConstructionError`.
+any other name with a `ConstructionError`: the name selects a constructor and
+never reaches SQL. The full-text search functions are among them:
+`to_tsvector`, `to_tsquery`, `plainto_tsquery`, `phraseto_tsquery` and
+`websearch_to_tsquery` of one argument, and `ts_rank` and `ts_rank_cd` of two;
+`matches` is `@@`.
 
-**Not available in JavaScript yet:** calling any function by name, which
-Rust's `Func::named` does, and writing a piece of SQL the builder has no
-method for, with `$1`, `$2`, … for its bound values, which Rust's
-`Expr::template` does.
+`func(name, ...operands)` calls any function, as Rust's `Func::named` does,
+each operand bound unless it is an expression. The name is an identifier, not
+SQL text: written bare when it is a lowercase name PostgreSQL does not
+restrict, and quoted otherwise, so it names a function the server looks up,
+and a name it cannot find is its `DatabaseError` with SQLSTATE `42883`, never
+syntax it runs:
+
+```ts
+import assert from "node:assert/strict";
+import { call, col, DatabaseError, func, select, Table } from "@necessary/pgorm";
+
+const cake = new Table("cake");
+const titled = select(func("initcap", col("name")).as("title")).from(cake).where(col("id").eq(4));
+assert.equal(titled.inspect().sql, `SELECT initcap("name") AS "title" FROM "cake" WHERE "id" = $1`);
+assert.equal((await pool.one(titled)).title, "Vanilla Sponge");
+
+assert.equal(select(func("Initcap", "x")).inspect().sql, `SELECT "Initcap"($1)`);
+await assert.rejects(
+  pool.one(select(func("Initcap", "x").as("t"))),
+  (error) => error instanceof DatabaseError && error.sqlstate === "42883",
+);
+
+const searched = select(col("name"))
+  .from(cake)
+  .where(call("to_tsvector", col("name")).matches(call("websearch_to_tsquery", "chocolate")))
+  .orderBy(col("name").asc());
+assert.deepEqual((await pool.query(searched)).map((row) => row.name), ["Chocolate Fudge", "Chocolate Torte"]);
+```
+
+[`template`](../lib/expressions.d.ts) writes a piece of SQL the builders have
+no method for, as Rust's `Expr::template` does. It is a tag for a template
+literal, `` template`..` ``: the literal's text is SQL, and each `${..}` goes
+between its pieces, an expression embedded as it is and any other value
+bound as a parameter. Rust's template is a `&'static str`, so only program
+text can become SQL; a tagged template literal is JavaScript's program text,
+and `template` called with a string is a `TypeError`, so text built at run
+time cannot become a template by accident. A value that lands where
+PostgreSQL reads no parameter, inside a quoted string, and a `$1` written into
+the text, are each a `ConstructionError`:
+
+```ts
+import assert from "node:assert/strict";
+import { col, ConstructionError, select, Table, template } from "@necessary/pgorm";
+
+const short = select(col("name"))
+  .from(new Table("cake"))
+  .where(template`char_length(${col("name")}) < ${14}`)
+  .orderBy(col("name").asc());
+assert.equal(short.inspect().sql, `SELECT "name" FROM "cake" WHERE char_length("name") < $1 ORDER BY "name" ASC`);
+assert.deepEqual((await pool.query(short)).map((row) => row.name), ["Carrot Cake", "Lemon Drizzle"]);
+
+assert.throws(() => template`'${14}'`, ConstructionError);
+```
 
 A few expressions take a little more care:
 
@@ -317,7 +379,7 @@ const doubled = update(new Table("cake"))
 
 assert.equal(
   doubled.inspect().sql,
-  `UPDATE "cake" SET "price" = "price" * $1 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
+  `UPDATE "cake" SET "price" = "price" * $1::int4 WHERE "id" = $2 RETURNING old."price" AS "was", new."price" AS "now"`,
 );
 const [row] = await pool.query(doubled);
 assert.deepEqual([String(row?.was), String(row?.now)], ["4.50", "9.00"]);
@@ -351,7 +413,7 @@ const raise = update(cake)
   .where(bakery.col("city").eq("Bergen"));
 assert.equal(
   raise.inspect().sql,
-  `UPDATE "cake" SET "price" = "cake"."price" + $1 FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
+  `UPDATE "cake" SET "price" = "cake"."price" + $1::numeric FROM "bakery" WHERE "cake"."bakery_id" = "bakery"."id" AND "bakery"."city" = $2`,
 );
 assert.equal(await pool.execute(raise), 2);
 
@@ -569,9 +631,11 @@ shape fits.
 A `GROUP BY` list can group by several sets of columns in one query.
 [`GroupingElement`](../lib/select.d.ts) builds them: `rollup` for subtotals
 down a hierarchy, `cube` for every combination, and `sets` for sets of your
-choosing. A row grouped by a set that leaves a column out holds `NULL` there.
-The cakes counted by bakery and by whether they are gluten-free, with a
-subtotal per bakery and a grand total:
+choosing. A row grouped by a set that leaves a column out holds `NULL` there,
+and `call("grouping", ..)`, Rust's `Func::grouping`, tells that `NULL` from
+one in the data: `GROUPING(a)` is 1 in a row whose set leaves `a` out. The
+cakes counted by bakery and by whether they are gluten-free, with a subtotal
+per bakery and a grand total:
 
 ```ts
 import assert from "node:assert/strict";
@@ -603,9 +667,22 @@ assert.deepEqual(rows.map((row) => [row.bakery_id, row.gluten_free, row.cakes]),
 ]);
 ```
 
-**Not available in JavaScript yet:** `GROUPING(..)`, which Rust's
-`Func::grouping` writes to tell the `NULL` a grouping set leaves from a
-`NULL` in the data.
+`GROUPING` takes the grouped expressions it reads, one or more, each a bit of
+its answer:
+
+```ts
+import assert from "node:assert/strict";
+import { call, col, GroupingElement, select, Table } from "@necessary/pgorm";
+
+const query = select(col("bakery_id"), call("grouping", col("bakery_id")).as("total"), call("count", col("id")).as("cakes"))
+  .from(new Table("cake"))
+  .groupBy(GroupingElement.rollup(col("bakery_id")))
+  .orderBy(col("bakery_id").asc());
+
+assert.ok(query.inspect().sql.startsWith(`SELECT "bakery_id", GROUPING("bakery_id") AS "total"`));
+const rows = await pool.query(query);
+assert.deepEqual(rows.map((row) => [row.bakery_id, row.total, row.cakes]), [[1, 0, 3n], [2, 0, 2n], [null, 1, 5n]]);
+```
 
 ## Table functions
 
@@ -614,7 +691,9 @@ read as a table. [`tableFunction`](../lib/select.d.ts) wraps the call, and
 `TableFunction.rowsFrom` several read side by side. `columns` names its
 columns, `withOrdinality` adds a last column numbering the rows from 1, and
 `alias` finishes it as something `from` and the joins take. `call` reaches
-`generate_series`, `unnest` and the JSON record functions.
+`generate_series`, `unnest` and the JSON record functions, and `func` any
+other set-returning function, `tableFunction(func("jsonb_object_keys", doc))`
+among them.
 
 Unnesting a list of ids with its ordinal reads rows back in the order the
 program asked for them. `unnest` takes an array of any type, so the bound
@@ -693,11 +772,33 @@ assert.deepEqual(await pool.query(query), [
 ```
 
 `contains` is `@>` on a `jsonb` as on a range or an array, `matches` is `@@`
-and `pathExists` is `@?`.
+and `pathExists` is `@?`. The other `jsonb` operators are methods of every
+expression too, as they are of Rust's `Expr`: `getJsonField` (`->`) and
+`castJsonField` (`->>`) read a field, or an array's element by an integer
+index, as `jsonb` and as `text`, the key bound unless it is an expression;
+`getJsonPath` (`#>`) and `castJsonPath` (`#>>`) read the value at a path of
+keys, bound as one `text[]`; and `hasJsonKey` (`?`), `hasAnyJsonKeys` (`?|`)
+and `hasAllJsonKeys` (`?&`) test for keys:
 
-**Not available in JavaScript yet:** the other `jsonb` operators, `->`,
-`->>`, `?` and their kin, which Rust's `get_json_field`, `cast_json_field`
-and `has_json_key` write.
+```ts
+import assert from "node:assert/strict";
+import { literal, select } from "@necessary/pgorm";
+
+const order = literal({ customer: "kim@example.com", lines: [{ cake: 2, qty: 3 }] }).cast("jsonb");
+const query = select(
+  order.castJsonField("customer").as("customer"),
+  order.getJsonField("lines").getJsonField(literal(0)).as("first"),
+  order.castJsonPath(["lines", "0", "qty"]).as("qty"),
+  order.hasJsonKey("lines").as("lined"),
+  order.hasAllJsonKeys(["customer", "notes"]).as("noted"),
+);
+
+const row = await pool.one(query);
+assert.deepEqual(
+  [row.customer, row.first, row.qty, row.lined, row.noted],
+  ["kim@example.com", { cake: 2, qty: 3 }, "3", true, false],
+);
+```
 
 ## Ranges
 

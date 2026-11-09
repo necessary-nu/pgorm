@@ -23,7 +23,6 @@
 extern crate proc_macro;
 
 mod migration;
-mod oracle;
 mod prql;
 mod sql;
 
@@ -56,7 +55,7 @@ use syn::{LitStr, parse_macro_input};
 /// The check is syntax only. libpg_query carries no catalog, so a well-formed
 /// statement against tables and columns that do not exist passes happily — this
 /// rules out typos in SQL, not mistakes about the schema.
-// [spec:pgorm:def:macros.sql+5]
+// [spec:pgorm:def:macros.sql+6]
 // [spec:pgorm:req:macros.sql.reject]    non-literal input is `syn`'s own refusal
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
@@ -113,7 +112,7 @@ pub fn sql(input: TokenStream) -> TokenStream {
 /// The check ends where the catalog begins: whether `total` is a column and
 /// whether `$1` accepts an `i64` are the server's questions, answered at
 /// prepare time and by `VerifyTrait::verify` at runtime.
-// [spec:pgorm:def:macros.prql]
+// [spec:pgorm:def:macros.prql+2]
 // [spec:pgorm:req:macros.prql.reject]    non-literal input is `syn`'s own refusal
 // [spec:pgorm:req:macros.prql.ceiling]    the limits are stated on the macro
 #[proc_macro]
@@ -140,8 +139,8 @@ pub fn prql(input: TokenStream) -> TokenStream {
 /// file stem and the text the file's with CRLF line endings read as LF, after
 /// holding that text to the grammar [`sql!`] uses. The path is resolved
 /// against `CARGO_MANIFEST_DIR`.
-// [spec:pgorm:def:macros.sql+5]    the hidden third macro
-// [spec:pgorm:def:migration.sql-file]
+// [spec:pgorm:def:macros.sql+6]    the hidden third macro
+// [spec:pgorm:def:migration.sql-file+1]
 #[doc(hidden)]
 #[proc_macro]
 pub fn sql_migration(input: TokenStream) -> TokenStream {

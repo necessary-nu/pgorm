@@ -2,32 +2,32 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { call, col, FrameType, select, Table, Window } from "@necessary/pgorm";
+import { call, col, select, Table, With } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const running = new Window()
-    .partitionBy(col("bakery_id"))
-    .orderBy(col("price").asc())
-    .frame(FrameType.rows.unboundedPreceding().andCurrentRow());
-  const query = select(col("name"), call("sum", col("price")).over(running).as("running"))
-    .from(new Table("cake"))
-    .where(col("bakery_id").eq(1))
-    .orderBy(col("price").asc());
+  const cake = new Table("cake");
+  const sold = new Table("sold");
+  const query = select(cake.col("name"), sold.col("units"))
+    .from(cake)
+    .join(sold, cake.col("id").eq(sold.col("cake_id")))
+    .orderBy(cake.col("name").asc())
+    .with(new With(
+      "sold",
+      select(col("cake_id"), call("sum", col("quantity")).as("units")).from(new Table("order_line")).groupBy(col("cake_id")),
+    ));
 
   assert.equal(
     query.inspect().sql,
     [
-      `SELECT "name", SUM("price") OVER ( PARTITION BY "bakery_id" ORDER BY "price" ASC`,
-      `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) AS "running"`,
-      `FROM "cake" WHERE "bakery_id" = $1 ORDER BY "price" ASC`,
+      `WITH "sold" AS (SELECT "cake_id", SUM("quantity") AS "units" FROM "order_line" GROUP BY "cake_id")`,
+      `SELECT "cake"."name", "sold"."units" FROM "cake"`,
+      `INNER JOIN "sold" ON "cake"."id" = "sold"."cake_id" ORDER BY "cake"."name" ASC`,
     ].join(" "),
   );
-
-  const rows = await pool.query(query);
-  assert.deepEqual(rows.map((row) => [row.name, String(row.running)]), [
-    ["Lemon Drizzle", "3.20"],
-    ["Chocolate Fudge", "7.70"],
-    ["Chocolate Torte", "13.70"],
+  assert.deepEqual(await pool.query(query), [
+    { name: "Carrot Cake", units: 1n },
+    { name: "Chocolate Fudge", units: 2n },
+    { name: "Lemon Drizzle", units: 1n },
   ]);
 }

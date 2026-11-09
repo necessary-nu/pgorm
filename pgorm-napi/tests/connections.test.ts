@@ -14,6 +14,7 @@ import {
   DecodeError,
   LifecycleError,
   Pool,
+  POSTGRES_TARGET,
   type Queryable,
   STATEMENT_CACHE_CHANNEL,
   TimeoutError,
@@ -83,7 +84,7 @@ function withoutSslmode(text: string, host?: string): string {
   return url.toString();
 }
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 // [spec:pgorm:req:bindings.argument-errors+1/test]
 test("a pool sends nothing until used, and refuses an unusable option at construction", async () => {
   await using unreachable = new Pool("postgres://pgorm@127.0.0.1:1/postgres?sslmode=disable");
@@ -111,21 +112,28 @@ test("a pool sends nothing until used, and refuses an unusable option at constru
       { connectTimeout: "1s" },
       { recycle: "never" },
       { statementCacheChannel: 7 },
+      { maxsize: 2 },
+      { signal: AbortSignal.timeout(1000) },
     ]
   ) {
     assert.throws(() => new Pool(dsn(), options as never), TypeError, JSON.stringify(options));
   }
+  await assert.rejects(pool().query("SELECT 1", [], { sginal: undefined } as never), /"sginal" is no option here/);
+  await assert.rejects(pool().transaction(async () => {}, { isolationLevel: "serializable" } as never), TypeError);
+  await pool().transaction(async (tx) => {
+    await assert.rejects(tx.transaction(async () => {}, { mode: "readOnly" } as never), TypeError);
+  });
   assert.throws(() => new Pool("postgres://["), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 test("connect resolves with a pool whose server answered, and rejects when none does", async () => {
   await using connected = await connect(dsn());
   assert.equal(await connected.ping(), true);
   await assert.rejects(connect("postgres://pgorm@127.0.0.1:1/postgres?sslmode=disable"), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 test("closing a connection returns it to its pool at once, and a closed connection refuses work", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   const first = await single.acquire();
@@ -158,7 +166,7 @@ async function preparedStatement(db: Queryable, sql: string): Promise<string | n
   return row === null ? null : (row.statement as string);
 }
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 // [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    from JavaScript
 test("clearing the statement caches makes a connection that ran an insert prepare it again", async () => {
   await using single = new Pool(scratch(), { maxSize: 1 });
@@ -193,7 +201,7 @@ async function eventually(what: string, probe: () => Promise<boolean>): Promise<
   }
 }
 
-// [spec:pgorm:req:bindings.connections+2/test]    a pool given statementCacheChannel listens from its
+// [spec:pgorm:req:bindings.connections+3/test]    a pool given statementCacheChannel listens from its
 // first acquisition, clears on a notification there whatever its payload, and closes its
 // listening connection with the pool; a pool without it keeps its statements
 // [spec:pgorm:req:conn.pool.statement-cache.listen+1/test]    from JavaScript
@@ -247,8 +255,8 @@ test("a pool listening on statementCacheChannel clears when notified, and only t
   }
 });
 
-// [spec:pgorm:req:bindings.connections+2/test]
-// [spec:pgorm:req:bindings.errors+5/test]
+// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.errors+6/test]
 test("acquiring waits for a free connection within acquireTimeout, then fails with a TimeoutError", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 200 });
   await using held = await single.acquire();
@@ -258,7 +266,7 @@ test("acquiring waits for a free connection within acquireTimeout, then fails wi
   assert.equal((await held.one("SELECT 3 AS n")).n, 3);
 });
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 test("a connection runs one operation at a time and refuses a second rather than racing it", async () => {
   await using connection = await pool().acquire();
   // Refusal follows the order JavaScript calls in, whichever runtime thread
@@ -272,7 +280,7 @@ test("a connection runs one operation at a time and refuses a second rather than
   assert.equal((await connection.one("SELECT 4 AS n")).n, 4);
 });
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 // [spec:pgorm:req:bindings.cancellation/test]
 test("closing a pool cancels what runs on it and releases every connection", async () => {
   const closing = new Pool(scratch(), { maxSize: 3 });
@@ -296,7 +304,7 @@ test("closing a pool cancels what runs on it and releases every connection", asy
   await assert.rejects(closing.acquire(), lifecycle(/closed/));
 });
 
-// [spec:pgorm:req:napi.lifecycle+2/test]
+// [spec:pgorm:req:napi.lifecycle+3/test]
 test("collecting unreferenced handles never cuts work short, and rolls back and returns what is idle", async () => {
   const outcome = await runFixture("collected", 30_000, {}, { exposeGc: true });
   assert.equal(outcome.stderr, "");
@@ -307,13 +315,20 @@ test("collecting unreferenced handles never cuts work short, and rolls back and 
   );
 });
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.postgres-target/test]
+test("POSTGRES_TARGET names the release the build targets, the one the suite's server runs", async () => {
+  assert.ok(POSTGRES_TARGET === 18 || POSTGRES_TARGET === 19);
+  const { release } = await pool().one("SELECT current_setting('server_version_num')::int / 10000 AS release");
+  assert.equal(release, POSTGRES_TARGET);
+});
+
+// [spec:pgorm:req:bindings.connections+3/test]
 test("verify-full TLS never falls back to plaintext", async () => {
   await using strict = new Pool(withoutSslmode(dsn()));
   await assert.rejects(strict.ping(), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 test("verify-full TLS connects through a configured CA, and checks the host name", async (context) => {
   const ca = tlsCa();
   if (ca === undefined) {
@@ -327,7 +342,7 @@ test("verify-full TLS connects through a configured CA, and checks the host name
   await assert.rejects(misnamed.ping(), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+2/test]
+// [spec:pgorm:req:bindings.connections+3/test]
 test("verify-full TLS binds SCRAM authentication to the server's certificate", async (context) => {
   const ca = tlsCa();
   if (ca === undefined || new URL(dsn()).password === "") {
@@ -388,7 +403,7 @@ test("every row terminal can give its columns tagged", async () => {
   assert.equal(all?.n?.isNull, true);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a callback transaction commits when it resolves and rolls back when it throws", async () => {
   await reset();
   const result = await pool().transaction(async (tx) => {
@@ -410,7 +425,7 @@ test("a callback transaction commits when it resolves and rolls back when it thr
   assert.deepEqual(await ids(), [1]);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a transaction holds its connection until its callback settles, and is closed after", async () => {
   await reset();
   await using connection = await pool().acquire();
@@ -449,7 +464,7 @@ test("a transaction opens only around a callback, which alone ends it", async ()
   });
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a savepoint rolls back alone inside a transaction that commits", async () => {
   await reset();
   await pool().transaction(async (tx) => {
@@ -468,7 +483,42 @@ test("a savepoint rolls back alone inside a transaction that commits", async () 
   assert.deepEqual(await ids(), [1, 4]);
 });
 
+// [spec:pgorm:req:bindings.transactions+2/test]
+test("a callback that catches a failed statement's error cannot commit, and its connection is kept", async () => {
+  await reset();
+  const aborted =
+    "the transaction was rolled back, not committed: a statement that failed inside it had aborted it";
+  await using connection = await pool().acquire();
+  await assert.rejects(
+    connection.transaction(async (tx) => {
+      await tx.execute("INSERT INTO items VALUES (1, 'lost')");
+      await assert.rejects(tx.execute("INSERT INTO items VALUES (1, 'again')"), DatabaseError);
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof DatabaseError, `${error}`);
+      assert.equal(error.sqlstate, "25P02");
+      assert.equal(error.message, aborted);
+      return true;
+    },
+  );
+  assert.equal(connection.closed, false);
+  assert.deepEqual(await connection.query("SELECT id FROM items"), []);
+  await connection.transaction(async (tx) => {
+    await tx.execute("INSERT INTO items VALUES (2, 'kept')");
+    await assert.rejects(
+      tx.transaction(async (savepoint) => {
+        await savepoint.execute("INSERT INTO items VALUES (3, 'lost')");
+        await assert.rejects(savepoint.execute("INSERT INTO items VALUES (2, 'again')"), DatabaseError);
+      }),
+      (error: unknown) => error instanceof DatabaseError && error.sqlstate === "25P02",
+    );
+    await tx.execute("INSERT INTO items VALUES (4, 'kept')");
+  });
+  assert.deepEqual(await ids(), [2, 4]);
+});
+
 // [spec:pgorm:req:napi.transactions+3/test]
+// [spec:pgorm:req:bindings.rollback-failed/test]    the rollback's failure and the callback's, both carried
 test("a rollback the server cannot answer rejects with its failure and discards the connection", async () => {
   await reset();
   const connection = await pool().acquire();
@@ -495,7 +545,7 @@ test("a rollback the server cannot answer rejects with its failure and discards 
   assert.deepEqual(await ids(), []);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a transaction is refused while its savepoint is open, not raced", async () => {
   await reset();
   await using connection = await pool().acquire();
@@ -511,7 +561,7 @@ test("a transaction is refused while its savepoint is open, not raced", async ()
   assert.deepEqual(await ids(), [1, 2]);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a second statement on a transaction already running one is refused, not queued", async () => {
   await using connection = await pool().acquire();
   await connection.transaction(async (tx) => {
@@ -549,7 +599,7 @@ test("a callback that returns with its savepoint open fails, and nothing it wrot
   assert.deepEqual(await ids(), []);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a failed statement aborts the transaction, and a savepoint recovers from one", async () => {
   await reset();
   await pool().transaction(async (tx) => {
@@ -574,7 +624,7 @@ test("a failed statement aborts the transaction, and a savepoint recovers from o
   assert.deepEqual(await ids(), [1, 2]);
 });
 
-// [spec:pgorm:req:bindings.transactions/test]
+// [spec:pgorm:req:bindings.transactions+2/test]
 test("a transaction's mode and isolation level reach the server", async () => {
   const settings =
     "SELECT current_setting('transaction_isolation') AS isolation, current_setting('transaction_read_only') AS read_only, current_setting('transaction_deferrable') AS deferrable";
@@ -672,7 +722,7 @@ test("a signal bounds a pool's own statement and acquisition", async () => {
   assert.equal((await held.one("SELECT 8 AS n")).n, 8);
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 test("a stream yields its rows one per pull and returns its connection after the last", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   const rows = [];
@@ -687,7 +737,7 @@ test("a stream yields its rows one per pull and returns its connection after the
   assert.equal(tagged.closed, true);
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 test("leaving a stream early releases its connection", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   let seen = 0;
@@ -703,7 +753,7 @@ test("leaving a stream early releases its connection", async () => {
   assert.equal((await single.one("SELECT 11 AS n")).n, 11);
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 test("a connection's stream holds the connection, freeing it at the end and discarding it if left early", async () => {
   const connection = await pool().acquire();
   const stream = connection.stream("SELECT generate_series(1, 3) AS n");
@@ -721,7 +771,7 @@ test("a connection's stream holds the connection, freeing it at the end and disc
   await connection.close();
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 test("a stream holds the server back while nothing pulls", async () => {
   await using streaming = new Pool(scratch(), { maxSize: 2 });
   const marker = `held back ${process.pid}`;
@@ -739,7 +789,7 @@ test("a stream holds the server back while nothing pulls", async () => {
   await stream.close();
 });
 
-// [spec:pgorm:req:bindings.streams/test]
+// [spec:pgorm:req:bindings.streams+1/test]
 // [spec:pgorm:req:bindings.cancellation/test]
 test("closing a pool ends an idle stream and an idle transaction without waiting for them", async () => {
   const closing = new Pool(scratch(), { maxSize: 2 });

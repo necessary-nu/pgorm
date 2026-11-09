@@ -3,26 +3,57 @@
 // Pools, connections and transactions. Each holds a native handle and
 // releases what it holds when closed — `close()`, `await using`, the end of a
 // callback — never by waiting for garbage collection.
-// [spec:pgorm:req:bindings.connections+2]
-// [spec:pgorm:req:napi.lifecycle+2]
+// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:napi.lifecycle+3]
 // [spec:pgorm:req:bindings.results+2]
 // [spec:pgorm:req:napi.raw]
-// [spec:pgorm:req:bindings.transactions]
+// [spec:pgorm:req:bindings.transactions+2]
 // [spec:pgorm:req:napi.transactions+3]
 // [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.listen+2]
+// [spec:pgorm:req:bindings.listen+3]
+// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.pool-hooks]
+// [spec:pgorm:req:bindings.multi-pool]
 
 import { statementArgs } from "./builder.js";
+import { verify } from "./raw.js";
 import { COPY, CopyRunner } from "./copy.js";
+import { ConstructionError } from "./errors.js";
 import { Listener, LISTENER, listenerOptions, notifyJob } from "./listen.js";
-import { abortable, LATE, native, queryOptions, row, scoped, signalOf, TRUSTED } from "./operations.js";
+import { abortable, JOB, knownOptions, LATE, native, queryOptions, row, RUN, scoped, signalOf, TRUSTED } from "./operations.js";
+import { retried } from "./retry.js";
+import { hooked } from "./hooks.js";
 import { RowStream } from "./streams.js";
 
-/** The statement runner each class implements, keyed privately. */
-const RUN = Symbol("run");
+/** The options every pool built from one connection string shares, as `SharedPoolOptions` declares them. */
+export const SHARED_POOL_OPTIONS = [
+  "tls",
+  "ca",
+  "cert",
+  "key",
+  "connectTimeout",
+  "statementCacheSize",
+  "recycle",
+  "recycleSql",
+  "statementCacheChannel",
+];
 
-/** The job runner each class implements, keyed privately. */
-const JOB = Symbol("job");
+/** The options one pool takes of its own, as `PoolShapeOptions` declares them. */
+export const POOL_SHAPE_OPTIONS = [
+  "maxSize",
+  "acquireTimeout",
+  "waitTimeout",
+  "createTimeout",
+  "recycleTimeout",
+  "queueMode",
+  "postCreate",
+  "preRecycle",
+  "postRecycle",
+];
+
+/** The options a pool takes, as `PoolOptions` declares them. */
+const POOL_OPTIONS = [...SHARED_POOL_OPTIONS, ...POOL_SHAPE_OPTIONS, "tag"];
+
 
 /**
  * What a pool, a connection and a transaction run statements through: bound
@@ -122,6 +153,41 @@ export class Queryable extends CopyRunner {
   }
 
   /**
+   * Run `script`, statements separated by `;` with no parameters, as Rust's
+   * `batch_execute` does: sent as it is through the simple-query protocol,
+   * nothing prepared. It is for DDL and fixed scripts, never for values a
+   * user supplied.
+   * [spec:pgorm:req:bindings.batch-execute]
+   *
+   * @param {string} script
+   * @param {{ signal?: AbortSignal }} [options]
+   * @returns {Promise<void>}
+   */
+  async batchExecute(script, options = {}) {
+    const job = native.batchExecuteJob(script);
+    const { signal } = queryOptions(options);
+    await abortable(signal, (token) => this[JOB](job, token), () => this[LATE]());
+  }
+
+  /**
+   * Check `model` against the result the server describes for `statement`,
+   * SQL text, without running it, as Rust's `verify` does:
+   * every field's column returned, of a type the field's kind reads, or a
+   * `DecodeError` naming the field.
+   *
+   * @param {unknown} statement
+   * @param {unknown} model
+   * @param {{ signal?: AbortSignal }} [options]
+   * @returns {Promise<void>}
+   */
+  async verify(statement, model, options = {}) {
+    await verify((job, rest) => {
+      const { signal } = queryOptions(rest);
+      return abortable(signal, (token) => this[JOB](job, token), () => this[LATE]());
+    }, statement, model, options);
+  }
+
+  /**
    * Send `payload` on `channel` through `SELECT pg_notify($1, $2)`, both
    * bound. In a transaction it is delivered when the transaction commits, and
    * never if it rolls back.
@@ -139,87 +205,26 @@ export class Queryable extends CopyRunner {
 }
 
 /**
- * Run a built statement and resolve with its result as the addon gives it,
- * `[names, rows, kinds]` — each row an array of values in column order, and
- * each column's kind — for a model to decode against its declaration.
- * [spec:pgorm:req:bindings.model-records+1]
+ * The native handle of a connection, which a read the addon builds runs on.
  *
- * @param {unknown} db
- * @param {"execute" | "all" | "one" | "optional"} terminal
- * @param {import("./builder.js").Handle} statement
- * @param {unknown} options
- * @returns {Promise<any>}
+ * @type {(connection: Connection) => unknown}
  */
-export async function runStatement(db, terminal, statement, options) {
-  if (!(db instanceof Queryable)) {
-    throw new TypeError("a model's statement runs on a Pool, a Connection or a Transaction");
-  }
-  const [handle, , rest] = statementArgs(statement, undefined, options);
-  const { signal } = queryOptions(rest);
-  return await abortable(signal, (token) => db[RUN](terminal, handle, [], false, token), () => db[LATE]());
-}
+export let connectionHandle;
 
 /**
- * The rows of a disjoint read's `statement`, the native half of a `Select`,
- * as a stream on a pool's connection or a connection, each row read by
- * `disjoint`'s codec.
- * [spec:pgorm:req:bindings.disjoint+2]
+ * The native handle of a pool, which an {@link InstrumentedPool} is built
+ * around.
  *
- * @param {unknown} db
- * @param {unknown} statement
- * @param {unknown} disjoint
- * @param {unknown} options
- * @returns {RowStream}
+ * @type {(pool: Pool) => unknown}
  */
-export function disjointStream(db, statement, disjoint, options) {
-  if (db instanceof Pool) {
-    return new RowStream(async (token) => {
-      const connection = new Connection(await native.poolAcquire(poolHandle(db), token), TRUSTED);
-      try {
-        const handle = await native.connectionStream(connectionHandle(connection), statement, [], token, disjoint);
-        return [handle, () => connection.close()];
-      } catch (error) {
-        await connection.close();
-        throw error;
-      }
-    }, options ?? {}, TRUSTED);
-  }
-  if (db instanceof Connection) {
-    return new RowStream(
-      async (token) => [await native.connectionStream(connectionHandle(db), statement, [], token, disjoint), undefined],
-      options ?? {},
-      TRUSTED,
-    );
-  }
-  throw new TypeError("a disjoint read's rows stream from a Pool or a Connection");
-}
+export let poolHandle;
 
 /**
- * Run a registered entity's job — one of pgorm's own terminals, built by the
- * addon — on a pool's connection, a connection or a transaction, with the
- * operation a statement gets around it: the busy refusal, the abort, the
- * discard of a connection an abort left in an unknown state.
- * [spec:pgorm:req:bindings.entities+5]
- * [spec:pgorm:req:bindings.registered-pools]
+ * The native handle of a transaction, which a read the addon builds runs in.
  *
- * @param {unknown} db
- * @param {unknown} job
- * @param {unknown} options
- * @returns {Promise<any>}
+ * @type {(transaction: Transaction) => unknown}
  */
-export async function runJob(db, job, options) {
-  if (!(db instanceof Pool || db instanceof Connection || db instanceof Transaction)) {
-    throw new TypeError("a registered entity runs on a Pool, a Connection or a Transaction");
-  }
-  const { signal } = queryOptions(options ?? {});
-  return await abortable(signal, (token) => db[JOB](job, token), () => db[LATE]());
-}
-
-/** @type {(connection: Connection) => unknown} */
-let connectionHandle;
-
-/** @type {(pool: Pool) => unknown} */
-let poolHandle;
+export let transactionHandle;
 
 /**
  * A pool of connections to one server, opened as they are first needed. TLS
@@ -235,19 +240,37 @@ export class Pool extends Queryable {
   }
 
   /**
-   * @param {string} dsn
-   * @param {import("./index.d.ts").PoolOptions} [options]
+   * A pool built from a connection string and its options, or, for
+   * {@link InstrumentedPool} and {@link MultiPool} alone, around the native
+   * handle the addon made.
+   *
+   * @param {string | symbol} dsn
+   * @param {import("./index.d.ts").PoolOptions | unknown} [options]
    */
   constructor(dsn, options = {}) {
     super();
+    if (dsn === TRUSTED) {
+      this.#native = options;
+      return;
+    }
     if (typeof dsn !== "string") throw new TypeError("dsn is a connection string");
     if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
-    this.#native = native.poolNew(dsn, options);
+    knownOptions(options, POOL_OPTIONS);
+    this.#native = native.poolNew(dsn, hooked(options));
   }
 
   /** @returns {boolean} */
   get closed() {
     return native.poolClosed(this.#native);
+  }
+
+  /**
+   * The pool's tag, or the `default-N` pgorm named it.
+   *
+   * @returns {string}
+   */
+  get tag() {
+    return native.poolTag(this.#native);
   }
 
   /** @returns {import("./index.d.ts").PoolStatus} */
@@ -304,6 +327,21 @@ export class Pool extends Queryable {
   async transaction(use, options = {}) {
     return await this.connection((connection) => connection.transaction(use, options), {
       signal: options.signal,
+    });
+  }
+
+  /**
+   * Run `use` in a transaction on a connection of its own, and again from
+   * `BEGIN` while it fails retryably; see `Connection.transactionWithRetry`.
+   *
+   * @template T
+   * @param {(transaction: Transaction) => Promise<T>} use
+   * @param {import("./index.d.ts").RetryOptions} options
+   * @returns {Promise<T>}
+   */
+  async transactionWithRetry(use, options) {
+    return await this.connection((connection) => connection.transactionWithRetry(use, options), {
+      signal: options?.signal,
     });
   }
 
@@ -396,12 +434,13 @@ export class Pool extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.poolCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.poolCopyIn : native.poolCopyOut)(this.#native, copy, token, rows);
   }
 }
@@ -423,6 +462,7 @@ export async function connect(dsn, options = {}) {
   }
   return pool;
 }
+
 
 /** One connection checked out of a pool; one operation at a time. */
 export class Connection extends Queryable {
@@ -458,6 +498,8 @@ export class Connection extends Queryable {
    * @returns {Promise<T>}
    */
   async transaction(use, options = {}) {
+    if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
+    knownOptions(options, ["mode", "isolation", "signal"]);
     const { mode = "default", isolation = null, signal } = options;
     const handle = await abortable(
       signalOf(signal),
@@ -465,6 +507,35 @@ export class Connection extends Queryable {
       (begun) => native.transactionAbort(begun),
     );
     return await scoped(handle, new Transaction(handle, this, TRUSTED), use);
+  }
+
+  /**
+   * Run `use` in a transaction, and again from `BEGIN`, up to `retries` more
+   * times, while it fails with a serialization failure or a deadlock, as
+   * Rust's `transaction_with_retry` does: `use` rejecting with an error whose
+   * `isRetryable` is true, or a `COMMIT` failing so. `use` receives each
+   * attempt's `Transaction`, and what it resolves with once an attempt
+   * commits is the result. It may run more than once, so whatever it does
+   * outside the database happens again each time. Any other failure, or one
+   * past the last retry, rejects as `transaction(fn)`'s does.
+   * [spec:pgorm:req:bindings.transaction-retry]
+   *
+   * @template T
+   * @param {(transaction: Transaction) => Promise<T>} use
+   * @param {import("./index.d.ts").RetryOptions} options
+   * @returns {Promise<T>}
+   */
+  async transactionWithRetry(use, options) {
+    if (typeof options !== "object" || options === null) throw new TypeError("options is an object with retries");
+    knownOptions(options, ["retries", "mode", "isolation", "signal"]);
+    const { retries, mode = "default", isolation = null, signal } = options;
+    if (typeof retries !== "number") throw new TypeError("retries is a number");
+    if (!Number.isInteger(retries) || retries < 0 || retries > 0xffffffff) {
+      throw new ConstructionError("retries is a whole number from 0 to 4294967295");
+    }
+    signalOf(signal);
+    const retrying = await native.connectionBeginRetrying(this.#native, mode, isolation, retries);
+    return await retried(retrying, Transaction, this, use);
   }
 
   /**
@@ -506,6 +577,18 @@ export class Connection extends Queryable {
     await native.connectionClose(this.#native);
   }
 
+  /**
+   * Close the connection and discard it rather than return it to its pool, as
+   * Rust's `DatabaseConnection::discard` does: for a connection whose session
+   * state is not what the next borrower should find. The pool opens a fresh
+   * one in its place. Resolves once it is released.
+   *
+   * @returns {Promise<void>}
+   */
+  async discard() {
+    await native.connectionDiscard(this.#native);
+  }
+
   [Symbol.asyncDispose]() {
     return this.close();
   }
@@ -533,12 +616,13 @@ export class Connection extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.connectionCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.connectionCopyIn : native.connectionCopyOut)(this.#native, copy, token, rows);
   }
 }
@@ -553,15 +637,17 @@ export class Transaction extends Queryable {
   #native;
   /**
    * The connection or transaction this one borrows, kept reachable so that
-   * collecting a parent nobody else holds never ends it under its child.
+   * collecting a parent nobody else holds never ends it under its child;
+   * `null` for the batch's transaction pgorm-migration's runner lends a
+   * migration's `up`, which no connection of JavaScript's opened.
    *
-   * @type {Connection | Transaction}
+   * @type {Connection | Transaction | null}
    */
   #parent;
 
   /**
    * @param {unknown} handle
-   * @param {Connection | Transaction} parent
+   * @param {Connection | Transaction | null} parent
    * @param {symbol} trusted
    */
   constructor(handle, parent, trusted) {
@@ -571,7 +657,11 @@ export class Transaction extends Queryable {
     this.#parent = parent;
   }
 
-  /** @returns {Connection | Transaction} */
+  static {
+    transactionHandle = (transaction) => transaction.#native;
+  }
+
+  /** @returns {Connection | Transaction | null} */
   get parent() {
     return this.#parent;
   }
@@ -613,6 +703,28 @@ export class Transaction extends Queryable {
   }
 
   /**
+   * The rows of `sql`, pulled one at a time. The transaction is the
+   * stream's until its last row, refusing other work meanwhile; closed
+   * before then, the stream discards the transaction with its connection,
+   * as a connection's stream discards its connection.
+   * [spec:pgorm:req:bindings.streams+1]
+   *
+   * @param {unknown} statement
+   * @param {unknown} [params]
+   * @param {unknown} [options]
+   * @returns {RowStream}
+   */
+  stream(statement, params, options) {
+    const [sql, values, rest] = statementArgs(statement, params, options);
+    const transaction = this;
+    return new RowStream(
+      async (token) => [await native.transactionStream(transaction.#native, sql, values, token), undefined],
+      rest,
+      TRUSTED,
+    );
+  }
+
+  /**
    * @override
    * @param {"execute" | "all" | "one" | "optional"} terminal
    * @param {unknown} sql
@@ -635,12 +747,13 @@ export class Transaction extends Queryable {
 
   /**
    * @override
-   * @param {"in" | "out"} direction
+   * @param {"in" | "out" | "columns"} direction
    * @param {unknown} copy
    * @param {unknown} token
    * @param {boolean} rows
    */
   [COPY](direction, copy, token, rows) {
+    if (direction === "columns") return native.transactionCopyColumns(this.#native, copy, token);
     return (direction === "in" ? native.transactionCopyIn : native.transactionCopyOut)(this.#native, copy, token, rows);
   }
 }

@@ -216,7 +216,8 @@ export declare class DisjointPaginator<R> {
   fetchPage(db: Queryable, page: number, options?: OperationOptions): Promise<R[]>;
   numItems(db: Queryable, options?: OperationOptions): Promise<number>;
   numPages(db: Queryable, options?: OperationOptions): Promise<number>;
-  numItemsAndPages(db: Queryable, options?: OperationOptions): Promise<[number, number]>;
+  /** The rows the pages hold and the pages, as a model query's paginator gives them. */
+  numItemsAndPages(db: Queryable, options?: OperationOptions): Promise<{ readonly items: number; readonly pages: number }>;
   pages(db: Queryable, options?: OperationOptions): AsyncGenerator<R[], void, undefined>;
 }
 
@@ -277,7 +278,7 @@ export interface DisjointChange {
  * Statements frozen as the text of a migration written as a `.sql` file,
  * made by {@link migrationFile} and {@link migrationFiles} alone.
  */
-// [spec:pgorm:req:bindings.migration-file]
+// [spec:pgorm:req:bindings.migration-file+1]
 export declare class MigrationFile {
   private constructor();
   /** The file's stem, and the migration's name. */

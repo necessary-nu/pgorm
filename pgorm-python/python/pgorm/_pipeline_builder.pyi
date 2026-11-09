@@ -1,12 +1,16 @@
 from .transactions import Transaction
 from collections.abc import Awaitable, Callable
-from typing import TypeAlias, Literal, Never
-from ._native import Table, Entity, Join, Compiled, Record
+from typing import Any, TypeAlias, TypeVar, Literal, Never, overload
+from ._native import Table, Entity, Join, Compiled, Record, TypeName, _ModelColumnCasts
 from .runtime import Connection, Pool
+from .models import Model, ModelRecord
+from .pipeline._typed import PipelineSelector
 from ._pipeline_expr import Operand, Name, PipelineExpr, PipelineBinder, PipelineOver
 from ._pipeline_sources import SourceSelection, SelectedSources
 
-SourceInput: TypeAlias = Table | Entity | Pipeline | PipelineSource
+_T = TypeVar("_T")
+
+SourceInput: TypeAlias = Table | Model | Entity | Pipeline | PipelineSource
 BoundScalar: TypeAlias = Callable[[PipelineBinder], Operand]
 BoundList: TypeAlias = Callable[
     [PipelineBinder], PipelineExpr | list[Operand] | tuple[Operand, ...]
@@ -48,12 +52,29 @@ class Pipeline:
     def all(self, /, connection: Pool | Connection | Transaction) -> Awaitable[list[Record]]: ...
     def one(self, /, connection: Pool | Connection | Transaction) -> Awaitable[Record]: ...
     def optional(self, /, connection: Pool | Connection | Transaction) -> Awaitable[Record | None]: ...
+    @overload
     def select_sources(
         self, /,
         selection: SourceSelection,
-        *,
+        *models: Never,
         qualifiers: list[str] | tuple[str, ...] | None = ...,
     ) -> SelectedSources: ...
+    @overload
+    def select_sources(
+        self, /, selection: Model, *models: Model, qualifiers: None = ...
+    ) -> PipelineSelector[tuple[ModelRecord | None, ...]]: ...
+    @overload
+    def into_model(self, /, target: Model) -> PipelineSelector[ModelRecord]: ...
+    @overload
+    def into_model(self, /, target: Callable[..., _T]) -> PipelineSelector[_T]: ...
+    def into_tuple(self, /) -> PipelineSelector[tuple[Any, ...]]: ...
+    def _select_described(
+        self, /,
+        sources: list[tuple[str, list[tuple[str, TypeName | _ModelColumnCasts | None, bool]]]],
+    ) -> Pipeline: ...
+    def _read_columns(
+        self, /, columns: list[tuple[str, TypeName | _ModelColumnCasts | None, bool]]
+    ) -> Pipeline: ...
 
 class PipelineGrouped:
     def __init__(self, _native_only: Never, /) -> None: ...

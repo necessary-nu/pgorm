@@ -189,6 +189,10 @@ has a classifier:
 - [`decode_refusal`](crate::Error::decode_refusal) gives a
   [`DecodeRefusal`](crate::DecodeRefusal): what the driver was reading, such
   as a column, and why it could not.
+- [`parameter_count_refusal`](crate::Error::parameter_count_refusal) gives a
+  [`ParameterCountRefusal`](crate::ParameterCountRefusal): how many
+  parameters the statement takes, and how many it was given. Only the
+  statement's preparation reached the server.
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
@@ -214,6 +218,15 @@ let unreadable = ("SELECT 'lemon'::text", Values(vec![]))
     .expect_err("text does not decode as an integer");
 let refusal = unreadable.decode_refusal().expect("the driver refused the column");
 assert_eq!(refusal.reading, "error deserializing column 0");
+
+// Two placeholders, and one value.
+let short = db
+    .execute("SELECT $1::text, $2::text", &[&"lemon"])
+    .await
+    .expect_err("a value is missing");
+let refusal = short.parameter_count_refusal().expect("the driver refused the count");
+assert_eq!((refusal.expected, refusal.given), (2, 1));
+assert_eq!(refusal.to_string(), "the statement takes 2 parameters, and 1 was given");
 # drop(db);
 # scratch.finish().await;
 # Ok(())
@@ -246,6 +259,7 @@ it promised, before or instead of sending a statement:
 | [`QueryBuilder`](crate::Error::QueryBuilder) | the query builder refused its input, such as a template whose placeholders do not match its values |
 | [`Listen`](crate::Error::Listen) | a `LISTEN` channel name that is too long, or a listener that fell behind ([LISTEN and NOTIFY](crate::guide::listen_notify)) |
 | [`RollbackFailed`](crate::Error::RollbackFailed) | a transaction's closure failed and its `ROLLBACK` failed too, carried out of a [`TransactionError`](crate::TransactionError) by `?`: both errors, the closure's as `cause` |
+| [`TransactionAborted`](crate::Error::TransactionAborted) | a transaction's closure returned `Ok` after catching a failed statement's error, so PostgreSQL could only roll it back ([Transactions](crate::guide::transactions#a-caught-error-still-aborts)); its source is the server's `25P02` |
 | [`Custom`](crate::Error::Custom) | a message of your own, such as a hook's refusal |
 
 ```rust

@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use pgorm::pgorm_query::{
-    ArrayType, Asterisk, BinOper, ColumnType, CommonTableExpression, Condition, Expr,
+    ArrayType, Asterisk, BinOper, ColumnType, CommonTableExpression, Condition, Expr, ExprTrait,
     ExtendedWindow, FrameExclusion, FrameType, FromItem, Func, GroupingElement, IntoNamedTable,
     JoinType, MatchedAction, MergeInsert, MergeUpdate, Name, NotMatchedAction, NullOrdering,
     OnConflict, Order, OverStatement, Overriding, Query, ReturningRow, SampleMethod, SimpleExpr,
@@ -933,7 +933,7 @@ fn grouping_elements_match_rust_builders() -> PyResult<()> {
 }
 
 // [spec:pgorm:req:bindings.select+4/test]
-// [spec:pgorm:req:sql.ast.select.table-function+2/test]    one call, ROWS FROM, ordinality and
+// [spec:pgorm:req:sql.ast.select.table-function+3/test]    one call, ROWS FROM, ordinality and
 // column names, the lone plain call as Rust's FunctionCall item, and anything but a call refused
 #[test]
 fn table_functions_match_rust_builders() -> PyResult<()> {
@@ -1233,7 +1233,7 @@ fn set_operation_arms_are_checked_when_read() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+3/test]    array(select) is Rust's Expr::array over the
+// [spec:pgorm:req:bindings.expressions+4/test]    array(select) is Rust's Expr::array over the
 // subquery as it embeds, projected and compared as one value, and an ordered-with-ties subquery
 // is refused as any embedded one is
 #[test]
@@ -1290,8 +1290,8 @@ fn array_subquery_matches_rust_expr_array() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+3/test]    exists, scalar, IN a Select and any_ / all_
-// [spec:pgorm:req:bindings.quantifiers+3/test]
+// [spec:pgorm:req:bindings.expressions+4/test]    exists, scalar, IN a Select and any_ / all_
+// [spec:pgorm:req:bindings.quantifiers+4/test]
 // are Rust's Expr::exists, the scalar SubQuery, in_subquery / not_in_subquery and Expr::any /
 // Expr::all over a subquery or Func::any / Func::all over an array, a quantifier taken by each
 // comparison and refused by arithmetic, IS DISTINCT FROM, a membership list and bind
@@ -1359,7 +1359,7 @@ fn subquery_expressions_match_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.quantifiers+3/test]    any_ and all_ are the right operand of LIKE's
+// [spec:pgorm:req:bindings.quantifiers+4/test]    any_ and all_ are the right operand of LIKE's
 // and ILIKE's family, the regular-expression matches, containment, the range positions, @@ and
 // @?, each Rust's operator over Func::any / Func::all or Expr::any / Expr::all, and every other
 // operator and operand position refuses one

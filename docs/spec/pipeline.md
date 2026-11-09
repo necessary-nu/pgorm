@@ -217,7 +217,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Composition
 
-> [spec:pgorm:req:pipeline.compose]
+> [spec:pgorm:req:pipeline.compose+2]
 > A whole `Pipeline` is a relation: `IntoSource` is implemented for
 > `Pipeline` by value, so another pipeline can read it (`from`), join it
 > (`join`), or combine with it (`append` / `intersect` / `remove`). This is
@@ -258,14 +258,54 @@ of the crate, compiled in every build. Rules are grouped under
 > The set operations correspond by column position and emit the `ALL` forms:
 > `append` is `UNION ALL`, `intersect` is `INTERSECT ALL`, `remove` is
 > `EXCEPT ALL` (each row of the operand cancels one matching row, not all).
-> `distinct` is PRQL's `group this (take 1)`, rendered `SELECT DISTINCT`,
-> and folded by prqlc into `UNION DISTINCT` when it directly follows
-> `append`. When both projections are visible to prqlc a column-count
-> mismatch is refused at `into_sql`; relations with wildcard projections
-> are the server's to check. After `intersect` or `remove` the combined
-> relation is renamed, so later stages refer to its columns by bare name —
-> an entity-qualified reference no longer resolves — while after `append`
-> the left side's naming survives.
+> All three compile to relation-level transforms that combine the operands
+> whole, the fork's std `append`, `intersect` and `remove`, which PRQL text
+> reaches by the same names (`[spec:pgorm:def:macros.prql]`). The fork departs
+> from upstream PRQL there on purpose: upstream defines `intersect` and
+> `remove` as joins over the pairs `tuple_zip` makes of the two operands'
+> columns, which can neither expand a wildcard a later stage reads a column
+> through (refused: "This wildcard usage is not yet supported") nor tell a
+> shorter operand from a matching one (a two-column relation intersected with
+> a one-column one became an inner join on the first column, and a `derive`
+> before the operation lost its column). `distinct` is PRQL's
+> `group this (take 1)`, rendered `SELECT DISTINCT`, and folded into
+> `UNION DISTINCT` or `INTERSECT DISTINCT` when it directly follows `append`
+> or `intersect`; after `remove` it deduplicates the result, which is not
+> `EXCEPT DISTINCT`. When both projections are visible to prqlc a
+> column-count mismatch is refused at `into_sql`, for all three; an operand
+> whose columns are a wildcard is the server's to check, and so are two
+> operands that each read different columns of a table they both expose
+> whole, since behind the wildcards their frames do not say how the
+> positions line up.
+>
+> A stage after a set operation reads the combined relation whole. prqlc
+> renders such a stage into the query of the operation's first operand where
+> it can, which is wrong for every stage that narrows the columns: a
+> projection lands on that operand's `SELECT` alone, so the other keeps its
+> wildcard and the arms no longer line up (`SELECT id FROM a UNION ALL SELECT
+> * FROM b`); a column an aggregation needs is pruned from the first operand
+> only; and under `INTERSECT` and `EXCEPT` pruning both operands changes the
+> relation, since the operation then compares fewer columns. The set
+> operation's stages are therefore settled into a binding before the next
+> stage that reads its result — a projection, a filter, a `derive`, a sort, a
+> `take`, a join, a window, an aggregation, a model terminal's projection —
+> and that stage reads the binding, a CTE prqlc renders whole:
+> `WITH table_0 AS (SELECT * FROM a UNION ALL SELECT * FROM b) SELECT id FROM
+> table_0`. Two stages owe the settle onward rather than discharging it: a
+> further set operation, a chain the precedence rule below brackets where it
+> must, and a deduplication directly after a set operation, which folds into
+> it or deduplicates its result. A set operation nothing reads renders flat,
+> as it always did. The settle renames nothing, so a reference written
+> against a source of the combined relation — `col(source, column)`, an
+> entity column — is repointed at the binding and still resolves; a bare
+> name reads the column too. This holds over operands whose columns prqlc
+> cannot see, plain tables as much as entities: the column a stage reads is
+> inferred through the binding into the first operand's table, and since
+> nothing joins the operands column by column, nothing has to expand their
+> wildcards. `select_sources` after a set operation projects its one listed
+> source from the binding, and refuses a list of more than one, whose columns
+> the combined relation no longer keeps apart (`ReshapedSources` naming the
+> operation).
 >
 > `this` expands over a relation whose columns no projection has replaced
 > to the wildcard that relation still carries, so the deduplication key
@@ -291,16 +331,15 @@ of the crate, compiled in every build. Rules are grouped under
 > PostgreSQL reads. `INTERSECT` binds tighter than `UNION` and `EXCEPT`,
 > which share one level and associate left, so the server would evaluate
 > `a UNION ALL (b INTERSECT ALL c)` — a different relation, and under the
-> `ALL` forms every row of a self-combining source twice. An operation whose
-> operator binds tighter than one already pending therefore takes its left
-> operand as a binding: prqlc's rendering offers no parentheses, and a CTE
-> boundary is the same bracket by another spelling. The obligation is read
-> off the whole pending run rather than the stage that happens to be last,
-> because a stage between two set operations need not break the chain —
-> prqlc folds a projection the relation already carries back into the set
-> operation's own arms. Where precedence cannot move the reading — `append`
-> or `remove` after any operation, any operation after `intersect` — nothing
-> is minted.
+> `ALL` forms every row of a self-combining source twice. An operand that is
+> itself a set operation is therefore parenthesised wherever the flat
+> spelling would regroup it: always on the right, since the chain associates
+> left — `append(Pipeline::from(b).remove(c))` is `a UNION ALL (b EXCEPT ALL
+> c)` — and on the left of an `INTERSECT` when it is a `UNION` or an
+> `EXCEPT`. The fork's renderer does this, for every chain prqlc renders,
+> rather than the pipeline settling bindings to stand in for the brackets;
+> where precedence cannot move the reading — `append` or `remove` after any
+> operation, any operation after `intersect` — nothing is added.
 
 ## Self-joins
 
@@ -412,7 +451,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Failure model
 
-> [spec:pgorm:req:pipeline.errors+4]
+> [spec:pgorm:req:pipeline.errors+5]
 > Pipeline construction is infallible; `into_sql()` is the fallible
 > boundary, returning `PipelineError` and never panicking, per
 > `[dec:pgorm:no-panic]`. Four variants: `UnquotableIdentifier(name)` — an
@@ -427,8 +466,9 @@ of the crate, compiled in every build. Rules are grouped under
 > value, ill-typed stages); and `ReshapedSources(stage)` — the
 > `select_sources` terminal (`[spec:pgorm:sem:pipeline.select-sources]`)
 > was asked to project entity models out of a pipeline whose sources'
-> column namespaces a `select`, `group().aggregate()`, `intersect` or
-> `remove` stage had already replaced, refused before prqlc compiles and
+> column namespaces a `select` or `group().aggregate()` stage had already
+> replaced, a `distinct` had settled away, or a set operation had combined
+> while more than one source is listed, refused before prqlc compiles and
 > naming the stage. `From<PipelineError> for Error` lifts into
 > `Error::Query` so the terminals can fail through the ordinary channel.
 >
@@ -496,7 +536,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Qualification
 
-> [spec:pgorm:sem:pipeline.qualify+3]
+> [spec:pgorm:sem:pipeline.qualify+4]
 > Column references are table-qualified by construction. An entity column
 > already carries its entity, so `Into<Expr>` for `ColumnTrait` recovers the
 > qualification from `entity_name()` rather than making the caller restate
@@ -509,7 +549,10 @@ of the crate, compiled in every build. Rules are grouped under
 > operand, a set-operation operand — and there are four: an `EntityTrait`
 > entity (which contributes its `table_name` and, when it has one, its
 > `EntityName::schema_name`, so an entity source is schema-correct without a
-> second spelling), an `AliasName` token, a `Name`, and a whole `Pipeline`
+> second spelling; the instance's, so an entity whose names are computed at run time
+> reads the table of the instance handed to it, under the default's table name where
+> the instance's differs, since its columns qualify by that name —
+> `[spec:pgorm:req:entity.traits.entity-name]`), an `AliasName` token, a `Name`, and a whole `Pipeline`
 > ([spec:pgorm:req:pipeline.compose]). `into_source` yields the opaque
 > `Source` carrier, whose contents only the pipeline module can construct,
 > so the set of relation shapes is closed.
@@ -523,7 +566,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Termination
 
-> [spec:pgorm:sem:pipeline.terminal]
+> [spec:pgorm:sem:pipeline.terminal+1]
 > `into_sql()` yields `(String, Values)`, the raw-SQL currency of
 > `exec.crud.selector-entry`: `into_model::<M>()` and `into_tuple::<T>()`
 > stage exactly those entry points (`SelectorRaw::from_statement`,
@@ -533,8 +576,28 @@ of the crate, compiled in every build. Rules are grouped under
 > stage before compiling — the pipeline is still a pipeline at that point,
 > so the limit belongs to it, in contrast to `SelectorRaw::one`, which
 > executes its text as written.
+>
+> The model terminals (`into_model`, `all`, `one`, `one_opt`) compile the
+> pipeline as `M` reads it. Where `M::expected_columns()` reports a column
+> carrying a read cast (`exec.verify`) — an entity model's enum column, read
+> as its `text`, a `money` column read as `numeric`, a
+> `#[pgorm(select_as = "…")]` override — the wildcard a pipeline otherwise
+> selects would deliver the column's own type, which the field does not
+> decode, so the pipeline ends in one more projection: every column `M`
+> reports, in its order, each referred to as `this.<name>` and a cast column
+> written `CAST(this.<name> AS type)` under its own name, the type through
+> the `TypeName` part policy `select_sources` writes its casts by. `this`
+> keeps a column named like one of PRQL's own (`date`, `rank`) a column.
+> The aliases end the pipeline, so they pass the identifier screen and not
+> the reserved-alias one: no later stage exists to resolve one to the PRQL
+> name it shares. A type that reports no columns, or none carrying a cast,
+> is compiled as written — `into_sql` and the model terminals then emit the
+> same text. The projection names `M`'s columns bare, so it needs a relation
+> in which each name means one column; after a join of relations sharing one
+> prqlc refuses it as `Compile` ("Ambiguous name"), which is the case
+> `select_sources` exists for.
 
-> [spec:pgorm:sem:pipeline.select-sources+4]
+> [spec:pgorm:sem:pipeline.select-sources+6]
 > `select_sources(sources)` is the model-decode terminal: where
 > `into_model::<M>` asks the caller for a row type whose projection the
 > caller must have arranged, `select_sources` takes the relations
@@ -589,18 +652,21 @@ of the crate, compiled in every build. Rules are grouped under
 > semantics of `[spec:pgorm:sem:pipeline.terminal]` — so no transform can
 > follow the selection and reshaping *after* it is unrepresentable.
 > Reshaping *before* it is refused at `into_sql`: a pipeline that already
-> passed through `select`, `group(..).aggregate(..)`, `intersect` or
-> `remove` no longer carries the sources' own column namespaces (a
-> projection replaced them, an aggregation collapsed them, a set-op
-> rename dissolved the entity qualification,
-> `[spec:pgorm:req:pipeline.compose]`), and the terminal MUST fail with a
-> typed `PipelineError` variant naming the offending stage — before prqlc
-> compiles, so the caller reads "select_sources after <stage>" rather
-> than an opaque unresolved-name diagnostic. `filter`, `derive`, `sort`,
-> `take` / `take_range`, `join`, `window` and `append` (whose left-side
-> naming survives) leave every source addressable and compose freely ahead
-> of the terminal; construction itself stays infallible per
-> `[spec:pgorm:req:pipeline.errors]`.
+> passed through `select` or `group(..).aggregate(..)` no longer carries the
+> sources' own column namespaces (a projection replaced them, an aggregation
+> collapsed them), and the terminal MUST fail with a typed `PipelineError`
+> variant naming the offending stage — before prqlc compiles, so the caller
+> reads "select_sources after <stage>" rather than an opaque unresolved-name
+> diagnostic. `filter`, `derive`, `sort`, `take` / `take_range`, `join` and
+> `window` leave every source addressable and compose freely ahead of the
+> terminal. After a set operation — `append`, `intersect` or `remove`, each
+> of which combines the operands whole and renames nothing
+> (`[spec:pgorm:req:pipeline.compose]`) — the combined relation is read whole
+> from the binding it is settled into, and a single listed source is
+> projected from that binding, its references repointed there; a list of
+> more than one is refused as `ReshapedSources` naming the operation, the
+> combined relation no longer keeping the sources' columns apart;
+> construction itself stays infallible per `[spec:pgorm:req:pipeline.errors]`.
 >
 > `distinct` composes ahead of the terminal except where it settles the
 > pipeline into a binding, which is the one thing a per-source projection
@@ -622,3 +688,45 @@ of the crate, compiled in every build. Rules are grouped under
 > every projected column is NULL is indistinguishable from an unmatched
 > one only when the projection omits the primary key, which this
 > projection never does.
+
+> [spec:pgorm:sem:pipeline.described+1]
+> A relation a program describes at run time, with no entity behind it — a
+> language binding's declared model (`[spec:pgorm:def:bindings.api]`) — is
+> read through the same writers an entity is, keyed by what the program has
+> in place of a Rust type. `col_typed(table, column, column_type)` is the
+> column `col(table, column)` names, typed by the `ColumnType` given: it
+> compares as an entity column of that type does
+> (`[spec:pgorm:sem:entity.traits.column.enum-cast]`) — cast to the enum
+> where its domain is over one, and every literal or bound value compared
+> with it, in a comparison, `coalesce` or `in_array`, cast as the type's own
+> write cast casts a value: an enum's label to the enum, a `money` value to
+> `money`, a created range's text to its type — the type's cast and no
+> other, since the program names no `save_as`. `col_shaped(table, column,
+> casts)` is the same column typed as the `TableColumn` `casts` compares
+> (`[spec:pgorm:sem:schema.shape-casts]`): cast to the enum it
+> `compares_as`, and every value compared with it cast to its
+> `compared_value_cast`, a `save_as` type included.
+>
+> `read_columns(columns)` MUST compile the pipeline as a reader of `columns`
+> reads its rows, each the name a column is read under and the type it is
+> read as where its reader needs a cast: where some column has one, `into_sql`
+> ends the pipeline in a projection of exactly those columns, in order, each
+> referred to through `this`, a cast column cast to its type under its own
+> name and its alias screened as an identifier only; where none has, the
+> pipeline is compiled as written. It is the projection `into_model::<M>`
+> writes from `M`'s expected columns (`[spec:pgorm:sem:pipeline.terminal]`),
+> for a reader no Rust type describes, and a pipeline embedded in another is
+> read by that one, without it.
+>
+> `select_described(sources)` is `select_sources` for such relations
+> (`[spec:pgorm:sem:pipeline.select-sources]`): each `DescribedSource` names
+> the qualifier its relation was read by and lists its columns, each with the
+> type it is read as where its reader needs a cast. It appends one final
+> projection stage through the same writer — for the i-th source, each listed
+> column in order, qualified by its source's name, cast to its read type by
+> pgorm's `TypeName` policy, and aliased `s{i}_{column}` under the 63-byte
+> bound — and MUST refuse a pipeline whose sources a stage already replaced
+> with the same `ReshapedSources` error, the owed `distinct` hoist included.
+> It returns the pipeline with that stage, which is itself a reshaping stage,
+> so a second selection is refused; decoding each source from its prefixed
+> columns is the caller's.

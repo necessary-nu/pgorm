@@ -3,23 +3,19 @@
 
 import assert from "node:assert/strict";
 import { pipeline as pl } from "@necessary/pgorm";
-import { Cake } from "../../../guide/bakery.ts";
+import { Cake, flavor } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const cake = (column: string) => pl.col("cake", column);
-  const other = (column: string) => pl.col("other", column);
+  const chocolate = pl.from(Cake.table)
+    .filter(pl.col("cake", "flavor").comparesAs(flavor).eq("chocolate"))
+    .sort(pl.col("cake", "id"))
+    .select(pl.col("cake", "name"));
 
-  const pairs = pl.from(Cake.table)
-    .join(pl.source(Cake.table).named("other"), cake("bakery_id").eq(other("bakery_id")))
-    .filter(cake("id").lt(other("id")))
-    .sort(cake("id"), other("id"))
-    .select(cake("name").as(pl.alias("earlier")), other("name").as(pl.alias("later")));
-
-  assert.deepEqual(await pairs.all(pool), [
-    { earlier: "Chocolate Fudge", later: "Lemon Drizzle" },
-    { earlier: "Chocolate Fudge", later: "Chocolate Torte" },
-    { earlier: "Lemon Drizzle", later: "Chocolate Torte" },
-    { earlier: "Carrot Cake", later: "Vanilla Sponge" },
-  ]);
+  assert.equal(
+    chocolate.inspect().sql,
+    "WITH table_0 AS (SELECT name, id FROM cake WHERE CAST(flavor AS public.flavor) = " +
+      "CAST($1::text AS public.flavor)) SELECT name FROM table_0 ORDER BY id",
+  );
+  assert.deepEqual(await chocolate.all(pool), [{ name: "Chocolate Fudge" }, { name: "Chocolate Torte" }]);
 }

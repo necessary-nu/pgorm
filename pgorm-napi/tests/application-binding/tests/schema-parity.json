@@ -12,6 +12,12 @@
     ],
     "table": "CREATE TABLE \"napi_entities\".\"accounts\" ( \"id\" integer NOT NULL, \"display name\" varchar NOT NULL, \"note\" varchar, \"version\" integer NOT NULL, \"mood\" napi_entities.mood NOT NULL, PRIMARY KEY (\"id\") )"
   },
+  "app.AcmeTenantNote": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_acme\".\"tenant_notes\" ( \"id\" integer NOT NULL, \"body\" varchar NOT NULL, PRIMARY KEY (\"id\") )"
+  },
   "app.Auction": {
     "comments": [],
     "enums": [],
@@ -82,6 +88,12 @@
   },
   "app.Temper": {
     "refused": "Type Error: relation `Settles` of `tempers` cannot be a foreign key: `tempers`.`settles_into` references `tempers`.`mood`, and PostgreSQL implements no foreign key with a column typed as a domain over an enum on either side (42804)"
+  },
+  "app.TenantNote": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_entities\".\"tenant_notes\" ( \"id\" integer NOT NULL, \"body\" varchar NOT NULL, PRIMARY KEY (\"id\") )"
   },
   "app.Till": {
     "comments": [],

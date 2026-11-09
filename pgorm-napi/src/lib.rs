@@ -1,12 +1,14 @@
 //! pgorm from Node.js and Deno, through Node-API.
 //!
 //! The addon is a Neon cdylib that both runtimes load as a `.node` file;
-//! `lib/index.js` loads it, defines the error and value classes, and is what
-//! JavaScript imports. pgorm's asynchronous work runs on one tokio runtime per
+//! `lib/pgorm.js` loads it and hands it the error and value classes, and
+//! `lib/index.js`, which re-exports that module, is what JavaScript imports.
+//! pgorm's asynchronous work runs on one tokio runtime per
 //! process ([`runtime`]), and each result crosses back to JavaScript by
 //! settling a promise on the instance's JavaScript thread.
 
 mod codec;
+mod codegen;
 mod connect;
 mod decode;
 mod disjoint;
@@ -18,6 +20,7 @@ mod one_of;
 mod params;
 #[cfg(debug_assertions)]
 mod probes;
+mod raw;
 mod rows;
 mod runtime;
 mod settle;
@@ -28,7 +31,7 @@ use neon::prelude::*;
 
 pub use entities::{GraphSlots, RegistrationError, Registry};
 
-/// The addon's own module, with no registered entity: what `lib/index.js`
+/// The addon's own module, with no registered entity: what `lib/pgorm.js`
 /// loads unless an application builds a module of its own around
 /// [`install`].
 // [spec:pgorm:def:napi.api+1]
@@ -44,7 +47,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
 /// into one module: what an application's own `#[neon::main]` calls, having
 /// registered its entities, in a crate that depends on this one without its
 /// `standalone-module` feature.
-// [spec:pgorm:req:bindings.entities+5]
+// [spec:pgorm:req:bindings.entities+6]
 // [spec:pgorm:req:napi.application+2]
 pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     runtime::runtime(cx)?;
@@ -57,13 +60,18 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     entities::install(cx, registry)?;
     disjoint::export(cx)?;
     migration_file::export(cx)?;
+    codegen::export(cx)?;
     one_of::export(cx)?;
+    raw::export(cx)?;
     #[cfg(debug_assertions)]
     probes::export(cx)?;
     let version = cx.string(env!("CARGO_PKG_VERSION"));
     cx.export_value("version", version)?;
-    // [spec:pgorm:req:bindings.connections+2]    the channel pgorm-migration's runner notifies
+    // [spec:pgorm:req:bindings.connections+3]    the channel pgorm-migration's runner notifies
     let channel = cx.string(pgorm::STATEMENT_CACHE_CHANNEL);
     cx.export_value("statementCacheChannel", channel)?;
+    // [spec:pgorm:req:bindings.postgres-target]    the release this build targets
+    let target = cx.number(pgorm::pgorm_query::POSTGRES_TARGET);
+    cx.export_value("postgresTarget", target)?;
     Ok(())
 }

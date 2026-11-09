@@ -2,122 +2,136 @@
 //! drives the COPY, while the native handle holds the transaction's
 //! reservation until the COPY ends.
 
-use super::{State, scope::Command, state::Pending};
+use super::State;
 use crate::{
     copy::{
-        Columns, CopyFrom, CopyTo, Message, Piece, Unopened, drive_in, drive_out, open_in, open_out,
+        Columns, CopyFrom, CopyTo, Described, Message, Piece, Unopened, describe, drive_in,
+        drive_out, open_in, open_out,
     },
-    errors::{LifecycleError, database_error},
+    errors::{LifecycleError, Raise, database_error},
 };
-use pgorm::{DatabaseTransaction, Error};
+use pgorm::Error;
+use pgorm_bindings::transaction::{Flow, Job, Lease, Tx};
 use pyo3::prelude::*;
 use std::sync::Arc;
-use tokio::sync::{OwnedMutexGuard, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 
-/// A transaction reserved by a COPY in progress. Dropped without
-/// `complete`, the COPY's outcome is unknown, and the whole transaction is
-/// discarded.
-pub(crate) struct Lease {
-    _busy: OwnedMutexGuard<()>,
-    pending: Pending,
-}
-
-impl Lease {
-    pub(crate) fn complete(mut self) {
-        self.pending.complete();
-    }
-}
-
-impl State {
-    /// Reserve the transaction and have its owner start `command`, answering
-    /// the reservation once the server has accepted the COPY.
-    async fn copy(
-        self: &Arc<Self>,
-        command: impl FnOnce(oneshot::Sender<Result<(), Unopened>>) -> Command,
-        refusal_closes: bool,
-    ) -> PyResult<Lease> {
-        self.ensure_open()?;
-        let busy = self.busy.clone().try_lock_owned().map_err(|_| {
-            LifecycleError::new_err("transaction has an active operation or nested savepoint")
-        })?;
-        let (opened, open) = oneshot::channel();
-        let mut pending = Pending::new(self.root.aborted.clone());
-        self.commands
-            .send(command(opened))
-            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
-        let result = open
-            .await
-            .map_err(|_| LifecycleError::new_err("transaction owner has closed"))?;
-        match result {
-            Ok(()) => Ok(Lease {
-                _busy: busy,
-                pending,
-            }),
-            Err(unopened) => {
-                // A refused COPY FROM has closed the connection under the
-                // transaction, so `pending` is left to abort it; a refused
-                // description has closed nothing.
-                if !refusal_closes || matches!(unopened, Unopened::Undescribed(_)) {
-                    pending.complete();
-                }
-                Err(database_error(
-                    unopened.into_error(),
-                    &self.connection.pool.secrets,
-                ))
+/// Reserve the transaction and have its owner start the COPY `job` makes,
+/// answering once the server has accepted it.
+async fn copy(
+    state: &Arc<State>,
+    job: impl FnOnce(oneshot::Sender<Result<(), Unopened>>) -> Job,
+    refusal_closes: bool,
+) -> PyResult<Lease> {
+    let lock = state.lock().py()?;
+    let (opened, open) = oneshot::channel();
+    let mut pending = state.pending();
+    state.send_job(job(opened)).py()?;
+    let result = open
+        .await
+        .map_err(|_| LifecycleError::new_err("the transaction has ended"))?;
+    match result {
+        Ok(()) => Ok(State::lease(lock, pending)),
+        Err(unopened) => {
+            // A refused COPY FROM has closed the connection under the
+            // transaction, so `pending` is left to abort it; a refused
+            // description has closed nothing.
+            if !refusal_closes || matches!(unopened, Unopened::Undescribed(_)) {
+                pending.complete();
             }
+            Err(database_error(
+                unopened.into_error(),
+                &state.connection().pool.secrets,
+            ))
         }
     }
+}
 
-    /// Wait until the root transaction's owner has let go of its connection.
-    pub(crate) async fn released(&self) {
-        self.root.finished.cancelled().await;
-    }
-
-    // [spec:pgorm:req:bindings.copy]
-    pub(crate) async fn copy_in(
-        self: &Arc<Self>,
-        statement: CopyFrom,
-        rows: Option<Columns>,
-        messages: mpsc::Receiver<Message>,
-    ) -> PyResult<(Lease, oneshot::Receiver<Result<Option<u64>, Error>>)> {
-        let (reply, settled) = oneshot::channel();
-        let lease = self
-            .copy(
-                |opened| Command::CopyIn {
-                    statement,
-                    rows,
-                    messages,
-                    opened,
-                    reply,
-                },
-                true,
-            )
-            .await?;
-        Ok((lease, settled))
-    }
-
-    // [spec:pgorm:req:bindings.copy]
-    pub(crate) async fn copy_out(
-        self: &Arc<Self>,
-        statement: CopyTo,
-        rows: Option<Columns>,
-        pieces: mpsc::Sender<Piece>,
-    ) -> PyResult<Lease> {
-        self.copy(
-            |opened| Command::CopyOut {
-                statement,
-                rows,
-                pieces,
-                opened,
+/// The columns `statement` reads or writes, described by the transaction's
+/// owner without starting the COPY. A description the server refuses aborts
+/// the transaction, as any failed statement does.
+// [spec:pgorm:req:bindings.copy-rows+2]
+pub(crate) async fn describe_in(
+    state: &Arc<State>,
+    statement: Described,
+) -> PyResult<Vec<pgorm::CopyColumn>> {
+    let lock = state.lock().py()?;
+    let pool = state.connection().pool.clone();
+    state
+        .request_on(
+            lock,
+            move |tx| {
+                Box::pin(async move {
+                    describe_on(tx, &statement)
+                        .await
+                        .map_err(|error| pool.failure(&error))
+                })
             },
-            false,
+            &CancellationToken::new(),
         )
         .await
-    }
+        .py()
+}
+
+/// A COPY FROM in the transaction, which holds it until the COPY ends.
+// [spec:pgorm:req:bindings.copy]
+pub(crate) async fn copy_in(
+    state: &Arc<State>,
+    statement: CopyFrom,
+    rows: Option<Columns>,
+    mut messages: mpsc::Receiver<Message>,
+) -> PyResult<(Lease, oneshot::Receiver<Result<Option<u64>, Error>>)> {
+    let (reply, settled) = oneshot::channel();
+    let lease = copy(
+        state,
+        |opened| {
+            Box::new(move |tx| {
+                Box::pin(async move {
+                    match run_in(tx, &statement, rows.as_ref(), &mut messages, opened).await {
+                        RanIn::Lost => Flow::Lost,
+                        RanIn::Undescribed => Flow::Kept,
+                        RanIn::Ran(result) => match reply.send(result) {
+                            Ok(()) => Flow::Kept,
+                            Err(_) => Flow::Lost,
+                        },
+                    }
+                })
+            })
+        },
+        true,
+    )
+    .await?;
+    Ok((lease, settled))
+}
+
+/// A COPY TO in the transaction, which holds it until the stream ends.
+// [spec:pgorm:req:bindings.copy]
+pub(crate) async fn copy_out(
+    state: &Arc<State>,
+    statement: CopyTo,
+    rows: Option<Columns>,
+    pieces: mpsc::Sender<Piece>,
+) -> PyResult<Lease> {
+    copy(
+        state,
+        |opened| {
+            Box::new(move |tx| {
+                Box::pin(async move {
+                    match run_out(tx, &statement, rows.as_ref(), &pieces, opened).await {
+                        true => Flow::Kept,
+                        false => Flow::Lost,
+                    }
+                })
+            })
+        },
+        false,
+    )
+    .await
 }
 
 /// How a COPY FROM on the owner's transaction ended.
-pub(super) enum RanIn {
+enum RanIn {
     /// It never started, was refused — which closes the connection — or was
     /// abandoned.
     Lost,
@@ -127,15 +141,31 @@ pub(super) enum RanIn {
     Ran(Result<Option<u64>, Error>),
 }
 
+/// The columns `statement` reads or writes, described on the owner's
+/// transaction without starting the COPY.
+async fn describe_on(
+    tx: &mut Tx<'_, '_>,
+    statement: &Described,
+) -> Result<Vec<pgorm::CopyColumn>, Error> {
+    match tx {
+        Tx::Plain(tx) => describe(&mut **tx, statement).await,
+        Tx::Metered(tx) => describe(&mut **tx, statement).await,
+    }
+}
+
 /// Run a COPY FROM on the owner's transaction.
-pub(super) async fn run_in(
-    tx: &mut DatabaseTransaction<'_>,
+async fn run_in(
+    tx: &mut Tx<'_, '_>,
     statement: &CopyFrom,
     rows: Option<&Columns>,
     messages: &mut mpsc::Receiver<Message>,
     opened: oneshot::Sender<Result<(), Unopened>>,
 ) -> RanIn {
-    match open_in(tx, statement, rows).await {
+    let started = match tx {
+        Tx::Plain(tx) => open_in(&mut **tx, statement, rows).await,
+        Tx::Metered(tx) => open_in(&mut **tx, statement, rows).await,
+    };
+    match started {
         Err(Unopened::Undescribed(error)) => {
             let _ = opened.send(Err(Unopened::Undescribed(error)));
             RanIn::Undescribed
@@ -154,14 +184,18 @@ pub(super) async fn run_in(
 /// Run a COPY TO on the owner's transaction: whether the transaction is
 /// still in a known state. A refusal aborts it as any failed statement does;
 /// a reader gone part way leaves the server sending.
-pub(super) async fn run_out(
-    tx: &mut DatabaseTransaction<'_>,
+async fn run_out(
+    tx: &mut Tx<'_, '_>,
     statement: &CopyTo,
     rows: Option<&Columns>,
     pieces: &mpsc::Sender<Piece>,
     opened: oneshot::Sender<Result<(), Unopened>>,
 ) -> bool {
-    match open_out(tx, statement, rows).await {
+    let started = match tx {
+        Tx::Plain(tx) => open_out(&mut **tx, statement, rows).await,
+        Tx::Metered(tx) => open_out(&mut **tx, statement, rows).await,
+    };
+    match started {
         Err(unopened) => opened.send(Err(unopened)).is_ok(),
         Ok(stream) => {
             if opened.send(Ok(())).is_err() {
