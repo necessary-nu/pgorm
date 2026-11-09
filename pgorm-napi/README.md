@@ -75,6 +75,12 @@ deno check
   to with pgorm-query and pgorm directly. `tests/model-types.test.ts` is held
   by `deno check`: it type-checks only while the declarations type a model's
   records, writes, keys, graphs and cursors from its columns.
+- `deno check` also fails an import that would fail to link: `deno.json`'s
+  `checkJs` type-checks every JavaScript module's imports, and
+  `tests/declarations.ts`, which neither runner collects, holds the values
+  `lib/index.d.ts` declares to the ones `lib/pgorm.js` exports. Deno resolves
+  none of `lib/index.js`'s own imports, since its types are the declarations,
+  so that module is only `export * from "./pgorm.js"`.
 - The suite connects in plaintext unless its connection string names an
   `sslmode`; with `PGORM_TEST_CA` naming a PEM CA whose certificate for
   `localhost` the server presents, it also holds each TLS mode against that

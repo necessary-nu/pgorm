@@ -3992,6 +3992,7 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
+    {id napi.lib-imports-checked}
 )
 
 onboarding {kind @adopt, phase 11}
