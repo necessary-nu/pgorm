@@ -14475,12 +14475,20 @@ children (
                         title "The models command-line test writes to a file of its own, since Linux refuses to open /dev/stdout on a spawned child's socket"
                         kind @fix
                         deps (guide.python-gaps.model-codegen)
+                        sealed true
                         log (
                             {
                                 at 2026-11-09T15:16:39.920507Z
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-09T15:17:39.744422Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
@@ -21359,12 +21367,20 @@ children (
                         title "CI's local PostgreSQL wrapper gives the TLS tests the client certificate, role and pg_hba line the Docker wrapper gives them"
                         kind @fix
                         deps (guide.python-gaps.pool-config)
+                        sealed true
                         log (
                             {
                                 at 2026-11-09T15:16:20.914461Z
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-09T15:17:34.01912Z
+                                author "brendan@necessary.nu"
+                                kind @status
+                                text "Doing → Done (nplan complete)"
                             }
                         )
                     }
