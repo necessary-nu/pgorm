@@ -16,16 +16,25 @@ use crate::{Connector, Dialect, Failure, HookEvent, Redactions, Refusal, TlsSett
 // [spec:pgorm:req:bindings.connections+3]
 // [spec:pgorm:req:bindings.pool-hooks]
 #[derive(Debug, Clone)]
-#[allow(missing_docs)]
 pub struct PoolOptions<C> {
+    /// The most connections the pool holds.
     pub max_size: usize,
+    /// How long the binding's acquire waits for a connection in all, which
+    /// [`PoolState`](crate::PoolState) times itself.
     pub acquire_timeout: Duration,
+    /// How long a `get` waits for a free connection.
     pub wait_timeout: Option<Duration>,
+    /// How long opening a connection may take.
     pub create_timeout: Option<Duration>,
+    /// How long checking a returned connection may take.
     pub recycle_timeout: Option<Duration>,
+    /// Whether the pool lends the connection returned first or last.
     pub queue_mode: QueueMode,
+    /// The callable run on each connection as it opens.
     pub post_create: Option<C>,
+    /// The callable run on a returned connection before it is checked.
     pub pre_recycle: Option<C>,
+    /// The callable run on a returned connection once it passed its check.
     pub post_recycle: Option<C>,
 }
 
@@ -58,10 +67,12 @@ impl<C> PoolOptions<C> {
 /// A pool built from a binding's options, the secrets its errors redact, and
 /// how long acquiring one of its connections waits.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct Built {
+    /// The pool.
     pub pool: DatabasePool,
+    /// What the pool's errors redact: its configuration's password.
     pub secrets: Redactions,
+    /// [`PoolOptions::acquire_timeout`], as the options gave it.
     pub acquire_timeout: Duration,
 }
 
@@ -228,7 +239,7 @@ impl PoolSettings {
     }
 
     /// One pool per tag, each shaped as its entry of `options` says, sharing
-    /// these settings, in the tags' order, as [`multi_pool`] builds them.
+    /// these settings, in the tags' order, through pgorm's `connect_multi_with`.
     // [spec:pgorm:req:bindings.multi-pool]
     pub fn pools<C>(
         self,

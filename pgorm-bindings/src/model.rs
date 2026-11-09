@@ -11,13 +11,18 @@ use crate::Failure;
 /// columns it pairs at each end, the table it reaches, its actions and its
 /// constraint's name.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct BelongsTo {
+    /// The model's own columns the key holds, in order.
     pub from: Vec<String>,
+    /// The columns of `target` they reference, in the same order.
     pub to: Vec<String>,
+    /// The table the key references.
     pub target: TableName,
+    /// The key's `ON DELETE` action, or none for PostgreSQL's default.
     pub on_delete: Option<ForeignKeyAction>,
+    /// The key's `ON UPDATE` action, or none for PostgreSQL's default.
     pub on_update: Option<ForeignKeyAction>,
+    /// The constraint's name, or none for the one pgorm gives it.
     pub fk_name: Option<String>,
 }
 

@@ -35,9 +35,10 @@ const CONNECTION_CLOSED: &str = "the connection is closed";
 /// pool lent, which reports what runs on it.
 // [spec:pgorm:req:bindings.metrics]
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub enum Held {
+    /// A connection of a pool with no collector.
     Plain(DatabaseConnection),
+    /// A connection of an instrumented pool, reporting to its collector.
     Metered(InstrumentedConnection<Metrics>),
 }
 

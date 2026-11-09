@@ -31,8 +31,8 @@ pub(crate) fn column<E: EntityTrait>(info: &EntityInfo, name: &str) -> Result<E:
 /// A registered entity: the entity value whose table every statement names,
 /// and what the binding knows of it.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct EntityAdapter<E> {
+    /// What the binding knows of the entity: its table, columns and key.
     pub info: Arc<EntityInfo>,
     /// The registered entity value, whose table every statement names.
     pub entity: E,

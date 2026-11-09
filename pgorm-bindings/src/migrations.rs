@@ -24,18 +24,18 @@ use crate::{
 /// it once, as the list was built, and the object whose `up` it runs.
 #[derive(Debug)]
 pub struct Written<T> {
-    #[allow(missing_docs)]
+    /// The migration's name, which the ledger records it by.
     pub name: String,
-    #[allow(missing_docs)]
+    /// The checksum the ledger holds an applied migration to, if it has one.
     pub checksum: Option<String>,
-    #[allow(missing_docs)]
+    /// Whether the batch commits after this migration before the next runs.
     pub commits_after: bool,
-    #[allow(missing_docs)]
+    /// The language's migration object, whose `up` [`Host::up`] runs.
     pub object: T,
 }
 
+/// One migration of a binding's list.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub enum Entry<T> {
     /// A migration whose whole body is one SQL script.
     Sql(SqlMigration),
@@ -161,12 +161,12 @@ impl<T: Send + Sync + 'static> Listed<T> {
         }
     }
 
-    #[allow(missing_docs)]
+    /// How many migrations the list holds.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    #[allow(missing_docs)]
+    /// Whether the list holds no migration.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

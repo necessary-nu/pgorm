@@ -44,8 +44,8 @@ impl fmt::Debug for GroupedRead {
 /// One decoded source of a registered graph: its entity, and whether its
 /// row may be absent.
 #[derive(Clone, Debug)]
-#[allow(missing_docs)]
 pub struct Source {
+    /// The registered entity the source's row decodes as.
     pub entity: Arc<EntityInfo>,
     /// Whether the source is an `Opt` slot, whose row may be absent.
     pub optional: bool,
@@ -399,11 +399,12 @@ where
 /// A registered graph: its name, the Rust shape, its sources, and the
 /// binding whose spelling its description and refusals take.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct GraphInfo {
+    /// The name the graph is registered under.
     pub name: String,
     /// The Rust type of the graph, `SelectGraph<E, S>`.
     pub shape: &'static str,
+    /// The graph's slots and the decoded sources each reads.
     pub bindings: GraphBindings,
     pub(crate) dialect: Dialect,
 }
@@ -498,8 +499,8 @@ impl GraphInfo {
 pub type GraphQuery = Arc<dyn GraphQueryBackend>;
 
 /// A registered graph shape: what it is, and the query its factory builds.
-#[allow(missing_docs)]
 pub trait GraphBackend: fmt::Debug + Send + Sync {
+    /// What the graph is.
     fn info(&self) -> &Arc<GraphInfo>;
     /// The graph built by the application's factory under `aliases`, one
     /// per slot.
@@ -509,19 +510,20 @@ pub trait GraphBackend: fmt::Debug + Send + Sync {
 /// One step a graph query takes, each the `SelectGraph` method of its
 /// meaning.
 #[derive(Clone, Debug)]
-#[allow(missing_docs)]
 pub enum GraphChange {
+    /// `QueryFilter::filter`: the rows the condition keeps.
     Filter(Condition),
     /// `QueryOrder::order_by`, or `order_by_with_nulls` with a placement.
     Order(SimpleExpr, Order, Option<NullOrdering>),
 }
 
 /// A registered graph's query.
-#[allow(missing_docs)]
 pub trait GraphQueryBackend: fmt::Debug + Send + Sync {
+    /// What the graph is.
     fn info(&self) -> &Arc<GraphInfo>;
     /// The aliases the slots are joined under, in slot order.
     fn aliases(&self) -> &[String];
+    /// The query with `change` applied, this one left as it is.
     fn change(&self, change: GraphChange) -> GraphQuery;
     /// The statement, `optional` narrowed to one row.
     fn compile(&self, optional: bool) -> (String, Values);

@@ -59,7 +59,8 @@ impl Registry {
         }
     }
 
-    #[allow(missing_docs)]
+    /// The binding whose spelling the registry's refusals and descriptions
+    /// take.
     pub fn dialect(&self) -> Dialect {
         self.dialect
     }
@@ -164,27 +165,27 @@ impl Registry {
         Ok(())
     }
 
-    #[allow(missing_docs)]
+    /// Every registered entity, by the name it is registered under.
     pub fn entities(&self) -> &BTreeMap<String, Arc<dyn EntityBackend>> {
         &self.entities
     }
 
-    #[allow(missing_docs)]
+    /// Every registered graph shape, by name.
     pub fn graphs(&self) -> &BTreeMap<String, Arc<dyn GraphBackend>> {
         &self.graphs
     }
 
-    #[allow(missing_docs)]
+    /// Every registered source tuple, by name.
     pub fn source_tuples(&self) -> &BTreeMap<String, Arc<dyn SourcesBackend>> {
         &self.sources
     }
 
-    #[allow(missing_docs)]
+    /// Every registered disjoint enum, by name.
     pub fn disjoints(&self) -> &BTreeMap<String, Arc<DisjointCore>> {
         &self.disjoints
     }
 
-    #[allow(missing_docs)]
+    /// Every registered one-of reference, by name.
     pub fn one_ofs(&self) -> &BTreeMap<String, Arc<OneOfCore>> {
         &self.one_ofs
     }

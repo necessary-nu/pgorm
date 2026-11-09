@@ -10,7 +10,7 @@
 
 mod stage;
 
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 pub use stage::{BOUND_LIST, Plan, Stage, aggregate, filter, group, join, list};
 
@@ -39,21 +39,34 @@ pub const MISPLACED: &str = "a placeholder belongs to the stage its binder's fun
 
 /// The binary operators pgorm's pipeline has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub enum Binary {
+    /// `==`, SQL's `=`.
     Eq,
+    /// `!=`, SQL's `<>`.
     Ne,
+    /// `>`.
     Gt,
+    /// `>=`.
     Gte,
+    /// `<`.
     Lt,
+    /// `<=`.
     Lte,
+    /// `&&`, SQL's `AND`.
     And,
+    /// `||`, SQL's `OR`.
     Or,
+    /// `??`: the left operand, or the right where it is null.
     Coalesce,
+    /// `+`.
     Add,
+    /// `-`.
     Sub,
+    /// `*`.
     Mul,
+    /// `/`.
     Div,
+    /// `%`, the remainder.
     Rem,
 }
 
@@ -80,13 +93,18 @@ impl Binary {
 
 /// The unary operators, a sort key's direction among them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub enum Unary {
+    /// Logical negation.
     Not,
+    /// Arithmetic negation.
     Neg,
+    /// A sort key, ascending.
     Asc,
+    /// A sort key, descending.
     Desc,
+    /// Whether the operand is null.
     IsNull,
+    /// Whether the operand is not null.
     IsNotNull,
 }
 
@@ -105,18 +123,28 @@ impl Unary {
 
 /// The aggregate and window functions over one expression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub enum Function {
+    /// `sum`, an aggregate.
     Sum,
+    /// `min`, an aggregate.
     Min,
+    /// `max`, an aggregate.
     Max,
+    /// `average`, an aggregate.
     Average,
+    /// `stddev`, an aggregate.
     Stddev,
+    /// `count` of the rows where the expression is not null.
     Count,
+    /// `count` of the expression's distinct values.
     CountDistinct,
+    /// `rank` within the window, with gaps after ties.
     Rank,
+    /// `rank_dense` within the window, without gaps.
     RankDense,
+    /// The expression's value at the window's first row.
     First,
+    /// The expression's value at the window's last row.
     Last,
     /// The row the offset before this one in the window.
     Lag(i64),
@@ -146,12 +174,16 @@ impl Function {
 
 /// A literal written into the SQL as pgorm's pipeline writes one.
 #[derive(Debug, Clone)]
-#[allow(missing_docs)]
 pub enum Literal {
+    /// `null`.
     Null,
+    /// `true` or `false`.
     Bool(bool),
+    /// A whole number.
     Integer(i64),
+    /// A floating-point number.
     Float(f64),
+    /// A string, quoted as PRQL quotes one.
     Text(String),
 }
 
@@ -181,13 +213,13 @@ pub enum Recipe {
     This(Name),
     /// `that.name`, a join's other relation's column.
     That(Name),
-    #[allow(missing_docs)]
+    /// The operator over its left and right operands.
     Binary(Binary, Arc<Self>, Arc<Self>),
-    #[allow(missing_docs)]
+    /// The operator over its one operand.
     Unary(Unary, Arc<Self>),
     /// The expression under a name of its own.
     Named(Arc<Self>, Name),
-    #[allow(missing_docs)]
+    /// The expression cast to the type given.
     Cast(Arc<Self>, pl::CastType),
     /// The expression compared as the enum type named.
     ComparesAs(Arc<Self>, TypeName),
@@ -197,7 +229,7 @@ pub enum Recipe {
     CountRows,
     /// `row_number()`.
     RowNumber,
-    #[allow(missing_docs)]
+    /// The function over the expression.
     Function(Function, Arc<Self>),
     /// `CASE` of its arms, and the value no arm matched.
     Case(Vec<(Arc<Self>, Arc<Self>)>, Arc<Self>),
@@ -206,12 +238,20 @@ pub enum Recipe {
 /// What lowering a recipe binds with: the stage's binder and the
 /// placeholders its binder function minted, or neither for a stage that
 /// binds nothing.
-#[allow(missing_debug_implementations)]
 pub struct Lowering<'a, 'brand> {
     /// The stage's binder, if it binds.
     pub binder: Option<&'a mut pl::Binder<'brand>>,
     /// The placeholders its binder function minted.
     pub bound: &'a [pl::Expr<'brand>],
+}
+
+impl fmt::Debug for Lowering<'_, '_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Lowering")
+            .field("binds", &self.binder.is_some())
+            .field("bound", &self.bound.len())
+            .finish()
+    }
 }
 
 impl Recipe {

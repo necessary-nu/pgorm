@@ -40,9 +40,11 @@ pub enum RowCodec {
 
 /// One disjoint model or registration: its shape, its codec, and its
 /// description.
-#[allow(missing_docs)]
 pub struct DisjointCore {
+    /// pgorm's description of the base table and each kind's table, which
+    /// its DDL and statements are written from.
     pub shape: DisjointShape,
+    /// How a joined row of the base and its kind's table is decoded.
     pub codec: RowCodec,
     /// What `describe()` reports, spelled by the binding's rule.
     pub description: Json,
@@ -61,9 +63,10 @@ impl fmt::Debug for DisjointCore {
 /// Where a kinded model's base holds each row's kind: the column, the field
 /// it is the column of, and the kind type.
 #[derive(Clone, Debug)]
-#[allow(missing_docs)]
 pub struct Kinded {
+    /// The base table's column holding the kind.
     pub column: String,
+    /// The model's field that column is read into.
     pub field: String,
     /// The enum type the kinds are labels of.
     pub kind_type: TypeName,
@@ -89,18 +92,20 @@ pub enum KindRow<'a> {
 /// A registration's decoded row: its base model, its kind, and its kind's
 /// model, `None` for a kind without a table.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct EntityRow {
+    /// The base table's row.
     pub base: Model,
+    /// The kind's name, as the kind type's label spells it.
     pub kind: String,
+    /// The kind's own row, `None` for a kind without a table.
     pub row: Option<Model>,
 }
 
 /// A judged row of a model: the index of its kind and the decoded source
 /// its kind's row is under.
 #[derive(Clone, Copy, Debug)]
-#[allow(missing_docs)]
 pub struct Judged {
+    /// The kind's index, in the order the model declares its kinds.
     pub kind: usize,
     /// The decoded source of the kind's row, `None` for a kind without one.
     pub source: Option<usize>,

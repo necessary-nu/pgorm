@@ -21,10 +21,12 @@ use crate::{Dialect, Refusal};
 
 /// A COPY's data format, which decides the options it takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub enum DataFormat {
+    /// PostgreSQL's text format: tab-separated, `\N` for null.
     Text,
+    /// CSV, which takes its quoting options.
     Csv,
+    /// PostgreSQL's binary format, the one a COPY of rows uses.
     Binary,
 }
 
@@ -32,20 +34,24 @@ pub enum DataFormat {
 /// builder holds it.
 // [spec:pgorm:req:bindings.copy]
 #[derive(Debug, Clone)]
-#[allow(missing_docs)]
 pub enum CopyFrom {
+    /// In the text format.
     Text(CopyFromStatement<CopyText>),
+    /// In CSV.
     Csv(CopyFromStatement<CopyCsv>),
+    /// In the binary format.
     Binary(CopyFromStatement<CopyBinary>),
 }
 
 /// A `COPY … TO STDOUT` in one of its three formats.
 // [spec:pgorm:req:bindings.copy]
 #[derive(Debug, Clone)]
-#[allow(missing_docs)]
 pub enum CopyTo {
+    /// In the text format.
     Text(CopyToStatement<CopyText>),
+    /// In CSV.
     Csv(CopyToStatement<CopyCsv>),
+    /// In the binary format.
     Binary(CopyToStatement<CopyBinary>),
 }
 

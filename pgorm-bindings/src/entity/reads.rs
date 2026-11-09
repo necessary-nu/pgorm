@@ -27,18 +27,20 @@ pub type Decode = Arc<dyn Fn(QueryResult) -> Result<Row, Error> + Send + Sync>;
 /// A registered read's pages: pgorm's erased paginator, and the entities its
 /// rows' sources decode as.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct Pages {
+    /// pgorm's paginator over the read, its type erased.
     pub pages: Box<dyn ErasedPages<Row, Metrics>>,
+    /// The entities each row's sources decode as, in source order.
     pub sources: Vec<Arc<EntityInfo>>,
 }
 
 /// A column a cursor's boundary value converts through: its entity, and its
 /// name there.
 #[derive(Clone, Debug)]
-#[allow(missing_docs)]
 pub struct KeyColumn {
+    /// The entity the column belongs to.
     pub entity: Arc<EntityInfo>,
+    /// The column's name in that entity's table.
     pub column: String,
 }
 
@@ -46,13 +48,15 @@ pub struct KeyColumn {
 /// columns, the whole key a `_with` boundary names, and the entities its
 /// rows' sources decode as.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct Keyset {
+    /// pgorm's keyset cursor over the read, its type erased.
     pub cursor: Arc<dyn ErasedCursor<Row, Metrics>>,
+    /// The columns the cursor orders by, whose values a boundary gives.
     pub order: Vec<KeyColumn>,
     /// The whole key a `_with` boundary names: the order columns, and the
     /// tiebreak a graph completes them with.
     pub key: Vec<KeyColumn>,
+    /// The entities each row's sources decode as, in source order.
     pub sources: Vec<Arc<EntityInfo>>,
 }
 

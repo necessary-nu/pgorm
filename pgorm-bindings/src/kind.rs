@@ -14,8 +14,8 @@ use crate::{Dialect, Failure};
 /// A PostgreSQL type named by identifier: an enum, or a range type a schema
 /// created.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub struct TypeName {
+    /// The type's own name, unquoted.
     pub name: String,
     /// Its schema, or `None` for the search path's.
     pub schema: Option<String>,
@@ -52,8 +52,8 @@ impl TypeName {
 /// A range or multirange type a schema created: its name, the value kind of
 /// its subtype, and which of the two it is.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub struct CreatedKind {
+    /// The range or multirange type's name.
     pub name: TypeName,
     /// The value kind each bound is.
     pub subtype: ArrayType,
@@ -80,7 +80,6 @@ impl CreatedKind {
 
 /// The kind a value is.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub enum Tag {
     /// One of pgorm's `Value` kinds, which needs no type name.
     Scalar(ArrayType),
@@ -88,6 +87,7 @@ pub enum Tag {
     Enum(TypeName),
     /// A value of a range type a schema created.
     Created(CreatedKind),
+    /// A one-dimensional array whose elements are of the kind it holds.
     Array(Box<Tag>),
 }
 

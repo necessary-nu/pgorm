@@ -37,9 +37,10 @@ const ENDED: &str = "the transaction has ended";
 /// instrumented too.
 // [spec:pgorm:req:bindings.metrics]
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub enum Tx<'a, 't> {
+    /// A transaction on a pool's plain connection.
     Plain(&'a mut DatabaseTransaction<'t>),
+    /// A transaction on an instrumented pool's connection.
     Metered(&'a mut InstrumentedTransaction<'t, Metrics>),
 }
 

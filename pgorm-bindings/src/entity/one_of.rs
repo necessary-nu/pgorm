@@ -40,12 +40,16 @@ impl fmt::Debug for OneOfCore {
 /// field holding its key, that field's column, and its model's name and
 /// table.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct DescribedTarget {
+    /// The name the reference's kind gives this target.
     pub value: String,
+    /// The referencing model's field holding the target's key.
     pub field: String,
+    /// The column that field is stored in.
     pub column: String,
+    /// The target model's name.
     pub model: String,
+    /// The target model's table, which the key references.
     pub table: DisjointTable,
 }
 

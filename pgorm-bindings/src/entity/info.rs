@@ -26,8 +26,8 @@ pub fn object<const N: usize>(dialect: Dialect, fields: [(&str, Json); N]) -> Js
 
 /// One column of a registered entity.
 #[derive(Clone, Debug)]
-#[allow(missing_docs)]
 pub struct ColumnInfo {
+    /// The column's name in its table.
     pub name: String,
     /// The key the Rust field serializes under, `ColumnTrait::json_key`.
     pub json_key: String,
@@ -35,6 +35,7 @@ pub struct ColumnInfo {
     pub sql_type: String,
     /// The Rust type of its field, where the model reflects it.
     pub rust_type: Option<&'static str>,
+    /// Whether the column takes null.
     pub nullable: bool,
     /// Whether it is part of the primary key.
     pub primary_key: bool,

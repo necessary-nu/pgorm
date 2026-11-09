@@ -26,11 +26,14 @@ pub struct Plan {
 
 /// The list-taking stages that give a pipeline back.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub enum Stage {
+    /// `derive`: the expressions added as columns.
     Derive,
+    /// `select`: the expressions as the whole projection.
     Select,
+    /// `sort`: the rows ordered by the expressions.
     Sort,
+    /// `window`: the expressions computed over the window given.
     Window(pl::Over),
 }
 

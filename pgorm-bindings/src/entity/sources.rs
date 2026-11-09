@@ -22,8 +22,8 @@ mod sealed {
 
 /// The registered entities of a source tuple, in order.
 #[derive(Clone, Debug)]
-#[allow(missing_docs)]
 pub struct SourceBindings {
+    /// The tuple's entities, each the source its position decodes as.
     pub entities: Vec<Arc<EntityInfo>>,
 }
 
@@ -119,10 +119,12 @@ sources!(E1 @ 0, E2 @ 1, E3 @ 2, E4 @ 3, E5 @ 4, E6 @ 5);
 
 /// A registered source tuple: its name, the Rust shape and its entities.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct SourcesInfo {
+    /// The name the tuple is registered under.
     pub name: String,
+    /// The Rust tuple type, as `std::any::type_name` writes it.
     pub shape: &'static str,
+    /// The tuple's entities.
     pub bindings: SourceBindings,
     pub(crate) dialect: Dialect,
 }
@@ -183,8 +185,8 @@ impl SourcesInfo {
 pub type Selected = Arc<dyn SelectedBackend>;
 
 /// A registered source tuple, which a pipeline's rows are selected as.
-#[allow(missing_docs)]
 pub trait SourcesBackend: fmt::Debug + Send + Sync {
+    /// What the tuple is.
     fn info(&self) -> &Arc<SourcesInfo>;
     /// `pipeline`'s rows selected as the tuple, each position under its
     /// qualifier.
@@ -192,8 +194,8 @@ pub trait SourcesBackend: fmt::Debug + Send + Sync {
 }
 
 /// A pipeline's selected sources, `SelectedSources<T>`.
-#[allow(missing_docs)]
 pub trait SelectedBackend: fmt::Debug + Send + Sync {
+    /// What the tuple the rows are selected as is.
     fn info(&self) -> &Arc<SourcesInfo>;
     /// The statement, narrowed to one row by `take(1)` for any read but
     /// `all`.

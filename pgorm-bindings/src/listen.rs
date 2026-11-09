@@ -21,20 +21,24 @@ const LISTENER_CLOSED: &str = "the listener is closed";
 /// What a request on a listener asks of its connection: `LISTEN`,
 /// `UNLISTEN` or `UNLISTEN *`, each channel sent as a quoted identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub enum ListenRequest {
+    /// `LISTEN` on the channel named.
     Listen(String),
+    /// `UNLISTEN` on the channel named.
     Unlisten(String),
+    /// `UNLISTEN *`.
     UnlistenAll,
 }
 
 /// One notification, owned until the language's thread makes it a value:
 /// its channel, its payload and the process id of the session that sent it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub struct Received {
+    /// The channel the notification was sent on.
     pub channel: String,
+    /// What `NOTIFY` sent with it, empty when it sent nothing.
     pub payload: String,
+    /// The backend process id of the session that sent it.
     pub process_id: i32,
 }
 

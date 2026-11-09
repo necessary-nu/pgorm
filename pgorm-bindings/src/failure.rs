@@ -154,8 +154,8 @@ pub enum Failure {
 /// The class a failure is raised as, by the name both bindings give it,
 /// [`Class::name`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub enum Class {
+    /// PostgreSQL reported an error the subclasses below do not name.
     Database,
     /// SQLSTATE `23505`.
     UniqueViolation,
@@ -167,11 +167,17 @@ pub enum Class {
     NotNullViolation,
     /// SQLSTATE `23P01`.
     ExclusionViolation,
+    /// The connection could not be made, or failed while in use.
     Connection,
+    /// A value the server sent could not become the language's.
     Decode,
+    /// The program asked for something that cannot be built.
     Construction,
+    /// Something no input should cause.
     Internal,
+    /// A handle used after it closed, or while another operation holds it.
     Lifecycle,
+    /// A pool's timeout ran out.
     Timeout,
     /// The language's own cancellation.
     Cancelled,
