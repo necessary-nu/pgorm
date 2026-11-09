@@ -867,7 +867,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// pattern in SQL's regular-expression dialect, which is LIKE's `%` and
         /// `_` with `|`, `*`, `+`, `?`, `{m,n}`, grouping and bracket classes
         /// added. The pattern is bound like [`like`](Self::like)'s, and a
-        /// [`LikeExpr`] carries an `ESCAPE` character the same way; the default
+        /// [`LikeExpr`](crate::LikeExpr) carries an `ESCAPE` character the same way; the default
         /// escape is a backslash, and an escape longer than one character is
         /// PostgreSQL's refusal (`22025`).
         ///
@@ -2082,7 +2082,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     /// text orders by byte, every upper-case letter before every lower-case
     /// one, where a linguistic collation interleaves them. The right-hand side
     /// is a collation's *name*, quoted like every other identifier — see
-    /// [`Collation`] for the qualified form — and never an expression, so
+    /// [`Collation`](crate::Collation) for the qualified form — and never an expression, so
     /// `a COLLATE b` for an arbitrary `b` has no construction.
     ///
     /// `ORDER BY` has no collation slot of its own: PostgreSQL's grammar reads
