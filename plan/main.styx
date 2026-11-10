@@ -20969,6 +20969,14 @@ children (
                                 kind @decision
                                 text "Same bug in both bindings (JavaScript's text was \"PostgreSQL connection or protocol failure: expected 2 parameters but got 1\"). Shared through pgorm, as BindRefusal and DecodeRefusal are: new pgorm::ParameterCountRefusal { expected, given } with ParameterCountRefusal::of(&tokio_postgres::Error), reading tokio-postgres 0.7.18's top-level Kind::Parameters text (no public kind), and Error::parameter_count_refusal(). Display \"the statement takes N parameters, and M were given\" (singular for one); both bindings classify it as ConstructionError with exactly that text. New rule error.model.parameter-count, which states the binding classification; bindings.errors already files an argument whose value cannot become what pgorm sends as ConstructionError, so it was not bumped (33 pins, other lanes editing them). Rust's errors chapter and both dialects teach it."
                             }
+
+                            {
+                                at 2026-11-10T01:07:26.864615Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Fell back from Done to Todo with binding-parity.shared-runtime (1d6e5d5e): the classification moved into pgorm-bindings/src/failure.rs, an impl `main` site, and took the python and javascript impl annotations with it, so this node's python and javascript claims stood uncovered. nplan_audit proposed nothing and spec_uncovered did not list it (neither impl's scope holds error.* rules), so binding-parity.coverage-restored missed it; nplan_frontier surfaced it on 2026-11-10. Each binding's share is the point where a pgorm::Error becomes its own error class under its own dialect: pgorm-python/src/errors.rs database_error and pgorm-napi/src/errors.rs failure now carry the annotation. Both bindings' tests (test_results.py, query.test.ts) were unchanged throughout."
+                                after_done true
+                            }
                         )
                     }
 
@@ -21076,6 +21084,14 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @decision
                                 text "Fixed in pgorm, so Rust and both bindings refuse alike. Rust's raw entry points had the same failure, worse for COPY FROM STDIN (the server waits for data nothing sends). Every ConnectionTrait statement method (execute, execute_raw, query_one/opt/all, query_raw through the cached_retry/cached_evict paths, and batch_execute) on connections and transactions (the metrics wrappers delegate) refuses SQL text holding a COPY statement with a new Error::CopyStatement before anything is sent or prepared. Cost on the hot path is a case-insensitive byte scan for \"copy\"; only text spelling it is scanned with pg_query::scan_tokens for a statement-initial COPY keyword (comments skipped; a copy in a string, quoted identifier or comment is none; any COPY in batch_execute's multi-statement text refuses all of it; lexer-refused text is sent for the server to refuse). Bindings map it to ConstructionError naming their own copy_in/copy_out (copyIn/copyOut) and CopyFrom/CopyTo (copyFrom/copyTo). New rule conn.copy.statement; error.model+14 lists the variant."
+                            }
+
+                            {
+                                at 2026-11-10T01:07:28.942854Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Fell back from Done to Todo with binding-parity.shared-runtime (1d6e5d5e), as raw-param-count-error did: Error::CopyStatement's classification moved into pgorm-bindings/src/failure.rs (impl main), taking the python and javascript annotations with it. Re-annotated at each binding's classification entry, where its dialect names copy_in/copy_out or copyIn/copyOut: pgorm-python/src/errors.rs database_error and pgorm-napi/src/errors.rs failure."
+                                after_done true
                             }
                         )
                     }
