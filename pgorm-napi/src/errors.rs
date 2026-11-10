@@ -140,6 +140,8 @@ pub(crate) fn throw<'cx, T>(cx: &mut Cx<'cx>, failure: Failure) -> NeonResult<T>
 }
 
 /// Classify a pgorm error as `bindings.errors` does for JavaScript.
+// [spec:pgorm:sem:error.model.parameter-count]
+// [spec:pgorm:req:conn.copy.statement]
 pub(crate) fn failure(error: &pgorm::Error, secrets: &Redactions) -> Failure {
     pgorm_bindings::classify(error, secrets, Dialect::JavaScript)
 }

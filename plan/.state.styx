@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-06T16:21:11.891335Z
+last_sync_at 2026-11-10T00:47:01.706274Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -110,6 +110,7 @@ rule_versions (
     {id bindings.schema-types, version 0}
     {id bindings.schema-views, version 2}
     {id bindings.select, version 4}
+    {id bindings.shared-runtime, version 0}
     {id bindings.sql-check, version 0}
     {id bindings.sql-json, version 0}
     {id bindings.statements, version 0}
@@ -349,6 +350,7 @@ rule_versions (
     {id napi.exit, version 0}
     {id napi.inference, version 0}
     {id napi.lifecycle, version 3}
+    {id napi.linking, version 0}
     {id napi.loading, version 1}
     {id napi.naming, version 5}
     {id napi.notices, version 0}
@@ -573,6 +575,7 @@ derived_priorities (
     {id binding-coverage-per-impl, priority 1, derived_at 2026-10-30T13:42:29.080898Z}
     {id binding-describe-shapes, priority 1, derived_at 2026-10-31T22:52:03.347907Z}
     {id binding-graph-describe-shapes, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
+    {id binding-parity.coverage-restored, priority 3, derived_at 2026-11-10T00:47:01.706274Z}
     {id binding-parity.disjoint-foreign-active, priority 3, derived_at 2026-11-05T16:07:38.416147Z}
     {id binding-parity.foreign-active-error, priority 2, derived_at 2026-11-05T16:07:38.416147Z}
     {id binding-parity.grouping, priority 0, derived_at 2026-11-05T14:14:15.598156Z}
@@ -780,6 +783,7 @@ derived_priorities (
     {id guide.python-gaps.annotated-operand-goldens, priority 0, derived_at 2026-11-06T08:48:50.642727Z}
     {id guide.python-gaps.binding-fixes, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.builder-functions, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
+    {id guide.python-gaps.ci-client-certificate, priority 3, derived_at 2026-11-10T00:47:01.706274Z}
     {id guide.python-gaps.codegen-coverage, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.copy-rows-surface, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.copy-through-query, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
@@ -914,6 +918,7 @@ derived_priorities (
     {id napi.guide-gaps.model-query-clauses, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.model-schema, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.model-writes, priority 3, derived_at 2026-11-06T08:56:41.215496Z}
+    {id napi.guide-gaps.models-cli-test-portable, priority 3, derived_at 2026-11-10T00:47:01.706274Z}
     {id napi.guide-gaps.models-from-ddl, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.pg-19, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.pipeline-models, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
@@ -1000,6 +1005,7 @@ derived_priorities (
     {id polish.gates, priority 1, derived_at 2026-09-02T10:37:35.415375Z}
     {id polish.instructions, priority 1, derived_at 2026-09-02T10:37:35.415375Z}
     {id polish.pool-tests, priority 0, derived_at 2026-09-02T10:37:35.415375Z}
+    {id polish.query-doc-links, priority 0, derived_at 2026-11-10T00:47:01.706274Z}
     {id polish.sea-bae, priority 0, derived_at 2026-09-02T10:37:35.415375Z}
     {id polish.version-unify, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
     {id polish.warnings, priority 0, derived_at 2026-09-02T10:37:35.415375Z}
@@ -1855,6 +1861,8 @@ impl_evidence (
         bindings.shared-runtime
     ), covered_claims (
         {impl_name main, rule bindings.shared-runtime}
+    ), rule_versions_seen (
+        {id bindings.shared-runtime, version 0}
     )}
     {id binding-spec-consolidation, covered_rules (
         bindings.api
@@ -2095,6 +2103,105 @@ impl_evidence (
         {impl_name python, rule python.typing}
         {impl_name python, rule python.value-tags}
         {impl_name python, rule python.values}
+    ), rule_versions_seen (
+        {id bindings.api, version 0}
+        {id bindings.argument-errors, version 1}
+        {id bindings.cancellation, version 0}
+        {id bindings.case, version 0}
+        {id bindings.codegen, version 0}
+        {id bindings.collations, version 0}
+        {id bindings.column-operators, version 3}
+        {id bindings.conflict-arbiters, version 0}
+        {id bindings.connections, version 3}
+        {id bindings.copy, version 0}
+        {id bindings.copy-rows, version 2}
+        {id bindings.created-ranges, version 5}
+        {id bindings.cte-options, version 0}
+        {id bindings.cursors, version 1}
+        {id bindings.delegation, version 0}
+        {id bindings.entities, version 6}
+        {id bindings.entity-graphs, version 4}
+        {id bindings.entity-reads, version 4}
+        {id bindings.errors, version 6}
+        {id bindings.expressions, version 4}
+        {id bindings.from-subqueries, version 0}
+        {id bindings.graphs, version 2}
+        {id bindings.identifiers, version 3}
+        {id bindings.listen, version 3}
+        {id bindings.merge, version 2}
+        {id bindings.merge-sources, version 0}
+        {id bindings.model-columns, version 2}
+        {id bindings.model-reads, version 1}
+        {id bindings.model-records, version 1}
+        {id bindings.models, version 6}
+        {id bindings.operands, version 0}
+        {id bindings.optional, version 0}
+        {id bindings.pagination, version 0}
+        {id bindings.pipeline, version 1}
+        {id bindings.pipeline-binder, version 0}
+        {id bindings.pipeline-expressions, version 3}
+        {id bindings.pipeline-sources, version 3}
+        {id bindings.ranges, version 0}
+        {id bindings.registered-pools, version 0}
+        {id bindings.relation-conditions, version 0}
+        {id bindings.relations, version 3}
+        {id bindings.results, version 2}
+        {id bindings.row-count, version 0}
+        {id bindings.row-locks, version 0}
+        {id bindings.rows, version 0}
+        {id bindings.runtime, version 0}
+        {id bindings.schema, version 0}
+        {id bindings.schema-alter, version 0}
+        {id bindings.schema-api, version 3}
+        {id bindings.schema-domains, version 2}
+        {id bindings.schema-from-entity, version 0}
+        {id bindings.schema-indexes, version 0}
+        {id bindings.schema-schemas, version 0}
+        {id bindings.schema-sequences, version 0}
+        {id bindings.schema-tables, version 0}
+        {id bindings.schema-types, version 0}
+        {id bindings.schema-views, version 2}
+        {id bindings.select, version 4}
+        {id bindings.sql-json, version 0}
+        {id bindings.statements, version 0}
+        {id bindings.streams, version 1}
+        {id bindings.surface, version 2}
+        {id bindings.transactions, version 2}
+        {id bindings.value-tags, version 1}
+        {id bindings.values, version 0}
+        {id bindings.windows, version 0}
+        {id bindings.with, version 1}
+        {id bindings.write-ctes, version 0}
+        {id bindings.write-sources, version 0}
+        {id bindings.writes, version 2}
+        {id napi.application, version 2}
+        {id napi.cancellation, version 2}
+        {id napi.codegen, version 1}
+        {id napi.errors, version 3}
+        {id napi.lifecycle, version 3}
+        {id napi.naming, version 5}
+        {id napi.pipeline-table-names, version 0}
+        {id napi.raw, version 0}
+        {id napi.records, version 0}
+        {id napi.runtime, version 1}
+        {id napi.temporal, version 1}
+        {id napi.transactions, version 3}
+        {id napi.typing, version 1}
+        {id napi.values, version 1}
+        {id python.api, version 1}
+        {id python.cancellation, version 1}
+        {id python.capabilities, version 2}
+        {id python.codegen, version 3}
+        {id python.expressions, version 7}
+        {id python.lifecycle, version 4}
+        {id python.naming, version 4}
+        {id python.records, version 1}
+        {id python.runtime, version 2}
+        {id python.transactions, version 3}
+        {id python.truth-testing, version 5}
+        {id python.typing, version 2}
+        {id python.value-tags, version 1}
+        {id python.values, version 7}
     )}
     {id bindings-composite-unique, covered_rules (
         bindings.model-unique-keys
@@ -2569,8 +2676,6 @@ impl_evidence (
         {impl_name javascript, rule conn.copy.statement}
         {impl_name main, rule conn.copy.statement}
         {impl_name python, rule conn.copy.statement}
-    ), rule_versions_seen (
-        {id conn.copy.statement, version 0}
     )}
     {id guide.python-gaps.entity-try-inserts, covered_rules (
         bindings.entity-try-inserts
@@ -2640,6 +2745,18 @@ impl_evidence (
         {impl_name main, rule codegen.models.relations}
         {impl_name python, rule bindings.current-keywords}
         {impl_name python, rule bindings.models-from-sql}
+    ), rule_versions_seen (
+        {id bindings.current-keywords, version 0}
+        {id bindings.models-from-sql, version 0}
+        {id codegen.features, version 0}
+        {id codegen.models, version 0}
+        {id codegen.models.columns, version 0}
+        {id codegen.models.disjoint, version 0}
+        {id codegen.models.layout, version 0}
+        {id codegen.models.names, version 0}
+        {id codegen.models.one-of, version 0}
+        {id codegen.models.refused, version 0}
+        {id codegen.models.relations, version 0}
     )}
     {id guide.python-gaps.model-ddl, covered_rules (
         bindings.schema-from-model
@@ -2747,8 +2864,6 @@ impl_evidence (
         {impl_name javascript, rule error.model.parameter-count}
         {impl_name main, rule error.model.parameter-count}
         {impl_name python, rule error.model.parameter-count}
-    ), rule_versions_seen (
-        {id error.model.parameter-count, version 0}
     )}
     {id guide.python-gaps.raw-sql, covered_rules (
         bindings.batch-execute
@@ -3101,6 +3216,9 @@ impl_evidence (
     ), covered_claims (
         {impl_name javascript, rule bindings.current-keywords}
         {impl_name javascript, rule bindings.models-from-sql}
+    ), rule_versions_seen (
+        {id bindings.current-keywords, version 0}
+        {id bindings.models-from-sql, version 0}
     )}
     {id napi.guide-gaps.pg-19, covered_rules (
         bindings.postgres-target
@@ -3199,6 +3317,8 @@ impl_evidence (
         napi.linking
     ), covered_claims (
         {impl_name javascript, rule napi.linking}
+    ), rule_versions_seen (
+        {id napi.linking, version 0}
     )}
     {id orm.binding-types, covered_rules (
         exec.cursor.binding-coerce
