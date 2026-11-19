@@ -12790,6 +12790,13 @@ children (
                         kind @note
                         text "Filed 2026-11-19. PostgreSQL 18.7 was released on 2026-11-12, the regular November minor release (postgresql.org versions.json: 18, latestMinor 7, relDate 2026-11-12). The official image is published: postgres:18.7-bookworm, index digest sha256:1757c628698dd1ca67ff7a5fc386bfd91040afc62a45484c346c788b0cbe5402 on Docker Hub, 2026-11-18. docker-library/official-images#22745 is titled \"[security] Update postgres\". pgorm still pins 18.6 in several places: pgorm-python/tests/with_postgres.py (postgres:18.6-bookworm by digest), security/sqlmap/pins.json, security/generative/src/pgorm_campaign/fixtures.py with the tests that assert it, the acceptance records, CLAUDE.md's Testing Setup, and the local pgorm-test container. Re-locate each by grep for 18.6 and the old digest rather than trusting this list. CI's apt and Homebrew installs float on postgresql-18 / postgresql@18. Acceptance: every 18.6 pin names 18.7 by digest; pgorm-test is recreated on 18.7; nextest, pgorm-python, pgorm-napi and the doctests pass on 18.7; and sqlmap and the generative campaign are re-run on it on a quiet machine, with their records updated. Sequenced after pg19-test-server so the two suites of timing-sensitive runs do not overlap."
                     }
+
+                    {
+                        at 2026-11-19T17:45:45.647356Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "From pg19-test-server's run on 19.0 (2026-11-19): 18.7 carries the fix for PostgreSQL bug #19695 (JSON_VALUE .. RETURNING json/jsonb answering NULL for every row after a NULL), as 19.0 does. Once pgorm-test moves to 18.7, the default build's canary tests/sql_json_tests.rs json_value_returning_jsonb_after_a_null fails by design: it still holds 18.6's sticking NULLs outside pg-19. This node decides what the canary holds on 18.7. 18 is the floor, and 18.0–18.6 still carry the bug, so the canary cannot simply flip. pg19-json-value-returning-json now depends on this node, because restoring JsonValueType's json and jsonb variants turns on which 18 minor is the floor. pg19-test-server also found that btree_gist ships version 1.9 alone on 19; check whether 18.7's contrib still has 1.7, which the default build's extension tests in both bindings ask for."
+                    }
                 )
             }
 
@@ -13097,7 +13104,7 @@ children (
             {
                 id pg19-json-value-returning-json
                 title "JSON_VALUE returns json and jsonb again where the server carries the fix for bug #19695"
-                deps (pg19-test-server)
+                deps (pg19-test-server pg18-point-release-18-7)
                 log (
                     {
                         at 2026-11-19T16:46:33.280949Z
