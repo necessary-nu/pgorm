@@ -13,7 +13,8 @@ use std::sync::Arc;
 /// fails, a `NULL` context item — every later evaluation of that expression
 /// in the statement is `NULL` too (PostgreSQL bug #19695): the executor
 /// leaves its result flagged null and skips the conversion. Every other type
-/// is converted by a step that resets the flag. To read JSON out of a
+/// is converted by a step that resets the flag. PostgreSQL 18.7 and 19.0
+/// carry the fix. To read JSON out of a
 /// document, [`Func::json_query`](crate::Func::json_query) returns what the
 /// path finds, and differs from such a `JSON_VALUE` only in returning a JSON
 /// `null` as itself and an object or array rather than failing.
