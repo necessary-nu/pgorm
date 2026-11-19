@@ -21677,4 +21677,25 @@ children (
             }
         )
     }
+
+    {
+        id migration-deploy
+        title "pgorm-migration's runner fits how applications deploy: several replicas, rolling updates, and images that start out of order against one database"
+        kind @feat
+        children (
+            {
+                id migration-unknown-applied
+                title "A migrator can opt to warn, naming each one, rather than fail when the database records migrations it does not know, so an older image keeps serving against a newer schema; refusing stays the default"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-19T22:17:58.184835Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Requested 2026-11-19 by the \"Pahkat redesign integration\" session, passing on the operator's request. pahkat-server runs `Migrator::up(conn, None)` in an init container before serving. It is moving from one replica to several with rolling updates, so during a rollout, or when CI pins images out of order (which took pahkat-3 down), an older image starts against a database a newer image already migrated, and dies with `Error: Custom Error: Migration file of version 'host_0009_log' is missing, this migration has been applied but its file is missing` (pgorm-migration src/migrator.rs, get_migration_with_status). The operator wants that loud but not fatal: logged at warn/error level naming each applied migration this binary does not know, the process carrying on so the old pod serves until its replacement is up. It is an opt-in on the migrator, and the current strict behaviour stays the default. Pahkat's own status check already reports unknown applied migrations, so a log warning is enough for it. Pahkat should be told the API once it lands. Design (the lead's, the API shape being pgorm's to decide): a provided MigratorTrait method beside statement_cache_channel and migration_table_name, `fn unknown_migrations(&self) -> UnknownMigrations`, defaulting to `UnknownMigrations::Refuse`; `UnknownMigrations::Warn` logs each unknown applied version with tracing::warn! and lets status reads and `up` proceed. Two refusals stay under Warn. A checksum mismatch is a changed file this migrator does know. And when the ledger holds unknown migrations and this migrator has pending ones, `up` refuses: running them after migrations it does not know would apply them out of order against a newer schema. A pending set that is empty is the rollout case Warn exists for. The run-time `Migrations` takes the same setting (`with_unknown_migrations`), and so do both bindings' migrators, in each dialect's spelling of an option, through pgorm-bindings' migrations runner. The Rust guide's migrations chapter documents it, and the Python and JavaScript guides follow as dialects."
+                    }
+                )
+            }
+        )
+    }
 )
