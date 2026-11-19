@@ -21624,4 +21624,41 @@ children (
             }
         )
     }
+
+    {
+        id prqlc-fork
+        title "pgorm's prqlc fork stays current with upstream PRQL: our fixes carried on upstream's main, and upstream's fixes taken as they land"
+        kind @build
+        children (
+            {
+                id prqlc-rebase-2026-11
+                title "The prqlc fork is rebased onto upstream PRQL's main, taking the fixes upstream made since 0.13.14, and every pgorm SQL answer that changes is checked against the fix that changed it"
+                kind @build
+                deps (prqlc-without-chrono)
+                log (
+                    {
+                        at 2026-11-19T18:27:09.715473Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator 2026-11-19: \"yes, rebase\". This followed a comparison of the fork with upstream. The fork (necessary-nu/prql, branch pgorm/no-chrono at 59405a62) forked at 029b9c4b, upstream's 0.13.14 changelog (2026-07-24). It carries 13 commits: 12 fixes (b2baa230 … f25bf16d) and the chrono removal (59405a62). Upstream main (0d4c6efe, 2026-11-19) is 385 commits ahead and has not released since 0.13.14. Of those, 248 are by prql-bot, 92 by dependabot and 21 by the maintainer; 93 are fixes and none are features. None of the fork's fixes were ever proposed upstream. Upstream fixes in SQL generation that pgorm's pipeline reads: parenthesization (#6381, #6418, #6467, #6479), window frames (#6375, #6435), joined pipelines' unnamed columns (#6527, #6528), CTE wildcard inference (#6558), group take 1 DISTINCT (#6547), no compile-time folding of time equality (#6485), computed columns in this.* (#6045), take bounds near i64 (#6347). Expected conflicts: set operations, where upstream keeps a join as a join when its condition doesn't match INTERSECT/EXCEPT (#6443, #6556), against our relation-level intersect/remove (170872b3, 656ce4ce, f25bf16d); and date.to_text, whose errors and escaping upstream changed (#6351, #6560, #6568) in the dialect.rs code 59405a62 rewrote. Our relation-level intersect/remove is deliberate (pipeline.compose, macros.prql) and stays. Sequenced after prqlc-without-chrono, so that the pin moves once, from 59405a62 to the rebased rev."
+                    }
+                )
+            }
+
+            {
+                id prqlc-upstream-fixes
+                title "The fork's fixes that upstream PRQL would take are offered upstream as PRs shaped to its AGENTS.md, so the fork shrinks to the deliberate departures"
+                kind @chore
+                deps (prqlc-rebase-2026-11)
+                log (
+                    {
+                        at 2026-11-19T18:27:43.903653Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator 2026-11-19, after learning that none of the fork's fixes had been proposed upstream: \"And they seem AI friendly, so we should consider it.\" The operator asked for it to be considered, not done: opening a PR upstream publishes the code, so the lead asks before opening any. Why upstream is a good fit: prql-bot wrote 248 of the 385 commits since 0.13.14, and upstream keeps AGENTS.md and .claude/skills at its root. Its conventions, from upstream main 0d4c6efe:\n- prefer small inline insta snapshot tests (`insta::assert_snapshot!(.., @\"\")`, initialised empty and accepted), and read prqlc/prqlc/tests/AGENTS.md before changing compiler tests;\n- no `.unwrap()` on fallible user input;\n- a user-facing change needs a CHANGELOG.md line, `{message}, (@contributor, #X)`, added in a follow-up commit once the PR number exists;\n- commit conventions are in web/book/src/project/contributing/development.md.\nCandidates after the rebase: the chrono removal (upstream still depends on chrono, and RUSTSEC-2026-0543 reaches them too); identifier delimiter doubling (9023adad); the wildcard-key, GROUP BY star, literal-key, DISTINCT ON dropped-key and whole-row GROUP BY fixes; star-expansion order; take's embedded sort; and the interior-column cids. Our relation-level intersect/remove deliberately departs from upstream and stays in the fork. Each PR is a single fix on upstream main, with its own inline snapshot tests."
+                    }
+                )
+            }
+        )
+    }
 )
