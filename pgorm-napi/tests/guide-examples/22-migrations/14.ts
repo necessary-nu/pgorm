@@ -2,24 +2,26 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { migrations, STATEMENT_CACHE_CHANNEL } from "@necessary/pgorm";
+import { migrations, Pool } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
-export default async function example({ pool }: GuideContext): Promise<void> {
-  await using listener = await pool.listener();
-  await listener.listen(STATEMENT_CACHE_CHANNEL);
+export default async function example({ url }: GuideContext): Promise<void> {
+  // One connection, so every statement runs on the same session.
+  await using shop = new Pool(url, { maxSize: 1 });
+  await shop.execute("CREATE DOMAIN ribbon AS text DEFAULT 'red'");
+  await shop.execute("CREATE TABLE box (id serial PRIMARY KEY, contents text, ribbon ribbon)");
+  const pack = "INSERT INTO box (contents) VALUES ('truffles') RETURNING ribbon";
+  assert.equal((await shop.one(pack)).ribbon, "red");
 
+  // The insert prepared before the change would still write the old default,
+  // but the run clears the pool's caches as it commits.
   await migrations([
     {
-      name: "m20260201_000001_create_ribbon",
+      name: "m20260201_000001_gold_ribbon",
       async up(tx) {
-        await tx.execute("CREATE DOMAIN ribbon AS text DEFAULT 'red'");
+        await tx.execute("ALTER DOMAIN ribbon SET DEFAULT 'gold'");
       },
     },
-  ]).up(pool);
-
-  // Every pool listening on the channel, in any process, hears it at the commit.
-  const heard = await listener.next({ signal: AbortSignal.timeout(5000) });
-  assert.ok(!heard.done);
-  assert.equal(heard.value.channel, "pgorm_statement_caches");
+  ]).up(shop);
+  assert.equal((await shop.one(pack)).ribbon, "gold");
 }

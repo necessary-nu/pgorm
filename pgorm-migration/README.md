@@ -107,6 +107,33 @@ A ledger last written by SeaORM, under `seaql_migrations`, is renamed to
 `pgorm_migrations` on the next `up` — but only for the default name with no
 schema. A migrator that names or places its own ledger takes it over by hand.
 
+## An older build against a newer database
+
+A ledger row no migration of the migrator answers by name fails `up` and
+every read by default, naming it. A program run as several replicas that
+calls `up` as it starts meets one during a rolling update, when the old
+build starts against a database the new one has migrated. A migrator that
+answers `UnknownMigrations::Warn` goes on instead, logging a `tracing`
+warning naming each migration it does not know:
+
+```rust,ignore
+impl MigratorTrait for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+        vec![Box::new(m20220101_000001_create_table::Migration)]
+    }
+
+    fn unknown_migrations(&self) -> UnknownMigrations {
+        UnknownMigrations::Warn
+    }
+}
+```
+
+`up` then applies nothing and succeeds. It still refuses, naming both, when
+the migrator has migrations of its own pending beside ones it does not know,
+and an edited migration's changed checksum is refused as before.
+`Migrations::with_unknown_migrations` sets the same for a migrator built at
+run time.
+
 ## Schemas
 
 An entity declared with `schema_name` lives in that schema, and so does a

@@ -32,7 +32,7 @@ pub(crate) enum Work {
     Describe(String),
     /// pgorm-migration's `install`, or its reading of every migration's
     /// status, on what the caller holds.
-    Ledger(Box<pgorm_migration::Migrations>, Ledger),
+    Ledger(Box<pgorm_bindings::migrations::Migrator>, Ledger),
 }
 
 /// What [`Work::Ledger`] does with a migrator's ledger.
@@ -57,8 +57,9 @@ pub(crate) enum Output {
     Described(Vec<pgorm::DescribedColumn>),
     /// Each root of a grouped graph read with its slot's models.
     Grouped(Vec<(Model, Vec<Model>)>),
-    /// Each migration's name, and whether the ledger records it applied.
-    Migrations(Vec<(String, bool)>),
+    /// Each migration's name, and whether the ledger records it applied,
+    /// and the warnings the read gave.
+    Migrations(pgorm_bindings::migrations::Statuses),
     Finished,
 }
 

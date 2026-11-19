@@ -228,6 +228,99 @@ class Running(unittest.IsolatedAsyncioTestCase):
             await self.migrator([gold], statement_cache_channel=None).up(pool)
             self.assertEqual((await pool.one(pack))["ribbon"], "gold")
 
+    def ahead(self):
+        """The two migrations a newer build of a program has, applied by it."""
+        schema = self.schema
+        return (
+            s.SqlMigration(
+                "m20261101_000001_table_a",
+                f'CREATE SCHEMA "{schema}"; CREATE TABLE "{schema}".table_a (id integer)',
+            ),
+            s.SqlMigration("m20261101_000002_table_b", f'CREATE TABLE "{schema}".table_b (id integer)'),
+        )
+
+    async def ledger_rows(self):
+        return await self.scalar(f'SELECT count(*) AS value FROM "{self.schema}_ops".ledger')
+
+    # [spec:pgorm:req:bindings.migrations.unknown-applied/test]    an older build that warns goes on, applying
+    # nothing, and each read logs each unknown migration once, as a warning of the runner's words
+    async def test_an_older_build_that_warns_goes_on(self):
+        a, b = self.ahead()
+        await self.migrator([a, b]).up(self.pool)
+        older = self.migrator([a], unknown_migrations="warn")
+        warning = (
+            "WARNING:pgorm.migration:The database records migration 'm20261101_000002_table_b' as applied, "
+            "but this migrator does not know it, so the database is ahead of this build"
+        )
+
+        with self.assertLogs("pgorm.migration", "WARNING") as logged:
+            await older.up(self.pool)
+        self.assertEqual(logged.output, [warning])
+        self.assertEqual(await self.ledger_rows(), 2)
+
+        with self.assertLogs("pgorm.migration", "INFO") as logged:
+            await older.status(self.pool)
+        self.assertEqual(logged.output, [
+            "INFO:pgorm.migration:Checking migration status",
+            f"INFO:pgorm.migration:Migration '{a.name}'... Applied",
+            warning,
+        ])
+
+        with self.assertLogs("pgorm.migration", "WARNING") as logged:
+            self.assertEqual(
+                await older.get_migration_with_status(self.pool), [s.Migration(a.name, s.MigrationStatus.Applied)]
+            )
+            self.assertEqual(await older.get_pending_migrations(self.pool), [])
+            self.assertEqual(len(await older.get_applied_migrations(self.pool)), 1)
+        self.assertEqual(logged.output, [warning, warning, warning])
+
+    # [spec:pgorm:req:bindings.migrations.unknown-applied/test]    refusing is the default, and the setting is
+    # "refuse" or "warn" and nothing else
+    async def test_an_older_build_refuses_by_default(self):
+        a, b = self.ahead()
+        await self.migrator([a, b]).up(self.pool)
+        missing = (
+            f"Migration file of version '{b.name}' is missing, this migration has been applied but its file is missing"
+        )
+        for older in (self.migrator([a]), self.migrator([a], unknown_migrations="refuse")):
+            for read in (older.up, older.status, older.get_pending_migrations):
+                with self.assertRaises(p.ConstructionError) as refused:
+                    await read(self.pool)
+                self.assertIn(missing, str(refused.exception))
+        for setting in ("ignore", None, 1):
+            with self.assertRaisesRegex(TypeError, "unknown_migrations is one of \"refuse\", \"warn\""):
+                self.migrator([a], unknown_migrations=setting)
+
+    # [spec:pgorm:req:bindings.migrations.unknown-applied/test]    a pending migration beside an unknown one is
+    # refused, naming both, whatever steps bounds
+    async def test_pending_beside_unknown_is_refused_under_warn(self):
+        a, b = self.ahead()
+        await self.migrator([a, b]).up(self.pool)
+        c = s.SqlMigration("m20261101_000003_table_c", f'CREATE TABLE "{self.schema}".table_c (id integer)')
+        diverged = self.migrator([a, c], unknown_migrations="warn")
+        for steps in (None, 1, 0):
+            with self.assertRaises(p.ConstructionError) as refused:
+                await diverged.up(self.pool, steps)
+            message = str(refused.exception)
+            self.assertIn(f"'{b.name}'", message)
+            self.assertIn(f"'{c.name}'", message)
+            self.assertIn("out of order", message)
+        self.assertEqual(await self.ledger_rows(), 2)
+        with self.assertLogs("pgorm.migration", "WARNING"):
+            pending = await diverged.get_pending_migrations(self.pool)
+        self.assertEqual(pending, [s.Migration(c.name, s.MigrationStatus.Pending)])
+
+    # [spec:pgorm:req:bindings.migrations.unknown-applied/test]    a changed checksum is refused under "warn" too
+    async def test_a_changed_checksum_is_refused_under_warn(self):
+        a, b = self.ahead()
+        await self.migrator([a, b]).up(self.pool)
+        edited = self.migrator([s.SqlMigration(a.name, a.sql + ";")], unknown_migrations="warn")
+        for read in (edited.up, edited.status, edited.get_migration_with_status):
+            with self.assertRaises(p.ConstructionError) as refused:
+                await read(self.pool)
+            self.assertIn(f"Migration '{a.name}' was applied with checksum", str(refused.exception))
+            self.assertNotIn(b.name, str(refused.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use futures_util::FutureExt;
 use neon::{event::Channel, prelude::*, types::Finalize};
-use pgorm_bindings::migrations::{Entry, Failed, Host, Listed, statuses};
+use pgorm_bindings::migrations::{Entry, Failed, Host, Listed, Ran, UNKNOWN_MIGRATIONS, statuses};
 use pgorm_migration::{MigrationName, MigrationTrait, MigratorTrait, SqlMigration};
 use tokio::sync::oneshot;
 
@@ -20,6 +20,7 @@ use super::{
 use crate::{
     errors::{Failure, failure, throw},
     settle,
+    statements::pick,
 };
 
 pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
@@ -175,7 +176,8 @@ impl Host for Call {
 }
 
 /// A migrator built from JavaScript's list: pgorm-migration's `Migrations`,
-/// its ledger placed and its channel named as given.
+/// its ledger placed, its channel named and a migration it does not know
+/// refused or warned of as given.
 // [spec:pgorm:req:bindings.migrations]
 pub(crate) struct MigrationsHandle(Listed<Root<JsObject>>);
 
@@ -233,7 +235,8 @@ fn written<'cx>(
     })
 }
 
-/// `migrationsNew(migrations, tableName, tableSchema, channel)`.
+/// `migrationsNew(migrations, tableName, tableSchema, channel,
+/// unknownMigrations)`.
 // [spec:pgorm:req:bindings.migrations]
 fn migrations_new(mut cx: FunctionContext) -> JsResult<JsBox<MigrationsHandle>> {
     let list = cx.argument::<JsArray>(0)?.to_vec(&mut cx)?;
@@ -256,17 +259,27 @@ fn migrations_new(mut cx: FunctionContext) -> JsResult<JsBox<MigrationsHandle>> 
     let table_schema = optional_string(&mut cx, table_schema, "migrationTableSchema")?;
     let channel = cx.argument::<JsValue>(3)?;
     let channel = optional_string(&mut cx, channel, "statementCacheChannel")?;
+    // [spec:pgorm:req:bindings.migrations.unknown-applied]    "refuse" or "warn", else a TypeError
+    let unknown_migrations = cx.argument::<JsValue>(4)?;
+    let unknown_migrations = pick(
+        &mut cx,
+        unknown_migrations,
+        "unknownMigrations",
+        &UNKNOWN_MIGRATIONS,
+    )?;
     Ok(cx.boxed(MigrationsHandle(Listed::new(
         entries,
         table_name,
         table_schema,
         channel,
+        unknown_migrations,
     ))))
 }
 
 /// `migrationsUp(migrations, pool, steps, dispatch)`: pgorm-migration's `up`
-/// on connections of the pool's own, rejecting with what a migration's `up`
-/// rejected with when one did.
+/// on connections of the pool's own, resolving with the warnings the run
+/// gave, or rejecting with what a migration's `up` rejected with when one
+/// did.
 // [spec:pgorm:req:bindings.migrations]
 fn migrations_up(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let handle = cx.argument::<JsBox<MigrationsHandle>>(0)?;
@@ -294,22 +307,33 @@ fn migrations_up(mut cx: FunctionContext) -> JsResult<JsPromise> {
         dispatch,
     };
     let work = handle.0.up(call, steps);
-    settle::promise(&mut cx, work, |cx, raised| match raised {
-        None => Ok(cx.undefined().upcast()),
-        Some(raised) => {
+    settle::promise(&mut cx, work, |cx, ran| match ran {
+        Ran::Finished(warnings) => Ok(strings(cx, warnings)?.upcast()),
+        Ran::Raised(raised) => {
             let raised = raised.into_inner(cx).get_value(cx, "error")?;
             cx.throw(raised)
         }
     })
 }
 
-/// Each migration's name and whether the ledger records it applied.
-struct Statuses(Vec<(String, bool)>);
+fn strings<'cx>(cx: &mut Cx<'cx>, texts: Vec<String>) -> JsResult<'cx, JsArray> {
+    let array = JsArray::new(cx, texts.len());
+    for (at, text) in (0_u32..).zip(texts) {
+        let text = cx.string(text);
+        array.set(cx, at, text)?;
+    }
+    Ok(array)
+}
+
+/// Each migration's name and whether the ledger records it applied, and the
+/// warnings the read gave: `[[name, applied], ...]` beside `[warning, ...]`.
+struct Statuses(pgorm_bindings::migrations::Statuses);
 
 impl Settled for Statuses {
     fn into_js<'cx>(self: Box<Self>, cx: &mut Cx<'cx>) -> JsResult<'cx, JsValue> {
-        let array = JsArray::new(cx, self.0.len());
-        for (at, (name, applied)) in (0_u32..).zip(self.0) {
+        let read = self.0;
+        let array = JsArray::new(cx, read.migrations.len());
+        for (at, (name, applied)) in (0_u32..).zip(read.migrations) {
             let pair = JsArray::new(cx, 2);
             let name = cx.string(name);
             pair.set(cx, 0, name)?;
@@ -317,7 +341,11 @@ impl Settled for Statuses {
             pair.set(cx, 1, applied)?;
             array.set(cx, at, pair)?;
         }
-        Ok(array.upcast())
+        let both = JsArray::new(cx, 2);
+        both.set(cx, 0, array)?;
+        let warnings = strings(cx, read.warnings)?;
+        both.set(cx, 1, warnings)?;
+        Ok(both.upcast())
     }
 }
 

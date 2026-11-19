@@ -3,8 +3,8 @@
 //! language is a `MigrationTrait` whose `up` hands the batch's transaction to
 //! the language for as long as the object's `up` runs. The list is a
 //! `pgorm_migration::Migrations`, so the ledger, the lock, the checksums,
-//! `commits_after` and the statement-cache clear and notification are the
-//! runner's alone.
+//! `commits_after`, the statement-cache clear and notification and the
+//! handling of a migration the list does not know are the runner's alone.
 
 use std::{
     future::Future,
@@ -12,7 +12,9 @@ use std::{
 };
 
 use pgorm::{DatabaseTransaction, Error, Name};
-use pgorm_migration::{MigrationName, MigrationTrait, Migrations, MigratorTrait, SqlMigration};
+use pgorm_migration::{
+    MigrationName, MigrationTrait, Migrations, MigratorTrait, SqlMigration, UnknownMigrations,
+};
 
 use crate::{
     Failure,
@@ -133,8 +135,17 @@ impl<H: Host> MigrationTrait for Hosted<H> {
     }
 }
 
-/// A binding's list of migrations, its ledger placed and its channel named
-/// as the program gave them.
+/// The spellings of [`UnknownMigrations`], which both bindings take as a
+/// string.
+// [spec:pgorm:req:bindings.migrations.unknown-applied]
+pub const UNKNOWN_MIGRATIONS: [(&str, UnknownMigrations); 2] = [
+    ("refuse", UnknownMigrations::Refuse),
+    ("warn", UnknownMigrations::Warn),
+];
+
+/// A binding's list of migrations, its ledger placed, its channel named and
+/// a migration it does not know refused or warned of as the program gave
+/// them.
 // [spec:pgorm:req:bindings.migrations]
 #[derive(Debug)]
 pub struct Listed<T> {
@@ -142,22 +153,26 @@ pub struct Listed<T> {
     table_name: Option<String>,
     table_schema: Option<String>,
     channel: Option<String>,
+    unknown_migrations: UnknownMigrations,
 }
 
 impl<T: Send + Sync + 'static> Listed<T> {
     /// The list `entries`, its ledger the table `table_name` in
-    /// `table_schema` where they are given, notifying `channel`.
+    /// `table_schema` where they are given, notifying `channel`, and
+    /// treating a migration it does not know as `unknown_migrations` says.
     pub fn new(
         entries: Vec<Entry<T>>,
         table_name: Option<String>,
         table_schema: Option<String>,
         channel: Option<String>,
+        unknown_migrations: UnknownMigrations,
     ) -> Self {
         Self {
             entries,
             table_name,
             table_schema,
             channel,
+            unknown_migrations,
         }
     }
 
@@ -173,7 +188,7 @@ impl<T: Send + Sync + 'static> Listed<T> {
 
     /// The runner's migrator over this list, its written migrations run in
     /// `run` when there is one.
-    fn migrator<H: Host<Object = T>>(&self, run: Option<&Arc<Run<H>>>) -> Migrations {
+    fn migrator<H: Host<Object = T>>(&self, run: Option<&Arc<Run<H>>>) -> Migrator {
         let migrations = self.entries.iter().map(|entry| match entry {
             Entry::Sql(migration) => Box::new(migration.clone()) as Box<dyn MigrationTrait>,
             Entry::Written(written) => Box::new(Hosted {
@@ -181,33 +196,39 @@ impl<T: Send + Sync + 'static> Listed<T> {
                 run: run.cloned(),
             }),
         });
-        let mut migrator =
-            Migrations::new(migrations).with_statement_cache_channel(self.channel.clone());
+        let mut migrations = Migrations::new(migrations)
+            .with_statement_cache_channel(self.channel.clone())
+            .with_unknown_migrations(self.unknown_migrations);
         if let Some(name) = &self.table_name {
-            migrator = migrator.with_migration_table_name(Name::runtime(name));
+            migrations = migrations.with_migration_table_name(Name::runtime(name));
         }
         if let Some(schema) = &self.table_schema {
-            migrator = migrator.with_migration_table_schema(Name::runtime(schema));
+            migrations = migrations.with_migration_table_schema(Name::runtime(schema));
         }
-        migrator
+        Migrator {
+            migrations,
+            warnings: Mutex::new(Vec::new()),
+        }
     }
 
     /// The runner's migrator over this list for reading and installing its
     /// ledger, which runs no written migration.
-    pub fn ledger<H: Host<Object = T>>(&self) -> Migrations {
+    pub fn ledger<H: Host<Object = T>>(&self) -> Migrator {
         self.migrator::<H>(None)
     }
 
     /// pgorm-migration's `up` of `steps` pending migrations, or all of them,
-    /// on connections of the host's pool: `Some` of what a written migration
-    /// failed with in the language when one did, which the binding fails with
-    /// in place of the runner's account of it.
+    /// on connections of the host's pool: what a written migration failed
+    /// with in the language when one did, which the binding fails with in
+    /// place of the runner's account of it, and otherwise the warnings the
+    /// run gave.
     // [spec:pgorm:req:bindings.migrations]
+    // [spec:pgorm:req:bindings.migrations.unknown-applied]    a run's warnings reach the binding
     pub fn up<H: Host<Object = T>>(
         &self,
         host: H,
         steps: Option<u32>,
-    ) -> impl Future<Output = Result<Option<H::Raised>, Failure>> + Send + 'static {
+    ) -> impl Future<Output = Result<Ran<H::Raised>, Failure>> + Send + 'static {
         let run = Arc::new(Run {
             host: Arc::new(host),
             raised: Mutex::new(None),
@@ -222,30 +243,105 @@ impl<T: Send + Sync + 'static> Listed<T> {
                 .unwrap_or_else(PoisonError::into_inner)
                 .take();
             match (result, raised) {
-                (Ok(()), _) => Ok(None),
-                (Err(_), Some(raised)) => Ok(Some(raised)),
+                (Ok(()), _) => Ok(Ran::Finished(migrator.take_warnings())),
+                (Err(_), Some(raised)) => Ok(Ran::Raised(raised)),
                 (Err(error), None) => Err(pool.failure(&error)),
             }
         }
     }
 }
 
+/// How a binding's `up` ended, short of a failure of the runner's own.
+#[derive(Debug)]
+pub enum Ran<R> {
+    /// The run finished, giving these warnings, each to be logged as one.
+    Finished(Vec<String>),
+    /// A written migration failed with `R` in the language.
+    Raised(R),
+}
+
+/// The runner's migrator over a binding's list: its `Migrations`, keeping
+/// each warning of a migration the list does not know rather than logging it
+/// through `tracing`, which reaches no binding's program, so the binding
+/// can log it through the language's own logging.
+// [spec:pgorm:req:bindings.migrations.unknown-applied]
+#[derive(Debug)]
+pub struct Migrator {
+    migrations: Migrations,
+    warnings: Mutex<Vec<String>>,
+}
+
+impl Migrator {
+    /// The warnings kept since they were last taken, in the order given.
+    pub fn take_warnings(&self) -> Vec<String> {
+        std::mem::take(&mut *self.warnings.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+#[pgorm_migration::async_trait::async_trait]
+impl MigratorTrait for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+        self.migrations.migrations()
+    }
+
+    fn migration_table_name(&self) -> Name {
+        self.migrations.migration_table_name()
+    }
+
+    fn migration_table_schema(&self) -> Option<Name> {
+        self.migrations.migration_table_schema()
+    }
+
+    fn statement_cache_channel(&self) -> Option<String> {
+        self.migrations.statement_cache_channel()
+    }
+
+    fn unknown_migrations(&self) -> UnknownMigrations {
+        self.migrations.unknown_migrations()
+    }
+
+    fn warn_unknown_migrations(&self, versions: &[String]) {
+        self.warnings
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(
+                versions
+                    .iter()
+                    .map(|version| UnknownMigrations::warning(version)),
+            );
+    }
+}
+
+/// What a binding's status read found: each migration's name and whether
+/// the ledger records it applied, and the warnings the read gave.
+#[derive(Debug)]
+pub struct Statuses {
+    /// Each migration's name and whether it is applied, in the list's order.
+    pub migrations: Vec<(String, bool)>,
+    /// A warning for each applied migration the list does not know.
+    pub warnings: Vec<String>,
+}
+
 /// Each migration's name and whether the ledger records it applied, as
-/// `migrator` reads them on `db`.
+/// `migrator` reads them on `db`, and the warnings the read gave.
+// [spec:pgorm:req:bindings.migrations.unknown-applied]    a read's warnings reach the binding
 pub async fn statuses<C: pgorm::ConnectionTrait>(
-    migrator: &Migrations,
+    migrator: &Migrator,
     db: &C,
-) -> Result<Vec<(String, bool)>, Error> {
+) -> Result<Statuses, Error> {
     let migrations = migrator.get_migration_with_status(db).await?;
-    Ok(migrations
-        .iter()
-        .map(|migration| {
-            (
-                migration.name().to_owned(),
-                migration.status() == pgorm_migration::MigrationStatus::Applied,
-            )
-        })
-        .collect())
+    Ok(Statuses {
+        migrations: migrations
+            .iter()
+            .map(|migration| {
+                (
+                    migration.name().to_owned(),
+                    migration.status() == pgorm_migration::MigrationStatus::Applied,
+                )
+            })
+            .collect(),
+        warnings: migrator.take_warnings(),
+    })
 }
 
 #[cfg(test)]
@@ -290,6 +386,7 @@ mod tests {
             Some("ledger".to_owned()),
             None,
             None,
+            UnknownMigrations::Warn,
         );
         let migrations = listed.ledger::<Unreached>().migrations();
         let read: Vec<_> = migrations
@@ -310,5 +407,25 @@ mod tests {
             ]
         );
         assert_eq!(listed.len(), 2);
+    }
+
+    // [spec:pgorm:req:bindings.migrations.unknown-applied/test]    the setting reaches the runner, and
+    // a warning is kept in the runner's words rather than logged
+    #[test]
+    fn the_ledgers_migrator_keeps_its_warnings() {
+        let listed = Listed::<()>::new(Vec::new(), None, None, None, UnknownMigrations::Warn);
+        let migrator = listed.ledger::<Unreached>();
+        assert_eq!(migrator.unknown_migrations(), UnknownMigrations::Warn);
+        migrator.warn_unknown_migrations(&["0009_log".to_owned()]);
+        assert_eq!(
+            migrator.take_warnings(),
+            [UnknownMigrations::warning("0009_log")]
+        );
+        assert!(migrator.take_warnings().is_empty());
+        let refusing = Listed::<()>::new(Vec::new(), None, None, None, UnknownMigrations::Refuse);
+        assert_eq!(
+            refusing.ledger::<Unreached>().unknown_migrations(),
+            UnknownMigrations::Refuse
+        );
     }
 }
