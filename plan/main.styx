@@ -21602,4 +21602,26 @@ children (
             }
         )
     }
+
+    {
+        id supply-chain
+        title "Every workspace passes the supply-chain check with nothing ignored: no advisory, banned crate or unlisted source in any dependency tree"
+        kind @build
+        children (
+            {
+                id prqlc-without-chrono
+                title "The prqlc fork drops chrono, which RUSTSEC-2026-0543 declares unmaintained, so no workspace links it and the advisory needs no ignore"
+                kind @build
+                deps (prqlc-git-dependency supply-chain-detached-workspaces)
+                log (
+                    {
+                        at 2026-11-19T17:51:56.552029Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found 2026-11-19 by PR #37's Supply-chain security job (run 44580769373). It failed in all 15 workspaces with `error[unmaintained]: chrono is unmaintained`, RUSTSEC-2026-0543 (\"all versions are affected\", \"No safe upgrade is available!\"; recommended alternatives jiff and time; announcement chronotope/chrono#1768). The job is a required check on main, so no PR merges until this is resolved, and main's scheduled run fails the same way. The advisory, not the PR, is what changed. pgorm itself names no chrono: its temporal types are jiff (jiff-temporal). `cargo tree -i chrono` shows the one path chrono v0.4.45 ← prqlc v0.13.14 (necessary-nu/prql rev f25bf16d) ← pgorm / pgorm-sql-check. In the fork, chrono = \"0.4.40\" sits in prqlc/prqlc/Cargo.toml and is used in two places. prqlc/prqlc/src/debug/log.rs takes debug-log timestamps from it. prqlc/prqlc/src/sql/dialect.rs tokenizes `date.to_text` format strings with chrono::format::StrftimeItems: each dialect's translate_chrono_item maps chrono's Item enum (Fixed, Numeric, Pad, Literal, Space), and chrono_item_to_strftime turns one back into text. Upstream PRQL main still depends on chrono 0.4.42. Fix in the fork: replace the strftime tokenizer with prqlc's own, preserving every dialect's output and errors, with the fork's dialect snapshot tests as the oracle; take log timestamps from jiff or std. Then move pgorm's prqlc pin in every manifest and re-resolve every lockfile, as tests/fork_pin_tests.rs requires. deny.toml's `[advisories] ignore = []` stays empty: ignoring the advisory was rejected as a gate dodge."
+                    }
+                )
+            }
+        )
+    }
 )
