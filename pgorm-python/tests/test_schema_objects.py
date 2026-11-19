@@ -7,6 +7,8 @@ from uuid import uuid4
 import pgorm as p
 from pgorm import schema as s
 
+PG_19 = "pg-19" in p.capabilities()["features"]
+
 
 class SchemaObjectConstruction(unittest.TestCase):
     # [spec:pgorm:req:bindings.schema/test]    every complete statement is a DDL the terminals
@@ -549,13 +551,19 @@ class SchemaObjectDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.rows(f"SELECT n FROM {self.ns}.numbered ORDER BY x"), [(100,), (110,), (5,)])
 
     # [spec:pgorm:req:bindings.schema-sequences/test]
+    # [spec:pgorm:req:sql.target+2/test]    btree_gist 1.7 on 18, and on 19, which
+    # ships 1.9 alone, the refusal of 1.7
     async def test_extension_schema_and_version_hold(self):
-        await self.pool.execute(s.create_extension("btree_gist", schema=self.ns, version="1.7"))
+        version = "1.7"
+        if PG_19:
+            await self.refused(s.create_extension("btree_gist", schema=self.ns, version="1.7"), "22023")
+            version = "1.9"
+        await self.pool.execute(s.create_extension("btree_gist", schema=self.ns, version=version))
         await self.pool.execute(s.create_extension("btree_gist", if_not_exists=True))
         installed = await self.rows(
             "SELECT extversion::text, extnamespace::regnamespace::text FROM pg_extension WHERE extname = 'btree_gist'"
         )
-        self.assertEqual(installed, [("1.7", self.ns)])
+        self.assertEqual(installed, [(version, self.ns)])
         await self.refused(s.create_extension("btree_gist"), "42710")
         await self.pool.execute(s.drop_extension("btree_gist", behavior="cascade"))
         await self.pool.execute(s.drop_extension("btree_gist", if_exists=True))

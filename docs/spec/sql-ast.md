@@ -2160,10 +2160,11 @@ today, including panicking edges and deliberate failsafes.
 > rather than failing, so a caller wanting JSON out of a path reaches for it
 > knowing those two differences, and a `Named` type is the caller's own
 > spelling, not inspected. A test pins the defect, so the release that fixes
-> it is noticed and the two variants return. The `FORMAT JSON [ENCODING UTF8]` a `RETURNING`
-> may carry is not built: the output is UTF-8 JSON text either way, and a
-> `bytea` result is the same bytes with or without it (live-checked);
-> `JSON_VALUE` refuses it outright.
+> it is noticed and the two variants return. 19.0 and 18.7 fix it, so the test
+> holds 18.6's answer by default and 19's under `pg-19` (`sql.target`). The
+> `FORMAT JSON [ENCODING UTF8]` a `RETURNING` may carry is not built: the
+> output is UTF-8 JSON text either way, and a `bytea` result is the same bytes
+> with or without it (live-checked); `JSON_VALUE` refuses it outright.
 >
 > **`ON NULL` and `UNIQUE KEYS`** each have the one spelling that differs from
 > PostgreSQL's default, so each state has exactly one: an object keeps a

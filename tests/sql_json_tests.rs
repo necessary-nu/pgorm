@@ -553,13 +553,17 @@ async fn bare_json_serialize_over_jsonb_is_broken() -> Result<(), Error> {
 
 /// PostgreSQL 18.6's `JSON_VALUE .. RETURNING jsonb` (and `json`) returns
 /// `NULL` for every row after one whose answer was `NULL` (bug #19695), which
-/// is why [`JsonValueType`] has no JSON variant; when a release fixes it this
-/// fails, and the two variants can come back. `RETURNING integer`, which the
-/// type keeps, answers each row.
+/// is why [`JsonValueType`] has no JSON variant. 19.0 and 18.7 fix it, so under
+/// `pg-19` the two answer each row; the default build's 18.6 server still
+/// sticks, and when it moves to a release with the fix this fails, and the two
+/// variants can come back. `RETURNING integer`, which the type keeps, answers
+/// each row on both.
 // [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    JSON_VALUE's RETURNING leaves out the
 // types 18.6 returns wrongly
+// [spec:pgorm:req:sql.target+2/test]    18.6's sticking NULL by default, 19's
+// answer per row under pg-19
 #[pgorm_macros::test]
-async fn json_value_returning_jsonb_sticks_at_null() -> Result<(), Error> {
+async fn json_value_returning_jsonb_after_a_null() -> Result<(), Error> {
     let ctx = TestContext::new("sql_json_value_canary").await;
     let db = ctx.db.get().await?;
     db.batch_execute(
@@ -580,13 +584,17 @@ async fn json_value_returning_jsonb_sticks_at_null() -> Result<(), Error> {
         }
     };
     let every = |text: [Option<&str>; 7]| text.map(|t| t.map(str::to_owned)).to_vec();
+    #[cfg(not(feature = "pg-19"))]
+    let answers = every([Some("1"), None, None, None, None, None, None]);
+    #[cfg(feature = "pg-19")]
+    let answers = every([Some("1"), None, Some("3"), None, Some("5"), None, Some("7")]);
     for ty in ["jsonb", "json"] {
         assert_eq!(
             rows(&format!(
                 "SELECT JSON_VALUE(doc, '$.k' RETURNING {ty})::text FROM t ORDER BY n"
             ))
             .await?,
-            every([Some("1"), None, None, None, None, None, None]),
+            answers,
             "RETURNING {ty}"
         );
     }
