@@ -383,7 +383,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Window frames
 
-> [spec:pgorm:sem:pipeline.window-frame]
+> [spec:pgorm:sem:pipeline.window-frame+1]
 > A frame authored with `rows(start, end)` or `range(start, end)` reaches the
 > emitted SQL for every window function, not only the ones the compiler
 > happens to carry it for. The bounds are rows (or values) relative to the
@@ -397,25 +397,28 @@ of the crate, compiled in every build. Rules are grouped under
 > rendered as written.
 >
 > prqlc emits a frame only for the calls its own standard library annotates
-> as frame-aware, which is the aggregates: `first`, `last`, `lag`, `lead`,
-> `rank`, `rank_dense` and `row_number` are handed the frame and drop it.
-> For `FIRST_VALUE` and `LAST_VALUE` that is a different query — the frame is
-> what those functions read — so pgorm writes the whole `OVER (...)` clause
-> for these seven itself, as a `derive` of expressions spelling their own
-> partition keys, ordering keys and frame, rather than as prqlc's `window`
-> transform. The ranking and offset functions are written the same way even
-> though PostgreSQL ignores a frame on them: one rule covers the vocabulary,
-> rather than the subset whose answer happens to move.
+> as frame-aware, which are the aggregates, `first` and `last`, so those
+> stay prqlc's `window` transform and take the authored frame from it. `lag`,
+> `lead`, `rank`, `rank_dense` and `row_number` are handed the frame and drop
+> it, so pgorm writes the whole `OVER (...)` clause for these five itself, as
+> a `derive` of expressions spelling their own partition keys, ordering keys
+> and frame. PostgreSQL ignores a frame on them, so no answer moves; they are
+> written so that the SQL states the frame the pipeline authored for every
+> window function it holds.
 >
 > A written clause states what prqlc's would have: the window's own
 > partition and ordering keys, and — for an unpartitioned window that states
 > no ordering of its own — the ordering the relation already carried, which
-> is the ordering prqlc reads into such a window. A window mixing frame-aware
-> and frame-blind columns therefore renders one frame twice, identically, on
-> the two paths. Without an authored frame none of these seven is rewritten
-> and the stage is prqlc's `window` exactly as before; the one call pgorm
-> writes whether or not a frame was authored is `count`, for the separate
-> reason given in `[spec:pgorm:sem:pipeline.count-argument]`.
+> is the ordering prqlc reads into such a window. A window mixing columns
+> prqlc writes with columns pgorm writes therefore renders one frame twice,
+> identically, on the two paths. Without an authored frame none of these
+> five is rewritten and the stage is prqlc's `window` exactly as before. An
+> ordered window there gives the aggregates, `first` and `last` the whole
+> window, `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`, rather
+> than SQL's default frame, which ends at the current row's last peer, so
+> `last` reads the window's last row and not the current one's. The one call
+> pgorm writes whether or not a frame was authored is `count`, for the
+> separate reason given in `[spec:pgorm:sem:pipeline.count-argument]`.
 
 ## Counting an expression
 
@@ -441,7 +444,7 @@ of the crate, compiled in every build. Rules are grouped under
 > `aggregate` it carries none, because the grouping says what the aggregate
 > ranges over. Inside a `window` it carries that window's own `OVER (...)`,
 > partition, ordering and frame included — which is why `count` is written
-> even when no frame was authored, where the frame-blind seven are not. In
+> even when no frame was authored, where the other five are not. In
 > any other stage it carries `OVER ()`, the implicit window over the whole
 > relation that prqlc gives an aggregate used outside a grouping, so the
 > reading of `derive` and `select` is the one they already had.

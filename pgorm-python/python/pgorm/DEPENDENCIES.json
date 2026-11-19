@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
-  "cargo_lock_sha256": "5980a5b251df81b58568217279abd9a3780d4b393fde780e15892e3b583b3257",
+  "cargo_lock_sha256": "3cbfbe8404ce04cbb8243551b41e8778ab3b31853e751c61cab41e44473d49fe",
   "python_runtime_dependencies": [],
   "packages": [
     {
@@ -146,7 +146,7 @@
     },
     {
       "name": "ariadne",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "license": "MIT",
       "repository": "https://github.com/zesterer/ariadne",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -521,7 +521,7 @@
     },
     {
       "name": "chumsky",
-      "version": "0.13.0",
+      "version": "0.14.2",
       "license": "MIT",
       "repository": "https://codeberg.org/zesterer/chumsky",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -1189,7 +1189,7 @@
     },
     {
       "name": "foldhash",
-      "version": "0.1.5",
+      "version": "0.2.0",
       "license": "Zlib",
       "repository": "https://github.com/orlp/foldhash",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -1436,7 +1436,7 @@
     },
     {
       "name": "hashbrown",
-      "version": "0.15.5",
+      "version": "0.16.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rust-lang/hashbrown",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -3031,10 +3031,10 @@
     },
     {
       "name": "prqlc",
-      "version": "0.13.14",
+      "version": "0.13.15",
       "license": "Apache-2.0",
       "repository": "https://github.com/PRQL/prql",
-      "source": "git+https://github.com/necessary-nu/prql.git?rev=59405a62703b1ed5cf106377fe3517cbfc40741b#59405a62703b1ed5cf106377fe3517cbfc40741b",
+      "source": "git+https://github.com/necessary-nu/prql.git?rev=ba66e3a36c5b64872d5624f65c25f46c4afab98a#ba66e3a36c5b64872d5624f65c25f46c4afab98a",
       "notices": [
         {
           "source": "https://raw.githubusercontent.com/PRQL/prql/029b9c4bc7852db180e49c26db3768a5d9244c45/LICENSE",
@@ -3044,10 +3044,10 @@
     },
     {
       "name": "prqlc-parser",
-      "version": "0.13.14",
+      "version": "0.13.15",
       "license": "Apache-2.0",
       "repository": "https://github.com/PRQL/prql",
-      "source": "git+https://github.com/necessary-nu/prql.git?rev=59405a62703b1ed5cf106377fe3517cbfc40741b#59405a62703b1ed5cf106377fe3517cbfc40741b",
+      "source": "git+https://github.com/necessary-nu/prql.git?rev=ba66e3a36c5b64872d5624f65c25f46c4afab98a#ba66e3a36c5b64872d5624f65c25f46c4afab98a",
       "notices": [
         {
           "source": "https://raw.githubusercontent.com/PRQL/prql/029b9c4bc7852db180e49c26db3768a5d9244c45/LICENSE",
@@ -4061,7 +4061,7 @@
     },
     {
       "name": "sqlformat",
-      "version": "0.3.5",
+      "version": "0.5.0",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/shssoichiro/sqlformat-rs",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -4078,7 +4078,7 @@
     },
     {
       "name": "sqlparser",
-      "version": "0.62.0",
+      "version": "0.64.0",
       "license": "Apache-2.0",
       "repository": "https://github.com/apache/datafusion-sqlparser-rs",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -4086,6 +4086,10 @@
         {
           "source": "LICENSE.TXT",
           "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "source": "NOTICE.TXT",
+          "sha256": "bb3ca1682483387eb1f4e538b226f83856212488f11ebad1bd71bb928a44f5e9"
         }
       ]
     },
@@ -4785,7 +4789,7 @@
     },
     {
       "name": "unicode-width",
-      "version": "0.1.14",
+      "version": "0.2.3",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/unicode-rs/unicode-width",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -5392,7 +5396,7 @@
     },
     {
       "name": "winnow",
-      "version": "0.6.26",
+      "version": "0.7.15",
       "license": "MIT",
       "repository": "https://github.com/winnow-rs/winnow",
       "source": "registry+https://github.com/rust-lang/crates.io-index",

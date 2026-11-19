@@ -32,8 +32,9 @@ The Rust crate's initial setup mistakes (a missing `ExprOps` import and using
 They are harness errors. `native.log` records the corrected crate compiling,
 printing both discrepancies and then failing its semantic assertion.
 
-The oracle's aggregate default frame is the whole partition; `first`/`last`
-without an authored frame use PostgreSQL's default window frame. Those rules
+When this was found, the oracle's aggregate default frame was the whole
+partition, and `first`/`last` without an authored frame used PostgreSQL's
+default window frame (see the end of the next section for today's). Those rules
 are distinct from dropping an explicitly requested frame. Early development
 runs used the wrong aggregate default and remain separate from the preserved
 corrected reports. The self-check expects these known programs to report
@@ -47,10 +48,18 @@ documentation agree exactly. prqlc's `std.sql.prql` annotates only the
 aggregates `@{window_frame=true}`, and `sql/gen_expr.rs::translate_windowed`
 emits a frame clause only for an annotated call, so `first`, `last`, `lag`,
 `lead`, `rank`, `rank_dense` and `row_number` were handed the authored frame
-and dropped it. pgorm now writes the whole `OVER (...)` clause for those seven
+and dropped it. pgorm then wrote the whole `OVER (...)` clause for those seven
 itself ([spec:pgorm:sem:pipeline.window-frame]). The retained artifacts here
 record the discrepancy as found; `known-first-last-frame.program.json` no
 longer reproduces the frame half.
+
+Since the fork's rebase onto upstream main, prqlc's #6435 annotates `first`
+and `last` as well, so prqlc carries an authored frame to them itself and
+pgorm writes only the other five. An ordered window that authors no frame now
+gives them the whole window, `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED
+FOLLOWING`, as it gives an aggregate, and the reference does the same. Before,
+both sides read them under PostgreSQL's default frame, which ends `last` at
+the current row's last peer.
 
 ## The nullable count is fixed
 

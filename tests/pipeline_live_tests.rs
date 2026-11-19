@@ -285,7 +285,7 @@ async fn rows_frame_computes_running_sum() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.window-frame/test]    a frame that selects only the
+// [spec:pgorm:sem:pipeline.window-frame+1/test]    a frame that selects only the
 // following row reaches LAST_VALUE, so each row reads its neighbour and the
 // partition's last row reads nothing
 #[pgorm_macros::test]
@@ -320,12 +320,12 @@ async fn a_following_frame_reads_only_the_next_row() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.window-frame/test]    a frame spanning the current
-// row reaches FIRST_VALUE, and the aggregate rendered beside it counts exactly
-// the rows that frame holds
+// [spec:pgorm:sem:pipeline.window-frame+1/test]    a frame spanning the current
+// row reaches FIRST_VALUE, and the aggregate beside it counts exactly the rows
+// that frame holds
 #[pgorm_macros::test]
-async fn a_spanning_frame_agrees_across_both_paths() {
-    let ctx = TestContext::new("pipeline_spanning_frame_both_paths").await;
+async fn a_spanning_frame_agrees_for_value_and_count() {
+    let ctx = TestContext::new("pipeline_spanning_frame_value_count").await;
     create_tables(&ctx.db).await.unwrap();
     let db = ctx.db.get().await.unwrap();
     let seeded = seed(&db).await;

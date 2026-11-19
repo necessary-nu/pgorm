@@ -6,20 +6,18 @@
 use super::adapter::{self, Piece, PlExpr};
 use super::expr::{ExprList, nodes_of};
 
-/// The calls prqlc renders wrongly and what pgorm renders in their place:
-/// the PRQL name, the SQL function, which of the call's arguments reach it
-/// in SQL order, and whether prqlc needs an authored frame before it goes
-/// wrong.
+/// The calls pgorm writes itself rather than leaving to prqlc: the PRQL name,
+/// the SQL function, which of the call's arguments reach it in SQL order, and
+/// whether pgorm writes it without an authored frame.
 ///
 /// Two things go wrong, and the last field is which. prqlc emits a frame
 /// clause only for the calls its own standard library annotates as
-/// frame-aware — the aggregates — and drops it silently from every other
-/// window function. For `FIRST_VALUE` and `LAST_VALUE` the frame *is* the
-/// answer, so a dropped one is a different query; for the ranking and offset
-/// functions PostgreSQL ignores the frame either way, but they are written
-/// the same way so that one rule covers the vocabulary rather than the subset
-/// whose answer happens to move. None of that arises without an authored
-/// frame, so those seven are left to prqlc until one is given.
+/// frame-aware — the aggregates, `first` and `last` — and drops it silently
+/// from the offset and ranking functions. PostgreSQL ignores a frame on those,
+/// so no answer moves, but an authored frame reaches the SQL of every window
+/// function, so these five are written with it rather than left to drop it.
+/// None of that arises without an authored frame, so they are left to prqlc
+/// until one is given.
 ///
 /// `count` is the other thing, and it does not need a frame to go wrong:
 /// PRQL's `count` counts the rows of the relation it is given, and prqlc's
@@ -31,13 +29,11 @@ use super::expr::{ExprList, nodes_of};
 ///
 /// The ranking functions take no argument: PRQL's `rank` names the column
 /// being ranked, and `RANK()` has nowhere to put it.
-// [spec:pgorm:sem:pipeline.window-frame]
+// [spec:pgorm:sem:pipeline.window-frame+1]
 // [spec:pgorm:sem:pipeline.count-argument]
-const WRITTEN: [(&str, &str, &[usize], bool); 8] = [
+const WRITTEN: [(&str, &str, &[usize], bool); 6] = [
     ("count", "COUNT", &[0], true),
-    ("first", "FIRST_VALUE", &[0], false),
     ("lag", "LAG", &[1, 0], false),
-    ("last", "LAST_VALUE", &[0], false),
     ("lead", "LEAD", &[1, 0], false),
     ("rank", "RANK", &[], false),
     ("rank_dense", "DENSE_RANK", &[], false),
@@ -112,7 +108,7 @@ impl Over {
     /// The two bounds are independent, so every direction is expressible, and
     /// the frame reaches the emitted SQL for every window function — including
     /// the ones the compiler renders without it.
-    // [spec:pgorm:sem:pipeline.window-frame]
+    // [spec:pgorm:sem:pipeline.window-frame+1]
     pub fn rows(mut self, start: Option<i64>, end: Option<i64>) -> Self {
         self.frame = Some(("rows", start, end));
         self
@@ -120,7 +116,7 @@ impl Over {
 
     /// A `RANGE BETWEEN ... AND ...` frame, in values, with bounds read as
     /// in [`rows`](Over::rows).
-    // [spec:pgorm:sem:pipeline.window-frame]
+    // [spec:pgorm:sem:pipeline.window-frame+1]
     pub fn range(mut self, start: Option<i64>, end: Option<i64>) -> Self {
         self.frame = Some(("range", start, end));
         self
@@ -135,7 +131,7 @@ impl Over {
     /// unpartitioned window's ordering from the pipeline — hence `inherited`,
     /// which is that ordering and is what the written clause has to agree
     /// with.
-    // [spec:pgorm:sem:pipeline.window-frame]
+    // [spec:pgorm:sem:pipeline.window-frame+1]
     pub(super) fn wrap(self, columns: Vec<PlExpr>, inherited: Vec<PlExpr>) -> Vec<PlExpr> {
         let clause = self.over_clause(&inherited);
         let framed = self.frame.is_some();
@@ -193,7 +189,7 @@ impl Over {
 
     /// The `OVER (...)` clause this window spells, as text around the keys
     /// prqlc renders.
-    // [spec:pgorm:sem:pipeline.window-frame]
+    // [spec:pgorm:sem:pipeline.window-frame+1]
     fn over_clause(&self, inherited: &[PlExpr]) -> Vec<Piece> {
         let mut pieces = vec![Piece::Text(" OVER (".to_owned())];
         let mut written = false;
@@ -224,7 +220,7 @@ impl Over {
     /// What the `OVER` clause orders by: this window's own keys, or — for an
     /// unpartitioned one, which is the only kind prqlc lets read past itself —
     /// the ordering the pipeline already carried.
-    // [spec:pgorm:sem:pipeline.window-frame]
+    // [spec:pgorm:sem:pipeline.window-frame+1]
     fn ordering_keys<'keys>(&'keys self, inherited: &'keys [PlExpr]) -> &'keys [PlExpr] {
         if !self.sort.is_empty() {
             &self.sort
@@ -256,15 +252,14 @@ pub(super) fn written_aggregates(nodes: Vec<PlExpr>, clause: &str) -> Vec<PlExpr
         .collect()
 }
 
-/// `node` rewritten to spell its own SQL, or `None` when prqlc renders it
-/// correctly as it stands. `framed` is whether the enclosing window authored
-/// a frame, which is what the calls prqlc renders frame-blind are waiting
-/// for.
+/// `node` rewritten to spell its own SQL, or `None` when it is left to
+/// prqlc. `framed` is whether the enclosing window authored a frame, which is
+/// what every call in [`WRITTEN`] but `count` is waiting for.
 ///
 /// The call is written out rather than interpolated whole: prqlc appends an
 /// `OVER (...)` of its own to any window function it renders, so a call left
 /// intact inside the assembled expression would carry two.
-// [spec:pgorm:sem:pipeline.window-frame]
+// [spec:pgorm:sem:pipeline.window-frame+1]
 // [spec:pgorm:sem:pipeline.count-argument]
 fn rewritten(node: &PlExpr, clause: &[Piece], framed: bool) -> Option<PlExpr> {
     // A window function call has the shape a stage does — a bare name applied
@@ -312,7 +307,7 @@ fn counts_rows(name: &str, args: &[PlExpr]) -> bool {
 
 /// Append `text`, merging it into the text already at the end so that the
 /// assembled expression holds one piece per run rather than one per call.
-// [spec:pgorm:sem:pipeline.window-frame]
+// [spec:pgorm:sem:pipeline.window-frame+1]
 fn push_text(pieces: &mut Vec<Piece>, text: &str) {
     match pieces.last_mut() {
         Some(Piece::Text(last)) => last.push_str(text),
@@ -322,7 +317,7 @@ fn push_text(pieces: &mut Vec<Piece>, text: &str) {
 
 /// Append a comma-separated key list, each key stripped of its sort mark and
 /// carrying `DESC` as text where it had one.
-// [spec:pgorm:sem:pipeline.window-frame]
+// [spec:pgorm:sem:pipeline.window-frame+1]
 fn push_keys(pieces: &mut Vec<Piece>, keys: &[PlExpr]) {
     for (index, key) in keys.iter().enumerate() {
         if index > 0 {
@@ -340,7 +335,7 @@ fn push_keys(pieces: &mut Vec<Piece>, keys: &[PlExpr]) {
 /// [`rows`](Over::rows) and [`range`](Over::range) document them: `0` is the
 /// current row, a negative offset precedes it, a positive one follows, and
 /// `None` is unbounded on that side.
-// [spec:pgorm:sem:pipeline.window-frame]
+// [spec:pgorm:sem:pipeline.window-frame+1]
 fn frame_clause(kind: &str, start: Option<i64>, end: Option<i64>) -> String {
     let units = if kind == "range" { "RANGE" } else { "ROWS" };
     let start = frame_bound(start, "UNBOUNDED PRECEDING");
@@ -349,7 +344,7 @@ fn frame_clause(kind: &str, start: Option<i64>, end: Option<i64>) -> String {
 }
 
 /// One frame bound, `unbounded` naming the side it sits on.
-// [spec:pgorm:sem:pipeline.window-frame]
+// [spec:pgorm:sem:pipeline.window-frame+1]
 fn frame_bound(offset: Option<i64>, unbounded: &str) -> String {
     match offset {
         None => unbounded.to_owned(),
