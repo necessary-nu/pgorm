@@ -2541,6 +2541,32 @@ Rust generic at run time, only use the ones compiled in.
 > the list, a ledger row with no migration, a checksum that has changed —
 > are pgorm's `Error::Custom`, the binding's `ConstructionError`.
 
+> [spec:pgorm:req:bindings.migrations.unknown-applied]
+> Each binding's migrator MUST take the setting a Rust migrator's
+> `unknown_migrations()` answers (`[spec:pgorm:req:migration.unknown-applied]`)
+> as an option of `Migrations` beside the three `bindings.migrations` names,
+> spelled by the binding's naming rule — `unknown_migrations` in Python,
+> `unknownMigrations` in JavaScript — its value the string `"refuse"`, the
+> default, or `"warn"`, which the binding hands to
+> `Migrations::with_unknown_migrations`. Any other value is the binding's
+> `TypeError` naming both (`bindings.argument-errors`). Every read and `up`
+> is then the runner's under that setting: under `"refuse"` a ledger row with
+> no migration fails as `bindings.migrations` says, and under `"warn"` a read
+> goes on past it, `up` goes on when nothing of its own is pending and
+> refuses, a `ConstructionError` naming both sets, when something is, and a
+> changed checksum fails either way.
+>
+> A warning MUST reach the program through the language's logging, as Rust's
+> reaches `tracing`. The binding's migrator keeps the versions the runner
+> gives its `warn_unknown_migrations`, each worded by
+> `UnknownMigrations::warning`, and once the read or the `up` has finished
+> writes each as a warning: to `logging.getLogger("pgorm.migration")` in
+> Python, the logger `status` writes to unless given another, and with
+> `console.warn` in JavaScript. `status` writes them after its listing of the
+> migrations the migrator knows, to the logger it writes the listing to: its
+> `warning` in Python, and its `warn` in JavaScript, or its `info` when it has
+> no `warn`.
+
 > [spec:pgorm:req:bindings.one-of+1]
 > Each binding MUST read, set and load a reference to exactly one of several
 > targets (`[spec:pgorm:def:disjoint.one-of]`) and write its `CHECK` through

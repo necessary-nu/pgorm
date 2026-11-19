@@ -184,6 +184,8 @@ async def invalid(connection: p.Connection) -> None:
     await s.Migrations([]).up(p.Pool("postgres://"), "1")  # expected-error: arg-type
     s.SqlMigration.read_dir(1)  # expected-error: arg-type
     waiting: list[str] = await s.Migrations([]).get_pending_migrations(connection)  # expected-error: assignment
+    # [spec:pgorm:req:bindings.migrations.unknown-applied/test]    the setting is "refuse" or "warn"
+    s.Migrations([], unknown_migrations="ignore")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.model-projections/test]    a projection reads no rows until into_tuple, into_values or into_model says what each becomes
     projection = accounts.find().select_only().column(accounts.col("id"))
     await projection.all(connection)  # expected-error: attr-defined

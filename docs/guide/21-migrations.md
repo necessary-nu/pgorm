@@ -663,6 +663,113 @@ match refused {
 # }
 ```
 
+## An older build against a newer database
+
+A ledger row that no migration of the migrator answers by name is an error by
+default: it says a migration was deleted or renamed, and `up` and every read
+stop rather than guess. A program deployed as several replicas meets one in
+the ordinary course of things, though. During a rolling update the old build
+keeps starting while the new one serves, and if it runs `up` as it starts, it
+finds the migrations the new build applied, which it has never heard of.
+
+A migrator whose `unknown_migrations` answers `UnknownMigrations::Warn` goes
+on past them. Each read logs, at `warn` level through `tracing`, every
+migration the database records that the migrator does not know, saying the
+database is ahead of this build, and reports the migrations it knows as it
+otherwise would; `status` logs them after its listing. `up` then applies
+nothing and succeeds, warning once. Two things are still refused. An applied
+migration whose checksum has changed fails as before, since it is a file this
+build has, edited. And `up` refuses, naming both, when the migrator has
+migrations of its own pending beside ones it does not know: applying them
+after migrations it has never seen would run them out of order, against a
+schema newer than the one they were written for. `Migrations` takes the
+setting through `with_unknown_migrations`.
+
+```rust
+use pgorm_migration::prelude::*;
+
+/// A migration creating the table its name ends with.
+pub struct Create(&'static str);
+
+impl MigrationName for Create {
+    fn name(&self) -> &str {
+        self.0
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for Create {
+    async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
+        let table = self.0.rsplit_once('_').map_or(self.0, |(_, table)| table);
+        tx.batch_execute(&format!("CREATE TABLE {table} (id serial PRIMARY KEY)"))
+            .await
+    }
+}
+
+/// The newer build, which added the cake table.
+pub struct Migrator;
+
+impl MigratorTrait for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+        vec![
+            Box::new(Create("m20260101_000001_create_bakery")),
+            Box::new(Create("m20260101_000002_create_cake")),
+        ]
+    }
+}
+
+/// The build before it, still starting while the newer one rolls out.
+pub struct OlderMigrator;
+
+impl MigratorTrait for OlderMigrator {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+        vec![Box::new(Create("m20260101_000001_create_bakery"))]
+    }
+
+    fn unknown_migrations(&self) -> UnknownMigrations {
+        UnknownMigrations::Warn
+    }
+}
+
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::empty("migrations_unknown").await;
+# let pool = scratch.pool.clone();
+Migrator.up(pool.clone(), None).await?;
+
+// Warns that the database records m20260101_000002_create_cake, and applies
+// nothing.
+OlderMigrator.up(pool.clone(), None).await?;
+let db = pool.get().await?;
+assert!(OlderMigrator.get_pending_migrations(&db).await?.is_empty());
+
+// Without the opt-in, the same build refuses to start.
+let strict = Migrations::new(OlderMigrator.migrations());
+assert!(matches!(
+    strict.up(pool.clone(), None).await,
+    Err(Error::Custom(message)) if message.contains("'m20260101_000002_create_cake' is missing")
+));
+
+// A build with a migration of its own to apply refuses, even when it warns.
+let diverged = Migrations::new(vec![
+    Box::new(Create("m20260101_000001_create_bakery")) as Box<dyn MigrationTrait>,
+    Box::new(Create("m20260201_000001_create_bun")),
+])
+.with_unknown_migrations(UnknownMigrations::Warn);
+assert!(matches!(
+    diverged.up(pool.clone(), None).await,
+    Err(Error::Custom(message)) if message.contains("out of order")
+));
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+A migrator can report them some other way by overriding
+`warn_unknown_migrations`, which is given the versions each read found;
+`UnknownMigrations::warning` words the default's message.
+
 ## Generated DDL in a migration
 
 [Schema generation](crate::guide::schema) writes a table's DDL from its entity,

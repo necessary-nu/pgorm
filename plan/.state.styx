@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-10T00:47:01.706274Z
+last_sync_at 2026-11-19T22:47:00.188867Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -51,6 +51,7 @@ rule_versions (
     {id bindings.metrics, version 0}
     {id bindings.migration-file, version 1}
     {id bindings.migrations, version 0}
+    {id bindings.migrations.unknown-applied, version 0}
     {id bindings.model-array-casts, version 0}
     {id bindings.model-casts, version 0}
     {id bindings.model-clauses, version 0}
@@ -330,7 +331,7 @@ rule_versions (
     {id metric.layer.tx, version 5}
     {id migration.commit-after, version 0}
     {id migration.frozen, version 0}
-    {id migration.name, version 4}
+    {id migration.name, version 5}
     {id migration.runner, version 5}
     {id migration.runtime, version 0}
     {id migration.sql-file, version 1}
@@ -338,7 +339,8 @@ rule_versions (
     {id migration.sql-file.commits-after, version 0}
     {id migration.sql-file.compile, version 1}
     {id migration.sql-file.read, version 0}
-    {id migration.up, version 6}
+    {id migration.unknown-applied, version 0}
+    {id migration.up, version 7}
     {id migration.up-only, version 0}
     {id napi.api, version 1}
     {id napi.application, version 2}
@@ -871,6 +873,7 @@ derived_priorities (
     {id migration-sql-files, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id migration-status-reads, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id migration-test-database-gate, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
+    {id migration-unknown-applied, priority 0, derived_at 2026-11-19T22:47:00.188867Z}
     {id minimal-feature-build, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id money-beyond-entities, priority 1, derived_at 2026-11-02T23:02:57.694884Z}
     {id multi-pool-constructor, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
@@ -961,18 +964,25 @@ derived_priorities (
     {id parameter-wire-types, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id pg-query-18, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg-query-19, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id pg-query-crates-io, priority 1, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg17-json-table, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg17-set-expression, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg17-sql-json, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-not-enforced, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-not-null-constraints, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
+    {id pg18-point-release-18-7, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg18-returning-old-new, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-security-baselines, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-temporal-keys, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-test-server, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-uuid-functions, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-virtual-generated, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
+    {id pg19-copy-header-lines, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
+    {id pg19-copy-on-error-set-null, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
+    {id pg19-copy-to-json, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
+    {id pg19-json-value-returning-json, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg19-on-conflict-do-select, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
+    {id pg19-release-differences, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg19-test-server, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg19-window-null-treatment, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id pgparse.codegen-ddl, priority 1, derived_at 2026-09-04T14:19:01.307427Z}
@@ -1017,7 +1027,10 @@ derived_priorities (
     {id prqlc-group-by-wildcard, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id prqlc-literal-ordinal, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id prqlc-pin-incomplete, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id prqlc-rebase-2026-11, priority 2, derived_at 2026-11-19T22:47:00.188867Z}
+    {id prqlc-upstream-fixes, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
     {id prqlc-wildcard-distinct-key, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id prqlc-without-chrono, priority 1, derived_at 2026-11-19T22:47:00.188867Z}
     {id public-enums-non-exhaustive, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
     {id python-acceptance-emcc-probe, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id python-application-check-names, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
@@ -2678,6 +2691,8 @@ impl_evidence (
         {impl_name javascript, rule conn.copy.statement}
         {impl_name main, rule conn.copy.statement}
         {impl_name python, rule conn.copy.statement}
+    ), rule_versions_seen (
+        {id conn.copy.statement, version 0}
     )}
     {id guide.python-gaps.entity-try-inserts, covered_rules (
         bindings.entity-try-inserts
@@ -2866,6 +2881,8 @@ impl_evidence (
         {impl_name javascript, rule error.model.parameter-count}
         {impl_name main, rule error.model.parameter-count}
         {impl_name python, rule error.model.parameter-count}
+    ), rule_versions_seen (
+        {id error.model.parameter-count, version 0}
     )}
     {id guide.python-gaps.raw-sql, covered_rules (
         bindings.batch-execute
@@ -3021,6 +3038,14 @@ impl_evidence (
         {id migration.sql-file, version 1}
         {id migration.sql-file.checksum, version 0}
         {id migration.sql-file.compile, version 1}
+    )}
+    {id migration-unknown-applied, covered_rules (
+        bindings.migrations.unknown-applied
+        migration.unknown-applied
+    ), covered_claims (
+        {impl_name javascript, rule bindings.migrations.unknown-applied}
+        {impl_name main, rule migration.unknown-applied}
+        {impl_name python, rule bindings.migrations.unknown-applied}
     )}
     {id napi-codegen, covered_rules (
         napi.codegen-types

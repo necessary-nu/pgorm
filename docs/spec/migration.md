@@ -84,7 +84,7 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > told. The old table name survives in exactly one place — as
 > `LEGACY_LEDGER_TABLE`, the name adoption looks for.
 
-> [spec:pgorm:sem:migration.up+6]
+> [spec:pgorm:sem:migration.up+7]
 > `up(db, steps)` acquires one pooled connection, opens one transaction, and
 > runs the entire batch inside it before committing, unless a migration of
 > the batch asks to be committed before the next one runs
@@ -160,7 +160,10 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > The reverse direction is also checked: if the ledger holds a version with no
 > corresponding entry in `migrations()`, `get_migration_with_status` fails with
 > `Error::Custom` naming each missing migration, so a deleted or renamed
-> migration file surfaces as an error rather than silently re-running.
+> migration file surfaces as an error rather than silently re-running. That is
+> the default. A migrator whose `unknown_migrations()` answers `Warn` warns of
+> each such version instead, and its `up` goes ahead only when none of its own
+> migrations is pending (`[spec:pgorm:req:migration.unknown-applied]`).
 
 > [spec:pgorm:req:migration.commit-after]
 > A migration whose `commits_after()` answers `true` (the trait's default is
@@ -180,6 +183,57 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > transaction it ends. A batch with no such migration is one transaction, as
 > before.
 
+## A database ahead of the build
+
+> [spec:pgorm:req:migration.unknown-applied]
+> A migrator MAY go on past applied migrations it does not know, and MUST
+> refuse them unless it says so. An unknown migration is a version the ledger
+> records that no migration of `migrations()` answers by name: one a newer
+> build of the program applied, so the database is ahead of this build.
+> `MigratorTrait::unknown_migrations()` says what a read does about one,
+> answering `UnknownMigrations::Refuse` unless a migrator overrides it, and
+> `Migrations::with_unknown_migrations(setting)` sets what a migrator built
+> at run time answers (`migration.runtime`). `UnknownMigrations` is exported
+> at the crate's root and in its prelude, beside `MigratorTrait`, and derives
+> `Copy`, `Clone`, `Debug`, `PartialEq`, `Eq` and `Default`, which is
+> `Refuse`. It is exhaustive: its two variants are the two sides of one
+> choice, whether a version no migration answers fails the read that finds
+> it, so a caller matches both; how a tolerated one is reported is
+> `warn_unknown_migrations`', which a migrator overrides, rather than a
+> further variant.
+>
+> Under `Refuse`, every read that finds an unknown migration —
+> `get_migration_with_status`, and through it `get_pending_migrations`,
+> `get_applied_migrations`, `status` and `up` — MUST fail with the
+> `Error::Custom` `migration.up` describes, naming each. Under `Warn` none of
+> them fails for it. A read that finds unknown migrations reports the
+> migrations it knows as it would without them and calls
+> `warn_unknown_migrations(versions)` once, the versions sorted. That is a
+> provided method, whose default writes one `tracing::warn!` per version,
+> the version a field of the event and its message
+> `UnknownMigrations::warning(version)`: that the database records the
+> migration as applied, that this migrator does not know it, and so that the
+> database is ahead of this build. `status` calls it after its listing of the
+> migrations the migrator knows, so each unknown migration is logged once,
+> in the listing.
+>
+> Two refusals hold under `Warn`. A migration the migrator knows whose
+> checksum has changed MUST still fail every read (`migration.checksum`): it
+> is a file this build has, edited, not one it lacks. And `up` MUST refuse,
+> with an `Error::Custom` naming the unknown migrations and its own pending
+> ones, when the ledger holds unknown migrations and the migrator has
+> migrations pending, whatever `steps` bounds: applying a migration this build
+> has not applied after migrations it does not know would apply it out of
+> order, against a schema newer than the one it was written for. A read that
+> refuses applies nothing and warns of nothing. An empty pending set is what
+> `Warn` exists for — an older build of a program run as several replicas,
+> starting during a rolling update against a database a newer build has
+> migrated — and `up` MUST then succeed, warning of each unknown migration
+> and applying nothing. Since it goes past unknown migrations only with
+> nothing to apply, one `up` calls `warn_unknown_migrations` at most once,
+> however many transactions `commits_after` splits it into
+> (`migration.commit-after`).
+
 ## Forward-only by construction
 
 > [spec:pgorm:req:migration.up-only]
@@ -197,7 +251,7 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > monotonic, auditable log. Callers needing a reversal write it as the next
 > migration.
 
-> [spec:pgorm:sem:migration.name+4]
+> [spec:pgorm:sem:migration.name+5]
 > A migration's identity — the value written to and matched against the
 > ledger's `version` column — is its **source filename** without extension, not
 > its type name. The `MigrationName` derive implements `MigrationName::name` as
@@ -223,9 +277,12 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 >
 > The consequence of the filename rule is that renaming a migration file renames
 > the migration: the old name remains in the ledger with no matching entry in
-> `migrations()`, which `get_migration_with_status` reports as a
-> missing-migration `Error::Custom`, and the new name is treated as pending and
-> re-applied. Implementors may bypass the derive and write `MigrationName` by
+> `migrations()`, and the new name reads as pending. `get_migration_with_status`
+> reports the old name as a missing-migration `Error::Custom`, so `up` does not
+> apply the migration again under its new name. A migrator that warns of
+> unknown migrations (`migration.unknown-applied`) warns of the old name
+> instead, and its `up` still refuses, because the new name is pending beside
+> it. Implementors may bypass the derive and write `MigrationName` by
 > hand to pin a name independently of the filename — which is also how two
 > migrations that must share a filename are told apart.
 

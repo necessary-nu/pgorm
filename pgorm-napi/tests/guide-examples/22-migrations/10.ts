@@ -2,20 +2,44 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ColumnDef, createTable, migrationFile, Table } from "@necessary/pgorm";
+import { ConstructionError, type MigrationTrait, migrations } from "@necessary/pgorm";
+import type { GuideContext } from "../../../guide/context.ts";
 
-export default async function example(): Promise<void> {
-  const create = createTable(new Table("bakery"))
-    .column(new ColumnDef("id", "integer").autoIncrement().notNull())
-    .column(new ColumnDef("name", "varchar").notNull())
-    .column(new ColumnDef("city", "varchar").notNull())
-    .primaryKey("id");
+export default async function example({ pool }: GuideContext): Promise<void> {
+  const create = (name: string, table: string): MigrationTrait => ({
+    name,
+    async up(tx) {
+      await tx.execute(`CREATE TABLE ${table} (id serial PRIMARY KEY)`);
+    },
+  });
+  const delivery = create("m20260201_000001_create_delivery", "delivery");
+  const voucher = create("m20260201_000002_create_voucher", "voucher");
 
-  // Frozen when the bakery table was added; freezing again writes nothing.
-  const file = migrationFile("m20260101_000001_create_bakery", [create]);
-  assert.equal(
-    file.text,
-    `CREATE TABLE "bakery" ( "id" serial NOT NULL, "name" varchar NOT NULL, "city" varchar NOT NULL, PRIMARY KEY ("id") );\n`,
+  // The newer build, which added the voucher table.
+  await migrations([delivery, voucher]).up(pool);
+
+  // The build before it, still starting while the newer one rolls out: it
+  // warns that the database records m20260201_000002_create_voucher, and
+  // applies nothing.
+  const older = migrations([delivery], { unknownMigrations: "warn" });
+  await older.up(pool);
+  const warned: string[] = [];
+  await older.status(pool, { logger: { info() {}, warn: (line) => warned.push(line) } });
+  assert.deepEqual(warned, [
+    "The database records migration 'm20260201_000002_create_voucher' as applied, " +
+      "but this migrator does not know it, so the database is ahead of this build",
+  ]);
+
+  // Without the opt-in, the same build refuses to start.
+  await assert.rejects(
+    migrations([delivery]).up(pool),
+    (error) => error instanceof ConstructionError && error.message.includes("'m20260201_000002_create_voucher' is missing"),
   );
-  assert.equal(file.freeze("guide/migrations"), false);
+
+  // A build with a migration of its own to apply refuses, even when it warns.
+  const courier = create("m20260301_000001_create_courier", "courier");
+  await assert.rejects(
+    migrations([delivery, courier], { unknownMigrations: "warn" }).up(pool),
+    (error) => error instanceof ConstructionError && error.message.includes("out of order"),
+  );
 }

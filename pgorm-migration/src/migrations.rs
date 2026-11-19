@@ -6,7 +6,7 @@ use std::sync::Arc;
 use pgorm::pgorm_query::IntoName;
 use pgorm::{DatabaseTransaction, Name};
 
-use crate::{Error, MigrationName, MigrationTrait, MigratorTrait, ledger};
+use crate::{Error, MigrationName, MigrationTrait, MigratorTrait, UnknownMigrations, ledger};
 
 /// A migrator built as the program runs rather than declared as a type: the
 /// migrations it applies, in order, and where its ledger lives.
@@ -41,18 +41,21 @@ pub struct Migrations {
     table_name: Name,
     table_schema: Option<Name>,
     statement_cache_channel: Option<String>,
+    unknown_migrations: UnknownMigrations,
 }
 
 impl Migrations {
     /// A migrator applying `migrations` in the order given, its ledger
-    /// placed and its channel named as a [`MigratorTrait`] that overrides
-    /// nothing places and names them.
+    /// placed, its channel named and an unknown migration refused as a
+    /// [`MigratorTrait`] that overrides nothing places, names and refuses
+    /// them.
     pub fn new(migrations: impl IntoIterator<Item = Box<dyn MigrationTrait>>) -> Self {
         Self {
             migrations: migrations.into_iter().map(Arc::from).collect(),
             table_name: ledger::Entity.into_name(),
             table_schema: None,
             statement_cache_channel: Some(pgorm::STATEMENT_CACHE_CHANNEL.to_owned()),
+            unknown_migrations: UnknownMigrations::Refuse,
         }
     }
 
@@ -78,6 +81,15 @@ impl Migrations {
         self.statement_cache_channel = channel;
         self
     }
+
+    /// What a read does when the ledger records a migration this migrator
+    /// does not know, which
+    /// [`unknown_migrations`](MigratorTrait::unknown_migrations) answers.
+    // [spec:pgorm:req:migration.unknown-applied]
+    pub fn with_unknown_migrations(mut self, unknown_migrations: UnknownMigrations) -> Self {
+        self.unknown_migrations = unknown_migrations;
+        self
+    }
 }
 
 impl fmt::Debug for Migrations {
@@ -94,6 +106,7 @@ impl fmt::Debug for Migrations {
             .field("table_name", &self.table_name)
             .field("table_schema", &self.table_schema)
             .field("statement_cache_channel", &self.statement_cache_channel)
+            .field("unknown_migrations", &self.unknown_migrations)
             .finish()
     }
 }
@@ -117,6 +130,10 @@ impl MigratorTrait for Migrations {
 
     fn statement_cache_channel(&self) -> Option<String> {
         self.statement_cache_channel.clone()
+    }
+
+    fn unknown_migrations(&self) -> UnknownMigrations {
+        self.unknown_migrations
     }
 }
 

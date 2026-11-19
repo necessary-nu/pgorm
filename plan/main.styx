@@ -2124,6 +2124,14 @@ children (
                         text "migration.up (+3): up clears the pool's statement caches once a batch that applied a migration commits, added by statement-cache-after-ddl (conn.pool.statement-cache.clear, 2adf99d1)."
                         after_done true
                     }
+
+                    {
+                        at 2026-11-19T22:48:35.567588Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "migration.up (+7) and migration.name (+5): a ledger row no migration answers is refused by default, and a migrator whose unknown_migrations() answers Warn warns of it instead, its up going ahead only with nothing of its own pending; added by migration-unknown-applied (migration.unknown-applied)."
+                        after_done true
+                    }
                 )
             }
 
@@ -21687,6 +21695,11 @@ children (
                 id migration-unknown-applied
                 title "A migrator can opt to warn, naming each one, rather than fail when the database records migrations it does not know, so an older image keeps serving against a newer schema; refusing stays the default"
                 kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.migrations.unknown-applied])
+                    main ([spec:pgorm:req:migration.unknown-applied])
+                    python ([spec:pgorm:req:bindings.migrations.unknown-applied])
+                }
                 log (
                     {
                         at 2026-11-19T22:17:58.184835Z

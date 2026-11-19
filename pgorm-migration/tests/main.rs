@@ -12,8 +12,8 @@ use pgorm_migration::prelude::*;
 /// A fresh database has nothing applied; `up` installs the tracking table and
 /// runs every pending migration in order.
 // [spec:pgorm:def:migration.runner+5/test]
-// [spec:pgorm:sem:migration.up+6/test]
-// [spec:pgorm:sem:migration.name+4/test]    asserted names are file stems
+// [spec:pgorm:sem:migration.up+7/test]
+// [spec:pgorm:sem:migration.name+5/test]    asserted names are file stems
 // [spec:pgorm:req:migration.ledger-upgrade+2/test]    the fresh-install half: the legacy name is never created
 // [spec:pgorm:def:macros.derive+7/test]    `MigrationName` names each migration after the file stem
 // [spec:pgorm:req:migration.read-only+1/test]    the accessors leave a fresh database fresh
@@ -69,7 +69,7 @@ async fn fresh_install_applies_all_pending() -> Result<(), Error> {
 
 /// Re-running `up` on an already-migrated database is a no-op: no migration is
 /// re-applied and no extra ledger row is written.
-// [spec:pgorm:sem:migration.up+6/test]
+// [spec:pgorm:sem:migration.up+7/test]
 #[tokio::test]
 async fn repeated_up_is_idempotent() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_idempotent").await;
@@ -103,7 +103,7 @@ async fn repeated_up_is_idempotent() -> Result<(), Error> {
 /// `steps` bounds how many pending migrations are applied, and `status` reports
 /// the split without altering it.
 // [spec:pgorm:def:migration.runner+5/test]
-// [spec:pgorm:sem:migration.up+6/test]
+// [spec:pgorm:sem:migration.up+7/test]
 #[tokio::test]
 async fn stepped_up_reports_status() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_status").await;
@@ -169,7 +169,7 @@ async fn migration_table_name_is_overridable() -> Result<(), Error> {
 
 /// The whole `up` run shares one transaction, so a failing migration rolls back
 /// every migration in the run along with the ledger rows.
-// [spec:pgorm:sem:migration.up+6/test]
+// [spec:pgorm:sem:migration.up+7/test]
 // [spec:pgorm:req:migration.up-only/test]    no rollback path other than the transaction
 // [spec:pgorm:req:migration.commit-after/test]    a batch with no migration asking to be committed is one transaction
 #[tokio::test]
@@ -194,7 +194,7 @@ async fn failed_migration_rolls_back_the_run() -> Result<(), Error> {
 /// Two migrations answering `name()` with the same string share one ledger row,
 /// so the list is refused — by `status` and by `up` alike — before anything is
 /// installed, read or applied.
-// [spec:pgorm:sem:migration.name+4/test]
+// [spec:pgorm:sem:migration.name+5/test]
 #[tokio::test]
 async fn duplicate_migration_names_are_rejected() -> Result<(), Error> {
     use common::migrator::pinned::{Duplicated, REPEATED};
@@ -234,7 +234,7 @@ async fn duplicate_migration_names_are_rejected() -> Result<(), Error> {
 
 /// The advisory key is a stable function of the ledger's name: it does not move
 /// between builds, and two migrators with different ledgers do not contend.
-// [spec:pgorm:sem:migration.up+6/test]
+// [spec:pgorm:sem:migration.up+7/test]
 #[test]
 fn lock_key_is_derived_from_the_ledger_name() {
     assert_eq!(
@@ -249,7 +249,7 @@ fn lock_key_is_derived_from_the_ledger_name() {
 
 /// Two runners racing one fresh database both succeed: the loser waits on the
 /// advisory lock, then recomputes the pending set and finds nothing to do.
-// [spec:pgorm:sem:migration.up+6/test]
+// [spec:pgorm:sem:migration.up+7/test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn concurrent_runners_queue_on_the_advisory_lock() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_concurrent").await;
@@ -706,7 +706,7 @@ async fn a_read_never_widens_a_pre_checksum_ledger() -> Result<(), Error> {
 /// pool clear its statements, closing the insert, which is prepared again and
 /// writes the new default. A run that applies nothing leaves the insert
 /// prepared.
-// [spec:pgorm:sem:migration.up+6/test]    a committed batch that applied a migration clears the
+// [spec:pgorm:sem:migration.up+7/test]    a committed batch that applied a migration clears the
 // pool's statement caches, and a run that applied nothing does not
 // [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    the runner clears after the DDL it applied
 #[tokio::test]
@@ -758,7 +758,7 @@ async fn up_clears_the_pools_prepared_statements() -> Result<(), Error> {
 /// nothing, nor does a migrator that names no channel, which still clears the
 /// pool it was given, as the fence each is followed by shows: notifications
 /// reach a session in commit order.
-// [spec:pgorm:sem:migration.up+6/test]    a batch that applied a migration notifies the channel as
+// [spec:pgorm:sem:migration.up+7/test]    a batch that applied a migration notifies the channel as
 // it commits, and a run that applied nothing, or a migrator naming no channel, does not
 // [spec:pgorm:req:conn.pool.statement-cache.listen+1/test]    another pool listening on the default
 // channel clears once the runner's batch commits
@@ -1234,7 +1234,7 @@ async fn runners_queued_behind_a_commit_apply_nothing_twice() -> Result<(), Erro
 /// the channel hears once per commit, where a batch of two migrations with no
 /// commit inside it is heard once.
 // [spec:pgorm:req:migration.commit-after/test]    every commit clears and notifies
-// [spec:pgorm:sem:migration.up+6/test]    each transaction of a split batch takes its connection from the
+// [spec:pgorm:sem:migration.up+7/test]    each transaction of a split batch takes its connection from the
 // pool, after the clear
 #[tokio::test]
 async fn every_commit_clears_and_notifies() -> Result<(), Error> {
@@ -1645,6 +1645,254 @@ async fn runtime_migrations_use_the_runner() -> Result<(), Error> {
         "{err}"
     );
     drop(conn);
+    ctx.delete().await;
+    Ok(())
+}
+
+/// The migrations a newer build of a program has: `table_a`, then `table_b`.
+const AHEAD_A: &str = "m20261101_000001_table_a";
+const AHEAD_B: &str = "m20261101_000002_table_b";
+
+/// The migration `name`, creating the table its name ends with.
+fn ahead_migration(name: &'static str) -> Box<dyn MigrationTrait> {
+    let table = name.splitn(3, '_').nth(2).unwrap_or(name);
+    Box::new(SqlMigration::new(
+        name,
+        format!("CREATE TABLE {table} (id integer)"),
+    ))
+}
+
+/// A newer build's migrator, holding both migrations.
+fn newer() -> Migrations {
+    Migrations::new([ahead_migration(AHEAD_A), ahead_migration(AHEAD_B)])
+        .with_statement_cache_channel(None)
+}
+
+/// An older build's migrator, declared as a type: it holds the first
+/// migration alone, warns of unknown ones, and keeps each set of versions it
+/// is told to warn of, so a test can count the warnings.
+#[derive(Default)]
+struct Older {
+    warned: std::sync::Mutex<Vec<Vec<String>>>,
+}
+
+impl Older {
+    fn warned(&self) -> Vec<Vec<String>> {
+        std::mem::take(&mut *self.warned.lock().expect("the lock is not poisoned"))
+    }
+}
+
+#[async_trait::async_trait]
+impl MigratorTrait for Older {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+        vec![ahead_migration(AHEAD_A)]
+    }
+
+    fn statement_cache_channel(&self) -> Option<String> {
+        None
+    }
+
+    fn unknown_migrations(&self) -> UnknownMigrations {
+        UnknownMigrations::Warn
+    }
+
+    fn warn_unknown_migrations(&self, versions: &[String]) {
+        self.warned
+            .lock()
+            .expect("the lock is not poisoned")
+            .push(versions.to_vec());
+    }
+}
+
+/// An older build that warns of unknown migrations starts against a database
+/// a newer build migrated: `up` applies nothing and succeeds, every read
+/// reports the migration it knows, and each call warns of the unknown one
+/// exactly once.
+// [spec:pgorm:req:migration.unknown-applied/test]
+#[tokio::test]
+async fn an_older_build_that_warns_goes_on() -> Result<(), Error> {
+    let ctx = TestContext::new("pgorm_migration_unknown_warn").await;
+    let db = &ctx.db;
+
+    assert_eq!(UnknownMigrations::default(), UnknownMigrations::Refuse);
+    assert_eq!(newer().unknown_migrations(), UnknownMigrations::Refuse);
+    assert!(UnknownMigrations::warning(AHEAD_B).contains(&format!("'{AHEAD_B}'")));
+
+    newer().up(db.clone(), None).await?;
+
+    let older = Older::default();
+    older.up(db.clone(), None).await?;
+    assert_eq!(older.warned(), [[AHEAD_B]]);
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 2);
+    assert!(has_table(db, "table_b").await?);
+
+    let conn = db.get().await?;
+    older.status(&conn).await?;
+    assert_eq!(older.warned(), [[AHEAD_B]]);
+    let found = older.get_migration_with_status(&conn).await?;
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].name(), AHEAD_A);
+    assert_eq!(found[0].status(), MigrationStatus::Applied);
+    assert!(older.get_pending_migrations(&conn).await?.is_empty());
+    assert_eq!(older.get_applied_migrations(&conn).await?.len(), 1);
+    assert_eq!(older.warned(), [[AHEAD_B], [AHEAD_B], [AHEAD_B]]);
+
+    // The run-time migrator takes the same setting, and the default hook
+    // logs rather than refuses.
+    let runtime = Migrations::new([ahead_migration(AHEAD_A)])
+        .with_statement_cache_channel(None)
+        .with_unknown_migrations(UnknownMigrations::Warn);
+    assert_eq!(runtime.unknown_migrations(), UnknownMigrations::Warn);
+    runtime.status(&conn).await?;
+    assert_eq!(runtime.get_applied_migrations(&conn).await?.len(), 1);
+    drop(conn);
+    runtime.up(db.clone(), None).await?;
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 2);
+
+    ctx.delete().await;
+    Ok(())
+}
+
+/// An older build's migrator that overrides nothing but its list.
+struct OlderRefusing;
+
+#[async_trait::async_trait]
+impl MigratorTrait for OlderRefusing {
+    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+        vec![ahead_migration(AHEAD_A)]
+    }
+}
+
+/// The same older build, refusing as a migrator does unless it says
+/// otherwise, fails every read naming the migration it does not know.
+// [spec:pgorm:req:migration.unknown-applied/test]
+// [spec:pgorm:sem:migration.up+7/test]    a ledger row with no migration fails the read
+#[tokio::test]
+async fn an_older_build_refuses_by_default() -> Result<(), Error> {
+    let ctx = TestContext::new("pgorm_migration_unknown_refuse").await;
+    let db = &ctx.db;
+
+    newer().up(db.clone(), None).await?;
+
+    let missing = format!(
+        "Migration file of version '{AHEAD_B}' is missing, this migration has been applied but its file is missing"
+    );
+    let err = OlderRefusing
+        .up(db.clone(), None)
+        .await
+        .expect_err("an unknown migration is refused by default");
+    assert!(
+        matches!(&err, Error::Custom(msg) if *msg == missing),
+        "{err}"
+    );
+
+    let runtime = Migrations::new([ahead_migration(AHEAD_A)]).with_statement_cache_channel(None);
+    let err = runtime
+        .up(db.clone(), None)
+        .await
+        .expect_err("a run-time migrator refuses by default too");
+    assert!(
+        matches!(&err, Error::Custom(msg) if *msg == missing),
+        "{err}"
+    );
+
+    let conn = db.get().await?;
+    for err in [
+        OlderRefusing.status(&conn).await.err(),
+        OlderRefusing.get_pending_migrations(&conn).await.err(),
+        OlderRefusing.get_applied_migrations(&conn).await.err(),
+        runtime.status(&conn).await.err(),
+    ] {
+        assert!(
+            matches!(&err, Some(Error::Custom(msg)) if *msg == missing),
+            "{err:?}"
+        );
+    }
+    drop(conn);
+
+    ctx.delete().await;
+    Ok(())
+}
+
+/// An older build that warns, but holds a migration the database has not
+/// applied, refuses to apply it after migrations it does not know, naming
+/// both, whatever `steps` bounds; its reads still go on.
+// [spec:pgorm:req:migration.unknown-applied/test]
+#[tokio::test]
+async fn pending_beside_unknown_is_refused_under_warn() -> Result<(), Error> {
+    let ctx = TestContext::new("pgorm_migration_unknown_pending").await;
+    let db = &ctx.db;
+
+    newer().up(db.clone(), None).await?;
+
+    let diverged = Migrations::new([
+        ahead_migration(AHEAD_A),
+        ahead_migration("m20261101_000003_table_c"),
+    ])
+    .with_statement_cache_channel(None)
+    .with_unknown_migrations(UnknownMigrations::Warn);
+    for steps in [None, Some(1), Some(0)] {
+        let err = diverged
+            .up(db.clone(), steps)
+            .await
+            .expect_err("a pending migration beside an unknown one is refused");
+        let Error::Custom(msg) = &err else {
+            panic!("expected Error::Custom, got {err}");
+        };
+        assert!(msg.contains(&format!("'{AHEAD_B}'")), "{msg}");
+        assert!(msg.contains("'m20261101_000003_table_c'"), "{msg}");
+        assert!(msg.contains("out of order"), "{msg}");
+    }
+    assert!(!has_table(db, "table_c").await?);
+    assert_eq!(count_rows(db, "pgorm_migrations").await?, 2);
+
+    let conn = db.get().await?;
+    diverged.status(&conn).await?;
+    let pending = diverged.get_pending_migrations(&conn).await?;
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].name(), "m20261101_000003_table_c");
+    drop(conn);
+
+    ctx.delete().await;
+    Ok(())
+}
+
+/// Warning of unknown migrations does not tolerate an edited one this
+/// migrator knows: its changed checksum still fails every read, and the
+/// refusal is the checksum's alone.
+// [spec:pgorm:req:migration.unknown-applied/test]
+// [spec:pgorm:req:migration.checksum+1/test]    a changed checksum is refused under Warn too
+#[tokio::test]
+async fn a_changed_checksum_is_refused_under_warn() -> Result<(), Error> {
+    let ctx = TestContext::new("pgorm_migration_unknown_checksum").await;
+    let db = &ctx.db;
+
+    newer().up(db.clone(), None).await?;
+
+    let edited = Migrations::new([Box::new(SqlMigration::new(
+        AHEAD_A,
+        "CREATE TABLE table_a (id bigint)",
+    )) as Box<dyn MigrationTrait>])
+    .with_statement_cache_channel(None)
+    .with_unknown_migrations(UnknownMigrations::Warn);
+    let conn = db.get().await?;
+    let refusals = [
+        edited.status(&conn).await.err(),
+        edited.get_migration_with_status(&conn).await.err(),
+        edited.up(db.clone(), None).await.err(),
+    ];
+    drop(conn);
+    for err in refusals {
+        let Some(Error::Custom(msg)) = &err else {
+            panic!("expected Error::Custom, got {err:?}");
+        };
+        assert!(
+            msg.contains(&format!("Migration '{AHEAD_A}' was applied with checksum")),
+            "{msg}"
+        );
+        assert!(!msg.contains(AHEAD_B), "{msg}");
+    }
+
     ctx.delete().await;
     Ok(())
 }

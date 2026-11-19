@@ -1,6 +1,6 @@
 pub use crate::{
     MigrationName, MigrationStatus, MigrationTrait, Migrations, MigratorTrait, SqlMigration,
-    sql_migration,
+    UnknownMigrations, sql_migration,
 };
 pub use async_trait;
 // `SqlName` and `StaticName` are pgorm's: pgorm-query's glob carries derives

@@ -383,6 +383,72 @@ await assert.rejects(
 );
 ```
 
+## An older build against a newer database
+
+A ledger row that no migration of the migrator answers by name is a
+`ConstructionError` by default: it says a migration was deleted or renamed,
+and `up` and every read stop rather than guess. A program deployed as
+several replicas meets one in the ordinary course of things, though. During
+a rolling update the old build keeps starting while the new one serves, and
+if it runs `up` as it starts, it finds the migrations the new build applied,
+which it has never heard of.
+
+A migrator built with `unknownMigrations: "warn"` goes on past them. Each
+read writes, with `console.warn`, a warning naming every migration the
+database records that the migrator does not know, saying the database is
+ahead of this build, and reports the migrations it knows as it otherwise
+would; `status` writes them after its listing, with its logger's `warn`, or
+its `info` when it has no `warn`. `up` then applies nothing and succeeds,
+warning once. Two things are still refused. An applied migration whose
+checksum has changed fails as before, since it is a file this build has,
+edited. And `up` refuses, naming both, when the migrator has migrations of
+its own pending beside ones it does not know: applying them after
+migrations it has never seen would run them out of order, against a schema
+newer than the one they were written for. `"refuse"` is the default, and
+any other value is a `TypeError`.
+
+```ts
+import assert from "node:assert/strict";
+import { ConstructionError, type MigrationTrait, migrations } from "@necessary/pgorm";
+
+const create = (name: string, table: string): MigrationTrait => ({
+  name,
+  async up(tx) {
+    await tx.execute(`CREATE TABLE ${table} (id serial PRIMARY KEY)`);
+  },
+});
+const delivery = create("m20260201_000001_create_delivery", "delivery");
+const voucher = create("m20260201_000002_create_voucher", "voucher");
+
+// The newer build, which added the voucher table.
+await migrations([delivery, voucher]).up(pool);
+
+// The build before it, still starting while the newer one rolls out: it
+// warns that the database records m20260201_000002_create_voucher, and
+// applies nothing.
+const older = migrations([delivery], { unknownMigrations: "warn" });
+await older.up(pool);
+const warned: string[] = [];
+await older.status(pool, { logger: { info() {}, warn: (line) => warned.push(line) } });
+assert.deepEqual(warned, [
+  "The database records migration 'm20260201_000002_create_voucher' as applied, " +
+    "but this migrator does not know it, so the database is ahead of this build",
+]);
+
+// Without the opt-in, the same build refuses to start.
+await assert.rejects(
+  migrations([delivery]).up(pool),
+  (error) => error instanceof ConstructionError && error.message.includes("'m20260201_000002_create_voucher' is missing"),
+);
+
+// A build with a migration of its own to apply refuses, even when it warns.
+const courier = create("m20260301_000001_create_courier", "courier");
+await assert.rejects(
+  migrations([delivery, courier], { unknownMigrations: "warn" }).up(pool),
+  (error) => error instanceof ConstructionError && error.message.includes("out of order"),
+);
+```
+
 ## Generated DDL in a migration
 
 A statement built from a declaration describes the table as the declaration
