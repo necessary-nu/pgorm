@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
-  "cargo_lock_sha256": "3d69426712c451c564f472ee2e6eb386b3caced04f04ce4f00a3f1c50b7d6cdf",
+  "cargo_lock_sha256": "5980a5b251df81b58568217279abd9a3780d4b393fde780e15892e3b583b3257",
   "python_runtime_dependencies": [],
   "packages": [
     {
@@ -39,23 +39,6 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "36516aefdc84c5d5a1e7485425913a22dbda69eb1930c5e84d6ae4972b5194b9"
-        }
-      ]
-    },
-    {
-      "name": "android_system_properties",
-      "version": "0.1.6",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/nical/android_system_properties",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "216486f29671a4262efe32af6d84a75bef398127f8c5f369b5c8305983887a06"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "80f275e90d799911ed3830a7f242a2ef5a4ade2092fe0aa07bfb2d2cf2f2b95e"
         }
       ]
     },
@@ -533,19 +516,6 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "b8c6939380a400f53e11923d50fcc4dd2fa1ba8339fd9d04cda38a0251b6c9b0"
-        }
-      ]
-    },
-    {
-      "name": "chrono",
-      "version": "0.4.45",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/chronotope/chrono",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE.txt",
-          "sha256": "946c9835d8034d24404f8cfec5f4654cee5dad17e944afc3d06d742cf2882831"
         }
       ]
     },
@@ -1563,40 +1533,6 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "70c9d40f1f9545c3f133b8a67206e89da850f6468eed072281bb3701514114a9"
-        }
-      ]
-    },
-    {
-      "name": "iana-time-zone",
-      "version": "0.1.65",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/strawlab/iana-time-zone",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "696759d65dfe558ff7d9f031c76db19ec5c0767470fb67c4e8d990820d1e99c9"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "da28ccc6b158fc2d8cccc74e99794b1cff1d29bd7bbeb019442fcf0c04c6cad9"
-        }
-      ]
-    },
-    {
-      "name": "iana-time-zone-haiku",
-      "version": "0.1.2",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/strawlab/iana-time-zone",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "696759d65dfe558ff7d9f031c76db19ec5c0767470fb67c4e8d990820d1e99c9"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "da28ccc6b158fc2d8cccc74e99794b1cff1d29bd7bbeb019442fcf0c04c6cad9"
         }
       ]
     },
@@ -3098,7 +3034,7 @@
       "version": "0.13.14",
       "license": "Apache-2.0",
       "repository": "https://github.com/PRQL/prql",
-      "source": "git+https://github.com/necessary-nu/prql.git?rev=f25bf16dbd3ee6af1312fde39b6637aca32acc49#f25bf16dbd3ee6af1312fde39b6637aca32acc49",
+      "source": "git+https://github.com/necessary-nu/prql.git?rev=59405a62703b1ed5cf106377fe3517cbfc40741b#59405a62703b1ed5cf106377fe3517cbfc40741b",
       "notices": [
         {
           "source": "https://raw.githubusercontent.com/PRQL/prql/029b9c4bc7852db180e49c26db3768a5d9244c45/LICENSE",
@@ -3111,7 +3047,7 @@
       "version": "0.13.14",
       "license": "Apache-2.0",
       "repository": "https://github.com/PRQL/prql",
-      "source": "git+https://github.com/necessary-nu/prql.git?rev=f25bf16dbd3ee6af1312fde39b6637aca32acc49#f25bf16dbd3ee6af1312fde39b6637aca32acc49",
+      "source": "git+https://github.com/necessary-nu/prql.git?rev=59405a62703b1ed5cf106377fe3517cbfc40741b#59405a62703b1ed5cf106377fe3517cbfc40741b",
       "notices": [
         {
           "source": "https://raw.githubusercontent.com/PRQL/prql/029b9c4bc7852db180e49c26db3768a5d9244c45/LICENSE",
@@ -5234,93 +5170,8 @@
       ]
     },
     {
-      "name": "windows-core",
-      "version": "0.62.2",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "license-apache-2.0",
-          "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
-        },
-        {
-          "source": "license-mit",
-          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
-        }
-      ]
-    },
-    {
-      "name": "windows-implement",
-      "version": "0.60.2",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "license-apache-2.0",
-          "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
-        },
-        {
-          "source": "license-mit",
-          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
-        }
-      ]
-    },
-    {
-      "name": "windows-interface",
-      "version": "0.59.3",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "license-apache-2.0",
-          "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
-        },
-        {
-          "source": "license-mit",
-          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
-        }
-      ]
-    },
-    {
       "name": "windows-link",
       "version": "0.2.1",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "license-apache-2.0",
-          "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
-        },
-        {
-          "source": "license-mit",
-          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
-        }
-      ]
-    },
-    {
-      "name": "windows-result",
-      "version": "0.4.1",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "license-apache-2.0",
-          "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
-        },
-        {
-          "source": "license-mit",
-          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
-        }
-      ]
-    },
-    {
-      "name": "windows-strings",
-      "version": "0.5.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/microsoft/windows-rs",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
