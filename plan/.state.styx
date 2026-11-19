@@ -1557,7 +1557,7 @@ assertions (
     {id pg18-test-server, kind @complete, author "brendan@necessary.nu", at 2026-10-06T14:14:25.161626Z}
     {id pg18-uuid-functions, kind @complete, author "brendan@necessary.nu", at 2026-10-07T08:03:19.869642Z}
     {id pg18-virtual-generated, kind @complete, author "brendan@necessary.nu", at 2026-10-06T19:26:22.580736Z}
-    {id pg19-test-server, kind @doing, author "brendan@necessary.nu", at 2026-10-07T15:27:50.534451Z}
+    {id pg19-test-server, kind @doing, author "brendan@necessary.nu", at 2026-11-19T16:12:43.592467Z}
     {id pgparse.codegen-ddl, kind @complete, author "brendan@necessary.nu", at 2026-09-02T21:15:51.896227Z}
     {id pgparse.fingerprint, kind @complete, author "brendan@necessary.nu", at 2026-09-02T19:06:32.153992Z}
     {id pgparse.oracle, kind @complete, author "brendan@necessary.nu", at 2026-09-02T16:06:45.622062Z}
