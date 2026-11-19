@@ -12770,6 +12770,36 @@ children (
                     }
                 )
             }
+
+            {
+                id pg18-point-release-18-7
+                title "The 18 test server and every pin of PostgreSQL 18.6 move to 18.7, the November 2026 minor release"
+                kind @test
+                deps (pg19-test-server)
+                log (
+                    {
+                        at 2026-11-19T16:14:31.568028Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed 2026-11-19. PostgreSQL 18.7 was released on 2026-11-12, the regular November minor release (postgresql.org versions.json: 18, latestMinor 7, relDate 2026-11-12). The official image is published: postgres:18.7-bookworm, index digest sha256:1757c628698dd1ca67ff7a5fc386bfd91040afc62a45484c346c788b0cbe5402 on Docker Hub, 2026-11-18. docker-library/official-images#22745 is titled \"[security] Update postgres\". pgorm still pins 18.6 in several places: pgorm-python/tests/with_postgres.py (postgres:18.6-bookworm by digest), security/sqlmap/pins.json, security/generative/src/pgorm_campaign/fixtures.py with the tests that assert it, the acceptance records, CLAUDE.md's Testing Setup, and the local pgorm-test container. Re-locate each by grep for 18.6 and the old digest rather than trusting this list. CI's apt and Homebrew installs float on postgresql-18 / postgresql@18. Acceptance: every 18.6 pin names 18.7 by digest; pgorm-test is recreated on 18.7; nextest, pgorm-python, pgorm-napi and the doctests pass on 18.7; and sqlmap and the generative campaign are re-run on it on a quiet machine, with their records updated. Sequenced after pg19-test-server so the two suites of timing-sensitive runs do not overlap."
+                    }
+                )
+            }
+
+            {
+                id pg-query-crates-io
+                title "pg_query comes from crates.io again: upstream released 18.1.0 on libpg_query 18.1.0, so the necessary-nu fork retires"
+                kind @build
+                deps (pg-query-18)
+                log (
+                    {
+                        at 2026-11-19T16:14:31.999347Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed 2026-11-19. crates.io now has pg_query 18.1.0 (max_version 18.1.0, updated 2026-10-27), and pganalyze/pg_query.rs has a v18.1.0 tag. pgorm still pins its fork at rev 09ebc3a4c7f50f3682e890a8372b4c4c99382ed9 in the root Cargo.toml, pgorm-codegen and pgorm-sql-check. The root Cargo.toml describes the fork as upstream 6.2.1 with upstream's unreleased 18.0.0 (pganalyze/pg_query.rs#79) merged in and its libpg_query submodule at tag 18.1.0, so it should carry nothing pgorm-specific; verify that by diffing the fork rev against upstream v18.1.0 before relying on it. If upstream's release covers it, the dependency becomes a crates.io range (no exact pin, per the manifests-take-ranges rule). Then deny.toml's allow-git drops the fork, tests/fork_pin_tests.rs stops holding a pg_query pin and checks instead that one pg_query is linked from crates.io, and every committed lockfile is re-resolved, including the detached workspaces under security/ and pgorm-python/. CLAUDE.md's two-forks paragraph changes to match. Acceptance is unchanged: every pg_query user (the render oracle, sql!, prql!, codegen's parse_schema, metric fingerprints, the paginator) parses PostgreSQL 18.6's grammar and its tests pass. prqlc remains a git fork, so pgorm stays unpublishable on crates.io until that one goes too."
+                    }
+                )
+            }
         )
         log (
             {
@@ -13002,6 +13032,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @blocker
                         text "Waiting on an external release, re-checked 2026-11-02 with git ls-remote: libpg_query's newest tag is still 18.1.0, and its branches stop at 18-latest-dev (plus release-18-1-0 and update-to-postgres-18-6); there is no 19 grammar to build against. Nothing in this repo can move it, so it is marked blocked rather than left at the head of the frontier, where nplan_next kept offering it as the next node. Unblock when libpg_query tags a 19 release and pg_query.rs (or the necessary-nu fork) carries it."
+                    }
+
+                    {
+                        at 2026-11-19T16:14:32.885445Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Checked again 2026-11-19, the day PostgreSQL 19.0 was released, using the GitHub API. libpg_query's newest tag is 18.1.0. Its branches stop at 18-latest (last commit 2026-11-10, an OSS-Fuzz deparser target) and 18-latest-dev (last commit 2026-05-21, the 18.0.0 release). pg_query.rs's newest tag is v18.1.0, which crates.io also has. Neither has a 19 grammar, so this node and its dependants (pg19-on-conflict-do-select, pg19-window-null-treatment) still wait on upstream."
                     }
                 )
             }
