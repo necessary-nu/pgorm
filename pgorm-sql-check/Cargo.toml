@@ -25,5 +25,5 @@ pg_query = { git = "https://github.com/necessary-nu/pg_query.rs.git", rev = "09e
 # the two must move in lockstep so `prql!`, the run-time PRQL check and
 # `pgorm::pipeline` emit through one compiler. The root manifest says why it
 # is a git dependency.
-prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "59405a62703b1ed5cf106377fe3517cbfc40741b", default-features = false }
+prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "ba66e3a36c5b64872d5624f65c25f46c4afab98a", default-features = false }
 serde_json = { version = "1.0.151", default-features = false, features = ["std"] }

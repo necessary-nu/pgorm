@@ -89,8 +89,9 @@ pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # is exact: the PL AST is not a stable API, and the adapter module is
 # written against this one revision.
 #
-# It is a git dependency on the fork's pgorm/no-chrono branch — 0.13.14 plus
-# fixes to its SQL generation that upstream has not taken:
+# It is a git dependency on the fork's pgorm/upstream-2026-11 branch: upstream
+# PRQL's main at 0d4c6efe, with fixes to its SQL generation that upstream has
+# not taken on top:
 #   - star expansion is ordered totally, so one pipeline compiles to one
 #     projection, the tuple layout a positional decode reads (reproducer: the
 #     pipeline-join-distinct-order finding);
@@ -109,8 +110,8 @@ pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 #   - std's `intersect` and `remove` are relation-level set operations, as
 #     `append` is, and a stage after a set operation reads the whole combined
 #     relation.
-# The pinned commit sits on top of those (f25bf16d) and drops chrono, which
-# RUSTSEC-2026-0543 declares unmaintained: prqlc splits `date.to_text` format
+# The pinned commit is the branch's last, which drops chrono, declared
+# unmaintained by RUSTSEC-2026-0543: prqlc splits `date.to_text` format
 # strings itself, as chrono did, and takes its debug log's timestamps from
 # jiff.
 # A dependency rather than a `[patch.crates-io]` entry, because a dependency
@@ -126,7 +127,7 @@ pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # crates.io while this stands. pgorm-sql-check names the same revision, and
 # tests/fork_pin_tests.rs holds every declaration and every committed
 # lockfile to it.
-prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "59405a62703b1ed5cf106377fe3517cbfc40741b", default-features = false }
+prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "ba66e3a36c5b64872d5624f65c25f46c4afab98a", default-features = false }
 pgorm-query.workspace = true
 strum = { version = "0.28", default-features = false }
 serde_json = { version = "1.0.151", default-features = false, optional = true }

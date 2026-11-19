@@ -21643,12 +21643,20 @@ children (
                 title "The prqlc fork is rebased onto upstream PRQL's main, taking the fixes upstream made since 0.13.14, and every pgorm SQL answer that changes is checked against the fix that changed it"
                 kind @build
                 deps (prqlc-without-chrono)
+                sealed true
                 log (
                     {
                         at 2026-11-19T18:27:09.715473Z
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Operator 2026-11-19: \"yes, rebase\". This followed a comparison of the fork with upstream. The fork (necessary-nu/prql, branch pgorm/no-chrono at 59405a62) forked at 029b9c4b, upstream's 0.13.14 changelog (2026-07-24). It carries 13 commits: 12 fixes (b2baa230 … f25bf16d) and the chrono removal (59405a62). Upstream main (0d4c6efe, 2026-11-19) is 385 commits ahead and has not released since 0.13.14. Of those, 248 are by prql-bot, 92 by dependabot and 21 by the maintainer; 93 are fixes and none are features. None of the fork's fixes were ever proposed upstream. Upstream fixes in SQL generation that pgorm's pipeline reads: parenthesization (#6381, #6418, #6467, #6479), window frames (#6375, #6435), joined pipelines' unnamed columns (#6527, #6528), CTE wildcard inference (#6558), group take 1 DISTINCT (#6547), no compile-time folding of time equality (#6485), computed columns in this.* (#6045), take bounds near i64 (#6347). Expected conflicts: set operations, where upstream keeps a join as a join when its condition doesn't match INTERSECT/EXCEPT (#6443, #6556), against our relation-level intersect/remove (170872b3, 656ce4ce, f25bf16d); and date.to_text, whose errors and escaping upstream changed (#6351, #6560, #6568) in the dialect.rs code 59405a62 rewrote. Our relation-level intersect/remove is deliberate (pipeline.compose, macros.prql) and stays. Sequenced after prqlc-without-chrono, so that the pin moves once, from 59405a62 to the rebased rev."
+                    }
+
+                    {
+                        at 2026-11-19T21:49:18.646501Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

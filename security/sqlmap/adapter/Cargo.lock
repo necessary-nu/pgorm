@@ -75,9 +75,9 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "ariadne"
-version = "0.5.1"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36f5e3dca4e09a6f340a61a0e9c7b61e030c69fc27bf29d73218f7e5e3b7638f"
+checksum = "8454c8a44ce2cb9cc7e7fae67fc6128465b343b92c6631e94beca3c8d1524ea5"
 dependencies = [
  "unicode-width",
  "yansi",
@@ -328,11 +328,11 @@ dependencies = [
 
 [[package]]
 name = "chumsky"
-version = "0.13.0"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0d2bfadce76f963d776feff99db6dc33783829539258314776383b33e2a00f8"
+checksum = "6313a87def838ae23848f344d38799e6370342efd0ec0229b15469d3b6459923"
 dependencies = [
- "hashbrown 0.15.5",
+ "hashbrown 0.16.1",
  "regex-automata",
  "serde",
  "unicode-ident",
@@ -634,9 +634,9 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "foldhash"
-version = "0.1.5"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "form_urlencoded"
@@ -760,9 +760,9 @@ checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 
 [[package]]
 name = "hashbrown"
-version = "0.15.5"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 dependencies = [
  "allocator-api2",
  "equivalent",
@@ -1717,8 +1717,8 @@ dependencies = [
 
 [[package]]
 name = "prqlc"
-version = "0.13.14"
-source = "git+https://github.com/necessary-nu/prql.git?rev=59405a62703b1ed5cf106377fe3517cbfc40741b#59405a62703b1ed5cf106377fe3517cbfc40741b"
+version = "0.13.15"
+source = "git+https://github.com/necessary-nu/prql.git?rev=ba66e3a36c5b64872d5624f65c25f46c4afab98a#ba66e3a36c5b64872d5624f65c25f46c4afab98a"
 dependencies = [
  "anstream",
  "ariadne",
@@ -1742,8 +1742,8 @@ dependencies = [
 
 [[package]]
 name = "prqlc-parser"
-version = "0.13.14"
-source = "git+https://github.com/necessary-nu/prql.git?rev=59405a62703b1ed5cf106377fe3517cbfc40741b#59405a62703b1ed5cf106377fe3517cbfc40741b"
+version = "0.13.15"
+source = "git+https://github.com/necessary-nu/prql.git?rev=ba66e3a36c5b64872d5624f65c25f46c4afab98a#ba66e3a36c5b64872d5624f65c25f46c4afab98a"
 dependencies = [
  "chumsky",
  "enum-as-inner",
@@ -2153,19 +2153,19 @@ dependencies = [
 
 [[package]]
 name = "sqlformat"
-version = "0.3.5"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0d7b3e8a3b6f2ee93ac391a0f757c13790caa0147892e3545cd549dd5b54bc0"
+checksum = "0705994df478b895f05b8e290e0d46e53187b26f8d889d37b2a0881234922d94"
 dependencies = [
  "unicode_categories",
- "winnow 0.6.26",
+ "winnow 0.7.15",
 ]
 
 [[package]]
 name = "sqlparser"
-version = "0.62.0"
+version = "0.64.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13c6d1b651dc4edf07eead2a0c6c78016ce971bc2c10da5266861b13f25e7cec"
+checksum = "92e0d273b4f8ddd14a35ed36862acbc9cc96cec578e36ee1881a9d42e0e0f2c8"
 dependencies = [
  "log",
  "serde",
@@ -2554,9 +2554,9 @@ checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
 
 [[package]]
 name = "unicode-width"
-version = "0.1.14"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+checksum = "ca718471876992059f251e33aafc334346ada08042b7661dd1fe313a9bced557"
 
 [[package]]
 name = "unicode_categories"
@@ -2852,9 +2852,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.6.26"
+version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e90edd2ac1aa278a5c4599b1d89cf03074b610800f866d4026dc199d7929a28"
+checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 dependencies = [
  "memchr",
 ]

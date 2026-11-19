@@ -1,7 +1,7 @@
 //! The one seam between the pipeline builder and prqlc.
 //!
 //! Every `prqlc` import in pgorm lives in this file. The PL AST is not a
-//! stable API, so the dependency is pinned exact (`=0.13.14`) and the rest of
+//! stable API, so the dependency is pinned to one revision and the rest of
 //! the module works against the constructors below rather than the AST types;
 //! a compiler bump is absorbed by rewriting this file alone.
 
