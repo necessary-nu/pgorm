@@ -12368,6 +12368,13 @@ children (
                         kind @note
                         text "Preliminary run on PostgreSQL 19 RC1, 2026-10-18, main at ad348f7d. The release dates moved: RC1 was announced 2026-10-15, RC2 is planned for 2026-11-12 and general availability for 2026-11-19, not 2026-10-29 as noted above. Server: pgorm-test-19 recreated on a fresh pgorm-test-19-data volume from postgres:19rc1-bookworm@sha256:228dc3e5a9bd18343efeecc7ae3f52aee9b6cf3a9dca5159ece1eef254a80f06, \"PostgreSQL 19rc1 (Debian 19~rc1-1.pgdg12+1) on aarch64-unknown-linux-gnu\", port 54319; CLAUDE.md now names that image. Results against beta 4's adapted run: cargo nextest run --workspace --features pg-19 is 1822/1822 (beta 4: 1768/1768; the difference is the tests main gained since 2026-10-07, and nothing fails), including the pg-19 tests that hold 19's three behaviour changes (ALTER CONSTRAINT .. ENFORCED on a CHECK, SET EXPRESSION under a CHECK, JSON_ARRAY(query) over no rows giving []). Both JSON server-bug canaries (JSON_SERIALIZE over jsonb, and #19695) still see their bugs. pgorm-python built with pg-19 (its capabilities list pg-19) is 178/178 through tests/with_postgres.py's TLS fixture with its image switched to the RC1 digest (beta 4: 124/124). Against the bare pgorm-test-19 the six TLS tests added on 2026-10-09 error, because that container has TLS off; that is the setup, not 19. The application check (checks/entities.py) passes. The server checks give beta 4's answers: SET standard_conforming_strings = off is 0A000 while ALTER ROLE .. SET .. on is accepted, escape_string_warning is gone, and the keyword list differs from 18.6 by the same five unreserved words (ignore and respect are not bare labels). RC1's announced fixes since beta 4 (REPACK CONCURRENTLY, pg_plan_advice, planner optimisations that depend on whether an expression can be NULL, logical replication switching itself on, postgres_fdw statistics import, parallel autovacuum, COPY .. FORMAT json keys) change nothing pgorm's tests see. Not run: the doctests, sqlmap and the generative campaign, which wait for general availability."
                     }
+
+                    {
+                        at 2026-11-19T17:39:18.7279Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Run on PostgreSQL 19.0, 2026-11-19, branch nplan/pg19-test-server from 1cbfe82e. 19.0 was released on 2026-11-19 (versions.json: major 19, latestMinor 0, relDate 2026-11-19). Server: Docker Hub had no postgres:19.0-bookworm (the tags API answered 404 for 19.0-bookworm and 19 at the start and again at 17:38Z); its newest 19 image is postgres:19rc2-bookworm, index digest sha256:7b1e213e9680e7838da5ea2a929427901b866e69d08735186b72bddfe73c0453. So pgorm-test-19 runs an interim image whose binaries are the released 19.0: pgorm-local/postgres:19.0-bookworm (image sha256:7afa8d2ff45a81ea97cc23986d8d7bd3de8df3f28c944d2ff7cb1a3208af85ab), built FROM that RC2 digest by apt-get install of postgresql-19, postgresql-client-19, postgresql-19-jit and libpq5 at 19.0-1.pgdg12+1 from the PGDG bookworm source the image already configures (no apt hold was set). version() is \"PostgreSQL 19.0 (Debian 19.0-1.pgdg12+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit\". The container was recreated on a fresh pgorm-test-19-data volume, mounted at /var/lib/postgresql (data under /var/lib/postgresql/19/docker), on port 54319. CLAUDE.md now names the interim image and its recipe, and says the official image replaces it by digest once published. The digest pin is outstanding. The only tracked file naming a 19 beta or RC was CLAUDE.md's pgorm-test-19 sentence (grep for 19rc, 19beta and 19~ outside plan/ and target/). pgorm-python/tests/with_postgres.py keeps its 18.6 default; the 19.0 runs used a scratch copy with IMAGE set to the interim tag, as the RC1 run did with its digest.\n\nCounts on 19.0 (interim image). cargo nextest run --workspace --features pg-19: before any change, 2464 of 2465 passed. The one failure was the #19695 canary (below). After the changes, 2465/2465 passed. The default build's nextest on pgorm-test (18.6, image postgres:18 = 18.6-1.pgdg13+2) passed 2464/2464 after the changes. pgorm-python built with pg-19 (capabilities()[\"features\"] lists pg-19, and POSTGRES_TARGET is 19) was run through the TLS wrapper on 19.0. Its first pass ran 536 tests with 1 error, test_schema_objects test_extension_schema_and_version_hold (btree_gist, below). After the gate, 536 ran OK with 5 skipped; the skips are the five describe() tests that need an application module, by design. pgorm-napi built with --features pg-19, run through the same TLS wrapper on 19.0: `deno check` passed, the Node.js 26.11.1 suite ran 980 tests with 965 passed, 0 failed and 15 skipped, and Deno 2.9.8 had 963 passed, 0 failed and 17 ignored. The skips and ignores are the application-module examples and describe() tests, which checks/entities.js runs, and pgvector, which is not installed. The napi results were taken with the btree_gist gate already in. Doctests: cargo test --doc --workspace --features pg-19, run alone with DATABASE_URL on 19.0, finished with every crate run: 1084 examples, 1074 passed, 0 failed, 10 ignored (pgorm 437 + 39, pgorm-query 486 + 80, the rest in the small crates), the guide's runnable examples among them. nplan check: 52/52 ok across every platform, rust-pg-19, python-native check-pg-19 and napi-native check-pg-19 included. The application checks (pgorm-python checks/entities.py, pgorm-napi checks/entities.js and checks/codegen.js) were not run against 19: their fixture crates carry no pg-19.\n\nWhat changed since RC1. I diffed the release notes' commit references between REL_19_RC1 and REL_19_0 (doc/src/sgml/release-19.sgml). Three items were dropped: the libpq servicefile option, psql's SERVICEFILE variable, and the item on logical decoding plugins that do not access shared catalogs. Four were added: parallel vacuum leaders and workers sharing the cost limit, fuzzystrmatch's handling of non-ASCII text, full text search and pg_trgm using the database's locale provider (the last two listed as incompatibilities), and the split of the BufferContent wait event. The RC2 announcement adds more. RC2 reverted JSON_ARRAY()/JSON_OBJECT() over arrays, composites and ranges in expression indexes and generated columns. Checked live: a STORED generated column over JSON_ARRAY(int[]) and a VIRTUAL one over JSON_OBJECT('k': int[] RETURNING jsonb) are both \"generation expression is not immutable\", and a STORED one over JSON_ARRAY(int) is accepted, on 18.6 and 19.0 alike. RC2 also fixed GROUPING SETS wrong results, an IGNORE NULLS infinite loop under EXCLUDE frames, and a LISTEN/NOTIFY queue stall. Two changes are visible to pgorm's tests.\n\n(1) Bug #19695 is fixed. \"Fix NULL result persistence in JSON_VALUE() RETURNING json/jsonb\" was committed on 2026-11-05 to master, REL_19_STABLE and REL_18_STABLE, so it is in 19rc2, 19.0 and 18.7. On 19.0 the canary's seven rows answer 1, NULL, 3, NULL, 5, NULL, 7; 18.6 answers 1 and then NULL for every later row. The test is renamed json_value_returning_jsonb_after_a_null. It holds 18.6's answer by default and 19's under cfg(feature = \"pg-19\"), and sql.ast.expr.sql-json's text and JsonValueType's rustdoc say which releases carry the fix (no rule version moved). The JSON_SERIALIZE-over-jsonb canary still sees its bug on 19.0.\n\n(2) 19.0's btree_gist offers version 1.9 alone; 18.6 offers 1.2 through 1.8. So CREATE EXTENSION btree_gist VERSION '1.7' is 22023 on 19 (\"has no installation script nor update path for version \\\"1.7\\\"\"). The two binding tests that install 1.7 now refuse 1.7 and install 1.9 under 19, branching on capabilities()[\"features\"] in pgorm-python and on POSTGRES_TARGET in pgorm-napi. They keep 1.7 on 18 and cite sql.target. Nothing in Rust's live suite installs a version.\n\nThe rest held as on RC1. SET standard_conforming_strings = off is 0A000, while SET and ALTER ROLE .. SET .. = on are accepted, and escape_string_warning is gone (42704). pg_get_keywords differs from 18.6 by the same five unreserved words (ignore and respect are not bare labels, lsn, repack and wait are), 494 against 499 words. The defaults are jit off, max_locks_per_transaction 128, default_toast_compression lz4 and log_lock_waits on. CR/LF in a role name is 22023. The ambiguous-operator message is in DETAIL with the cast advice in HINT. The reverted features stay reverted: FOR PORTION OF, GRAPH_TABLE and MERGE PARTITIONS are syntax errors, and no pg_get_*ddl function exists.\n\nSurvey of the final notes against the typed surface and sql.scope. Filed under postgres-19, each with a note of what was checked live on 19.0 against 18.6:\n- pg19-json-value-returning-json (deps pg19-test-server). JsonValueType, a #[non_exhaustive] enum, can take Json and JsonBinary back under pg-19. Whether the default build follows waits on the 18.7 move (pg18-point-release-18-7 on main; this branch predates it, so the dep is not added) and on an operator decision about naming 18.7 as the floor.\n- pg19-copy-on-error-set-null (deps pg19-test-server). The option is refused by the option check, not the grammar, on 18.6.\n- pg19-copy-header-lines (deps pg19-test-server). HEADER with a line count; also refused by the option check on 18.6.\n- pg19-copy-to-json (deps pg19-test-server, pg-query-19). A bare FORMAT json is a syntax error in 18's grammar, while 'json' and \"json\" parse.\n- pg19-release-differences (deps pg19-test-server). Four statements a builder value reaches answer differently on 18.6 and 19.0, and no test or doc holds any of them: COPY TO over a partitioned table (18: 42809), COPY FROM .. WHERE over a system column (19: 42P10), IS JSON over a domain of json, jsonb or bytea (18: 42804), and a GiST index on inet or cidr with no opclass (18: 42704). So the \"three differences\" that sql.target and the three guides count are now seven.\nThe beta 4 note called COPY TO JSON and ON_ERROR set_null out of scope. sql.scope records no such entry, and sql.ast.copy already types ON_ERROR ignore, REJECT_LIMIT and LOG_VERBOSITY. The COPY nodes are therefore filed, each saying to retire it if the operator writes the exclusion into sql.scope instead. ON CONFLICT DO SELECT and IGNORE/RESPECT NULLS shipped as filed (both work live on 19.0) and stay behind pg-query-19. libpg_query's newest tag is still 18.1.0, its branches stop at 18-latest and 18-latest-dev, and pg_query.rs's newest tag is v18.1.0, so pg-query-19 and its dependants stay blocked.\nReached already through Func::named, casts or ColumnType::Named, so not filed:\n- oid8. A type, OID 6437 with array 6442. Text input reaches 18446744073709551615, and numeric does not cast to it. ColumnType has no oid of any width.\n- regdatabase, new since the beta 4 note.\n- The uuid/bytea casts.\n- random(min, max) over date, timestamp and timestamptz. pgorm types random() alone.\n- base64url and base32hex in encode/decode.\n- error_on_null (22004 on NULL).\n- range_minus_multi and multirange_minus_multi.\n- tid_block and tid_offset.\n- The jsonpath string methods (btrim, lower, upper, initcap, replace, split_part, ltrim, rtrim), all checked.\nOut of scope, so not filed:\n- Statements pgorm does not build: REPACK (works), WAIT, CHECKPOINT options, GRANT .. GRANTED BY, the publication EXCEPT, ALL SEQUENCES and REFRESH SEQUENCES clauses, CREATE AGGREGATE SUPPORT, CREATE FOREIGN DATA WRAPPER CONNECTION, CREATE STATISTICS on virtual columns, and CREATE SCHEMA element lists (FK forward references).\n- SET .. = NULL to empty a list setting, which is new syntax: 18 gives 42601 and pgorm builds no SET.\n- Server configuration, monitoring and views: SNI with pg_hosts.conf, the password-expiry and MD5 warnings, RADIUS removal, autovacuum scoring, the pg_stat_* additions and the io_workers replacement.\n- libpq-only changes: OAuth, protocol grease (no longer sent at GA) and PQgetThreadLock.\n- Text-search stemmer and locale changes, which pgorm's tests do not reach (the server's database locale is libc en_US.utf8).\n- pg_stat_statements' FETCH normalisation. Metric fingerprints stay on 18's rules until pg-query-19.\n\nCI. .github/workflows/python.yml gains a postgres-19 job (Ubuntu 24.04, CPython 3.14). It installs postgresql-19 from the PGDG apt source the other jobs set up (noble-pgdg main carries 19.0-1.pgdg24.04+1), sets PGORM_TEST_PG_BIN=/usr/lib/postgresql/19/bin, builds the wheel with maturin --features pg-19, installs it in a fresh venv and runs the installed suite through tests/with_local_postgres.py. The gate job requires it too. .github/workflows/napi.yml's runtimes matrix gains linux-x86_64-pg-19. Its PostgreSQL install, PGORM_TEST_PG_BIN and step name follow matrix.postgres, and its clippy, unit tests and addon build take --features pg-19. Its application and codegen steps are skipped there, because those fixture crates carry no pg-19. The existing entries stay on 18. macOS stays on 18 in both workflows because Homebrew has no postgresql@19 formula; comments in both say so. actionlint reports nothing new: the three shellcheck notes in napi.yml are on main too. pgorm-python/checks/README.md and CLAUDE.md describe the new jobs. CI itself has not run; it runs when the PR is opened. CI's postgresql-18 already floats to 18.7 from PGDG (noble-pgdg lists 18.7-1.pgdg24.04+5).\n\nOutstanding, so the node stays Doing:\n- The official postgres:19.0-bookworm digest. When it is published, recreate pgorm-test-19 from it, move CLAUDE.md's sentence to the digest, and re-run at least nextest with pg-19.\n- sqlmap and the generative campaign on 19.0. Neither was started. Both are timing-sensitive, and the 1-minute load average never fell below 5: it was 31 at the start, peaked near 130 under other sessions' work, and was 9 to 11 at the end with nothing from this session running. nwhat was not running. Each selects its server from a committed pin, security/sqlmap/pins.json's \"postgres\" and IMAGE in security/generative/src/pgorm_campaign/fixtures.py. Both stay 18.6 in git, so a 19.0 run overrides the pin locally, uncommitted. pmset shows no sleep during this session (the last was 16:39 to 16:43 local, before it started).\n- Recommended for the integrator: pg18-point-release-18-7 should note that 18.7 carries the #19695 fix, so the canary's default arm fails there, and pg19-json-value-returning-json can depend on it."
+                    }
                 )
             }
 
@@ -12770,6 +12777,43 @@ children (
                     }
                 )
             }
+
+            {
+                id pg18-point-release-18-7
+                title "The 18 test server and every pin of PostgreSQL 18.6 move to 18.7, the November 2026 minor release"
+                kind @test
+                deps (pg19-test-server)
+                log (
+                    {
+                        at 2026-11-19T16:14:31.568028Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed 2026-11-19. PostgreSQL 18.7 was released on 2026-11-12, the regular November minor release (postgresql.org versions.json: 18, latestMinor 7, relDate 2026-11-12). The official image is published: postgres:18.7-bookworm, index digest sha256:1757c628698dd1ca67ff7a5fc386bfd91040afc62a45484c346c788b0cbe5402 on Docker Hub, 2026-11-18. docker-library/official-images#22745 is titled \"[security] Update postgres\". pgorm still pins 18.6 in several places: pgorm-python/tests/with_postgres.py (postgres:18.6-bookworm by digest), security/sqlmap/pins.json, security/generative/src/pgorm_campaign/fixtures.py with the tests that assert it, the acceptance records, CLAUDE.md's Testing Setup, and the local pgorm-test container. Re-locate each by grep for 18.6 and the old digest rather than trusting this list. CI's apt and Homebrew installs float on postgresql-18 / postgresql@18. Acceptance: every 18.6 pin names 18.7 by digest; pgorm-test is recreated on 18.7; nextest, pgorm-python, pgorm-napi and the doctests pass on 18.7; and sqlmap and the generative campaign are re-run on it on a quiet machine, with their records updated. Sequenced after pg19-test-server so the two suites of timing-sensitive runs do not overlap."
+                    }
+
+                    {
+                        at 2026-11-19T17:45:45.647356Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "From pg19-test-server's run on 19.0 (2026-11-19): 18.7 carries the fix for PostgreSQL bug #19695 (JSON_VALUE .. RETURNING json/jsonb answering NULL for every row after a NULL), as 19.0 does. Once pgorm-test moves to 18.7, the default build's canary tests/sql_json_tests.rs json_value_returning_jsonb_after_a_null fails by design: it still holds 18.6's sticking NULLs outside pg-19. This node decides what the canary holds on 18.7. 18 is the floor, and 18.0–18.6 still carry the bug, so the canary cannot simply flip. pg19-json-value-returning-json now depends on this node, because restoring JsonValueType's json and jsonb variants turns on which 18 minor is the floor. pg19-test-server also found that btree_gist ships version 1.9 alone on 19; check whether 18.7's contrib still has 1.7, which the default build's extension tests in both bindings ask for."
+                    }
+                )
+            }
+
+            {
+                id pg-query-crates-io
+                title "pg_query comes from crates.io again: upstream released 18.1.0 on libpg_query 18.1.0, so the necessary-nu fork retires"
+                kind @build
+                deps (pg-query-18)
+                log (
+                    {
+                        at 2026-11-19T16:14:31.999347Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed 2026-11-19. crates.io now has pg_query 18.1.0 (max_version 18.1.0, updated 2026-10-27), and pganalyze/pg_query.rs has a v18.1.0 tag. pgorm still pins its fork at rev 09ebc3a4c7f50f3682e890a8372b4c4c99382ed9 in the root Cargo.toml, pgorm-codegen and pgorm-sql-check. The root Cargo.toml describes the fork as upstream 6.2.1 with upstream's unreleased 18.0.0 (pganalyze/pg_query.rs#79) merged in and its libpg_query submodule at tag 18.1.0, so it should carry nothing pgorm-specific; verify that by diffing the fork rev against upstream v18.1.0 before relying on it. If upstream's release covers it, the dependency becomes a crates.io range (no exact pin, per the manifests-take-ranges rule). Then deny.toml's allow-git drops the fork, tests/fork_pin_tests.rs stops holding a pg_query pin and checks instead that one pg_query is linked from crates.io, and every committed lockfile is re-resolved, including the detached workspaces under security/ and pgorm-python/. CLAUDE.md's two-forks paragraph changes to match. Acceptance is unchanged: every pg_query user (the render oracle, sql!, prql!, codegen's parse_schema, metric fingerprints, the paginator) parses PostgreSQL 18.6's grammar and its tests pass. prqlc remains a git fork, so pgorm stays unpublishable on crates.io until that one goes too."
+                    }
+                )
+            }
         )
         log (
             {
@@ -13003,6 +13047,13 @@ children (
                         kind @blocker
                         text "Waiting on an external release, re-checked 2026-11-02 with git ls-remote: libpg_query's newest tag is still 18.1.0, and its branches stop at 18-latest-dev (plus release-18-1-0 and update-to-postgres-18-6); there is no 19 grammar to build against. Nothing in this repo can move it, so it is marked blocked rather than left at the head of the frontier, where nplan_next kept offering it as the next node. Unblock when libpg_query tags a 19 release and pg_query.rs (or the necessary-nu fork) carries it."
                     }
+
+                    {
+                        at 2026-11-19T16:14:32.885445Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Checked again 2026-11-19, the day PostgreSQL 19.0 was released, using the GitHub API. libpg_query's newest tag is 18.1.0. Its branches stop at 18-latest (last commit 2026-11-10, an OSS-Fuzz deparser target) and 18-latest-dev (last commit 2026-05-21, the 18.0.0 release). pg_query.rs's newest tag is v18.1.0, which crates.io also has. Neither has a 19 grammar, so this node and its dependants (pg19-on-conflict-do-select, pg19-window-null-treatment) still wait on upstream."
+                    }
                 )
             }
 
@@ -13046,6 +13097,76 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Home under the pg-19 feature (sql.target, 2026-10-07). The typed home this note weighs — constructors for lag, lead, first_value, last_value and nth_value that carry a null treatment — is new items behind #[cfg(feature = \"pg-19\")], marked doc(cfg(feature = \"pg-19\")), and so additive by construction. The alternative is ruled out by more than the server's refusals now: a null-treatment field or variant added under cfg to FunctionCall or WindowFunction appears whenever any crate in the graph turns pg-19 on, and breaks a dependent's exhaustive match or struct literal. Python's expression and pipeline surfaces follow behind pgorm-python's own pg-19, their capability entries carrying \"features\": [\"pg-19\"]. Live tests are #[cfg(feature = \"pg-19\")] against pgorm-test-19; the rust-pg-19 check platform keeps them compiling. Still behind pg-query-19."
+                    }
+                )
+            }
+
+            {
+                id pg19-json-value-returning-json
+                title "JSON_VALUE returns json and jsonb again where the server carries the fix for bug #19695"
+                deps (pg19-test-server pg18-point-release-18-7)
+                log (
+                    {
+                        at 2026-11-19T16:46:33.280949Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed by pg19-test-server's run on PostgreSQL 19.0 (2026-11-19). Checked live on 19.0 (pgorm-test-19, \"PostgreSQL 19.0 (Debian 19.0-1.pgdg12+1)\"): over the canary's seven rows ({\"k\": 1}, {\"k\": null}, {\"k\": 3}, {}, {\"k\": 5}, NULL, {\"k\": 7}), JSON_VALUE(doc, '$.k' RETURNING jsonb) and RETURNING json answer 1, NULL, 3, NULL, 5, NULL, 7, one answer per row, where 18.6 answers 1 and then NULL for every later row (bug #19695). The fix is upstream's \"Fix NULL result persistence in JSON_VALUE() RETURNING json/jsonb\", committed 2026-11-05 to master, REL_19_STABLE and REL_18_STABLE (the 18.7 release notes list it), so 19rc2, 19.0 and 18.7 carry it; RC1 did not (its run saw the bug). A second fix the same day, \"Fix ON EMPTY/ERROR result persistence in JSON_VALUE and related constructs\" (a NULL input could return the previous row's ON EMPTY / ON ERROR value), is in the same releases. The canary tests/sql_json_tests.rs json_value_returning_jsonb_after_a_null (renamed from json_value_returning_jsonb_sticks_at_null) now holds 18.6's sticking answer by default and 19's per-row answer under pg-19. What this node decides and builds: JsonValueType is #[non_exhaustive] (sql.surface), so Json and JsonBinary can come back as variants under pg-19 now, additively (sql.target), marked doc(cfg(feature = \"pg-19\")), with TryFrom<ColumnType> converting them under pg-19. For the default build the variants wait until the 18 server the suite runs on has the fix (pg18-point-release-18-7 on main moves it to 18.7), and even then 18's floor names no minor, so an 18.6 server would still answer wrongly; the operator chooses between leaving them pg-19-only and naming 18.7 as the floor. The bindings follow: pgorm-python's json/query.rs and pgorm-napi's statements/json.rs refuse a \"json\"/\"jsonb\" returning citing bug #19695 (pgorm-python/src/json/tests.rs and pgorm-napi/tests/json.test.ts assert the refusal), and the rule text in sql.ast.expr.sql-json, the rustdoc in pgorm-query/src/json_value_type.rs (its compile_fail example) and the canary all change with the variants."
+                    }
+                )
+            }
+
+            {
+                id pg19-copy-on-error-set-null
+                title "A COPY FROM sets a field that does not convert to NULL: PostgreSQL 19's ON_ERROR set_null"
+                deps (pg19-test-server)
+                log (
+                    {
+                        at 2026-11-19T16:48:01.746917Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed by pg19-test-server's run on PostgreSQL 19.0 (2026-11-19); release notes E.1.3.3.2. The beta 4 note called this out of scope, but sql.scope lists no such entry and sql.ast.copy already types ON_ERROR ignore with REJECT_LIMIT and LOG_VERBOSITY (CopyIgnore), so set_null is the next member of a vocabulary the builder holds; retire this node if the operator writes the exclusion into sql.scope instead. Checked live on 19.0 against 18.6: COPY .. FROM STDIN (FORMAT csv | text, ON_ERROR set_null) loads a row whose field fails its type's input with that field NULL (bad,x then 5,v: COPY 2, the first row a NULL), and also a field that fails a domain's CHECK (dpos AS int CHECK (VALUE > 0), -1 becomes NULL); one NOTICE reports \"in N rows, columns were set to null due to data type incompatibility\". LOG_VERBOSITY verbose adds a NOTICE per field (\"setting to null due to data type incompatibility at line 1 for column \\\"a\\\": \\\"bad\\\"\"), silent drops every NOTICE. Refusals on 19.0: REJECT_LIMIT beside set_null is 22023 (\"COPY REJECT_LIMIT requires ON_ERROR to be set to IGNORE\"); FORMAT binary is 42601 (\"only ON_ERROR STOP is allowed in BINARY mode\"); COPY TO is 22023. A NULL the column cannot take still fails the COPY: a NOT NULL column is 23502, a NOT NULL domain \"domain dnn does not allow null values\". On 18.6 every spelling is 22023 ('COPY ON_ERROR \"set_null\" not recognized'), raised by the option check, not the grammar: 18's grammar parses ON_ERROR set_null as a generic option, so this needs no pg-query-19. Builder: a pg-19-only item beside CopyIgnore, for example CopySetNull { log_verbosity: Option<CopyLogVerbosity> } and on_error_set_null on CopyFromStatement<F: CopyDelimitedFormat>, with no reject limit to set (sql.ast.copy's one-spelling-per-state rule; [dec:pgorm:invalid-states-unrepresentable]); ON_ERROR is one slot, so the later of on_error_ignore and on_error_set_null replaces the other, and CopyOptions is pub(crate), so its field can widen without breaking anything. sql.ast.copy's option list and the rustdoc gain it under doc(cfg(feature = \"pg-19\")); the Python and JavaScript COPY builders (bindings.copy) gain it behind their own pg-19, their capability entries carrying the feature. Live tests are #[cfg(feature = \"pg-19\")] against pgorm-test-19, and the default build keeps 18's refusal untested or held as 22023."
+                    }
+                )
+            }
+
+            {
+                id pg19-copy-header-lines
+                title "A COPY FROM skips several header lines: PostgreSQL 19's HEADER with a line count"
+                deps (pg19-test-server)
+                log (
+                    {
+                        at 2026-11-19T16:48:03.453104Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed by pg19-test-server's run on PostgreSQL 19.0 (2026-11-19); release notes E.1.3.3.2 (\"Allow multiple headers lines to be skipped by COPY FROM\"). sql.ast.copy types HEADER (header) and HEADER MATCH (header_match) on the delimited formats, so a line count is the next state of the same option. Checked live on 19.0 against 18.6: COPY .. FROM STDIN (FORMAT csv | text, HEADER 2) discards two lines and loads the rest (h1, h2, 1,x: COPY 1); HEADER 0 is no header and HEADER 1 one line, on both releases, as the booleans they were. Refusals on 19.0: a negative count is 22023 (\"a negative integer value cannot be specified for header\"); HEADER 2 beside HEADER match is 42601 (\"conflicting or redundant options\"); COPY TO .. (HEADER 2) is 0A000 (\"cannot use multi-line header in COPY TO\"). On 18.6 HEADER 2 is 42601 ('header requires a Boolean value or \"match\"'), raised by the option check: 18's grammar parses HEADER 2 as a generic option with a numeric argument, so this needs no pg-query-19. Builder: CopyHeader is pub(crate), so a line count is an internal state plus a pg-19-only method on CopyFromStatement<F: CopyDelimitedFormat>, for example header_lines(NonZeroU32) rendering HEADER n (1 renders as header() does, or the type starts at 2; the node decides), marked doc(cfg(feature = \"pg-19\")), with header, header_match and the count one slot whose last call wins. COPY TO's header() stays a boolean. sql.ast.copy's option list and the rustdoc gain it; the Python and JavaScript COPY builders follow behind their own pg-19. Live tests are #[cfg(feature = \"pg-19\")] against pgorm-test-19."
+                    }
+                )
+            }
+
+            {
+                id pg19-copy-to-json
+                title "A COPY TO writes JSON: PostgreSQL 19's FORMAT json and FORCE_ARRAY"
+                deps (pg19-test-server pg-query-19)
+                log (
+                    {
+                        at 2026-11-19T16:48:04.853444Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed by pg19-test-server's run on PostgreSQL 19.0 (2026-11-19); release notes E.1.3.3.2. The beta 4 note called COPY TO JSON out of scope, but sql.scope lists no such entry, and sql.ast.copy types COPY's format as a closed set it describes as \"the closed set PostgreSQL 18 has\", so 19's fourth format is a decision this node records either way; retire it if the operator writes the exclusion into sql.scope instead. Checked live on 19.0 against 18.6: COPY oc TO STDOUT (FORMAT json) writes one JSON object per row keyed by column name ({\"id\":1,\"v\":\"a\"}; a NULL is null), from a table, from a partitioned table (whose partitions' rows it writes) and from a query; FORCE_ARRAY wraps the rows in one array (\"[\", \" {...}\", \"]\" on separate lines), and FORCE_ARRAY false is accepted. ENCODING is accepted. Refusals on 19.0: HEADER is 0A000 (\"cannot specify HEADER in JSON mode\"); NULL and DELIMITER are 42601 (\"cannot specify NULL in JSON mode\"); FORCE_ARRAY with csv is 22023 (\"COPY FORCE_ARRAY can only be used with JSON mode\"); COPY FROM .. (FORMAT json) is 22023 (\"COPY FORMAT JSON is not supported for COPY FROM\"). Grammar: on 18.6 a bare FORMAT json is a syntax error (42601 at FORMAT, json being a keyword in 18's grammar), while FORMAT 'json' and FORMAT \"json\" parse and are refused as 'COPY format \"json\" not recognized'; 19.0 accepts all three spellings. The renderer writes a format's keyword bare (CopyFormat's sealed KEYWORD), so as it stands this renders syntax only 19 parses and depends on pg-query-19 for the oracle; rendering the format quoted would lift that dependency, and the node chooses. Builder: a CopyJson format that only CopyToStatement accepts (COPY FROM refuses it, so it is not a CopyFormat a CopyFromStatement can take, by a marker trait or a separate bound), offering force_array() and no delimited-format option, behind #[cfg(feature = \"pg-19\")] with doc(cfg); CopyFormat is sealed, so a fourth implementor is additive. copy_out's byte stream carries it unchanged; the binary row decoders (copy_out_rows, CopyRowDecoder) stay binary-only. sql.ast.copy and conn.copy say so; the Python and JavaScript COPY builders follow behind their own pg-19. Live tests are #[cfg(feature = \"pg-19\")] against pgorm-test-19."
+                    }
+                )
+            }
+
+            {
+                id pg19-release-differences
+                title "Four more statements 18 and 19 answer differently are documented per release and held live"
+                deps (pg19-test-server)
+                log (
+                    {
+                        at 2026-11-19T16:48:06.783926Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Filed by pg19-test-server's run on PostgreSQL 19.0 (2026-11-19). sql.target, docs/guide/23-postgres-releases.md and its Python and JavaScript dialects say three statements answer differently on 18 and 19 (ALTER CONSTRAINT on a CHECK, SET EXPRESSION under a CHECK, JSON_ARRAY over no rows). The 19.0 survey found four more that a builder value reaches, none held by a test or a doc. Each checked live on 19.0 (pgorm-test-19) and 18.6 (pgorm-test): (1) COPY TO over a partitioned table (CopyToStatement from a table name): 18.6 refuses it, 42809 \"cannot copy from partitioned table\" with HINT \"Try the COPY (SELECT ...) TO variant\"; 19.0 copies its partitions' rows (release notes E.1.3.3.2). (2) COPY FROM .. WHERE reading a system column (cond_where over tableoid or ctid): 18.6 accepts it, 19.0 refuses it, 42P10 \"system columns are not supported in COPY FROM WHERE conditions\" with DETAIL naming the column (an incompatibility in E.1.2); this one is a removal, so the pg-19 build documents a refusal the default build does not have. (3) IS JSON over a domain (is_json / is_not_json): over a domain of json, jsonb or bytea 18.6 refuses, 42804 \"cannot use type djsonb in IS JSON predicate\", and 19.0 answers; a domain over text is answered by both, and a domain over integer refused by both (42804); is_json's rustdoc names only text, json, jsonb and bytea as operands. (4) A GiST index on an inet or cidr column with no operator class (IndexType::Gist over an Inet or Cidr column): 18.6 refuses it, 42704 \"data type inet has no default operator class for access method \\\"gist\\\"\", and 19.0 builds it, core's inet_ops now being the default (E.1.2: the default moved from btree_gist's opclass, which pg_upgrade now refuses to carry). Per sql.target each is documented per release in its rule (sql.ast.copy for 1 and 2, sql.ast.expr.sql-json for 3, sql.ddl.index-create for 4) and in the rustdoc, and gets a live test holding 18's answer by default and 19's under cfg(feature = \"pg-19\"); the count of differences in sql.target and the three guides changes with them, and the bindings' tests branch on POSTGRES_TARGET where their builders reach the same statement. No rule version needs to move unless a builder changes."
                     }
                 )
             }
@@ -21478,6 +21599,73 @@ children (
                 author "brendan@necessary.nu"
                 kind @decision
                 text "Operator 2026-11-05: \"Rust user guide is the MAIN one. The others are just dialects of it.\" The Rust guide is the canonical user documentation for pgorm. It is a guide for a new user, not a SeaORM porting map (COMING_FROM_SEAORM.md stays as that). The Python and JavaScript guides follow its chapters one for one, in their own language and spelling. Each says where its binding differs, and it adds only what its own language needs (installation, async runtime, typing or TypeScript, packaging, codegen for registrations). Audit of 2026-11-05 (names merely mentioned, a lower bound): the root README is a list of SeaORM differences, and the crate root doc is about 30 lines. Neither mentions disjoint enums, one-of references, the pipeline, LISTEN or the bindings. Python's 17 guides miss 13 shared names (the pipeline's *_with family, one_of_entities, Pool.acquire, COPY's force_null_all and force_not_null_all). JavaScript's README, ENTITIES, CODEGEN and DISTRIBUTION miss 75 (every COPY option, the paginators' fetchPage and numItemsAndPages, window frames, unionAll, intersectAll and except, Pool.status and ping, the pipeline's *With family, sourceTuples, oneOfEntities, CreateType.asEnum and asComposite, and more). No binding guide's examples are executed."
+            }
+        )
+    }
+
+    {
+        id supply-chain
+        title "Every workspace passes the supply-chain check with nothing ignored: no advisory, banned crate or unlisted source in any dependency tree"
+        kind @build
+        children (
+            {
+                id prqlc-without-chrono
+                title "The prqlc fork drops chrono, which RUSTSEC-2026-0543 declares unmaintained, so no workspace links it and the advisory needs no ignore"
+                kind @build
+                deps (prqlc-git-dependency supply-chain-detached-workspaces)
+                sealed true
+                log (
+                    {
+                        at 2026-11-19T17:51:56.552029Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found 2026-11-19 by PR #37's Supply-chain security job (run 44580769373). It failed in all 15 workspaces with `error[unmaintained]: chrono is unmaintained`, RUSTSEC-2026-0543 (\"all versions are affected\", \"No safe upgrade is available!\"; recommended alternatives jiff and time; announcement chronotope/chrono#1768). The job is a required check on main, so no PR merges until this is resolved, and main's scheduled run fails the same way. The advisory, not the PR, is what changed. pgorm itself names no chrono: its temporal types are jiff (jiff-temporal). `cargo tree -i chrono` shows the one path chrono v0.4.45 ← prqlc v0.13.14 (necessary-nu/prql rev f25bf16d) ← pgorm / pgorm-sql-check. In the fork, chrono = \"0.4.40\" sits in prqlc/prqlc/Cargo.toml and is used in two places. prqlc/prqlc/src/debug/log.rs takes debug-log timestamps from it. prqlc/prqlc/src/sql/dialect.rs tokenizes `date.to_text` format strings with chrono::format::StrftimeItems: each dialect's translate_chrono_item maps chrono's Item enum (Fixed, Numeric, Pad, Literal, Space), and chrono_item_to_strftime turns one back into text. Upstream PRQL main still depends on chrono 0.4.42. Fix in the fork: replace the strftime tokenizer with prqlc's own, preserving every dialect's output and errors, with the fork's dialect snapshot tests as the oracle; take log timestamps from jiff or std. Then move pgorm's prqlc pin in every manifest and re-resolve every lockfile, as tests/fork_pin_tests.rs requires. deny.toml's `[advisories] ignore = []` stays empty: ignoring the advisory was rejected as a gate dodge."
+                    }
+
+                    {
+                        at 2026-11-19T18:53:20.276808Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+        )
+    }
+
+    {
+        id prqlc-fork
+        title "pgorm's prqlc fork stays current with upstream PRQL: our fixes carried on upstream's main, and upstream's fixes taken as they land"
+        kind @build
+        children (
+            {
+                id prqlc-rebase-2026-11
+                title "The prqlc fork is rebased onto upstream PRQL's main, taking the fixes upstream made since 0.13.14, and every pgorm SQL answer that changes is checked against the fix that changed it"
+                kind @build
+                deps (prqlc-without-chrono)
+                log (
+                    {
+                        at 2026-11-19T18:27:09.715473Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator 2026-11-19: \"yes, rebase\". This followed a comparison of the fork with upstream. The fork (necessary-nu/prql, branch pgorm/no-chrono at 59405a62) forked at 029b9c4b, upstream's 0.13.14 changelog (2026-07-24). It carries 13 commits: 12 fixes (b2baa230 … f25bf16d) and the chrono removal (59405a62). Upstream main (0d4c6efe, 2026-11-19) is 385 commits ahead and has not released since 0.13.14. Of those, 248 are by prql-bot, 92 by dependabot and 21 by the maintainer; 93 are fixes and none are features. None of the fork's fixes were ever proposed upstream. Upstream fixes in SQL generation that pgorm's pipeline reads: parenthesization (#6381, #6418, #6467, #6479), window frames (#6375, #6435), joined pipelines' unnamed columns (#6527, #6528), CTE wildcard inference (#6558), group take 1 DISTINCT (#6547), no compile-time folding of time equality (#6485), computed columns in this.* (#6045), take bounds near i64 (#6347). Expected conflicts: set operations, where upstream keeps a join as a join when its condition doesn't match INTERSECT/EXCEPT (#6443, #6556), against our relation-level intersect/remove (170872b3, 656ce4ce, f25bf16d); and date.to_text, whose errors and escaping upstream changed (#6351, #6560, #6568) in the dialect.rs code 59405a62 rewrote. Our relation-level intersect/remove is deliberate (pipeline.compose, macros.prql) and stays. Sequenced after prqlc-without-chrono, so that the pin moves once, from 59405a62 to the rebased rev."
+                    }
+                )
+            }
+
+            {
+                id prqlc-upstream-fixes
+                title "The fork's fixes that upstream PRQL would take are offered upstream as PRs shaped to its AGENTS.md, so the fork shrinks to the deliberate departures"
+                kind @chore
+                deps (prqlc-rebase-2026-11)
+                log (
+                    {
+                        at 2026-11-19T18:27:43.903653Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Operator 2026-11-19, after learning that none of the fork's fixes had been proposed upstream: \"And they seem AI friendly, so we should consider it.\" The operator asked for it to be considered, not done: opening a PR upstream publishes the code, so the lead asks before opening any. Why upstream is a good fit: prql-bot wrote 248 of the 385 commits since 0.13.14, and upstream keeps AGENTS.md and .claude/skills at its root. Its conventions, from upstream main 0d4c6efe:\n- prefer small inline insta snapshot tests (`insta::assert_snapshot!(.., @\"\")`, initialised empty and accepted), and read prqlc/prqlc/tests/AGENTS.md before changing compiler tests;\n- no `.unwrap()` on fallible user input;\n- a user-facing change needs a CHANGELOG.md line, `{message}, (@contributor, #X)`, added in a follow-up commit once the PR number exists;\n- commit conventions are in web/book/src/project/contributing/development.md.\nCandidates after the rebase: the chrono removal (upstream still depends on chrono, and RUSTSEC-2026-0543 reaches them too); identifier delimiter doubling (9023adad); the wildcard-key, GROUP BY star, literal-key, DISTINCT ON dropped-key and whole-row GROUP BY fixes; star-expansion order; take's embedded sort; and the interior-column cids. Our relation-level intersect/remove deliberately departs from upstream and stays in the fork. Each PR is a single fix on upstream main, with its own inline snapshot tests."
+                    }
+                )
             }
         )
     }

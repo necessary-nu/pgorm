@@ -34,8 +34,8 @@ target/python-dev/bin/python pgorm-python/tests/with_postgres.py \
 ```
 
 A build for PostgreSQL 19 (`--features pg-19`) is tested against a 19 server
-supplied through `PGORM_TEST_DSN`; the wrappers provision 18, and CI builds
-and tests 18 only until 19's general release.
+supplied through `PGORM_TEST_DSN`, or through `with_local_postgres.py` with
+`PGORM_TEST_PG_BIN` naming 19's binaries; `with_postgres.py` provisions 18.
 
 ## The checks
 
@@ -83,7 +83,10 @@ Homebrew) and Linux x86-64 (Ubuntu 24.04, `postgresql-18` from the PostgreSQL
 project's apt repository, since the Ubuntu archive stops at 16), with the
 latest CPython 3.14 patch release, and keeps each job's packages and evidence
 as review artifacts, failed jobs' partial evidence included. A third job runs
-`entities.py` and `guide.py` on Linux and keeps their wheels and reports. The
+`entities.py` and `guide.py` on Linux and keeps their wheels and reports. A
+fourth builds the wheel with `pg-19` and runs the installed suite on Linux
+against `postgresql-19` from the same apt repository; macOS has no 19 job,
+since Homebrew has no `postgresql@19`. The
 workflow runs on pushes to `main`, on pull requests that touch Rust, Cargo or
 `pgorm-python` files, and weekly, so a change elsewhere that breaks an
 application binding is caught.
