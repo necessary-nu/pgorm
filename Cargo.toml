@@ -89,9 +89,8 @@ pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # is exact: the PL AST is not a stable API, and the adapter module is
 # written against this one revision.
 #
-# It is a git dependency on the fork's pgorm/deterministic-star-expansion
-# branch — 0.13.14 plus fixes to its SQL generation that upstream has not
-# taken:
+# It is a git dependency on the fork's pgorm/no-chrono branch — 0.13.14 plus
+# fixes to its SQL generation that upstream has not taken:
 #   - star expansion is ordered totally, so one pipeline compiles to one
 #     projection, the tuple layout a positional decode reads (reproducer: the
 #     pipeline-join-distinct-order finding);
@@ -106,7 +105,14 @@ pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 #     outside an aggregation;
 #   - literal keys are left out of GROUP BY and DISTINCT ON, where PostgreSQL
 #     would read an integer as a column position;
-#   - DISTINCT ON orders by a key's expression when the projection drops it.
+#   - DISTINCT ON orders by a key's expression when the projection drops it;
+#   - std's `intersect` and `remove` are relation-level set operations, as
+#     `append` is, and a stage after a set operation reads the whole combined
+#     relation.
+# The pinned commit sits on top of those (f25bf16d) and drops chrono, which
+# RUSTSEC-2026-0543 declares unmaintained: prqlc splits `date.to_text` format
+# strings itself, as chrono did, and takes its debug log's timestamps from
+# jiff.
 # A dependency rather than a `[patch.crates-io]` entry, because a dependency
 # travels with pgorm and a patch does not: cargo reads patches from the root
 # of the workspace being built and nowhere else, so every detached workspace,
@@ -120,7 +126,7 @@ pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # crates.io while this stands. pgorm-sql-check names the same revision, and
 # tests/fork_pin_tests.rs holds every declaration and every committed
 # lockfile to it.
-prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "f25bf16dbd3ee6af1312fde39b6637aca32acc49", default-features = false }
+prqlc = { git = "https://github.com/necessary-nu/prql.git", rev = "59405a62703b1ed5cf106377fe3517cbfc40741b", default-features = false }
 pgorm-query.workspace = true
 strum = { version = "0.28", default-features = false }
 serde_json = { version = "1.0.151", default-features = false, optional = true }
