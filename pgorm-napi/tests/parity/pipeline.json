@@ -44,7 +44,7 @@
     "values": [["i64","2"]]
   },
   "window-functions": {
-    "sql": "SELECT *, RANK() OVER (PARTITION BY category ORDER BY amount DESC) AS r, DENSE_RANK() OVER (PARTITION BY category ORDER BY amount DESC) AS d, LAG(amount, 1) OVER (PARTITION BY category ORDER BY amount DESC) AS \"before\", LEAD(amount, 2) OVER (PARTITION BY category ORDER BY amount DESC) AS \"after\", FIRST_VALUE(amount) OVER (PARTITION BY category ORDER BY amount DESC) AS lowest, LAST_VALUE(amount) OVER (PARTITION BY category ORDER BY amount DESC) AS highest FROM items",
+    "sql": "SELECT *, RANK() OVER (PARTITION BY category ORDER BY amount DESC) AS r, DENSE_RANK() OVER (PARTITION BY category ORDER BY amount DESC) AS d, LAG(amount, 1) OVER (PARTITION BY category ORDER BY amount DESC) AS \"before\", LEAD(amount, 2) OVER (PARTITION BY category ORDER BY amount DESC) AS \"after\", FIRST_VALUE(amount) OVER (PARTITION BY category ORDER BY amount DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS lowest, LAST_VALUE(amount) OVER (PARTITION BY category ORDER BY amount DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS highest FROM items",
     "values": []
   },
   "sort-with": {

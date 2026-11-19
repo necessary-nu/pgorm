@@ -130,7 +130,9 @@ class Window:
     explicit: bool
 
     def for_function(self, name):
-        aggregate = name in (
+        # An unframed window still frames these with the whole window, not
+        # SQL's default frame, which would end `last` at the current row.
+        framed = name in (
             "sum",
             "min",
             "max",
@@ -138,8 +140,10 @@ class Window:
             "count",
             "count_rows",
             "count_distinct",
+            "first",
+            "last",
         )
-        return self.base + self.frame if self.explicit or aggregate else self.base
+        return self.base + self.frame if self.explicit or framed else self.base
 
 
 def window(i, d, context):

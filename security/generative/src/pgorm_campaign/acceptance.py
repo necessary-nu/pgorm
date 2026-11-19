@@ -99,15 +99,17 @@ FINDINGS = {
                 ),
             },
             {
-                "test": "every_frame_direction_reaches_a_frame_blind_function",
+                "test": "every_frame_direction_reaches_both_render_paths",
                 "path": "src/pipeline/tests.rs",
                 "module": (
-                    "pipeline::tests::every_frame_direction_reaches_a_frame_blind_function"
+                    "pipeline::tests::every_frame_direction_reaches_both_render_paths"
                 ),
                 "without_the_fix": (
                     "prqlc emits a frame only for the calls its standard "
-                    "library annotates as frame-aware, so an authored frame "
-                    "never reaches FIRST_VALUE or LAST_VALUE"
+                    "library annotates as frame-aware, which left out first "
+                    "and last until upstream's #6435 and leaves out lag, lead "
+                    "and the ranking functions, so an authored frame never "
+                    "reached FIRST_VALUE or LAST_VALUE"
                 ),
             },
         ],
