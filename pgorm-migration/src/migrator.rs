@@ -48,6 +48,36 @@ impl Display for MigrationStatus {
     }
 }
 
+/// What a migrator does when its ledger records an applied migration that
+/// no migration of its own answers: one a newer build of the program
+/// applied, so the database is ahead of this build.
+///
+/// The two variants are the two sides of one choice, whether such a row
+/// fails the read that finds it. How a tolerated one is reported is
+/// [`warn_unknown_migrations`](MigratorTrait::warn_unknown_migrations)'s.
+// [spec:pgorm:req:migration.unknown-applied]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum UnknownMigrations {
+    /// Every read that finds one fails, naming each.
+    #[default]
+    Refuse,
+    /// Every read that finds one warns of each and carries on, except an
+    /// [`up`](MigratorTrait::up) with migrations of its own still pending,
+    /// which refuses rather than apply them out of order.
+    Warn,
+}
+
+impl UnknownMigrations {
+    /// The warning [`warn_unknown_migrations`](MigratorTrait::warn_unknown_migrations)
+    /// logs for `version` unless a migrator overrides it.
+    pub fn warning(version: &str) -> String {
+        format!(
+            "The database records migration '{version}' as applied, but this migrator does not \
+             know it, so the database is ahead of this build"
+        )
+    }
+}
+
 pub struct Migration {
     migration: Box<dyn MigrationTrait>,
     status: MigrationStatus,
@@ -100,7 +130,7 @@ pub trait MigratorTrait: Send + Sync {
 
     /// Get list of migrations wrapped in `Migration` struct, failing if two of
     /// them answer `name()` with the same string
-    // [spec:pgorm:sem:migration.name+4]    duplicates are rejected here, ahead of every other step
+    // [spec:pgorm:sem:migration.name+5]    duplicates are rejected here, ahead of every other step
     fn get_migration_files(&self) -> Result<Vec<Migration>, Error> {
         let migrations = self.migrations();
 
@@ -145,7 +175,7 @@ pub trait MigratorTrait: Send + Sync {
     /// The hash is spelled out here rather than taken from `DefaultHasher`
     /// because the key has to agree between processes that need not share a
     /// compiler version, let alone a `HashMap` seed.
-    // [spec:pgorm:sem:migration.up+6]
+    // [spec:pgorm:sem:migration.up+7]
     fn lock_key(&self) -> i64 {
         const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
         const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -166,7 +196,7 @@ pub trait MigratorTrait: Send + Sync {
     /// `pg_advisory_xact_lock` is released at end of transaction: taken in
     /// autocommit it would be surrendered before the caller's next statement,
     /// which is the shape of the bug rather than the fix.
-    // [spec:pgorm:sem:migration.up+6]
+    // [spec:pgorm:sem:migration.up+7]
     async fn lock(&self, db: &DatabaseTransaction<'_>) -> Result<(), Error> {
         let key = self.lock_key();
         db.execute("SELECT pg_advisory_xact_lock($1)", &[&key])
@@ -216,60 +246,20 @@ pub trait MigratorTrait: Send + Sync {
     }
 
     /// Get list of migrations with status
-    // [spec:pgorm:sem:migration.up+6]    pending set difference + missing-file detection
+    // [spec:pgorm:sem:migration.up+7]    pending set difference + missing-file detection
     // [spec:pgorm:req:migration.checksum+1]    recorded digests are checked on every read
     // [spec:pgorm:req:migration.read-only+1]    status is computed from a read alone
+    // [spec:pgorm:req:migration.unknown-applied]    refused or warned of as `unknown_migrations()` says
     async fn get_migration_with_status(
         &self,
         db: &(impl ConnectionTrait),
     ) -> Result<Vec<Migration>, Error> {
-        let mut migration_files = self.get_migration_files()?;
-        let migration_models = self.get_migration_models(db).await?;
-
-        let applied_checksums: HashMap<String, Option<String>> = migration_models
-            .into_iter()
-            .map(|model| (model.version, model.checksum))
-            .collect();
-        let migration_in_db: HashSet<String> = applied_checksums.keys().cloned().collect();
-        let migration_in_fs: HashSet<String> = migration_files
-            .iter()
-            .map(|file| file.migration.name().to_string())
-            .collect();
-
-        let pending_migrations = &migration_in_fs - &migration_in_db;
-        let mut checksum_errors: Vec<String> = Vec::new();
-        for migration_file in migration_files.iter_mut() {
-            if pending_migrations.contains(migration_file.migration.name()) {
-                continue;
-            }
-            migration_file.status = MigrationStatus::Applied;
-
-            let recorded = applied_checksums
-                .get(migration_file.migration.name())
-                .and_then(Option::as_deref);
-            if let (Some(recorded), Some(current)) = (recorded, migration_file.migration.checksum())
-                && recorded != current
-            {
-                checksum_errors.push(format!(
-                    "Migration '{}' was applied with checksum '{recorded}' but now reports '{current}', so its contents have changed since it was applied; correct it with a new migration rather than by editing this one",
-                    migration_file.migration.name()
-                ));
-            }
+        let reading = Reading::of(self, db).await?;
+        reading.refuse(self.unknown_migrations())?;
+        if !reading.unknown.is_empty() {
+            self.warn_unknown_migrations(&reading.unknown);
         }
-
-        let missing_migrations_in_fs = &migration_in_db - &migration_in_fs;
-        let mut errors: Vec<String> = missing_migrations_in_fs
-            .iter()
-            .map(|missing_migration| {
-                format!("Migration file of version '{missing_migration}' is missing, this migration has been applied but its file is missing")
-            }).collect();
-        errors.extend(checksum_errors);
-
-        if !errors.is_empty() {
-            Err(Error::Custom(errors.join("\n")))
-        } else {
-            Ok(migration_files)
-        }
+        Ok(reading.migrations)
     }
 
     /// Get list of pending migrations.
@@ -429,11 +419,17 @@ pub trait MigratorTrait: Send + Sync {
     /// so a readiness probe or a CI gate can call it against a connection with
     /// no DDL privileges at all.
     // [spec:pgorm:req:migration.read-only+1]
+    // [spec:pgorm:req:migration.unknown-applied]    the listing warns of each unknown migration once
     async fn status(&self, db: &(impl ConnectionTrait)) -> Result<(), Error> {
         info!("Checking migration status");
 
-        for Migration { migration, status } in self.get_migration_with_status(db).await? {
+        let reading = Reading::of(self, db).await?;
+        reading.refuse(self.unknown_migrations())?;
+        for Migration { migration, status } in &reading.migrations {
             info!("Migration '{}'... {}", migration.name(), status);
+        }
+        if !reading.unknown.is_empty() {
+            self.warn_unknown_migrations(&reading.unknown);
         }
 
         Ok(())
@@ -446,9 +442,35 @@ pub trait MigratorTrait: Send + Sync {
     /// the one a pool given that channel as its
     /// [`statement_cache_channel`](pgorm::ManagerConfig::statement_cache_channel)
     /// listens on.
-    // [spec:pgorm:sem:migration.up+6]    the channel the runner notifies
+    // [spec:pgorm:sem:migration.up+7]    the channel the runner notifies
     fn statement_cache_channel(&self) -> Option<String> {
         Some(pgorm::STATEMENT_CACHE_CHANNEL.to_owned())
+    }
+
+    /// What a read does when the ledger records an applied migration that
+    /// no migration of this migrator answers,
+    /// [`UnknownMigrations::Refuse`] by default.
+    ///
+    /// [`UnknownMigrations::Warn`] is for a program that runs `up` as it
+    /// starts and is deployed as several replicas: during a rolling update,
+    /// an older build can start against a database a newer one has already
+    /// migrated, and with `Warn` it carries on rather than failing to start.
+    // [spec:pgorm:req:migration.unknown-applied]
+    fn unknown_migrations(&self) -> UnknownMigrations {
+        UnknownMigrations::Refuse
+    }
+
+    /// Report the applied migrations this migrator does not know, which a
+    /// read under [`UnknownMigrations::Warn`] found, sorted by version: a
+    /// `tracing::warn!` of each by default, worded by
+    /// [`UnknownMigrations::warning`]. A read calls it once. `up` calls it at
+    /// most once, since it goes ahead past an unknown migration only when it
+    /// has nothing to apply.
+    // [spec:pgorm:req:migration.unknown-applied]
+    fn warn_unknown_migrations(&self, versions: &[String]) {
+        for version in versions {
+            tracing::warn!(version = %version, "{}", UnknownMigrations::warning(version));
+        }
     }
 
     /// Apply pending migrations, then clear the pool's cached statements if the
@@ -459,7 +481,7 @@ pub trait MigratorTrait: Send + Sync {
     /// answers `true` is committed with its ledger row before the next one
     /// runs, and the rest run in a new transaction that takes the lock again;
     /// each commit clears and notifies as the end of a batch does.
-    // [spec:pgorm:sem:migration.up+6]
+    // [spec:pgorm:sem:migration.up+7]
     // [spec:pgorm:req:migration.commit-after]
     async fn up(&self, db: DatabasePool, mut steps: Option<u32>) -> Result<(), Error> {
         tracing::debug!("Applying migrations");
@@ -474,7 +496,7 @@ pub trait MigratorTrait: Send + Sync {
                     // Sent inside the batch's transaction, the notification is
                     // delivered exactly when the batch commits, and never if it
                     // rolls back.
-                    // [spec:pgorm:sem:migration.up+6]    other processes' pools hear of a committed batch
+                    // [spec:pgorm:sem:migration.up+7]    other processes' pools hear of a committed batch
                     // [spec:pgorm:req:migration.commit-after]    and of each commit inside one
                     if batch.applied > 0
                         && let Some(channel) = channel
@@ -511,6 +533,91 @@ pub trait MigratorTrait: Send + Sync {
 struct Batch {
     applied: usize,
     resume: Option<Option<u32>>,
+}
+
+/// What one read of the ledger found, before the migrator's
+/// [`unknown_migrations`](MigratorTrait::unknown_migrations) says what an
+/// unknown migration means.
+// [spec:pgorm:sem:migration.up+7]    pending set difference + missing-file detection
+// [spec:pgorm:req:migration.checksum+1]    recorded digests are checked on every read
+// [spec:pgorm:req:migration.unknown-applied]
+struct Reading {
+    /// Every migration of the migrator, in its order, with its status.
+    migrations: Vec<Migration>,
+    /// The ledger's versions no migration answers, sorted.
+    unknown: Vec<String>,
+    /// A refusal for each applied migration whose checksum has changed.
+    changed: Vec<String>,
+}
+
+impl Reading {
+    async fn of<M: MigratorTrait + ?Sized>(
+        migrator: &M,
+        db: &impl ConnectionTrait,
+    ) -> Result<Self, Error> {
+        let mut migrations = migrator.get_migration_files()?;
+        let mut applied: HashMap<String, Option<String>> = migrator
+            .get_migration_models(db)
+            .await?
+            .into_iter()
+            .map(|model| (model.version, model.checksum))
+            .collect();
+
+        let mut changed = Vec::new();
+        for migration in &mut migrations {
+            let Some(recorded) = applied.remove(migration.migration.name()) else {
+                continue;
+            };
+            migration.status = MigrationStatus::Applied;
+            if let (Some(recorded), Some(current)) = (recorded, migration.migration.checksum())
+                && recorded != current
+            {
+                changed.push(format!(
+                    "Migration '{}' was applied with checksum '{recorded}' but now reports '{current}', so its contents have changed since it was applied; correct it with a new migration rather than by editing this one",
+                    migration.migration.name()
+                ));
+            }
+        }
+
+        let mut unknown: Vec<String> = applied.into_keys().collect();
+        unknown.sort();
+        Ok(Self {
+            migrations,
+            unknown,
+            changed,
+        })
+    }
+
+    /// The refusal a read with these findings ends in, if it ends in one: a
+    /// changed checksum always, and an unknown migration under `Refuse`.
+    // [spec:pgorm:req:migration.unknown-applied]    a changed checksum is refused under either setting
+    fn refuse(&self, unknown_migrations: UnknownMigrations) -> Result<(), Error> {
+        let missing = match unknown_migrations {
+            UnknownMigrations::Refuse => self.unknown.as_slice(),
+            UnknownMigrations::Warn => &[],
+        };
+        let errors: Vec<String> = missing
+            .iter()
+            .map(|version| {
+                format!("Migration file of version '{version}' is missing, this migration has been applied but its file is missing")
+            })
+            .chain(self.changed.iter().cloned())
+            .collect();
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::Custom(errors.join("\n")))
+        }
+    }
+}
+
+/// `names` quoted and listed, as a refusal names them.
+fn quoted<S: AsRef<str>>(names: impl IntoIterator<Item = S>) -> String {
+    names
+        .into_iter()
+        .map(|name| format!("'{}'", name.as_ref()))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Where a migrator's ledger lives: `migration_table_name()`, qualified by
@@ -687,7 +794,7 @@ impl ReadableLedger {
     }
 }
 
-// [spec:pgorm:sem:migration.up+6]    one connection, one transaction: the whole batch, or one part of a batch a migration splits
+// [spec:pgorm:sem:migration.up+7]    one connection, one transaction: the whole batch, or one part of a batch a migration splits
 async fn exec_with_connection<M, T, F>(db: &DatabasePool, migrator: &M, f: F) -> Result<T, Error>
 where
     M: ?Sized + Sync,
@@ -723,7 +830,7 @@ where
 /// Applies the pending migrations inside `db`, answering how many it applied
 /// and, where a migration asked to be committed before the rest, the step
 /// bound left for them.
-// [spec:pgorm:sem:migration.up+6]    lock, then declaration-order application, step bound, ledger append
+// [spec:pgorm:sem:migration.up+7]    lock, then declaration-order application, step bound, ledger append
 // [spec:pgorm:req:migration.commit-after]    the lock is retaken and the pending set recomputed per transaction
 async fn exec_up<M>(
     migrator: &M,
@@ -736,7 +843,7 @@ where
     // A list that names the same migration twice cannot be applied coherently,
     // so it is rejected before the lock is taken and before the ledger exists —
     // there is no reason to make a concurrent runner queue behind it.
-    // [spec:pgorm:sem:migration.name+4]
+    // [spec:pgorm:sem:migration.name+5]
     migrator.get_migration_files()?;
 
     // Before anything reads or writes the ledger: a concurrent runner is made
@@ -756,11 +863,29 @@ where
         info!("Applying all pending migrations");
     }
 
-    let mut migrations = migrator
-        .get_pending_migrations(&*db)
-        .await?
+    let reading = Reading::of(migrator, &*db).await?;
+    reading.refuse(migrator.unknown_migrations())?;
+    let pending: Vec<Migration> = reading
+        .migrations
         .into_iter()
-        .peekable();
+        .filter(|migration| migration.status == MigrationStatus::Pending)
+        .collect();
+    // [spec:pgorm:req:migration.unknown-applied]    pending beside unknown is refused, nothing pending goes ahead
+    if !reading.unknown.is_empty() {
+        if !pending.is_empty() {
+            return Err(Error::Custom(format!(
+                "The database records migrations this migrator does not know, {}, so it is ahead \
+                 of this build; this migrator's pending migrations {} are not applied, since \
+                 applying them after migrations it does not know would apply them out of order \
+                 against a newer schema",
+                quoted(&reading.unknown),
+                quoted(pending.iter().map(Migration::name)),
+            )));
+        }
+        migrator.warn_unknown_migrations(&reading.unknown);
+    }
+
+    let mut migrations = pending.into_iter().peekable();
     if migrations.len() == 0 {
         info!("No pending migrations");
     }

@@ -2124,6 +2124,14 @@ children (
                         text "migration.up (+3): up clears the pool's statement caches once a batch that applied a migration commits, added by statement-cache-after-ddl (conn.pool.statement-cache.clear, 2adf99d1)."
                         after_done true
                     }
+
+                    {
+                        at 2026-11-19T22:48:35.567588Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "migration.up (+7) and migration.name (+5): a ledger row no migration answers is refused by default, and a migrator whose unknown_migrations() answers Warn warns of it instead, its up going ahead only with nothing of its own pending; added by migration-unknown-applied (migration.unknown-applied)."
+                        after_done true
+                    }
                 )
             }
 
@@ -21672,6 +21680,32 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "Operator 2026-11-19, after learning that none of the fork's fixes had been proposed upstream: \"And they seem AI friendly, so we should consider it.\" The operator asked for it to be considered, not done: opening a PR upstream publishes the code, so the lead asks before opening any. Why upstream is a good fit: prql-bot wrote 248 of the 385 commits since 0.13.14, and upstream keeps AGENTS.md and .claude/skills at its root. Its conventions, from upstream main 0d4c6efe:\n- prefer small inline insta snapshot tests (`insta::assert_snapshot!(.., @\"\")`, initialised empty and accepted), and read prqlc/prqlc/tests/AGENTS.md before changing compiler tests;\n- no `.unwrap()` on fallible user input;\n- a user-facing change needs a CHANGELOG.md line, `{message}, (@contributor, #X)`, added in a follow-up commit once the PR number exists;\n- commit conventions are in web/book/src/project/contributing/development.md.\nCandidates after the rebase: the chrono removal (upstream still depends on chrono, and RUSTSEC-2026-0543 reaches them too); identifier delimiter doubling (9023adad); the wildcard-key, GROUP BY star, literal-key, DISTINCT ON dropped-key and whole-row GROUP BY fixes; star-expansion order; take's embedded sort; and the interior-column cids. Our relation-level intersect/remove deliberately departs from upstream and stays in the fork. Each PR is a single fix on upstream main, with its own inline snapshot tests."
+                    }
+                )
+            }
+        )
+    }
+
+    {
+        id migration-deploy
+        title "pgorm-migration's runner fits how applications deploy: several replicas, rolling updates, and images that start out of order against one database"
+        kind @feat
+        children (
+            {
+                id migration-unknown-applied
+                title "A migrator can opt to warn, naming each one, rather than fail when the database records migrations it does not know, so an older image keeps serving against a newer schema; refusing stays the default"
+                kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:bindings.migrations.unknown-applied])
+                    main ([spec:pgorm:req:migration.unknown-applied])
+                    python ([spec:pgorm:req:bindings.migrations.unknown-applied])
+                }
+                log (
+                    {
+                        at 2026-11-19T22:17:58.184835Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Requested 2026-11-19 by the \"Pahkat redesign integration\" session, passing on the operator's request. pahkat-server runs `Migrator::up(conn, None)` in an init container before serving. It is moving from one replica to several with rolling updates, so during a rollout, or when CI pins images out of order (which took pahkat-3 down), an older image starts against a database a newer image already migrated, and dies with `Error: Custom Error: Migration file of version 'host_0009_log' is missing, this migration has been applied but its file is missing` (pgorm-migration src/migrator.rs, get_migration_with_status). The operator wants that loud but not fatal: logged at warn/error level naming each applied migration this binary does not know, the process carrying on so the old pod serves until its replacement is up. It is an opt-in on the migrator, and the current strict behaviour stays the default. Pahkat's own status check already reports unknown applied migrations, so a log warning is enough for it. Pahkat should be told the API once it lands. Design (the lead's, the API shape being pgorm's to decide): a provided MigratorTrait method beside statement_cache_channel and migration_table_name, `fn unknown_migrations(&self) -> UnknownMigrations`, defaulting to `UnknownMigrations::Refuse`; `UnknownMigrations::Warn` logs each unknown applied version with tracing::warn! and lets status reads and `up` proceed. Two refusals stay under Warn. A checksum mismatch is a changed file this migrator does know. And when the ledger holds unknown migrations and this migrator has pending ones, `up` refuses: running them after migrations it does not know would apply them out of order against a newer schema. A pending set that is empty is the rollout case Warn exists for. The run-time `Migrations` takes the same setting (`with_unknown_migrations`), and so do both bindings' migrators, in each dialect's spelling of an option, through pgorm-bindings' migrations runner. The Rust guide's migrations chapter documents it, and the Python and JavaScript guides follow as dialects."
                     }
                 )
             }

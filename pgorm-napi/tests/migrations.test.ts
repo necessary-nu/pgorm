@@ -274,6 +274,142 @@ test("up clears the pool's statement caches", async () => {
   assert.equal((await single.one(pack)).ribbon, "gold");
 });
 
+/** The two migrations a newer build of a program has. */
+function ahead(schema: string): [SqlMigration, SqlMigration] {
+  return [
+    sqlMigration("m20261101_000001_table_a", `CREATE SCHEMA "${schema}"; CREATE TABLE "${schema}".table_a (id integer)`),
+    sqlMigration("m20261101_000002_table_b", `CREATE TABLE "${schema}".table_b (id integer)`),
+  ];
+}
+
+/** The runner's warning of the newer build's second migration. */
+const WARNING =
+  "The database records migration 'm20261101_000002_table_b' as applied, but this migrator does not know it, " +
+  "so the database is ahead of this build";
+
+/** What `body` writes with `console.warn`, which is given back afterwards. */
+async function warned(body: () => Promise<unknown>): Promise<string[]> {
+  const written: string[] = [];
+  const original = console.warn;
+  console.warn = (message: unknown) => {
+    written.push(String(message));
+  };
+  try {
+    await body();
+  } finally {
+    console.warn = original;
+  }
+  return written;
+}
+
+const silent = { info(): void {} };
+
+// [spec:pgorm:req:bindings.migrations.unknown-applied/test]    an older build that warns goes on, applying
+// nothing, and each read writes each unknown migration once, as a warning of the runner's words
+test("an older build that warns goes on against a newer ledger", async () => {
+  const { schema, ops } = scope();
+  const [a, b] = ahead(schema);
+  await migrations([a, b], { migrationTableSchema: ops }).up(pool);
+  const older = migrations([a], { migrationTableSchema: ops, unknownMigrations: "warn" });
+
+  assert.deepEqual(await warned(() => older.up(pool)), [WARNING]);
+  assert.equal(await scalar(`SELECT count(*) AS value FROM "${ops}".pgorm_migrations`), 2n);
+
+  const logged: string[] = [];
+  await older.status(pool, {
+    logger: { info: (message) => logged.push(`info ${message}`), warn: (message) => logged.push(`warn ${message}`) },
+  });
+  assert.deepEqual(logged, ["info Checking migration status", `info Migration '${a.name}'... Applied`, `warn ${WARNING}`]);
+  const told: string[] = [];
+  await older.status(pool, { logger: { info: (message) => told.push(message) } });
+  assert.equal(told.at(-1), WARNING);
+
+  assert.deepEqual(
+    await warned(async () => {
+      assert.deepEqual(await older.getMigrationWithStatus(pool), [{ name: a.name, status: "applied" }]);
+      assert.deepEqual(await older.getPendingMigrations(pool), []);
+      assert.equal((await older.getAppliedMigrations(pool)).length, 1);
+    }),
+    [WARNING, WARNING, WARNING],
+  );
+});
+
+// [spec:pgorm:req:bindings.migrations.unknown-applied/test]    refusing is the default, and the setting is
+// "refuse" or "warn" and nothing else
+test("an older build refuses a newer ledger by default", async () => {
+  const { schema, ops } = scope();
+  const [a, b] = ahead(schema);
+  await migrations([a, b], { migrationTableSchema: ops }).up(pool);
+  const missing = `Migration file of version '${b.name}' is missing, this migration has been applied but its file is missing`;
+  for (const older of [
+    migrations([a], { migrationTableSchema: ops }),
+    migrations([a], { migrationTableSchema: ops, unknownMigrations: "refuse" }),
+  ]) {
+    for (const read of [
+      () => older.up(pool),
+      () => older.status(pool, { logger: silent }),
+      () => older.getPendingMigrations(pool),
+    ]) {
+      await assert.rejects(read(), (error) => error instanceof ConstructionError && error.message.includes(missing));
+    }
+  }
+  for (const setting of ["ignore", null, 1]) {
+    assert.throws(
+      // @ts-expect-error: the setting is "refuse" or "warn"
+      () => migrations([a], { unknownMigrations: setting }),
+      (error) => error instanceof TypeError && error.message === 'unknownMigrations is one of "refuse", "warn"',
+    );
+  }
+});
+
+// [spec:pgorm:req:bindings.migrations.unknown-applied/test]    a pending migration beside an unknown one is
+// refused, naming both, whatever steps bounds
+test("a pending migration beside an unknown one is refused under warn", async () => {
+  const { schema, ops } = scope();
+  const [a, b] = ahead(schema);
+  await migrations([a, b], { migrationTableSchema: ops }).up(pool);
+  const c = sqlMigration("m20261101_000003_table_c", `CREATE TABLE "${schema}".table_c (id integer)`);
+  const diverged = migrations([a, c], { migrationTableSchema: ops, unknownMigrations: "warn" });
+  for (const steps of [null, 1, 0]) {
+    await assert.rejects(
+      diverged.up(pool, steps),
+      (error) =>
+        error instanceof ConstructionError &&
+        error.message.includes(`'${b.name}'`) &&
+        error.message.includes(`'${c.name}'`) &&
+        error.message.includes("out of order"),
+    );
+  }
+  assert.equal(await scalar(`SELECT count(*) AS value FROM "${ops}".pgorm_migrations`), 2n);
+  assert.deepEqual(
+    await warned(async () => {
+      assert.deepEqual(await diverged.getPendingMigrations(pool), [{ name: c.name, status: "pending" }]);
+    }),
+    [WARNING],
+  );
+});
+
+// [spec:pgorm:req:bindings.migrations.unknown-applied/test]    a changed checksum is refused under "warn" too
+test("a changed checksum is refused under warn", async () => {
+  const { schema, ops } = scope();
+  const [a, b] = ahead(schema);
+  await migrations([a, b], { migrationTableSchema: ops }).up(pool);
+  const edited = migrations([sqlMigration(a.name, `${a.sql};`)], { migrationTableSchema: ops, unknownMigrations: "warn" });
+  for (const read of [
+    () => edited.up(pool),
+    () => edited.status(pool, { logger: silent }),
+    () => edited.getMigrationWithStatus(pool),
+  ]) {
+    await assert.rejects(
+      read(),
+      (error) =>
+        error instanceof ConstructionError &&
+        error.message.includes(`Migration '${a.name}' was applied with checksum`) &&
+        !error.message.includes(b.name),
+    );
+  }
+});
+
 test("the types refuse what the runner refuses", () => {
   const migrator = migrations([]);
   // @ts-expect-error: migrations run on a Pool

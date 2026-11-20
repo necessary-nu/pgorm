@@ -24,7 +24,7 @@ use pgorm::DatabaseTransaction;
 pub use pgorm::Error;
 pub use pgorm::pgorm_query;
 
-// [spec:pgorm:sem:migration.name+4]    ledger identity, normally the file stem
+// [spec:pgorm:sem:migration.name+5]    ledger identity, normally the file stem
 pub trait MigrationName {
     fn name(&self) -> &str;
 }

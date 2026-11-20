@@ -6,7 +6,7 @@
 
 use std::{fmt, path::PathBuf, sync::Arc};
 
-use pgorm_bindings::migrations::{Entry, Failed, Host, Listed};
+use pgorm_bindings::migrations::{Entry, Failed, Host, Listed, Ran, UNKNOWN_MIGRATIONS};
 use pgorm_migration::{MigrationName, MigrationTrait, SqlMigration};
 use pyo3::{exceptions::PyTypeError, intern, prelude::*, types::PyString};
 use pyo3_async_runtimes::TaskLocals;
@@ -189,7 +189,8 @@ impl Host for Call {
 }
 
 /// A migrator built from Python's list: pgorm-migration's `Migrations`, its
-/// ledger placed and its channel named as given.
+/// ledger placed, its channel named and a migration it does not know refused
+/// or warned of as given.
 // [spec:pgorm:req:bindings.migrations]
 #[pyclass(name = "_Migrations", module = "pgorm._native", frozen)]
 pub(crate) struct NativeMigrations(Listed<Py<PyAny>>);
@@ -213,7 +214,7 @@ impl NativeMigrations {
         let work = Work::Ledger(Box::new(self.0.ledger::<Call>()), ledger);
         future_into_py(py, async move {
             match executor.run(work).await? {
-                Output::Migrations(migrations) => Ok(Some(migrations)),
+                Output::Migrations(statuses) => Ok(Some((statuses.migrations, statuses.warnings))),
                 Output::Finished => Ok(None),
                 _ => Err(InternalError::new_err("unexpected migration result")),
             }
@@ -224,13 +225,21 @@ impl NativeMigrations {
 #[pymethods]
 impl NativeMigrations {
     #[new]
-    #[pyo3(signature = (migrations, migration_table_name, migration_table_schema, statement_cache_channel))]
+    #[pyo3(signature = (migrations, migration_table_name, migration_table_schema, statement_cache_channel, unknown_migrations))]
     fn new(
         migrations: Vec<Bound<'_, PyAny>>,
         migration_table_name: Option<String>,
         migration_table_schema: Option<String>,
         statement_cache_channel: Option<String>,
+        unknown_migrations: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
+        // [spec:pgorm:req:bindings.migrations.unknown-applied]    "refuse" or "warn", else a TypeError
+        let unknown_migrations = pgorm_bindings::pick(
+            unknown_migrations.extract::<&str>().ok(),
+            "unknown_migrations",
+            &UNKNOWN_MIGRATIONS,
+        )
+        .map_err(|refusal| PyTypeError::new_err(refusal.into_message()))?;
         let entries = migrations
             .iter()
             .map(|migration| match migration.cast::<PySqlMigration>() {
@@ -243,11 +252,12 @@ impl NativeMigrations {
             migration_table_name,
             migration_table_schema,
             statement_cache_channel,
+            unknown_migrations,
         )))
     }
 
     /// Apply the pending migrations through pgorm-migration's `up`, on
-    /// connections of `pool`'s own.
+    /// connections of `pool`'s own, answering the warnings the run gave.
     // [spec:pgorm:req:bindings.migrations]
     #[pyo3(signature = (pool, steps))]
     fn up<'py>(
@@ -272,8 +282,8 @@ impl NativeMigrations {
         let up = self.0.up(call, steps);
         future_into_py(py, async move {
             match up.await.py()? {
-                None => Ok(()),
-                Some(raised) => Err(raised),
+                Ran::Finished(warnings) => Ok(warnings),
+                Ran::Raised(raised) => Err(raised),
             }
         })
     }
@@ -287,7 +297,8 @@ impl NativeMigrations {
         self.ledger(py, executor, Ledger::Install)
     }
 
-    /// Each migration's name and whether the ledger records it applied.
+    /// Each migration's name and whether the ledger records it applied, and
+    /// the warnings the read gave.
     fn status<'py>(
         &self,
         py: Python<'py>,
@@ -316,6 +327,10 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
         (
             "migrations.status",
             "pgorm_migration::MigratorTrait::get_migration_with_status",
+        ),
+        (
+            "migrations.unknown_migrations",
+            "pgorm_migration::Migrations::with_unknown_migrations",
         ),
         ("sql_migration", "pgorm_migration::SqlMigration::new"),
         ("sql_migration.read", "pgorm_migration::SqlMigration::read"),

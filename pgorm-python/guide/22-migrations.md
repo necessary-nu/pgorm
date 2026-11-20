@@ -500,6 +500,84 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+## An older build against a newer database
+
+A ledger row that no migration of the migrator answers by name is a
+`ConstructionError` by default: it says a migration was deleted or renamed,
+and `up` and every read stop rather than guess. A program deployed as
+several replicas meets one in the ordinary course of things, though. During
+a rolling update the old build keeps starting while the new one serves, and
+if it runs `up` as it starts, it finds the migrations the new build applied,
+which it has never heard of.
+
+A migrator built with `unknown_migrations="warn"` goes on past them. Each
+read logs, at `WARNING` through the `pgorm.migration` logger, every
+migration the database records that the migrator does not know, saying the
+database is ahead of this build, and reports the migrations it knows as it
+otherwise would; `status` logs them after its listing, to the logger it
+writes the listing to. `up` then applies nothing and succeeds, warning once.
+Two things are still refused. An applied migration whose checksum has
+changed fails as before, since it is a file this build has, edited. And
+`up` refuses, naming both, when the migrator has migrations of its own
+pending beside ones it does not know: applying them after migrations it has
+never seen would run them out of order, against a schema newer than the one
+they were written for. `"refuse"` is the default, and any other value is a
+`TypeError`.
+
+```python
+import asyncio
+import os
+
+from pgorm import ConstructionError, Pool, RawSQL, Transaction
+from pgorm import schema as s
+
+
+class Create:
+    def __init__(self, name: str, table: str) -> None:
+        self.name = name
+        self.table = table
+
+    async def up(self, tx: Transaction) -> None:
+        await tx.execute(RawSQL(f"CREATE TABLE {self.table} (id serial PRIMARY KEY)"))
+
+
+delivery = Create("m20260201_000001_create_delivery", "delivery")
+voucher = Create("m20260201_000002_create_voucher", "voucher")
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        # The newer build, which added the voucher table.
+        await s.Migrations([delivery, voucher]).up(pool)
+
+        # The build before it, still starting while the newer one rolls out:
+        # it warns that the database records m20260201_000002_create_voucher,
+        # and applies nothing.
+        older = s.Migrations([delivery], unknown_migrations="warn")
+        await older.up(pool)
+        assert await older.get_pending_migrations(pool) == []
+
+        # Without the opt-in, the same build refuses to start.
+        try:
+            await s.Migrations([delivery]).up(pool)
+        except ConstructionError as error:
+            assert "'m20260201_000002_create_voucher' is missing" in str(error)
+        else:
+            raise AssertionError("an unknown migration is refused by default")
+
+        # A build with a migration of its own to apply refuses, even when it warns.
+        courier = Create("m20260301_000001_create_courier", "courier")
+        try:
+            await s.Migrations([delivery, courier], unknown_migrations="warn").up(pool)
+        except ConstructionError as error:
+            assert "out of order" in str(error)
+        else:
+            raise AssertionError("a pending migration beside an unknown one is refused")
+
+
+asyncio.run(main())
+```
+
 ## Generated DDL in a migration
 
 Schema generation writes a table's DDL from its description, so the

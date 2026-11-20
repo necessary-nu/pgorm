@@ -6,7 +6,7 @@ from __future__ import annotations
 import enum
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, NamedTuple, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol, runtime_checkable
 
 from .. import _native
 from .._native import ConstructionError, SqlMigration
@@ -30,6 +30,17 @@ class MigrationTrait(Protocol):
     def name(self) -> str: ...
 
     async def up(self, tx: Transaction) -> None: ...
+
+
+# [spec:pgorm:req:bindings.migrations.unknown-applied]
+UnknownMigrations = Literal["refuse", "warn"]
+"""What a migrator does when the ledger records a migration it does not
+know, as Rust's ``UnknownMigrations`` says it: ``"refuse"`` fails the read
+naming each, and ``"warn"`` logs a warning naming each and goes on, its
+``up`` refusing only when migrations of its own are pending."""
+
+
+_LOGGER = "pgorm.migration"
 
 
 class MigrationStatus(enum.Enum):
@@ -67,7 +78,12 @@ class Migrations:
     wherever ``search_path`` resolves it unless given, and
     ``statement_cache_channel`` names the channel a batch that applied a
     migration notifies, ``STATEMENT_CACHE_CHANNEL`` unless given; ``None``
-    notifies nothing."""
+    notifies nothing. ``unknown_migrations`` says what a read does when the
+    ledger records a migration this migrator does not know: ``"refuse"``,
+    the default, fails it, and ``"warn"`` logs a warning naming each to the
+    ``pgorm.migration`` logger and goes on, as an older build of a program
+    must during a rolling update; ``up`` still refuses to apply migrations
+    of its own past ones it does not know."""
 
     def __init__(
         self,
@@ -76,9 +92,14 @@ class Migrations:
         migration_table_name: str | None = None,
         migration_table_schema: str | None = None,
         statement_cache_channel: str | None = _native.STATEMENT_CACHE_CHANNEL,
+        unknown_migrations: UnknownMigrations = "refuse",
     ) -> None:
         self._native = _native._Migrations(
-            list(migrations), migration_table_name, migration_table_schema, statement_cache_channel
+            list(migrations),
+            migration_table_name,
+            migration_table_schema,
+            statement_cache_channel,
+            unknown_migrations,
         )
 
     async def up(self, pool: Pool, steps: int | None = None) -> None:
@@ -88,23 +109,34 @@ class Migrations:
         after a migration whose ``commits_after`` is true, then clearing the
         pool's statement caches and notifying the channel. A migration's
         exception rolls the batch back and is raised as itself."""
-        await self._native.up(pool, steps)
+        for warning in await self._native.up(pool, steps):
+            logging.getLogger(_LOGGER).warning("%s", warning)
 
     async def install(self, executor: Pool | Connection | Transaction) -> None:
         """Create the ledger, and its schema, where either is missing, and
         adopt a ledger SeaORM left under ``seaql_migrations``."""
         await self._native.install(executor)
 
-    async def get_migration_with_status(self, executor: Pool | Connection | Transaction) -> list[Migration]:
-        """Every migration with its status, read from the ledger and nothing
-        else: a database never migrated reports every migration pending, and
-        gains no ledger. An edited migration whose checksum no longer matches,
-        and a ledger row with no migration, are a ``ConstructionError``."""
-        found = await self._native.status(executor)
-        return [
+    # [spec:pgorm:req:bindings.migrations.unknown-applied]    a read's warnings, which its caller logs
+    async def _read(self, executor: Pool | Connection | Transaction) -> tuple[list[Migration], list[str]]:
+        """Every migration with its status, and the warnings the read gave."""
+        found, warnings = await self._native.status(executor)
+        migrations = [
             Migration(name, MigrationStatus.Applied if applied else MigrationStatus.Pending)
             for name, applied in found
         ]
+        return migrations, warnings
+
+    async def get_migration_with_status(self, executor: Pool | Connection | Transaction) -> list[Migration]:
+        """Every migration with its status, read from the ledger and nothing
+        else: a database never migrated reports every migration pending, and
+        gains no ledger. An edited migration whose checksum no longer matches
+        is a ``ConstructionError``, and so is a ledger row with no migration
+        unless the migrator warns of one, logging the warning."""
+        migrations, warnings = await self._read(executor)
+        for warning in warnings:
+            logging.getLogger(_LOGGER).warning("%s", warning)
+        return migrations
 
     async def get_pending_migrations(self, executor: Pool | Connection | Transaction) -> list[Migration]:
         """The migrations the ledger does not record, in order."""
@@ -127,11 +159,15 @@ class Migrations:
     ) -> None:
         """Log each migration's name and status at ``INFO`` to ``logger``,
         ``pgorm.migration`` unless another is given, as Rust's ``status``
-        writes its ``tracing`` events."""
-        logger = logger if logger is not None else logging.getLogger("pgorm.migration")
+        writes its ``tracing`` events, and then each warning of a migration
+        the migrator does not know at ``WARNING``."""
+        logger = logger if logger is not None else logging.getLogger(_LOGGER)
         logger.info("Checking migration status")
-        for migration in await self.get_migration_with_status(executor):
+        migrations, warnings = await self._read(executor)
+        for migration in migrations:
             logger.info("Migration '%s'... %s", migration.name, migration.status.name)
+        for warning in warnings:
+            logger.warning("%s", warning)
 
     def __bool__(self) -> bool:
         raise ConstructionError("a migrator cannot be tested as a Python boolean")

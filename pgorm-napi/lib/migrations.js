@@ -120,7 +120,18 @@ function dispatch(migration, handle, done) {
   );
 }
 
-const MIGRATIONS_OPTIONS = ["migrationTableName", "migrationTableSchema", "statementCacheChannel"];
+const MIGRATIONS_OPTIONS = ["migrationTableName", "migrationTableSchema", "statementCacheChannel", "unknownMigrations"];
+
+/**
+ * Write each warning the runner gave with `console.warn`, as Rust's runner
+ * writes them through `tracing`.
+ * [spec:pgorm:req:bindings.migrations.unknown-applied]
+ *
+ * @param {string[]} warnings
+ */
+function warn(warnings) {
+  for (const warning of warnings) console.warn(warning);
+}
 
 /** A migrator built at run time, pgorm-migration's `Migrations`. */
 export class Migrations {
@@ -146,7 +157,7 @@ export class Migrations {
    */
   async up(pool, steps = null) {
     if (!(pool instanceof Pool)) throw new TypeError("migrations run on a Pool");
-    await native.migrationsUp(this.#handle, poolHandle(pool), steps, dispatch);
+    warn(/** @type {string[]} */ (await native.migrationsUp(this.#handle, poolHandle(pool), steps, dispatch)));
   }
 
   /**
@@ -161,6 +172,22 @@ export class Migrations {
   }
 
   /**
+   * Every migration with its status, and the warnings the read gave.
+   *
+   * @param {import("./index.d.ts").Queryable} db
+   * @param {import("./index.d.ts").OperationOptions} [options]
+   * @returns {Promise<[import("./index.d.ts").Migration[], string[]]>}
+   */
+  async #read(db, options) {
+    const [found, warnings] = /** @type {[[string, boolean][], string[]]} */ (
+      await runJob(db, native.migrationsJob(this.#handle, false), options)
+    );
+    /** @type {import("./index.d.ts").Migration[]} */
+    const migrations = found.map(([name, applied]) => Object.freeze({ name, status: applied ? "applied" : "pending" }));
+    return [migrations, warnings];
+  }
+
+  /**
    * Every migration with its status, read from the ledger and nothing else.
    *
    * @param {import("./index.d.ts").Queryable} db
@@ -168,10 +195,9 @@ export class Migrations {
    * @returns {Promise<import("./index.d.ts").Migration[]>}
    */
   async getMigrationWithStatus(db, options) {
-    const found = /** @type {[string, boolean][]} */ (
-      await runJob(db, native.migrationsJob(this.#handle, false), options)
-    );
-    return found.map(([name, applied]) => Object.freeze({ name, status: applied ? "applied" : "pending" }));
+    const [migrations, warnings] = await this.#read(db, options);
+    warn(warnings);
+    return migrations;
   }
 
   /**
@@ -198,10 +224,12 @@ export class Migrations {
 
   /**
    * Log each migration's name and status with `logger.info`, as Rust's
-   * `status` writes its `tracing` events.
+   * `status` writes its `tracing` events, and then each warning of a
+   * migration the migrator does not know with `logger.warn`, or with
+   * `logger.info` when it has no `warn`.
    *
    * @param {import("./index.d.ts").Queryable} db
-   * @param {{ logger?: { info(message: string): void }, signal?: AbortSignal }} [options]
+   * @param {{ logger?: import("./index.d.ts").MigrationLogger, signal?: AbortSignal }} [options]
    * @returns {Promise<void>}
    */
   async status(db, options = {}) {
@@ -210,9 +238,17 @@ export class Migrations {
     if (typeof logger !== "object" || logger === null || typeof logger.info !== "function") {
       throw new TypeError("logger has an info method");
     }
+    if (logger.warn !== undefined && typeof logger.warn !== "function") {
+      throw new TypeError("logger's warn is a method");
+    }
     logger.info("Checking migration status");
-    for (const { name, status } of await this.getMigrationWithStatus(db, signal === undefined ? {} : { signal })) {
+    const [migrations, warnings] = await this.#read(db, signal === undefined ? {} : { signal });
+    for (const { name, status } of migrations) {
       logger.info(`Migration '${name}'... ${status === "applied" ? "Applied" : "Pending"}`);
+    }
+    for (const warning of warnings) {
+      if (logger.warn === undefined) logger.info(warning);
+      else logger.warn(warning);
     }
   }
 }
@@ -229,11 +265,11 @@ export class Migrations {
 export function migrations(list, options = {}) {
   if (!Array.isArray(list)) throw new TypeError("migrations takes an array of migrations");
   knownOptions(options, MIGRATIONS_OPTIONS);
-  const { migrationTableName = null, migrationTableSchema = null } = options;
+  const { migrationTableName = null, migrationTableSchema = null, unknownMigrations = "refuse" } = options;
   const channel = "statementCacheChannel" in options ? options.statementCacheChannel : native.statementCacheChannel;
   const entries = list.map((migration) => (migration instanceof SqlMigration ? migration[NATIVE] : migration));
   return new Migrations(
-    native.migrationsNew(entries, migrationTableName, migrationTableSchema, channel ?? null),
+    native.migrationsNew(entries, migrationTableName, migrationTableSchema, channel ?? null, unknownMigrations),
     TRUSTED,
   );
 }
