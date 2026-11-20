@@ -82,9 +82,44 @@ impl MigrationFile {
     /// Whether the migration commits before the next one runs.
     // [spec:pgorm:req:migration.sql-file.commits-after]
     pub fn commits_after(&self) -> bool {
-        self.text
-            .strip_prefix(Self::COMMITS_AFTER)
-            .is_some_and(|rest| rest.is_empty() || rest.starts_with('\n'))
+        Self::opens_with_commits_after(&self.text)
+    }
+
+    /// Whether `text`'s first line is [`COMMITS_AFTER`](Self::COMMITS_AFTER),
+    /// ended by a line break or by the text's end: what
+    /// [`commits_after`](Self::commits_after) asks of a file's text, and
+    /// pgorm-migration's `SqlMigration` of the text it runs.
+    ///
+    /// A carriage return before the line break is not a line break, so text
+    /// with CRLF line endings opens with something else; the `.sql` files
+    /// pgorm-migration reads have theirs read as LF first.
+    ///
+    /// It is a `const fn`, so a constant can ask it, as pgorm-migration's
+    /// `SqlMigration::from_static` does of a migration built in one:
+    ///
+    /// ```
+    /// use pgorm::MigrationFile;
+    ///
+    /// const COMMITS: bool = MigrationFile::opens_with_commits_after(
+    ///     "-- pgorm: commits-after\nALTER TYPE kind ADD VALUE 'van';\n",
+    /// );
+    /// assert!(COMMITS);
+    /// assert!(!MigrationFile::opens_with_commits_after("-- pgorm: commits-after soon\n"));
+    /// assert!(!MigrationFile::opens_with_commits_after("SELECT 1;\n-- pgorm: commits-after\n"));
+    /// ```
+    // [spec:pgorm:req:migration.sql-file.commits-after]
+    // [spec:pgorm:req:migration.sql-file.const]    one test, evaluable in a constant
+    pub const fn opens_with_commits_after(text: &str) -> bool {
+        let mut directive = Self::COMMITS_AFTER.as_bytes();
+        let mut text = text.as_bytes();
+        while let ([expected, directive_rest @ ..], [byte, text_rest @ ..]) = (directive, text) {
+            if *expected != *byte {
+                return false;
+            }
+            directive = directive_rest;
+            text = text_rest;
+        }
+        directive.is_empty() && matches!(text, [] | [b'\n', ..])
     }
 
     /// The file's stem, and the migration's name.

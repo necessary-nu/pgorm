@@ -21721,6 +21721,9 @@ children (
                 id sql-migration-const
                 title "A SqlMigration from static text is const-constructible again, so sql_migration! and a hand-written one can be a const or static item"
                 kind @feat
+                implements {
+                    main ([spec:pgorm:req:migration.sql-file.const])
+                }
                 log (
                     {
                         at 2026-11-20T00:21:30.933102Z

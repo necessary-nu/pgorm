@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-19T22:47:00.188867Z
+last_sync_at 2026-11-20T01:00:12.093645Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -338,6 +338,7 @@ rule_versions (
     {id migration.sql-file.checksum, version 0}
     {id migration.sql-file.commits-after, version 0}
     {id migration.sql-file.compile, version 1}
+    {id migration.sql-file.const, version 0}
     {id migration.sql-file.read, version 0}
     {id migration.unknown-applied, version 0}
     {id migration.up, version 7}
@@ -1171,6 +1172,7 @@ derived_priorities (
     {id spec-prose-unversioned-refs, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id sql-domains, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id sql-error-check-not-null, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id sql-migration-const, priority 0, derived_at 2026-11-20T01:00:12.093645Z}
     {id sql-schemas, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id sql-select-extras, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id sql-value-json, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
@@ -3046,6 +3048,9 @@ impl_evidence (
         {impl_name javascript, rule bindings.migrations.unknown-applied}
         {impl_name main, rule migration.unknown-applied}
         {impl_name python, rule bindings.migrations.unknown-applied}
+    ), rule_versions_seen (
+        {id bindings.migrations.unknown-applied, version 0}
+        {id migration.unknown-applied, version 0}
     )}
     {id napi-codegen, covered_rules (
         napi.codegen-types
@@ -3783,6 +3788,11 @@ impl_evidence (
         {impl_name main, rule sql.ddl.domain}
     ), rule_versions_seen (
         {id sql.ddl.domain, version 3}
+    )}
+    {id sql-migration-const, covered_rules (
+        migration.sql-file.const
+    ), covered_claims (
+        {impl_name main, rule migration.sql-file.const}
     )}
     {id sql-schemas, covered_rules (
         sql.ddl.schema
