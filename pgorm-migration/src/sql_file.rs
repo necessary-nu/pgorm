@@ -77,7 +77,31 @@ use crate::{Error, MigrationName, MigrationTrait};
 /// assert!(added.commits_after());
 /// assert!(!sql_migration!("tests/sql/m20260101_000001_create_note.sql").commits_after());
 /// ```
+///
+/// The expansion is a constant expression, a call of
+/// [`SqlMigration::from_static`], so a migration can be a `const` or a
+/// `static` item and be listed by name. A `const` is a new value at each use,
+/// so it boxes as it stands; a `static` is one value, so it boxes cloned:
+///
+/// ```
+/// use pgorm_migration::prelude::*;
+///
+/// const CREATE_NOTE: SqlMigration = sql_migration!("tests/sql/m20260101_000001_create_note.sql");
+/// static SEED_NOTE: SqlMigration = sql_migration!("tests/sql/m20260101_000002_seed_note.sql");
+///
+/// pub struct Migrator;
+///
+/// #[async_trait::async_trait]
+/// impl MigratorTrait for Migrator {
+///     fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+///         vec![Box::new(CREATE_NOTE), Box::new(SEED_NOTE.clone())]
+///     }
+/// }
+///
+/// assert_eq!(SEED_NOTE.name(), "m20260101_000002_seed_note");
+/// ```
 // [spec:pgorm:def:migration.sql-file+1]
+// [spec:pgorm:req:migration.sql-file.const]    the expansion is a constant expression
 // [spec:pgorm:req:migration.sql-file.compile+1]    a refusal is a compile error
 #[macro_export]
 macro_rules! sql_migration {
@@ -99,17 +123,59 @@ pub struct SqlMigration {
 }
 
 impl SqlMigration {
-    /// A migration named `name` that runs `sql`.
+    /// A migration named `name` that runs `sql`, either of them owned or
+    /// borrowed for the program's life, such as text the program has only
+    /// once it runs.
     ///
     /// [`sql_migration!`] is the usual way to build one: it takes both from a
     /// file and checks the text's grammar while the crate compiles. Text given
-    /// here is run as it is, unchecked until the server parses it.
+    /// here is run as it is, unchecked until the server parses it. A `const`
+    /// or `static` item is built with
+    /// [`from_static`](SqlMigration::from_static) instead, since converting
+    /// into owned-or-borrowed text is a trait call, which a constant
+    /// expression cannot make.
     pub fn new(name: impl Into<Cow<'static, str>>, sql: impl Into<Cow<'static, str>>) -> Self {
         let sql = sql.into();
         Self {
             name: name.into(),
-            commits_after: opens_with_commits_after(&sql),
+            commits_after: MigrationFile::opens_with_commits_after(&sql),
             sql,
+        }
+    }
+
+    /// A migration named `name` that runs `sql`, both fixed when the program
+    /// is built, in a constant expression, so it can be a `const` or a
+    /// `static` item. [`sql_migration!`] expands to a call of it.
+    ///
+    /// ```
+    /// use pgorm_migration::prelude::*;
+    ///
+    /// const INDEX_NOTE: SqlMigration = SqlMigration::from_static(
+    ///     "m20260101_000003_index_note",
+    ///     "CREATE INDEX note_body ON note (body);\n",
+    /// );
+    /// static ADD_KIND: SqlMigration = SqlMigration::from_static(
+    ///     "m20260101_000004_add_kind",
+    ///     "-- pgorm: commits-after\nALTER TYPE kind ADD VALUE 'van';\n",
+    /// );
+    ///
+    /// assert!(!INDEX_NOTE.commits_after());
+    /// assert!(ADD_KIND.commits_after());
+    /// assert_eq!(
+    ///     ADD_KIND,
+    ///     SqlMigration::new(ADD_KIND.name().to_owned(), ADD_KIND.sql().to_owned())
+    /// );
+    /// ```
+    ///
+    /// It answers [`commits_after`](MigrationTrait::commits_after) as
+    /// [`new`](SqlMigration::new) does, both asking
+    /// [`MigrationFile::opens_with_commits_after`] of the text.
+    // [spec:pgorm:req:migration.sql-file.const]
+    pub const fn from_static(name: &'static str, sql: &'static str) -> Self {
+        Self {
+            name: Cow::Borrowed(name),
+            sql: Cow::Borrowed(sql),
+            commits_after: MigrationFile::opens_with_commits_after(sql),
         }
     }
 
@@ -217,14 +283,6 @@ impl MigrationTrait for SqlMigration {
     fn checksum(&self) -> Option<String> {
         Some(sha256_hex(&self.sql))
     }
-}
-
-/// Whether `sql`'s first line is [`MigrationFile::COMMITS_AFTER`], ended by
-/// a line break or by the text's end.
-// [spec:pgorm:req:migration.sql-file.commits-after]
-fn opens_with_commits_after(sql: &str) -> bool {
-    sql.strip_prefix(MigrationFile::COMMITS_AFTER)
-        .is_some_and(|rest| rest.is_empty() || rest.starts_with('\n'))
 }
 
 /// The lowercase hexadecimal SHA-256 digest of `text`'s bytes.

@@ -433,6 +433,24 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > will not let one transaction finish runs from the files it was frozen into
 > (`migration.frozen`).
 
+> [spec:pgorm:req:migration.sql-file.const]
+> A migration whose name and text are fixed when the program is built MUST be
+> constructible in a constant expression, so that it can be a `const` or a
+> `static` item rather than a value built on first use.
+> `SqlMigration::from_static(name, sql)`, taking both as `&'static str`, MUST
+> be a `const fn`, and `sql_migration!`'s expansion MUST be a constant
+> expression calling it. `SqlMigration::new` is the constructor for text that
+> is owned or that the program has only once it runs, which
+> `SqlMigration::read` and the language bindings hold. It is not `const`:
+> its conversion into owned-or-borrowed text is a trait call, which a constant
+> expression cannot make on stable Rust. `from_static` MUST answer
+> `commits_after()` as `new` does for the same text
+> (`migration.sql-file.commits-after`), and both MUST read it through one test
+> of the text, `MigrationFile::opens_with_commits_after`, a `const fn` that
+> `MigrationFile::commits_after` answers by too, so that a migration built in
+> a constant, one built as the program runs and a frozen file cannot disagree
+> about the directive.
+
 > [spec:pgorm:req:migration.sql-file.read]
 > `SqlMigration::read(path)` MUST read the `.sql` file at `path` as the
 > program runs into the migration `sql_migration!` would make of it: named for

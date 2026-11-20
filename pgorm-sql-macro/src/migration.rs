@@ -40,10 +40,11 @@ pub(crate) struct Script {
     path: PathBuf,
 }
 
-/// The file's name and checked text as literals, with the file itself included
-/// so that editing it rebuilds the calling crate.
+/// The file's name and checked text as literals in a constant expression,
+/// with the file itself included so that editing it rebuilds the calling crate.
 // [spec:pgorm:def:migration.sql-file+1]
 // [spec:pgorm:req:migration.sql-file.compile+1]    the file is an input of the calling crate's build
+// [spec:pgorm:req:migration.sql-file.const]    a block of an item and a const fn call is a constant expression
 pub(crate) fn expand(input: &MigrationInput) -> Result<TokenStream, Error> {
     let literal = &input.path;
     let manifest_dir = std::env::var_os("CARGO_MANIFEST_DIR").ok_or_else(|| {
@@ -64,7 +65,7 @@ pub(crate) fn expand(input: &MigrationInput) -> Result<TokenStream, Error> {
     let Script { name, text, .. } = &script;
     Ok(quote! {{
         const _: &[u8] = ::core::include_bytes!(#tracked);
-        #krate::SqlMigration::new(#name, #text)
+        #krate::SqlMigration::from_static(#name, #text)
     }})
 }
 
