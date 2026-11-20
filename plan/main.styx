@@ -21711,4 +21711,28 @@ children (
             }
         )
     }
+
+    {
+        id migration-api
+        title "pgorm-migration's migrations are as cheap to declare as Rust allows: a fixed migration is a const or static, with no lazy initialisation"
+        kind @feat
+        children (
+            {
+                id sql-migration-const
+                title "A SqlMigration from static text is const-constructible again, so sql_migration! and a hand-written one can be a const or static item"
+                kind @feat
+                implements {
+                    main ([spec:pgorm:req:migration.sql-file.const])
+                }
+                log (
+                    {
+                        at 2026-11-20T00:21:30.933102Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Found 2026-11-20. The Pahkat session reported that moving pahkat-server to pgorm b9068b68 meant turning its SqlMigration consts into LazyLock statics, \"since `new` is no longer const\". The cause is fa2345fd, the bindings' migrations through pgorm-migration's runner. It changed SqlMigration's fields from &'static str to Cow<'static, str>, so that SqlMigration::read can hold text read at run time, and `pub const fn new(name: &'static str, sql: &'static str)` became `pub fn new(impl Into<Cow<'static, str>>, impl Into<Cow<'static, str>>)`. sql_migration! expands to `$crate::SqlMigration::new(name, text)` (pgorm-sql-macro/src/migration.rs), so its expansion stopped being usable in a const or static too. Cow::Borrowed is const-constructible, so nothing in the representation stops it. The one non-const step is opens_with_commits_after's strip_prefix/starts_with, which a byte comparison does in a const fn. Shape to weigh: a `pub const fn from_static(name: &'static str, sql: &'static str) -> Self`, after the from_static convention of http::HeaderValue and bytes::Bytes, with sql_migration! expanding to it (the macro could also pass the commits-after answer it already knows from the file), beside today's `new` for owned text. Acceptance: `const M: SqlMigration = sql_migration!(\"..\")` and `static` compile (a doc example or test that would fail to build otherwise); commits_after answers exactly as today, with a test at the prefix's edges; the migration rules and guide say a fixed migration can be a const."
+                    }
+                )
+            }
+        )
+    }
 )

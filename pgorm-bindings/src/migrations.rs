@@ -380,7 +380,7 @@ mod tests {
         });
         let listed = Listed::new(
             vec![
-                Entry::Sql(SqlMigration::new("0001_sql", "SELECT 1")),
+                Entry::Sql(SqlMigration::from_static("0001_sql", "SELECT 1")),
                 Entry::Written(written),
             ],
             Some("ledger".to_owned()),

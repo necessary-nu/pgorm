@@ -149,6 +149,14 @@ compile error naming its line. The check is syntax only: a table the file
 names but the database lacks is the server's to report when the migration
 runs.
 
+The macro's value is a constant expression, so a migration can be a `const`
+or `static` item, named where the migrator lists it. A `const` is a new value
+wherever it is used and boxes as it stands; a `static` is one value, so it
+boxes cloned. `SqlMigration::from_static(name, sql)` builds one in a constant
+from a name and text written in the program, without a file or the grammar
+check, and `SqlMigration::new(name, sql)` from text the program has only once
+it runs.
+
 ```rust
 # mod create_bakery {
 #     use pgorm_migration::prelude::*;
@@ -167,14 +175,14 @@ runs.
 # }
 use pgorm_migration::prelude::*;
 
+const INDEX_CAKE_NAME: SqlMigration =
+    sql_migration!("docs/guide/migrations/m20260102_000001_index_cake_name.sql");
+
 pub struct Migrator;
 
 impl MigratorTrait for Migrator {
     fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
-        vec![
-            Box::new(create_bakery::Migration),
-            Box::new(sql_migration!("docs/guide/migrations/m20260102_000001_index_cake_name.sql")),
-        ]
+        vec![Box::new(create_bakery::Migration), Box::new(INDEX_CAKE_NAME)]
     }
 }
 
@@ -182,9 +190,8 @@ impl MigratorTrait for Migrator {
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_sql_file").await;
 # let pool = scratch.pool.clone();
-let index = sql_migration!("docs/guide/migrations/m20260102_000001_index_cake_name.sql");
-assert_eq!(index.name(), "m20260102_000001_index_cake_name");
-assert!(index.sql().contains("CREATE INDEX cake_name_index ON cake (name);"));
+assert_eq!(INDEX_CAKE_NAME.name(), "m20260102_000001_index_cake_name");
+assert!(INDEX_CAKE_NAME.sql().contains("CREATE INDEX cake_name_index ON cake (name);"));
 
 Migrator.up(pool.clone(), None).await?;
 let db = pool.get().await?;

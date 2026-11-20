@@ -66,6 +66,12 @@ read as LF, so a Windows checkout reports the same checksum. The check is
 syntax only: a missing table is the server's to report when the migration
 runs, and psql meta-commands such as `\set` are not SQL and are refused.
 
+The macro's value is a constant expression, so a migration can be a `const`
+or `static` item, `const INDEX_POST_TITLE: SqlMigration = sql_migration!(..)`,
+listed as `Box::new(INDEX_POST_TITLE)`. `SqlMigration::from_static(name, sql)`
+builds one in a constant from text written in the program, and
+`SqlMigration::new(name, sql)` from text the program has only once it runs.
+
 ## The ledger
 
 Applied migrations are recorded in a table named `pgorm_migrations`, which by

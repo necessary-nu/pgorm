@@ -1549,6 +1549,124 @@ fn runtime_sql_file_matches_the_macro() -> std::io::Result<()> {
     Ok(())
 }
 
+/// Migrations fixed when the program is built, as `const` and `static`
+/// items. Each is the macro's expansion or a `from_static` call, and none of
+/// them compiles unless that is a constant expression.
+const CREATE_NOTE: SqlMigration = sql_migration!("tests/sql/m20260101_000001_create_note.sql");
+static ADD_VAN: SqlMigration = sql_migration!("tests/sql/frozen/m20240401_000002_add_van_1.sql");
+const SEED_NOTE: SqlMigration = SqlMigration::from_static(
+    "m20260101_000002_seed_note",
+    "INSERT INTO note (id, body) VALUES (1, 'first'), (2, 'second');\n",
+);
+static ADD_KIND: SqlMigration = SqlMigration::from_static(
+    "m20260101_000003_add_kind",
+    "-- pgorm: commits-after\nALTER TYPE kind ADD VALUE 'van';\n",
+);
+
+/// A migration fixed when the program is built is the value the macro, or
+/// `new` given the same name and text, makes as the program runs, and boxes
+/// into a migrator's list as one does.
+// [spec:pgorm:req:migration.sql-file.const/test]
+#[test]
+fn fixed_migrations_are_const_or_static_items() {
+    let migrations: [(&SqlMigration, SqlMigration, bool); 4] = [
+        (
+            &CREATE_NOTE,
+            sql_migration!("tests/sql/m20260101_000001_create_note.sql"),
+            false,
+        ),
+        (
+            &ADD_VAN,
+            sql_migration!("tests/sql/frozen/m20240401_000002_add_van_1.sql"),
+            true,
+        ),
+        (
+            &SEED_NOTE,
+            sql_migration!("tests/sql/m20260101_000002_seed_note.sql"),
+            false,
+        ),
+        (
+            &ADD_KIND,
+            SqlMigration::new(
+                "m20260101_000003_add_kind".to_owned(),
+                "-- pgorm: commits-after\nALTER TYPE kind ADD VALUE 'van';\n".to_owned(),
+            ),
+            true,
+        ),
+    ];
+    for (item, built, commits_after) in migrations {
+        assert_eq!(*item, built);
+        assert_eq!(item.checksum(), built.checksum(), "{}", item.name());
+        assert_eq!(item.commits_after(), commits_after, "{}", item.name());
+    }
+
+    let listed: Vec<Box<dyn MigrationTrait>> =
+        vec![Box::new(CREATE_NOTE), Box::new(ADD_VAN.clone())];
+    let names: Vec<&str> = listed.iter().map(|migration| migration.name()).collect();
+    assert_eq!(
+        names,
+        ["m20260101_000001_create_note", "m20240401_000002_add_van_1"]
+    );
+}
+
+/// The name every migration at the directive's edges is given.
+const EDGE: &str = "m20260101_000001_edge";
+
+const fn edge(sql: &'static str) -> SqlMigration {
+    SqlMigration::from_static(EDGE, sql)
+}
+
+/// Text at the edges of the commits-after directive, each as the migration
+/// `from_static` builds of it in a constant, beside whether the text opens
+/// with the directive.
+const DIRECTIVE_EDGES: &[(SqlMigration, bool)] = &[
+    (edge("-- pgorm: commits-after"), true),
+    (edge("-- pgorm: commits-after\n"), true),
+    (edge("-- pgorm: commits-after\n\n"), true),
+    (edge("-- pgorm: commits-after\nSELECT 1;\n"), true),
+    (edge("-- pgorm: commits-after "), false),
+    (edge("-- pgorm: commits-afterwards\n"), false),
+    (edge("-- pgorm: commits-after;\nSELECT 1;\n"), false),
+    (edge("-- pgorm: commits-after\r"), false),
+    (edge("-- pgorm: commits-after\r\n"), false),
+    (edge("-- pgorm: commits-after\r\nSELECT 1;\r\n"), false),
+    (edge(""), false),
+    (edge("\n"), false),
+    (edge("-- pgorm: commits-afte"), false),
+    (edge("-- pgorm: commits-afte\n"), false),
+    (edge(" -- pgorm: commits-after\n"), false),
+    (edge("-- PGORM: COMMITS-AFTER\n"), false),
+    (edge("SELECT 1;\n-- pgorm: commits-after\n"), false),
+];
+
+/// Each edge of the directive answers alike from every constructor: built in
+/// a constant by `from_static`, by `from_static` as the program runs, and by
+/// `new` from borrowed and from owned text, as `MigrationFile`'s test of the
+/// text answers.
+// [spec:pgorm:req:migration.sql-file.commits-after/test]    the directive's edges
+// [spec:pgorm:req:migration.sql-file.const/test]    a constant reads the directive as the program does
+#[test]
+fn the_directive_is_read_alike_by_every_constructor() {
+    for (constant, opens) in DIRECTIVE_EDGES {
+        let text: &'static str = constant.sql();
+        assert_eq!(constant.commits_after(), *opens, "{text:?} in a constant");
+        let built = [
+            SqlMigration::from_static(EDGE, text),
+            SqlMigration::new(EDGE, text),
+            SqlMigration::new(EDGE.to_owned(), text.to_owned()),
+        ];
+        for migration in built {
+            assert_eq!(migration.commits_after(), *opens, "{text:?}");
+            assert_eq!(migration, *constant, "{text:?}");
+        }
+        assert_eq!(
+            pgorm::MigrationFile::opens_with_commits_after(text),
+            *opens,
+            "{text:?}"
+        );
+    }
+}
+
 /// A migration that tries something inside a savepoint and goes on when it
 /// fails, which only an exclusively borrowed transaction allows.
 struct Tolerant;
@@ -1869,7 +1987,7 @@ async fn a_changed_checksum_is_refused_under_warn() -> Result<(), Error> {
 
     newer().up(db.clone(), None).await?;
 
-    let edited = Migrations::new([Box::new(SqlMigration::new(
+    let edited = Migrations::new([Box::new(SqlMigration::from_static(
         AHEAD_A,
         "CREATE TABLE table_a (id bigint)",
     )) as Box<dyn MigrationTrait>])

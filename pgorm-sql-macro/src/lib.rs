@@ -135,12 +135,13 @@ pub fn prql(input: TokenStream) -> TokenStream {
 /// macro to call: it passes its own crate path ahead of the caller's tokens,
 /// as `sql_migration!($crate, "path")`.
 ///
-/// Expands to `$crate::SqlMigration::new(name, text)`, the name being the
-/// file stem and the text the file's with CRLF line endings read as LF, after
-/// holding that text to the grammar [`sql!`] uses. The path is resolved
-/// against `CARGO_MANIFEST_DIR`.
+/// Expands to `$crate::SqlMigration::from_static(name, text)`, a constant
+/// expression, the name being the file stem and the text the file's with CRLF
+/// line endings read as LF, after holding that text to the grammar [`sql!`]
+/// uses. The path is resolved against `CARGO_MANIFEST_DIR`.
 // [spec:pgorm:def:macros.sql+6]    the hidden third macro
 // [spec:pgorm:def:migration.sql-file+1]
+// [spec:pgorm:req:migration.sql-file.const]
 #[doc(hidden)]
 #[proc_macro]
 pub fn sql_migration(input: TokenStream) -> TokenStream {
