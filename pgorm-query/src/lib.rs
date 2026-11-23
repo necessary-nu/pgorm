@@ -31,10 +31,8 @@
 //!
 //! Macro: `derive` `attr`
 //!
-//! Target release: `pg-19`. A build targets PostgreSQL 18 unless it says
-//! otherwise, and there is no feature for 18; `pg-19` targets 19
-//! ([`POSTGRES_TARGET`]). It only adds: what 19 alone accepts is built behind
-//! it, and every 18 render stays as it is.
+//! The statements are PostgreSQL 19's, the one release pgorm-query targets;
+//! nothing older is kept working, and no feature names a release.
 //!
 //! Type support is unconditional: `jiff`, `serde_json`, `rust_decimal`, `uuid`,
 //! `ipnetwork`, `mac_address`, `pgvector`, Postgres arrays and intervals.
@@ -647,8 +645,8 @@
 // `Error`/`Result`), `extension` (PostgreSQL's `CREATE EXTENSION` / `CREATE
 // TYPE` surface, deliberately not flattened into the root), and `value`
 // (`value::with_array::NotU8`, which pgorm's derives name in generated code).
-// [spec:pgorm:req:sql.surface+40]
-// [spec:pgorm:req:sql.surface+40/test]    the two `compile_fail,E0603` examples in
+// [spec:pgorm:req:sql.surface+41]
+// [spec:pgorm:req:sql.surface+41/test]    the two `compile_fail,E0603` examples in
 // the crate docs above, under "The public surface": a module path into the
 // crate does not resolve. `cargo test --doc -p pgorm-query` runs them; nextest
 // runs the rest of the rule's tests, in `tests/surface`.
@@ -659,7 +657,7 @@
 // argument. `Expr::raw`, `SqlTemplate` and the raw `FromItem` are the escape
 // hatches that keep every one of them reachable, so the boundary is about
 // which SQL gets a type here, never about which SQL a caller can send.
-// [spec:pgorm:req:sql.scope+23]
+// [spec:pgorm:req:sql.scope+24]
 mod backend;
 mod comment;
 mod copy;
@@ -680,7 +678,6 @@ mod query;
 mod schema;
 mod sequence;
 mod table;
-mod target;
 mod template;
 mod token;
 mod types;
@@ -813,9 +810,6 @@ pub use view::{
     MaterializedViewRefreshStatement, RecursiveViewCreateStatement, View, ViewCheckOption,
     ViewCreateStatement, ViewDropStatement,
 };
-
-// The PostgreSQL release the build targets.
-pub use target::POSTGRES_TARGET;
 
 // Rendering: the sink a statement is written into, and the two entry points
 // that are not a statement's own `build`.

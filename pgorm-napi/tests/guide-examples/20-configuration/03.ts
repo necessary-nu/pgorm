@@ -6,7 +6,7 @@ import { ConnectionError, type HookConnection, Pool } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ url }: GuideContext): Promise<void> {
-  /** A hook refusing a server older than `minimum`, a `server_version_num` such as 180000. */
+  /** A hook refusing a server older than `minimum`, a `server_version_num` such as 190000. */
   function requiring(minimum: number) {
     return async (db: HookConnection) => {
       const { version } = await db.one("SELECT current_setting('server_version_num')::int AS version");
@@ -14,7 +14,7 @@ export default async function example({ url }: GuideContext): Promise<void> {
     };
   }
 
-  await using checked = new Pool(url, { postCreate: requiring(180000) });
+  await using checked = new Pool(url, { postCreate: requiring(190000) });
   assert.equal((await checked.one("SELECT 1 AS one")).one, 1);
 
   await using refusing = new Pool(url, { postCreate: requiring(990000) });

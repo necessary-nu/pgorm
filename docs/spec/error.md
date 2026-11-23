@@ -88,14 +88,14 @@ it.
 
 ## SQLSTATE classification
 
-> [spec:pgorm:sem:error.model.sql-class+4]
+> [spec:pgorm:sem:error.model.sql-class+5]
 > `SqlError` classifies constraint failures by SQLSTATE:
 > `UniqueConstraintViolation` for `23505` (`unique_violation`),
 > `ForeignKeyConstraintViolation` for `23503` (`foreign_key_violation`),
 > `CheckConstraintViolation` for `23514` (`check_violation`),
 > `NotNullConstraintViolation` for `23502` (`not_null_violation`) and
 > `ExclusionConstraintViolation` for `23P01` (`exclusion_violation`), which
-> PostgreSQL 18 raises for an `EXCLUDE` constraint and for a primary or
+> PostgreSQL 19 raises for an `EXCLUDE` constraint and for a primary or
 > unique key ending `WITHOUT OVERLAPS` alike. `Error::sql_error()` is the
 > classifier entry point, returning `None` for anything that is not one of
 > these. `SqlError` is `#[non_exhaustive]`, so a further class is not a

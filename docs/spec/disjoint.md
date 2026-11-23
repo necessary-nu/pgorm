@@ -79,7 +79,7 @@ has a row for it, and is never written through.
 
 ## Schema
 
-> [spec:pgorm:sem:disjoint.schema+3]
+> [spec:pgorm:sem:disjoint.schema+4]
 > `Schema::create_disjoint::<E>()` MUST run `check_disjoint::<E>()` first,
 > returning its refusal as its own, then refuse the keys below, and otherwise
 > return the statements that create a disjoint entity's type and tables, a
@@ -134,7 +134,7 @@ has a row for it, and is never written through.
 > every part of its `WITH`, so a violation is reported by the statement that
 > caused it, inside a transaction as outside one; a change written by hand
 > across several statements runs under `SET CONSTRAINTS ... DEFERRED`. The
-> generated columns MUST be `STORED`: PostgreSQL 18 makes a generated column
+> generated columns MUST be `STORED`: PostgreSQL 19 makes a generated column
 > `VIRTUAL` unless told otherwise, and a virtual column can use no
 > user-defined type, the kind type included.
 >
@@ -162,7 +162,7 @@ has a row for it, and is never written through.
 > `{table}_pkey` or an unnamed unique key's `{table}_{columns}_key` (its
 > `makeObjectName`, the longer part shortened first to fit 63 bytes), all in
 > the key's schema (`42P07`); as a foreign key the schema adds to the key's
-> own table, or a not-null constraint PostgreSQL 18 names
+> own table, or a not-null constraint PostgreSQL 19 names
 > `{table}_{column}_not_null` there (`42710`); or as another such key in its
 > schema. A relation of the schema outside the entity's tables is the
 > server's to refuse.

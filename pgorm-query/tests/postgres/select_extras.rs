@@ -110,7 +110,7 @@ fn narrowing_keeps_a_zero_limit() {
 
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]    the two shapes the grammar refuses are refused by
 // `check_tie_limit`, and the grammar does refuse what they render
-// [spec:pgorm:req:sql.render.oracle+5/test]    the one render held rejected by design
+// [spec:pgorm:req:sql.render.oracle+6/test]    the one render held rejected by design
 // [spec:pgorm:req:sql.render.tie-limit/test]
 #[test]
 fn ungrammatical_tie_limits_are_refused() {

@@ -1267,7 +1267,7 @@ a build beyond the bridge.
 > (`sql.ddl.create-table`), so a key the statement declares and the key the
 > bridge reads back from its rendering are one fact.
 
-> [spec:pgorm:req:codegen.ddl.unsupported+22]
+> [spec:pgorm:req:codegen.ddl.unsupported+23]
 > The supported subset is what the entity model can hold: `CREATE TABLE` with
 > its columns, `NULL`/`NOT NULL`, primary-key, unique and foreign-key
 > constraints, its `DEFAULT`s and generation expressions within the subset
@@ -1337,7 +1337,7 @@ a build beyond the bridge.
 > PostgreSQL accepts a range type's `SUBTYPE` with a type modifier and keeps
 > none of it: `pg_range` records the subtype's type alone, so a range over
 > `numeric(10, 2)` holds bounds of any scale and one over `varchar(5)` bounds
-> of any length (live on 18.6). Carrying the modifier would generate an
+> of any length (live on 19.0). Carrying the modifier would generate an
 > entity claiming a precision the range does not hold, and reading the
 > subtype without it would be the file quietly reinterpreted, so the
 > modifier is named, as an `interval` precision the server would reduce is
@@ -1541,7 +1541,7 @@ a build beyond the bridge.
 > multi-dimensional array, and a non-integer type modifier are all named
 > rejections per `codegen.ddl.unsupported`.
 
-> [spec:pgorm:sem:codegen.ddl.tables+13]
+> [spec:pgorm:sem:codegen.ddl.tables+14]
 > A `CREATE TABLE` becomes a `TableCreateStatement` carrying the `TableName`
 > its name spells — `Table`, or `SchemaTable` when it is schema-qualified;
 > a catalog-qualified `db.schema.table` names a cross-database reference
@@ -1573,7 +1573,7 @@ a build beyond the bridge.
 > A column's `DEFAULT` becomes the column's default (`ColumnDef::default`)
 > and its `GENERATED ALWAYS AS (..)` the column's generation expression
 > (`ColumnDef::generated`), `STORED` or `VIRTUAL` as the grammar reads it — a
-> bare `GENERATED ALWAYS AS (..)` is `VIRTUAL` in 18, so the grammar's kind is
+> bare `GENERATED ALWAYS AS (..)` is `VIRTUAL` in 19, so the grammar's kind is
 > the answer, never the keyword's presence. Each expression is read from the
 > parse tree into the subset `codegen.entity.expressions` holds and lowered to
 > the `SimpleExpr` the statement carries, which renders an expression the
@@ -1671,7 +1671,7 @@ a build beyond the bridge.
 > a foreign key whose last pair is its period (`period(p, q)`), the grammar
 > putting `PERIOD` on the last column of each list and nowhere else.
 
-> [spec:pgorm:sem:codegen.ddl.objects+12]
+> [spec:pgorm:sem:codegen.ddl.objects+13]
 > Statements are resolved against each other rather than in file order: a
 > `CREATE TYPE ... AS ENUM` may follow the table whose column names it, and a
 > `CREATE INDEX`, `ALTER TABLE` or `COMMENT ON` may precede its table. An enum type contributes
@@ -1695,7 +1695,7 @@ a build beyond the bridge.
 > case-sensitively, becomes `multirange`, or, when there is none,
 > `_multirange` follows the name cut to 52 bytes, and the result is cut to
 > 63 (`floatrange` → `floatmultirange`, `slot` → `slot_multirange`,
-> `"FloatRange"` → `"FloatRange_multirange"`; live on 18.6). A range or
+> `"FloatRange"` → `"FloatRange_multirange"`; live on 19.0). A range or
 > multirange type is where `transform` discovers the newtypes it writes
 > (`codegen.entity.types`). Enums, ranges, multiranges and domains share one
 > namespace, so `is declared twice` holds across the four kinds.

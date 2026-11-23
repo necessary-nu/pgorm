@@ -126,7 +126,7 @@ fn a_collated_operand_is_an_atom() {
 
 // [spec:pgorm:req:sql.render.collate+2/test]    a collated DEFAULT stays the default's: bare,
 // `DEFAULT 'a' COLLATE "C"` parses as the column's own collation clause
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 #[test]
 fn a_collated_default_stays_the_default() {
     let sql = Table::create(Glyph::Table)
@@ -176,7 +176,7 @@ fn a_bound_operand_keeps_its_placeholder() {
     assert!(collate_clause(&sql)["arg"].get("ParamRef").is_some());
 }
 
-// [spec:pgorm:req:sql.ddl.column-def+13/test]    a column's collation follows its type, and a
+// [spec:pgorm:req:sql.ddl.column-def+14/test]    a column's collation follows its type, and a
 // second call replaces the first
 #[test]
 fn a_column_declares_its_collation() {
@@ -212,9 +212,9 @@ fn a_column_declares_its_collation() {
     assert!(column.get_collation().and_then(Collation::schema).is_none());
 }
 
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    ADD COLUMN spells the collation as CREATE TABLE
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    ADD COLUMN spells the collation as CREATE TABLE
 // does, and a modified column carries it on the retype
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 #[test]
 fn an_altered_column_carries_its_collation() {
     let sql = Table::alter(Glyph::Table)

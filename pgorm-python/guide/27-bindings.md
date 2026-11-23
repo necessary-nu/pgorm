@@ -208,18 +208,16 @@ linker settings.
 
 ## What a build reports
 
-The Python package targets PostgreSQL 18 as pgorm does, and forwards the
-`pg-19` feature ([PostgreSQL 18 and 19](26-postgres-releases.md)) to pgorm.
-`pgorm.capabilities()` reports the installed build: its version and
-pgorm's, the features it was built with, `pg-19` among them in a 19 build,
-the operations it offers with the Rust API behind each, and the entities,
-graphs and other registrations an application wheel compiled in.
+The Python package targets PostgreSQL 19 as pgorm does
+([PostgreSQL 19](26-postgres-releases.md)). `pgorm.capabilities()` reports
+the installed build: its version and pgorm's, the features it was built
+with, the operations it offers with the Rust API behind each, and the
+entities, graphs and other registrations an application wheel compiled in.
 
 Here the two bindings differ. The capability manifest, `capabilities()` and
 `require_capability()`, is the Python package's alone, and so is the
 `UnsupportedCapabilityError` an operation outside it raises. The JavaScript
-module exports its `version`, the pgorm release it is built from, and
-targets PostgreSQL 18 alone: it has no `pg-19` feature yet.
+module exports its `version`, the pgorm release it is built from.
 
 ## Where their documentation lives
 

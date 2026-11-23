@@ -9,7 +9,7 @@ use crate::json::{JsonPathTarget, JsonShaping};
 
 impl QueryBuilder {
     /// Translate a [`SqlJson`] into SQL.
-    // [spec:pgorm:req:sql.render.sql-json+1]
+    // [spec:pgorm:req:sql.render.sql-json+2]
     pub(super) fn prepare_sql_json(&self, json: &SqlJson, sql: &mut dyn SqlWriter) {
         match json {
             SqlJson::Exists(exists) => {
@@ -70,7 +70,7 @@ impl QueryBuilder {
                 self.prepare_json_operand(expr, sql);
                 write!(sql, ")").unwrap();
             }
-            // The operand is read through `JSON(..)`, because PostgreSQL 18.6
+            // The operand is read through `JSON(..)`, because PostgreSQL 19.0
             // serializes a `jsonb` operand as bytes of its binary header —
             // `\x01` for a one-member object. `JSON(..)` turns every operand
             // `JSON_SERIALIZE` takes — `json`, `jsonb`, a string, `bytea`,
@@ -276,7 +276,7 @@ impl QueryBuilder {
     /// its own, written after it in both render paths, so a bound statement
     /// and an inlined one build the same JSON. A JSON value is `jsonb` here,
     /// the type the SQL/JSON functions speak.
-    // [spec:pgorm:req:sql.render.sql-json+1]
+    // [spec:pgorm:req:sql.render.sql-json+2]
     fn prepare_json_operand(&self, expr: &SimpleExpr, sql: &mut dyn SqlWriter) {
         let SimpleExpr::Value(value) = expr else {
             return self.prepare_simple_expr(expr, sql);
@@ -293,7 +293,7 @@ impl QueryBuilder {
 
     /// A `DEFAULT` behaviour's value, written inline in both render paths:
     /// PostgreSQL refuses a parameter there (`42804`).
-    // [spec:pgorm:req:sql.render.sql-json+1]
+    // [spec:pgorm:req:sql.render.sql-json+2]
     fn prepare_json_default(&self, value: &Value, sql: &mut dyn SqlWriter) {
         write!(sql, "DEFAULT {}", self.value_to_string(value)).unwrap();
     }

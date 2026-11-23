@@ -25,7 +25,7 @@ mod sealed {
 /// The set is closed. A statement carries its format as a type parameter, so
 /// an option the format does not accept is a method the statement does not
 /// have.
-// [spec:pgorm:def:sql.ast.copy+2]
+// [spec:pgorm:def:sql.ast.copy+3]
 pub trait CopyFormat: sealed::Sealed + Clone + fmt::Debug + Send + Sync + 'static {}
 
 /// The two formats that are lines of delimited text, [`CopyText`] and
@@ -187,7 +187,7 @@ pub(crate) struct CopyOptions {
 ///
 /// CopyFromStatement::new(Glyph::Table, CopyBinary).header();
 /// ```
-// [spec:pgorm:def:sql.ast.copy+2]
+// [spec:pgorm:def:sql.ast.copy+3]
 #[derive(Debug, Clone)]
 pub struct CopyFromStatement<F: CopyFormat> {
     pub(crate) table: TableName,
@@ -430,7 +430,7 @@ impl<F: CopyFormat> fmt::Display for CopyFromStatement<F> {
 ///
 /// CopyToStatement::new(Query::delete().from_table(Glyph::Table).to_owned(), CopyText);
 /// ```
-// [spec:pgorm:def:sql.ast.copy+2]
+// [spec:pgorm:def:sql.ast.copy+3]
 #[derive(Debug, Clone)]
 pub struct CopySource(pub(crate) Source);
 
@@ -453,7 +453,7 @@ pub(crate) enum Source {
 /// list says nothing that query does not. A write is a source only with a
 /// `RETURNING` list, so it converts through [`CopySource`]'s [`TryFrom`]
 /// instead.
-// [spec:pgorm:def:sql.ast.copy+2]
+// [spec:pgorm:def:sql.ast.copy+3]
 pub trait IntoCopySource {
     fn into_copy_source(self) -> CopySource;
 }
@@ -527,7 +527,7 @@ fn returns_nothing(statement: &SubQueryStatement) -> Option<&'static str> {
 
 /// A `SELECT` converts, and a write converts when it carries a `RETURNING`
 /// list; a write without one is [`Error::CopyWithoutReturning`].
-// [spec:pgorm:def:sql.ast.copy+2]
+// [spec:pgorm:def:sql.ast.copy+3]
 impl TryFrom<SubQueryStatement> for CopySource {
     type Error = Error;
 
@@ -623,7 +623,7 @@ impl TryFrom<MergeStatement> for CopySource {
 ///
 /// CopyToStatement::new(Glyph::Table, CopyCsv).force_null_all();
 /// ```
-// [spec:pgorm:def:sql.ast.copy+2]
+// [spec:pgorm:def:sql.ast.copy+3]
 #[derive(Debug, Clone)]
 pub struct CopyToStatement<F: CopyFormat> {
     pub(crate) source: CopySource,
@@ -671,7 +671,7 @@ impl<F: CopyFormat> CopyToStatement<F> {
     /// let copy = CopyToStatement::new(select, CopyText);
     /// assert_eq!(copy.check_source(), Ok(()));
     /// ```
-    // [spec:pgorm:def:sql.ast.copy+2]
+    // [spec:pgorm:def:sql.ast.copy+3]
     pub fn check_source(&self) -> Result<(), Error> {
         match &self.source.0 {
             Source::Query(query) => match query.as_ref() {

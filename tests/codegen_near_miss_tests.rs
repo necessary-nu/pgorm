@@ -11,7 +11,7 @@
 //! foreign key onto the base's UNIQUE pair has the key it references.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54329" cargo nextest run --test codegen_near_miss_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test codegen_near_miss_tests`
 
 pub mod common;
 pub use common::{TestContext, setup::*};

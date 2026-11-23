@@ -57,7 +57,7 @@ fn attributes(copy: &Json) -> Vec<&str> {
         .collect()
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    a bare COPY FROM names its table, its direction and its format
+// [spec:pgorm:def:sql.ast.copy+3/test]    a bare COPY FROM names its table, its direction and its format
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_from_names_table_and_format() {
@@ -71,7 +71,7 @@ fn copy_from_names_table_and_format() {
     assert_eq!(options(&copy), [option("format", string("text"))]);
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    the table is schema-qualifiable and every name is quoted, a hostile one included
+// [spec:pgorm:def:sql.ast.copy+3/test]    the table is schema-qualifiable and every name is quoted, a hostile one included
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_names_are_quoted_identifiers() {
@@ -98,7 +98,7 @@ fn copy_names_are_quoted_identifiers() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    every option a text-format COPY FROM takes, read back as the option it was written as
+// [spec:pgorm:def:sql.ast.copy+3/test]    every option a text-format COPY FROM takes, read back as the option it was written as
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_from_text_takes_its_options() {
@@ -140,7 +140,7 @@ fn copy_from_text_takes_its_options() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    ignoring errors without a limit or a verbosity writes ON_ERROR alone
+// [spec:pgorm:def:sql.ast.copy+3/test]    ignoring errors without a limit or a verbosity writes ON_ERROR alone
 #[test]
 fn copy_from_ignore_alone() {
     let sql = CopyFromStatement::new(Glyph::Table, CopyCsv)
@@ -153,7 +153,7 @@ fn copy_from_ignore_alone() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    the CSV-only options, and FORCE_NULL over every column
+// [spec:pgorm:def:sql.ast.copy+3/test]    the CSV-only options, and FORCE_NULL over every column
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_from_csv_takes_quote_and_forces() {
@@ -186,7 +186,7 @@ fn copy_from_csv_takes_quote_and_forces() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    an empty forced list forces nothing, since `FORCE_QUOTE ()` is a syntax error
+// [spec:pgorm:def:sql.ast.copy+3/test]    an empty forced list forces nothing, since `FORCE_QUOTE ()` is a syntax error
 #[test]
 fn copy_empty_force_list_is_left_out() {
     let none: [Name; 0] = [];
@@ -201,7 +201,7 @@ fn copy_empty_force_list_is_left_out() {
     assert_eq!(to, r#"COPY "glyph" TO STDOUT WITH (FORMAT csv)"#);
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    a binary COPY FROM takes a column list, FREEZE and a WHERE, and nothing textual
+// [spec:pgorm:def:sql.ast.copy+3/test]    a binary COPY FROM takes a column list, FREEZE and a WHERE, and nothing textual
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_from_binary_with_where() {
@@ -223,7 +223,7 @@ fn copy_from_binary_with_where() {
     assert!(copy.get("where_clause").is_some(), "{copy}");
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    a COPY TO reads a whole table
+// [spec:pgorm:def:sql.ast.copy+3/test]    a COPY TO reads a whole table
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_to_reads_a_table() {
@@ -256,7 +256,7 @@ fn copy_to_reads_a_table() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    a COPY TO over a query inlines its values, since COPY binds none
+// [spec:pgorm:def:sql.ast.copy+3/test]    a COPY TO over a query inlines its values, since COPY binds none
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_to_query_inlines_values() {
@@ -287,7 +287,7 @@ fn copy_to_query_inlines_values() {
     assert!(copy["query"].get("SelectStmt").is_some(), "{copy}");
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    a write with RETURNING, and a WITH-prefixed SELECT, are sources too
+// [spec:pgorm:def:sql.ast.copy+3/test]    a write with RETURNING, and a WITH-prefixed SELECT, are sources too
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_to_write_and_with_query() {
@@ -338,7 +338,7 @@ fn merge() -> MergeStatement {
     ))
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    each write without RETURNING is refused as it converts, naming the write
+// [spec:pgorm:def:sql.ast.copy+3/test]    each write without RETURNING is refused as it converts, naming the write
 #[test]
 fn copy_to_refuses_writes_without_returning() {
     let insert = Query::insert()
@@ -385,7 +385,7 @@ fn copy_to_refuses_writes_without_returning() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    UPDATE, DELETE and MERGE with RETURNING are sources, merge_action() alone a list
+// [spec:pgorm:def:sql.ast.copy+3/test]    UPDATE, DELETE and MERGE with RETURNING are sources, merge_action() alone a list
 // [spec:pgorm:req:sql.render.copy/test]
 #[test]
 fn copy_to_writes_with_returning() {
@@ -442,7 +442,7 @@ fn copy_to_writes_with_returning() {
     }
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    a SELECT whose write CTE returns nothing is a source, as the server holds
+// [spec:pgorm:def:sql.ast.copy+3/test]    a SELECT whose write CTE returns nothing is a source, as the server holds
 #[test]
 fn copy_to_select_over_silent_write_cte() {
     let write = Query::delete()
@@ -470,7 +470,7 @@ fn copy_to_select_over_silent_write_cte() {
     assert!(statement(&sql)["query"].get("SelectStmt").is_some());
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    check_source refuses a SELECT source's tie limit and windows, never a table or a write
+// [spec:pgorm:def:sql.ast.copy+3/test]    check_source refuses a SELECT source's tie limit and windows, never a table or a write
 #[test]
 fn copy_check_source_reads_select_clauses() {
     let tied = Query::select()

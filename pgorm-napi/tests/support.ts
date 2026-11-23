@@ -1,7 +1,7 @@
 // Shared by the test files, which run unchanged under `node --test` and
 // `deno test`: both runners accept node:test's `test`, and every runtime
 // difference the suite meets is kept here.
-// [spec:pgorm:req:napi.runtimes+1/test]
+// [spec:pgorm:req:napi.runtimes+2/test]
 
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";

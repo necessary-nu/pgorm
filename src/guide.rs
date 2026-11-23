@@ -3,7 +3,7 @@
 // module: rustdoc renders it beside the API it links to and runs every example
 // in it as a doctest. docs/guide/README.md is the guide's index.
 #![doc = include_str!("../docs/guide/README.md")]
-// [spec:pgorm:req:guide.rust]    the guide, chapter by chapter, beside the API
+// [spec:pgorm:req:guide.rust+1]    the guide, chapter by chapter, beside the API
 // [spec:pgorm:req:guide.chapters]    one module per listed chapter, in order
 
 // The chapter's feature table lists every feature in pgorm's manifest but

@@ -241,7 +241,7 @@ pub(crate) fn create_enum_from_column_type(col_type: &ColumnType) -> Option<Type
     };
     // Labels are data, not names: `TypeCreateStatement::values` renders them
     // as string literals, so the variant idens are flattened to their text.
-    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+7]
     Some(
         Type::create(type_ref)
             .values(variants.iter().map(|v| v.to_string()))
@@ -349,7 +349,7 @@ where
 /// belongs-to relation `writes_key` keeps: a disjoint kind's table leaves out
 /// the one its key to its base row implies.
 // [spec:pgorm:sem:schema.from-entity+12]
-// [spec:pgorm:sem:disjoint.schema+3]
+// [spec:pgorm:sem:disjoint.schema+4]
 pub(crate) fn table_from_entity<E, K>(
     entity: E,
     writes_key: K,

@@ -14,7 +14,7 @@ import { makeError } from "./errors.js";
 import { install } from "./values.js";
 
 // Dates and times are Temporal's, which Node.js carries from version 26.
-// [spec:pgorm:req:napi.runtimes+1]
+// [spec:pgorm:req:napi.runtimes+2]
 if (typeof globalThis.Temporal !== "object") {
   throw new Error(
     "pgorm-napi needs a runtime with Temporal as a global: Node.js 26 or later, or a Deno that carries it",
@@ -237,6 +237,3 @@ export const version = native.version;
 
 /** @type {string} */
 export const STATEMENT_CACHE_CHANNEL = native.statementCacheChannel;
-
-/** @type {18 | 19} */
-export const POSTGRES_TARGET = native.postgresTarget;

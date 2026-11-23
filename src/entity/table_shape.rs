@@ -489,7 +489,7 @@ impl TableShape {
 
     /// `table`'s shape, which its `CREATE TABLE` is written from when no
     /// entity writes it: its columns, key and unique keys.
-    // [spec:pgorm:sem:disjoint.schema+3]
+    // [spec:pgorm:sem:disjoint.schema+4]
     pub(crate) fn of_disjoint(table: &DisjointTable) -> Self {
         let columns = table.columns.iter().map(|column| TableColumn {
             name: Name::clone(&column.name),

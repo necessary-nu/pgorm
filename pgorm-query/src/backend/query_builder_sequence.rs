@@ -126,7 +126,7 @@ impl QueryBuilder {
     /// An identity column's ` ( <options> )`, after `AS IDENTITY`, when it has
     /// any. There is no empty form to write: `AS IDENTITY ()` is a syntax
     /// error, and a column with no options has no [`SequenceOptions`].
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub(super) fn prepare_identity_options(
         &self,
         options: Option<&SequenceOptions>,

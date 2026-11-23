@@ -29,7 +29,7 @@ impl ColumnDef {
     ///     r#"CREATE TABLE "glyph" ( "id" integer NOT NULL DEFAULT 1 )"#,
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn not_null(&mut self) -> &mut Self {
         self.update_not_null(|_, _| {});
         self
@@ -64,7 +64,7 @@ impl ColumnDef {
     /// Without this the server derives the name, so the plain
     /// [`not_null`](Self::not_null) is the spelling of an unnamed constraint
     /// and this one always carries a name.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn not_null_named<N>(&mut self, name: N) -> &mut Self
     where
         N: IntoName,
@@ -103,7 +103,7 @@ impl ColumnDef {
     ///     .join(" "),
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn not_null_no_inherit(&mut self) -> &mut Self {
         self.update_not_null(|_, no_inherit| *no_inherit = true);
         self

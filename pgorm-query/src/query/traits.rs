@@ -98,7 +98,7 @@ pub trait QueryStatementBuilder: Debug + Display {
 /// whose rows are those their RETURNING list yields. Only a SELECT nests as
 /// an expression subquery, and the typed constructors of one take a
 /// [`SelectStatement`](crate::SelectStatement).
-// [spec:pgorm:req:sql.ast+4]
+// [spec:pgorm:req:sql.ast+5]
 pub trait IntoSubQueryStatement {
     /// Wrap the statement in the [`SubQueryStatement`] variant for its kind
     fn into_sub_query_statement(self) -> SubQueryStatement;

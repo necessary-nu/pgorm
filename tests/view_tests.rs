@@ -532,7 +532,7 @@ async fn totals(db: &DatabaseConnection) -> Result<Vec<(bool, i64)>, Error> {
 /// the table as it was then, through an entity as through SQL, and refuses a
 /// write (`42809`). A concurrent refresh needs a unique index (`55000`) and a
 /// populated view (`0A000`), and runs inside a transaction block.
-// [spec:pgorm:req:sql.ddl.materialized-view+1/test]    a materialized view holds its rows until
+// [spec:pgorm:req:sql.ddl.materialized-view+2/test]    a materialized view holds its rows until
 // a refresh, a concurrent refresh needs a unique index and data, and an entity reads it
 #[pgorm_macros::test]
 async fn a_materialized_view_holds_rows_until_refreshed() -> Result<(), Error> {
@@ -718,7 +718,7 @@ async fn a_table_is_created_from_a_query() -> Result<(), Error> {
 /// each check stands for; ordered and declared, it is one the server takes.
 // [spec:pgorm:req:sql.ddl.view+1/test]    a view's refused body is refused with nothing sent,
 // as the server refuses it, and the corrected body is taken
-// [spec:pgorm:req:sql.ddl.materialized-view+1/test]    a materialized view's refused body
+// [spec:pgorm:req:sql.ddl.materialized-view+2/test]    a materialized view's refused body
 // is refused with nothing sent
 // [spec:pgorm:req:sql.ddl.create-table-as+1/test]    CREATE TABLE AS's refused body is
 // refused with nothing sent
@@ -831,7 +831,7 @@ async fn a_refused_body_is_never_sent() -> Result<(), Error> {
 /// told, and passes over a missing one under `IF EXISTS`.
 // [spec:pgorm:req:sql.ddl.view+1/test]    DROP VIEW restricts, cascades and refuses a
 // materialized view
-// [spec:pgorm:req:sql.ddl.materialized-view+1/test]    DROP MATERIALIZED VIEW refuses a view
+// [spec:pgorm:req:sql.ddl.materialized-view+2/test]    DROP MATERIALIZED VIEW refuses a view
 #[pgorm_macros::test]
 async fn each_drop_reaches_its_own_kind() -> Result<(), Error> {
     let ctx = TestContext::new("view_drops").await;

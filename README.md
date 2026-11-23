@@ -5,8 +5,7 @@ each table as a Rust type, and pgorm reads and writes it with SQL it builds
 for you: every value bound as a parameter, never pasted into the SQL, and
 each statement prepared and cached per connection. Where the types can say
 so, a statement PostgreSQL would refuse does not compile. It runs on [tokio-postgres](https://docs.rs/tokio-postgres) and a
-[deadpool](https://docs.rs/deadpool) pool, and targets PostgreSQL 18 (or 19,
-with the `pg-19` feature).
+[deadpool](https://docs.rs/deadpool) pool, and targets PostgreSQL 19.
 
 Because it serves one database, pgorm offers what PostgreSQL has: `RETURNING`
 on every write, `ON CONFLICT` and `MERGE`, `COPY` in and out, `LISTEN` and

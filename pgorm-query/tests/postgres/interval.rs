@@ -13,7 +13,7 @@ fn string_constants(sql: &str) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:sem:sql.value.interval-text+1/test]    the literal is the text form in single
+// [spec:pgorm:sem:sql.value.interval-text+2/test]    the literal is the text form in single
 // quotes cast to `interval`, and the parser reads back exactly that text as one
 // string constant
 #[test]
@@ -47,7 +47,7 @@ fn interval_literal_is_its_text_quoted() {
     assert_eq!(Value::Interval(None).to_string(), "NULL");
 }
 
-// [spec:pgorm:sem:sql.value.interval-text+1/test]    an array of intervals renders element by
+// [spec:pgorm:sem:sql.value.interval-text+2/test]    an array of intervals renders element by
 // element, and an empty one names `interval[]`
 #[test]
 fn interval_array_literals_render_each_element() {

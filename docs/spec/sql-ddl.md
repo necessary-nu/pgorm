@@ -264,7 +264,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > forbidden. Unlike an empty alter or a missing target, there is no unparseable
 > render here for a type to prevent.
 
-> [spec:pgorm:req:sql.ddl.column-def+13]
+> [spec:pgorm:req:sql.ddl.column-def+14]
 > `ColumnDef` holds a name, an optional `ColumnType`, an optional `Collation`
 > and an ordered list of `ColumnSpec`s (`Null`, `NotNull { name, no_inherit }`, `Default(SimpleExpr)`, `AutoIncrement`,
 > `Check(Check)`, `Generated { expr, kind }`,
@@ -305,7 +305,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > as `CREATE DOMAIN`'s default does (`sql.ddl.domain`). `ALTER COLUMN ... SET
 > DEFAULT` reads the full expression grammar and renders its expression bare.
 >
-> A column's `NOT NULL` is a catalog constraint in PostgreSQL 18 — a
+> A column's `NOT NULL` is a catalog constraint, as it is from PostgreSQL 18 — a
 > `pg_constraint` row of kind `n`, recorded under the name the column gives it
 > or else under `<table>_<column>_not_null` — and a column has exactly one: the
 > server makes one constraint of repeated `NOT NULL` clauses and refuses two
@@ -348,17 +348,17 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > (computed when the row is written, kept on disk) or `GeneratedKind::Virtual`
 > (computed when the row is read, PostgreSQL 18's addition), and
 > `GeneratedKind::keyword` gives the `STORED` / `VIRTUAL` word. The kind MUST
-> always be written: PostgreSQL 17 refuses a generated column that names
-> neither keyword, and 18 reads one that names neither as `VIRTUAL`, so a
-> render that left it to the server would change kind with the release. That
-> is why `generated(expr, kind)` takes the kind as an argument with no
+> always be written, so a statement says its kind rather than leaving it to a
+> release's default: PostgreSQL 19 reads a generated column that names neither
+> keyword as `VIRTUAL`, as 18 did, where 17 refused one. That is why
+> `generated(expr, kind)` takes the kind as an argument with no
 > default — a one-argument `generated(expr)` does not compile — and why the
 > kind is a closed pair rather than a `stored: bool`, whose `false` read
 > backwards and once stood for a render no release before 18 parsed
 > (`[dec:pgorm:invalid-states-unrepresentable]`); that flag MUST NOT return.
-> pgorm targets PostgreSQL 18, the release the oracle parses with and the
-> live server runs (`[spec:pgorm:req:sql.render.oracle]`), so a virtual
-> column is no longer a render the builder has to keep from 17.
+> pgorm targets PostgreSQL 19, whose grammar the oracle parses with and which
+> the live server runs (`[spec:pgorm:req:sql.render.oracle]`), so a virtual
+> column is a render the builder has no release to keep it from.
 >
 > What the server refuses around a generated column is the server's
 > knowledge, not the column's, and the live suite holds each refusal by
@@ -452,7 +452,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > program text reaches that position. Anything expressible through the typed
 > setters MUST use them instead.
 
-> [spec:pgorm:req:sql.ddl.column-types+8]
+> [spec:pgorm:req:sql.ddl.column-types+9]
 > `prepare_column_type` defines the `ColumnType` → Postgres type-name
 > contract, and it is total: every variant has exactly one Postgres spelling
 > and none can fail. It MUST spell: `Char(Some(n))`→`char(n)`,
@@ -482,7 +482,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 >
 > `Char(None)` is the blank-padded type with no length limit, which
 > `format_type` prints as `bpchar`, and it is written by that name: PostgreSQL
-> reads a bare `char` or `character` as `char(1)` (live on 18.6), so spelling
+> reads a bare `char` or `character` as `char(1)` (live on 19.0), so spelling
 > `Char(None)` as `char` created a column that refused every value longer than
 > one character, and a `bpchar` column read back through codegen
 > (`codegen.ddl.types`) came back as `char(1)`. `ColumnDef::char()` is SQL's
@@ -492,13 +492,13 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > `Bit(None)` is the bit type with no length limit (type modifier `-1`), whose
 > columns hold a bit string of any length, each value keeping its own. It has
 > no keyword spelling: PostgreSQL reads a bare `bit` as `bit(1)` (live on
-> 18.6), so it is written as the quoted type name `"bit"`, which is how
+> 19.0), so it is written as the quoted type name `"bit"`, which is how
 > `format_type` prints it and what codegen reads back as `Bit(None)`
 > (`codegen.ddl.types`). `ColumnDef::bit(length)` builds `Bit(length)`, SQL's
 > bare `bit` being `bit(Some(1))`, and the Python and JavaScript `DataType`
 > `"bit"` with no length is `bit(1)`. `VarBit(n)` is `varbit(n)`.
 
-> [spec:pgorm:req:sql.ddl.alter-table+15]
+> [spec:pgorm:req:sql.ddl.alter-table+16]
 > `TableAlterStatement` names one table and collects `TableAlterOption`s:
 > `AddColumn` (with an `if_not_exists` flag), `ModifyColumn`,
 > `AlterColumnTypeUsing`, `DropDefault`, `DropColumn`, `AddForeignKey`,
@@ -685,9 +685,8 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > NULL` alone: a `CHECK`, key or foreign key named there is refused (`42809`),
 > as is `NO INHERIT` on a partitioned table's (`0A000`). `Enforced`
 > (`ENFORCED`) and `NotEnforced` (`NOT ENFORCED`), also 18's, apply to a
-> foreign key and, from PostgreSQL 19, a `CHECK`
-> (`[spec:pgorm:req:sql.ddl.enforcement]`): a key's enforcement is refused
-> there (`42809`), as 18 refuses a `CHECK`'s. Each change is a
+> foreign key and a `CHECK` (`[spec:pgorm:req:sql.ddl.enforcement]`): a key's
+> enforcement is refused there (`42809`). Each change is a
 > closed choice rather than a flag, so an `ALTER CONSTRAINT` that changes
 > nothing has no value to be built from
 > (`[dec:pgorm:invalid-states-unrepresentable]`).
@@ -729,10 +728,10 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > EXPRESSION` on a virtual column is refused, `IF EXISTS` or not (`0A000`),
 > having no stored values to keep; `SET EXPRESSION` on a virtual column is
 > refused while its table belongs to a publication (`0A000`), where a stored
-> column's goes through; a `CHECK` constraint on the table refuses it too on
-> PostgreSQL 18 (`0A000`), while from 19 the rows are checked against the
-> table's `CHECK` constraints instead, a row that breaks one refusing the
-> action (`23514`); and a new
+> column's goes through; under a `CHECK` constraint on the table the rows are
+> checked against the table's `CHECK` constraints, a row that breaks one
+> refusing the action (`23514`), where PostgreSQL 18 refused the action
+> outright; and a new
 > expression is held to what a generated column's is at creation —
 > immutable, reading no other generated column (`42P17`), holding no
 > subquery (`0A000`), of the column's type (`42804`). Both actions combine
@@ -907,7 +906,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 
 ## Foreign keys
 
-> [spec:pgorm:req:sql.ddl.foreign-key+10]
+> [spec:pgorm:req:sql.ddl.foreign-key+11]
 > `TableForeignKey` holds the owning and referenced table names, a non-empty
 > list of `(column, referenced column)` pairs, an optional constraint name, and
 > optional `on_delete`/`on_update` `ForeignKeyAction`s (`Restrict`→`RESTRICT`,
@@ -953,8 +952,9 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > temporal (`42830`) and the two periods share a type (`42804`) is the
 > server's knowledge.
 >
-> PostgreSQL 18 runs a temporal foreign key's referential actions as `NO
-> ACTION` alone: `CASCADE`, `SET NULL`, `SET DEFAULT` and `RESTRICT` are each
+> PostgreSQL 19 runs a temporal foreign key's referential actions as `NO
+> ACTION` alone, as 18 did: `CASCADE`, `SET NULL`, `SET DEFAULT` and
+> `RESTRICT` are each
 > refused, on delete and on update (`0A000`, *unsupported ON DELETE action for
 > foreign key constraint using PERIOD*), where `NO ACTION` said outright is
 > taken, as the live suite holds. The builder can write the refused pair, by
@@ -1059,7 +1059,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 
 ## Enforcement
 
-> [spec:pgorm:req:sql.ddl.enforcement]
+> [spec:pgorm:req:sql.ddl.enforcement+1]
 > `Enforcement` says whether the server holds rows to a constraint, PostgreSQL
 > 18's `ENFORCED` / `NOT ENFORCED`: `Enforced` or `NotEnforced`, a closed pair
 > rendering ` ENFORCED` or ` NOT ENFORCED` directly after the constraint it
@@ -1091,10 +1091,9 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > `VALIDATE CONSTRAINT` refuses it (`55000`). `ALTER CONSTRAINT "name"
 > ENFORCED` / `NOT ENFORCED` (`ConstraintChange`, `[spec:pgorm:req:sql.ddl.alter-table]`)
 > moves a foreign key between the two, `ENFORCED` checking every row as it
-> goes (`23503`) and `NOT ENFORCED` leaving it not valid. From PostgreSQL 19
-> it moves a `CHECK` the same way, `ENFORCED` refusing a row that breaks the
-> condition (`23514`); 18 cannot alter a `CHECK`'s (`42809`), so there one is
-> dropped and added again.
+> goes (`23503`) and `NOT ENFORCED` leaving it not valid. It moves a `CHECK`
+> the same way, `ENFORCED` refusing a row that breaks the condition (`23514`),
+> which PostgreSQL 18 could not alter (`42809`).
 
 ## Enum types
 
@@ -1547,7 +1546,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 
 ## Materialized views
 
-> [spec:pgorm:req:sql.ddl.materialized-view+1]
+> [spec:pgorm:req:sql.ddl.materialized-view+2]
 > `MaterializedView` builds the statements a materialized view takes:
 > `create(name, body)`, `refresh(name)` and `drop(name)`. Each names the view
 > as a table is named, and the create takes its body by value, refuses the
@@ -1571,7 +1570,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > back by `get_columns()`, renaming the query's leading columns, with more
 > than the query has refused (`42601`). `if_not_exists()` leaves an existing
 > relation of the name alone, its rows with it, with a notice (`42P07`).
-> PostgreSQL 18 has no `OR REPLACE` for a materialized view (`42601`), and
+> PostgreSQL 19 has no `OR REPLACE` for a materialized view (`42601`), and
 > the statement has none, which a `compile_fail` doctest holds: a
 > materialized view that changes is dropped and created again.
 >
@@ -1680,7 +1679,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 
 ## Domains
 
-> [spec:pgorm:req:sql.ddl.domain+3]
+> [spec:pgorm:req:sql.ddl.domain+4]
 > `Domain` builds the statements a domain takes: `create(name, base)`,
 > `alter(name)` and `drop(name)`. A domain is a type, so each name is an
 > `IntoTypeRef` — a bare name or a `(schema, name)` pair — rendered as
@@ -1770,7 +1769,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > a clear by the statement a session holds, its name and preparation time in
 > `pg_prepared_statements`, which a clear closes and a re-plan keeps. A check
 > or a `NOT NULL` added at the same point holds at once, being tested as each
-> value is written; the suite holds both on 18.6, the old default whenever
+> value is written; the suite holds both on 19.0, the old default whenever
 > the session is shown not to have re-planned, by an immutable function the
 > planner folded into a plan of its own.
 > `DatabasePool::clear_statement_caches`

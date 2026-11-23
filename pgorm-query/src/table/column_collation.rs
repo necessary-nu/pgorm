@@ -39,7 +39,7 @@ impl ColumnDef {
     ///     r#"CREATE TABLE "glyph" ( "image" text COLLATE "C" NOT NULL )"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn collate<C>(&mut self, collation: C) -> &mut Self
     where
         C: IntoCollation,

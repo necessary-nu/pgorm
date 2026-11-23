@@ -36,7 +36,7 @@ fn created(name: &str, schema: Option<&str>, subtype: ColumnType) -> ColumnType 
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a range type the file creates
+// [spec:pgorm:sem:codegen.ddl.objects+13/test]    a range type the file creates
 // types the columns naming it, by its full identity and with its subtype read
 // as a column's type is
 // [spec:pgorm:sem:codegen.ddl.types+10/test]
@@ -75,7 +75,7 @@ fn a_created_range_types_its_columns() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+12/test]    a range type declares its
+// [spec:pgorm:sem:codegen.ddl.objects+13/test]    a range type declares its
 // multirange too: under the name PostgreSQL derives, in the range's schema, or
 // under MULTIRANGE_TYPE_NAME as written
 #[test]
@@ -223,7 +223,7 @@ fn a_created_range_generates_a_compiling_newtype() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    what the bridge cannot
+// [spec:pgorm:req:codegen.ddl.unsupported+23/test]    what the bridge cannot
 // carry out of a range type is named: a subtype no newtype can hold, an
 // option PostgreSQL does not have, a range with no subtype, a serial subtype,
 // and a type declared twice
@@ -269,7 +269,7 @@ fn what_a_created_range_cannot_carry_is_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a type modifier on a range
+// [spec:pgorm:req:codegen.ddl.unsupported+23/test]    a type modifier on a range
 // type's SUBTYPE, which PostgreSQL drops, is named rather than carried, `char`'s
 // implicit length among them; the subtype written without one is read
 #[test]
@@ -333,7 +333,7 @@ fn a_described_subtype_modifier_is_refused() {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.objects+12/test]    the options that do not change
+// [spec:pgorm:sem:codegen.ddl.objects+13/test]    the options that do not change
 // a row's value are read and set aside, and a range over an enum the file
 // declared reads its subtype as that enum, which no newtype holds
 #[test]

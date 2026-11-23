@@ -177,7 +177,7 @@ impl SelectStatement {
     /// ```
     // [spec:pgorm:req:sql.ast.select.tie-limit+2]
     // [spec:pgorm:req:sql.ddl.view+1]
-    // [spec:pgorm:def:sql.ast.copy+2]
+    // [spec:pgorm:def:sql.ast.copy+3]
     pub fn check_clauses(&self) -> Result<()> {
         self.check_tie_limit()?;
         self.check_windows()

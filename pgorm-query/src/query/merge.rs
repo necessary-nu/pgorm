@@ -855,7 +855,7 @@ impl MergeStatement {
 /// UPDATE: the statement still runs, and only reading the CTE is refused
 /// (`0A000`). It does not accept a MERGE as an expression subquery (`42601`),
 /// which no typed constructor of one builds.
-// [spec:pgorm:req:sql.ast+4]
+// [spec:pgorm:req:sql.ast+5]
 impl IntoSubQueryStatement for MergeStatement {
     fn into_sub_query_statement(self) -> SubQueryStatement {
         SubQueryStatement::MergeStatement(Box::new(self))

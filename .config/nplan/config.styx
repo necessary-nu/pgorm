@@ -187,10 +187,6 @@ platforms (
             check {
                 cmd "cargo check --manifest-path pgorm-python/Cargo.toml --locked --target-dir target"
             }
-            // The build that targets PostgreSQL 19, whose manifest reports it.
-            check-pg-19 {
-                cmd "cargo check --manifest-path pgorm-python/Cargo.toml --locked --target-dir target --features pg-19"
-            }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-python/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
             }
@@ -252,10 +248,6 @@ platforms (
             }
             check {
                 cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target"
-            }
-            // The build that targets PostgreSQL 19, whose module reports it.
-            check-pg-19 {
-                cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --features pg-19"
             }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
@@ -340,31 +332,6 @@ platforms (
             }
             default {
                 cmd "cargo check -p pgorm --lib"
-            }
-        }
-    }
-    {
-        // The pg-19 feature targets PostgreSQL 19 (sql.target in
-        // docs/spec/sql-ast.md), and what it gates is code the default build
-        // never compiles: a cfg'd test arm, a cfg'd item. These build the
-        // workspace with it, every target included, and pgorm's library alone
-        // with it in the configurations rust-features builds without it, so
-        // that code cannot rot unseen. The live suite under it needs a 19
-        // server and stays out of the gate as nextest does.
-        platform "rust-pg-19"
-        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-case-style/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-check/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs tests/**/*.rs pgorm-case-style/Cargo.toml pgorm-macros/Cargo.toml pgorm-codegen/Cargo.toml pgorm-migration/Cargo.toml pgorm-pool/Cargo.toml pgorm-query/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-sql-check/Cargo.toml pgorm-sql-macro/Cargo.toml pgorm-test-support/Cargo.toml pgorm-guide-support/Cargo.toml)
-        checks {
-            check {
-                cmd "cargo check --workspace --all-targets --features pg-19"
-            }
-            clippy {
-                cmd "cargo clippy --workspace --all-targets --features pg-19 -- -D warnings"
-            }
-            minimal {
-                cmd "cargo check -p pgorm --lib --no-default-features --features pg-19"
-            }
-            macros-only {
-                cmd "cargo check -p pgorm --lib --no-default-features --features macros,pg-19"
             }
         }
     }

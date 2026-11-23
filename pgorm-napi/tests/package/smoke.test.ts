@@ -146,7 +146,7 @@ test("the installed packages carry the module and its addon alone, no test fixtu
   }
 });
 
-// [spec:pgorm:req:napi.distribution/test]
+// [spec:pgorm:req:napi.distribution+1/test]
 test("connects and runs a bound query", async () => {
   await using pool = await connect(dsn);
   const row = await pool.one("SELECT $1::int8 + 1 AS n, current_setting('server_version_num')::int4 AS server", [41n]);
@@ -154,7 +154,7 @@ test("connects and runs a bound query", async () => {
   assert.ok(Number(row.server) >= 180000, `PostgreSQL ${row.server} is older than 18`);
 });
 
-// [spec:pgorm:req:napi.distribution/test]
+// [spec:pgorm:req:napi.distribution+1/test]
 test("Temporal, bigint and Decimal values round-trip", async () => {
   await using pool = new Pool(dsn);
   const at = Temporal.Instant.from("2026-10-09T12:34:56.123456Z");
@@ -172,7 +172,7 @@ test("Temporal, bigint and Decimal values round-trip", async () => {
   assert.equal(String(row.amount), "19.9900");
 });
 
-// [spec:pgorm:req:napi.distribution/test]
+// [spec:pgorm:req:napi.distribution+1/test]
 test("a built statement writes and reads", async () => {
   await using pool = new Pool(dsn);
   const account = new Table("account", { schema });
@@ -186,7 +186,7 @@ test("a built statement writes and reads", async () => {
   assert.equal(String(read.balance), "10.50");
 });
 
-// [spec:pgorm:req:napi.distribution/test]
+// [spec:pgorm:req:napi.distribution+1/test]
 test("a model inserts and finds its records", async () => {
   await using pool = new Pool(dsn);
   const Account = model("account", {
@@ -204,7 +204,7 @@ test("a model inserts and finds its records", async () => {
   assert.equal(found.id, bea.id);
 });
 
-// [spec:pgorm:req:napi.distribution/test]
+// [spec:pgorm:req:napi.distribution+1/test]
 test("a transaction commits, and rolls back when its function throws", async () => {
   await using pool = new Pool(dsn);
   const count = async () => (await pool.one(`SELECT count(*) AS n FROM ${schema}.account WHERE name = 'Cy'`)).n;
@@ -223,7 +223,7 @@ test("a transaction commits, and rolls back when its function throws", async () 
   assert.equal(await count(), 1n);
 });
 
-// [spec:pgorm:req:napi.distribution/test]
+// [spec:pgorm:req:napi.distribution+1/test]
 test("a process that used the package exits on its own", async () => {
   const script = fileURLToPath(new URL("./exit.ts", import.meta.url));
   const args = deno ? ["run", "--allow-ffi", "--allow-read", "--allow-env", script] : [script];

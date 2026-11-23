@@ -810,7 +810,7 @@ async fn copy_out_dropped_early() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:sql.ast.copy+2/test]    every option each direction and format offers is one PostgreSQL 18 accepts
+// [spec:pgorm:def:sql.ast.copy+3/test]    every option each direction and format offers is one PostgreSQL 19 accepts
 #[pgorm_macros::test]
 async fn copy_every_offered_option_runs() -> Result<(), Error> {
     let ctx = TestContext::new("copy_every_offered_option").await;
@@ -1004,7 +1004,7 @@ impl MetricsCollector for Operations {
 }
 
 // [spec:pgorm:req:metric.layer.copy/test]    the wrappers forward COPY and report it at open, with its text
-// [spec:pgorm:req:metric.fingerprint+4/test]    a COPY is reported under copy_in and copy_out
+// [spec:pgorm:req:metric.fingerprint+5/test]    a COPY is reported under copy_in and copy_out
 #[pgorm_macros::test]
 async fn instrumented_copy_reports_at_open() -> Result<(), Error> {
     let ctx = TestContext::new("instrumented_copy_reports").await;

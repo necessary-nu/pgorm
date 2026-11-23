@@ -8,7 +8,7 @@ fn data() -> Expr {
     Expr::col((Name::runtime("d"), Name::runtime("doc")))
 }
 
-// [spec:pgorm:def:sql.ast.json-table+2/test]    every column kind, a nested path, PASSING and
+// [spec:pgorm:def:sql.ast.json-table+3/test]    every column kind, a nested path, PASSING and
 // ON ERROR
 // [spec:pgorm:req:sql.render.json-table/test]    the columns in order, the paths as literals
 // under build(), the PASSING value bound

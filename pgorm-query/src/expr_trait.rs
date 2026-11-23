@@ -142,7 +142,7 @@ macro_rules! aggregates {
 /// orderings this trait's rather than `PartialEq`'s or `PartialOrd`'s, which
 /// borrow.
 // [spec:pgorm:def:sql.ast.expr+8]
-// [spec:pgorm:req:sql.ast.expr.operators+6]
+// [spec:pgorm:req:sql.ast.expr.operators+7]
 #[allow(clippy::wrong_self_convention)]
 pub trait ExprTrait: Into<SimpleExpr> + Sized {
     binary_operators! {
@@ -733,7 +733,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "id" FROM "character" WHERE "character" && $1"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.operators+6]
+        // [spec:pgorm:req:sql.ast.expr.operators+7]
         overlaps => Overlap,
         /// Express a postgres retrieves JSON field as JSON value (`->`).
         ///
@@ -759,7 +759,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "variant" FROM "font" WHERE "variant" -> 'a'"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+3]
+        // [spec:pgorm:req:sql.ast.expr.json+4]
         get_json_field => GetJsonField,
         /// Express a postgres retrieves JSON field and casts it to an appropriate SQL type (`->>`).
         ///
@@ -782,7 +782,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "variant" FROM "font" WHERE "variant" ->> 'a'"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+3]
+        // [spec:pgorm:req:sql.ast.expr.json+4]
         cast_json_field => CastJsonField,
     }
 
@@ -1016,7 +1016,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// );
         /// assert_eq!(values.0.len(), 1);
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+3]
+        // [spec:pgorm:req:sql.ast.expr.json+4]
         get_json_path(path) => GetJsonPath,
         /// Express a postgres retrieves the value at a JSON path as text (`#>>`).
         ///
@@ -1040,7 +1040,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "id" FROM "character" WHERE ("user_data" #>> ARRAY ['a','b']) = 'x'"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+3]
+        // [spec:pgorm:req:sql.ast.expr.json+4]
         cast_json_path(path) => CastJsonPath,
         /// Express a postgres any-key existence test (`?|`).
         ///
@@ -1078,7 +1078,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "id" FROM "character" WHERE "user_data" ?| ARRAY []::text[]"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+3]
+        // [spec:pgorm:req:sql.ast.expr.json+4]
         has_any_json_keys(keys) => HasAnyJsonKeys,
         /// Express a postgres all-keys existence test (`?&`).
         ///
@@ -1108,7 +1108,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// assert_eq!(sql, r#"SELECT "id" FROM "character" WHERE "user_data" ?& $1"#);
         /// assert_eq!(values.0.len(), 1);
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+3]
+        // [spec:pgorm:req:sql.ast.expr.json+4]
         has_all_json_keys(keys) => HasAllJsonKeys,
     }
 
@@ -1245,7 +1245,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT "character", "size_w", "size_h" FROM "character" WHERE 10 < "size_w" AND 20 > "size_h""#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.operators+6]
+    // [spec:pgorm:req:sql.ast.expr.operators+7]
     fn binary<O, T>(self, op: O, right: T) -> SimpleExpr
     where
         O: Into<BinOper>,
@@ -1946,7 +1946,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     /// let (sql, values) = query.build();
     /// assert_eq!(sql, r#"SELECT "id" FROM "character" WHERE "user_data" ? $1"#);
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.json+3]
+    // [spec:pgorm:req:sql.ast.expr.json+4]
     fn has_json_key<S>(self, key: S) -> SimpleExpr
     where
         S: Into<String>,
@@ -1982,7 +1982,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT "id" FROM "character" WHERE "user_data" @? CAST($1::text AS jsonpath)"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.json+3]
+    // [spec:pgorm:req:sql.ast.expr.json+4]
     fn json_path_exists<P>(self, path: P) -> SimpleExpr
     where
         P: Into<String>,
@@ -2009,7 +2009,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT JSON_OBJECT('doc'::text : "character" FORMAT JSON) FROM "character""#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.expr.sql-json+2]
+    // [spec:pgorm:def:sql.ast.expr.sql-json+3]
     fn format_json(self) -> JsonInput {
         JsonInput {
             expr: self.into(),
@@ -2034,7 +2034,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT "id" FROM "character" WHERE ("character" IS JSON OBJECT WITH UNIQUE KEYS)"#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.expr.sql-json+2]
+    // [spec:pgorm:def:sql.ast.expr.sql-json+3]
     fn is_json<T>(self, test: T) -> SimpleExpr
     where
         T: Into<JsonTest>,
@@ -2062,7 +2062,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT "id" FROM "character" WHERE ("character" IS NOT JSON)"#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.expr.sql-json+2]
+    // [spec:pgorm:def:sql.ast.expr.sql-json+3]
     fn is_not_json<T>(self, test: T) -> SimpleExpr
     where
         T: Into<JsonTest>,

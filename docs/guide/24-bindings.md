@@ -117,10 +117,10 @@ settings.
 
 ## The release a binding targets
 
-A binding targets PostgreSQL 18 as pgorm does. pgorm-python forwards the
-`pg-19` feature ([PostgreSQL 18 and 19](crate::guide::postgres_releases)) to pgorm,
-and reports the features of its build through `pgorm.capabilities()`, which
-also lists the operations and registrations the installed build has.
+A binding targets PostgreSQL 19 as pgorm does
+([PostgreSQL 19](crate::guide::postgres_releases)). pgorm-python reports the
+features of its build through `pgorm.capabilities()`, which also lists the
+operations and registrations the installed build has.
 
 ## Where their documentation lives
 

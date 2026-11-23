@@ -49,7 +49,7 @@ impl QueryBuilder {
     /// Write a column's ` COLLATE "name"`, directly after its type, when it
     /// declares one. `CREATE TABLE`, `ADD COLUMN` and the `ALTER COLUMN ...
     /// TYPE` of a modified column all spell it there.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub(super) fn prepare_column_collation(&self, column_def: &ColumnDef, sql: &mut dyn SqlWriter) {
         if let Some(collation) = &column_def.collation {
             write!(sql, " COLLATE ").unwrap();

@@ -109,7 +109,7 @@ use super::common::*;
 /// ```
 ///
 // [spec:pgorm:req:sql.ddl.index-create+11]
-// [spec:pgorm:req:sql.ast+4]
+// [spec:pgorm:req:sql.ast+5]
 #[derive(Debug, Clone)]
 pub struct IndexCreateStatement {
     pub(crate) table: TableName,

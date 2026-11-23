@@ -431,10 +431,10 @@ assert QueryContext("begin").fingerprint is None
 Here Python differs from Rust, where fingerprints sit behind the
 `metrics-fingerprint` feature: the Python package is built with it, so
 `fingerprint` is there for every statement the parser reads. It is `None`
-for a transaction verb, which has no statement, and for raw SQL the server
-accepts but the parser refuses, such as `SELECT 1 ignore`, a bare column label
-PostgreSQL 18 reads and 19's grammar does not; such a statement runs and is
-reported as usual with only its identity missing. A fingerprint is computed when it is read, so a
+for a transaction verb, which has no statement, and for raw SQL the parser
+refuses, such as `SELECT 1 ignore`, which 19's grammar reads as a syntax
+error; such a statement is reported as usual, here as the failure the server
+answers it with, with only its identity missing. A fingerprint is computed when it is read, so a
 collector that never reads one pays no parse, and the answer is kept
 process-wide by statement text, each text parsed once, up to 1024 texts.
 

@@ -399,7 +399,8 @@ IDENTITY`, the form PostgreSQL recommends over `auto_increment()`'s
 `min_value`, `max_value`, `cache` and `cycle`, a bound given as `None` being
 its `NO` form. A generated column always names its kind,
 `.generated(expression, "stored")` or `.generated(expression, "virtual")`,
-since PostgreSQL 17 requires `STORED` and 18 reads a bare one as `VIRTUAL`.
+so the statement says it rather than leaving it to the server, which reads a
+bare one as `VIRTUAL`.
 Write the columns inside a check or a generated expression unqualified, as
 `col("address")`.
 

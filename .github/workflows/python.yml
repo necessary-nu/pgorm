@@ -59,7 +59,7 @@ jobs:
       - name: Linux PostgreSQL tools
         if: runner.os == 'Linux'
         run: |
-          # Ubuntu 24.04's own archive stops at PostgreSQL 16, so 18 comes
+          # Ubuntu 24.04's own archive stops at PostgreSQL 16, so 19 comes
           # from the PostgreSQL project's apt repository, set up as
           # https://www.postgresql.org/download/linux/ubuntu/ documents, its
           # signing key held to the published fingerprint before apt trusts it.
@@ -76,15 +76,13 @@ jobs:
             'Components: main' "Signed-By: $key" \
             | sudo tee /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
-          sudo apt-get install --yes postgresql-18 openssl
-          echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/18/bin' >> "$GITHUB_ENV"
+          sudo apt-get install --yes postgresql-19 openssl
+          echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/19/bin' >> "$GITHUB_ENV"
       - name: macOS PostgreSQL tools
         if: runner.os == 'macOS'
         run: |
-          # Homebrew has no postgresql@19, so the build that targets 19 is
-          # tested on Linux alone, by the postgres-19 job.
-          brew install postgresql@18 openssl@3
-          echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@18)/bin" >> "$GITHUB_ENV"
+          brew install postgresql@19 openssl@3
+          echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@19)/bin" >> "$GITHUB_ENV"
           echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
       # The Rust unit tests, as `nplan check`'s python-native unit check
       # runs them.
@@ -136,8 +134,8 @@ jobs:
             'Components: main' "Signed-By: $key" \
             | sudo tee /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
-          sudo apt-get install --yes postgresql-18 openssl
-          echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/18/bin' >> "$GITHUB_ENV"
+          sudo apt-get install --yes postgresql-19 openssl
+          echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/19/bin' >> "$GITHUB_ENV"
       - name: Build, install and exercise the application wheel
         run: |
           python pgorm-python/tests/with_local_postgres.py \
@@ -157,65 +155,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # The jobs above build the default, which targets PostgreSQL 18. This one
-  # builds the wheel with pg-19, which targets 19, and runs the installed
-  # suite against a 19 server.
-  postgres-19:
-    name: PostgreSQL 19 / linux-x86_64 / CPython 3.14
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    env:
-      CARGO_TERM_COLOR: never
-      CARGO_BUILD_JOBS: '2'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.14'
-      - name: Prepare Python, Rust and PostgreSQL tools
-        run: |
-          python -m pip install 'uv' 'maturin>=1.15,<2'
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-          # The distribution job's PostgreSQL apt setup; its comment says why.
-          key=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
-          sudo install -d "$(dirname "$key")"
-          sudo curl --fail --silent --show-error --location --output "$key" \
-            https://www.postgresql.org/media/keys/ACCC4CF8.asc
-          fingerprint=$(GNUPGHOME="$(mktemp -d)" gpg --show-keys --with-colons "$key" \
-            | awk -F: '$1 == "pub" { primary = 1; next } $1 == "fpr" && primary { print $10; primary = 0 }')
-          test "$fingerprint" = B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
-          . /etc/os-release
-          printf '%s\n' 'Types: deb' 'URIs: https://apt.postgresql.org/pub/repos/apt' \
-            "Suites: ${VERSION_CODENAME}-pgdg" "Architectures: $(dpkg --print-architecture)" \
-            'Components: main' "Signed-By: $key" \
-            | sudo tee /etc/apt/sources.list.d/pgdg.sources
-          sudo apt-get update
-          sudo apt-get install --yes postgresql-19 openssl
-          echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/19/bin' >> "$GITHUB_ENV"
-      - name: Build the pg-19 wheel and run the installed suite
-        run: |
-          maturin build --manifest-path pgorm-python/Cargo.toml --interpreter python \
-            --out target/python-pg-19 --locked --features pg-19
-          uv venv --python python target/python-pg-19/venv
-          uv pip install --no-index --python target/python-pg-19/venv/bin/python \
-            target/python-pg-19/pgorm-*.whl
-          python pgorm-python/tests/with_local_postgres.py \
-            target/python-pg-19/venv/bin/python -I -m unittest discover -s pgorm-python/tests -v
-
   gate:
     name: Python distributions
     if: always()
-    needs: [distribution, application, postgres-19]
+    needs: [distribution, application]
     runs-on: ubuntu-24.04
     steps:
-      - name: Require distribution, application and PostgreSQL 19 checks
+      - name: Require distribution and application checks
         env:
           DISTRIBUTION_RESULT: ${{ needs.distribution.result }}
           APPLICATION_RESULT: ${{ needs.application.result }}
-          POSTGRES_19_RESULT: ${{ needs.postgres-19.result }}
-        run: |
-          test "$DISTRIBUTION_RESULT" = success && test "$APPLICATION_RESULT" = success \
-            && test "$POSTGRES_19_RESULT" = success
+        run: test "$DISTRIBUTION_RESULT" = success && test "$APPLICATION_RESULT" = success

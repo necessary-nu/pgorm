@@ -130,7 +130,7 @@
     },
     {
       "id": "postgres-releases",
-      "title": "PostgreSQL 18 and 19",
+      "title": "PostgreSQL 19",
       "file": "26-postgres-releases.md"
     },
     {

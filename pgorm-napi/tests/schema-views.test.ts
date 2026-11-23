@@ -83,7 +83,7 @@ async function names(relation: string): Promise<string[]> {
   return (await pool().query(`SELECT name FROM ${relation} ORDER BY id`)).map((row) => String(row.name));
 }
 
-// [spec:pgorm:req:bindings.schema-views+2/test]
+// [spec:pgorm:req:bindings.schema-views+3/test]
 test("a view over a select reads the rows it shows, and a write through it reaches the table", async () => {
   const view = createView(app("active_account"), activeAccounts());
   assert.deepStrictEqual(view.inspect(), {
@@ -116,7 +116,7 @@ test("a view over a select reads the rows it shows, and a write through it reach
   );
 });
 
-// [spec:pgorm:req:bindings.schema-views+2/test]
+// [spec:pgorm:req:bindings.schema-views+3/test]
 test("a check option refuses a row the view hides, and a view that cannot be updated takes none", async () => {
   await pool().execute(createView(app("checked_account"), activeAccounts()).checkOption("cascaded"));
   await pool().execute("INSERT INTO app.checked_account (name) VALUES ('ok')");
@@ -130,7 +130,7 @@ test("a check option refuses a row the view hides, and a view that cannot be upd
   );
 });
 
-// [spec:pgorm:req:bindings.schema-views+2/test]
+// [spec:pgorm:req:bindings.schema-views+3/test]
 test("a recursive view reads itself by the columns it names", async () => {
   const counting = select(bind(new Value(1, "i32")).as("n"))
     .unionAll(select(col("n").add(1)).from(new Table("counter")).where(col("n").lt(4)));
@@ -141,7 +141,7 @@ test("a recursive view reads itself by the columns it names", async () => {
   assert.deepStrictEqual(rows.map((row) => row.n), [1, 2, 3, 4]);
 });
 
-// [spec:pgorm:req:bindings.schema-views+2/test]
+// [spec:pgorm:req:bindings.schema-views+3/test]
 test("a materialized view holds its rows until refreshed, concurrently once it has a unique index", async () => {
   const total = app("account_total");
   await pool().execute(createMaterializedView(total, activeAccounts()).columns(["account_id"]).withNoData());
@@ -166,7 +166,7 @@ test("a materialized view holds its rows until refreshed, concurrently once it h
   assert.equal(left.c, 0);
 });
 
-// [spec:pgorm:req:bindings.schema-views+2/test]
+// [spec:pgorm:req:bindings.schema-views+3/test]
 test("CREATE TABLE AS WITH NO DATA makes the query's columns, and the table then takes rows", async () => {
   const copy = app("account_copy");
   await pool().execute(createTableAs(copy, activeAccounts()).columns(["account_id"]).withNoData());
@@ -191,7 +191,7 @@ test("CREATE TABLE AS WITH NO DATA makes the query's columns, and the table then
   assert.equal(left.c, 0);
 });
 
-// [spec:pgorm:req:bindings.schema-views+2/test]
+// [spec:pgorm:req:bindings.schema-views+3/test]
 test("view statements PostgreSQL cannot take are refused as they are built", () => {
   assert.throws(() => createRecursiveView("counter", [] as never, select(col("n"))), refused(/at least one column/));
   assert.throws(
@@ -213,7 +213,7 @@ test("view statements PostgreSQL cannot take are refused as they are built", () 
   );
 });
 
-// [spec:pgorm:req:bindings.schema-views+2/test]
+// [spec:pgorm:req:bindings.schema-views+3/test]
 test("a body whose tie limit or window PostgreSQL refuses is refused as each builder is called", () => {
   const step = select(col("n").add(1)).from(new Table("r")).where(col("n").lt(4));
   const builders: [string, (body: Select) => { inspect(): { sql: string } }][] = [

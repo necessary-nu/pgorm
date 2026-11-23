@@ -43,9 +43,8 @@ use Category::{ColName, Reserved, TypeFuncName};
 /// revision the root manifest names), so the list the policy reads is the one
 /// the parser-backed tests judge it by, and the test that pins it to that
 /// scanner fails when the linked parser moves to another release. The set is
-/// the same in PostgreSQL 17, 18 and 19, so an 18 build quotes exactly what
-/// 18 restricts: the five words 19 added (`ignore`, `lsn`, `repack`,
-/// `respect`, `wait`) are unreserved, as are the four 18 added (`enforced`,
+/// the same in PostgreSQL 17, 18 and 19: the five words 19 added (`ignore`,
+/// `lsn`, `repack`, `respect`, `wait`) are unreserved, as are the four 18 added (`enforced`,
 /// `objects`, `period`, `virtual`) and the `recheck` 18 dropped. PostgreSQL 16
 /// lacks the SQL/JSON words 17 added and leaves `json` unreserved, and quoting
 /// a word an older server does not reserve names the same object. A word a
@@ -338,7 +337,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:def:sql.types.type-name+10/test]    the list is the linked
+    // [spec:pgorm:def:sql.types.type-name+11/test]    the list is the linked
     // parser's, both ways: every entry scans as its category, and every
     // keyword the scanner restricts is an entry
     #[test]

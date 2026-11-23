@@ -263,7 +263,7 @@ fn written(id: i32, qty: i32, mood: Mood, codes: &[&str]) -> line::Model {
 /// entity writes, reads and filters through them — the domain over an enum
 /// compared as its enum, which is the only way PostgreSQL compares one —
 /// while each domain's check refuses what it does not hold.
-// [spec:pgorm:req:sql.ddl.domain+3/test]    an entity whose columns are domains over an
+// [spec:pgorm:req:sql.ddl.domain+4/test]    an entity whose columns are domains over an
 // integer, over an enum and an array of one creates its table with them, reads, writes and
 // filters through them, a predicate on the enum's domain comparing as the enum, and a check's
 // refusal arrives as 23514 naming the constraint
@@ -1210,7 +1210,7 @@ fn defaulted(id: i32) -> line::ActiveModel {
 /// check added at the same point holds at once. The old default is held only
 /// while the session is shown not to have re-planned ([`replanned`]): a re-plan
 /// keeps the statement and writes the new default.
-// [spec:pgorm:req:sql.ddl.domain+3/test]    an insert prepared before SET DEFAULT keeps the old
+// [spec:pgorm:req:sql.ddl.domain+4/test]    an insert prepared before SET DEFAULT keeps the old
 // default on its connection, as one statement, while the session has not re-planned, a fresh
 // connection's writes the new one, and a check added then holds at once
 #[pgorm_macros::test]
@@ -1279,7 +1279,7 @@ async fn a_prepared_insert_keeps_its_planned_default() -> Result<(), Error> {
 /// as the same statement. A session falling behind the server's shared
 /// invalidation queue is reset the same way, but only catalogue churn heavy
 /// enough to reset every other session on the server causes that.
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a reset of the session's caches, by DISCARD PLANS or a
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a reset of the session's caches, by DISCARD PLANS or a
 // schema created in its database, re-plans the kept insert under its name with the new default
 #[pgorm_macros::test]
 async fn a_reset_replans_the_kept_insert() -> Result<(), Error> {
@@ -1345,7 +1345,7 @@ async fn prepared_insert(db: &impl ConnectionTrait) -> Result<Option<String>, Er
 // [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    idle and checked-out connections that
 // prepared an insert before SET DEFAULT write the new default once next lent, their old statement
 // deallocated on the server, while a connection still checked out keeps it
-// [spec:pgorm:req:sql.ddl.domain+3/test]    the clear is the remedy for a planned default
+// [spec:pgorm:req:sql.ddl.domain+4/test]    the clear is the remedy for a planned default
 #[pgorm_macros::test]
 async fn a_cleared_pool_writes_the_new_default() -> Result<(), Error> {
     let ctx = TestContext::new("domain_default_cleared").await;
@@ -1406,7 +1406,7 @@ async fn a_cleared_pool_writes_the_new_default() -> Result<(), Error> {
 /// with: a default fills an insert that leaves the column out, `NOT NULL` is
 /// refused over a null and then holds, and a named check is added, renamed and
 /// dropped; a domain is renamed with the column still typed by it.
-// [spec:pgorm:req:sql.ddl.domain+3/test]    each alter action changes the domain: a default and
+// [spec:pgorm:req:sql.ddl.domain+4/test]    each alter action changes the domain: a default and
 // its drop, NOT NULL refused over a null (23502) and then held, a check added, renamed and
 // dropped, a rename of the domain; and a missing constraint (42704) or a taken name (42710)
 // refused
@@ -1518,7 +1518,7 @@ async fn each_alter_action_changes_the_domain() -> Result<(), Error> {
 /// A check added over values that fail it is refused; added `NOT VALID`, it
 /// leaves them and holds every value written after it, and validating it is
 /// refused until the failing value is gone.
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a check over failing values is refused (23514);
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a check over failing values is refused (23514);
 // NOT VALID leaves them, holds new values, and VALIDATE CONSTRAINT is refused (23514) until
 // they are gone
 #[pgorm_macros::test]
@@ -1583,7 +1583,7 @@ async fn a_not_valid_check_leaves_old_values() -> Result<(), Error> {
 /// unsaid, until it cascades and takes the column; several domains drop in
 /// one statement, and a missing one is refused unless the drop says `IF
 /// EXISTS`.
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a drop of a domain a column is typed with is refused
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a drop of a domain a column is typed with is refused
 // under RESTRICT, said or unsaid (2BP01), until CASCADE drops the column; several drop at once,
 // and a missing domain is 42704 unless IF EXISTS
 #[pgorm_macros::test]
@@ -1640,7 +1640,7 @@ async fn a_drop_is_refused_while_typed_with() -> Result<(), Error> {
 /// already has, two constraints of one name, a subquery in a check or a
 /// default, a collation on a type without one, and a default its base cannot
 /// hold.
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a taken name (42710), a constraint named twice (42710),
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a taken name (42710), a constraint named twice (42710),
 // a subquery in a check or a default (0A000), a COLLATE on integer (42804) and a default its base
 // cannot read (22P02) are the server's refusals
 #[pgorm_macros::test]
@@ -1700,7 +1700,7 @@ async fn the_server_refuses_what_no_builder_sees() -> Result<(), Error> {
 }
 
 /// A domain is created inside a transaction, and a rollback takes it away.
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a domain created in a transaction is gone when the
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a domain created in a transaction is gone when the
 // transaction rolls back
 #[pgorm_macros::test]
 async fn a_domain_rolls_back_with_its_transaction() -> Result<(), Error> {

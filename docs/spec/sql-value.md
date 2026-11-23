@@ -574,7 +574,7 @@ including panic semantics and quirks inherited from sea-query.
 > its programs bind, inline and decode intervals through both bindings and
 > compare them field by field, and its replay encodes the same triple.
 
-> [spec:pgorm:sem:sql.value.interval-text+1]
+> [spec:pgorm:sem:sql.value.interval-text+2]
 > `Display` for `Interval` writes the text PostgreSQL's interval input reads
 > back as the same triple: `infinity` and `-infinity` for the two infinite
 > triples, `+0 days` when every field is zero, and otherwise each nonzero
@@ -585,7 +585,7 @@ including panic semantics and quirks inherited from sea-query.
 > signed too, so `-1 days 2 hours` would be read as `-1 days -2 hours`. The
 > microseconds are an integer, so no field passes through a fraction the
 > server would round, and the infinities are the words PostgreSQL's own
-> output uses for them. On 18 the all-maximum and all-minimum triples spelled
+> output uses for them. On 19 the all-maximum and all-minimum triples spelled
 > as fields also read back as the infinities, but the words do not depend on
 > that.
 >
@@ -913,7 +913,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Column type vocabulary
 
-> [spec:pgorm:def:sql.types.type-name+10]
+> [spec:pgorm:def:sql.types.type-name+11]
 > `TypeName` (`pgorm-query/src/types.rs`) is the structured spelling of a
 > type in cast or column-type position: `schema: Option<Name>`,
 > `name: Name`, `array: bool`, a private `verbatim`, and private
@@ -940,9 +940,8 @@ including panic semantics and quirks inherited from sea-query.
 > 19.0. A test pins the embedded list against that scanner in both
 > directions, and fails when the linked parser moves; the restricted set is
 > the same in PostgreSQL 17, 18 and 19 (19's five new words, `ignore`, `lsn`,
-> `repack`, `respect` and `wait`, are unreserved), so an 18 build quotes what
-> 18 restricts, and PostgreSQL 16 differs only in leaving `json`
-> unrestricted. A restricted keyword written bare is not a
+> `repack`, `respect` and `wait`, are unreserved), and PostgreSQL 16 differs
+> only in leaving `json` unrestricted. A restricted keyword written bare is not a
 > name. In a type position `select` is a syntax error, and in a function
 > position the shape of the statement changes: `not(1)` is a boolean NOT,
 > `row(1)` a row constructor, `distinct(1)` first in a projection a

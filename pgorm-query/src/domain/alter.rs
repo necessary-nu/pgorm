@@ -9,7 +9,7 @@ use crate::{
 use super::DomainCheck;
 
 /// What an `ALTER DOMAIN` does: one action, the grammar taking no list.
-// [spec:pgorm:req:sql.ddl.domain+3]
+// [spec:pgorm:req:sql.ddl.domain+4]
 #[derive(Debug, Clone)]
 pub(crate) enum DomainAlterAction {
     SetDefault(SimpleExpr),
@@ -42,7 +42,7 @@ pub(crate) enum DomainAlterAction {
 /// nor the statement offers one; a missing domain is `42704`. Two forms are
 /// not built: `SET SCHEMA`, which the builder has for no table, sequence or
 /// type either, and `OWNER TO`, which names a role.
-// [spec:pgorm:req:sql.ddl.domain+3]
+// [spec:pgorm:req:sql.ddl.domain+4]
 #[derive(Debug, Clone)]
 pub struct PendingDomainAlter {
     name: TypeRef,
@@ -162,7 +162,7 @@ impl PendingDomainAlter {
 ///     r#"ALTER DOMAIN "billing"."quantity" VALIDATE CONSTRAINT "small""#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.domain+3]
+// [spec:pgorm:req:sql.ddl.domain+4]
 #[derive(Debug, Clone)]
 pub struct DomainAlterStatement {
     pub(crate) name: TypeRef,

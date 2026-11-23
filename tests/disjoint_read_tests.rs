@@ -7,7 +7,7 @@
 //! not write reported rather than read or dropped.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54329" cargo nextest run --test disjoint_read_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test disjoint_read_tests`
 
 pub mod common;
 pub use common::{TestContext, setup::*};

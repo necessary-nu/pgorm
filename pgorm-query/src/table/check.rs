@@ -40,7 +40,7 @@ use super::Enforcement;
 ///
 /// A `CHECK` has no deferrability: PostgreSQL never defers one, `NOT ENFORCED`
 /// or not (`0A000`), so there is no method to ask for it.
-// [spec:pgorm:req:sql.ddl.enforcement]
+// [spec:pgorm:req:sql.ddl.enforcement+1]
 #[derive(Debug, Clone)]
 pub struct Check {
     pub(crate) expr: SimpleExpr,
@@ -75,8 +75,8 @@ impl Check {
     }
 
     /// Say whether the server holds rows to the constraint
-    /// (`[spec:pgorm:req:sql.ddl.enforcement]`), replacing any already set.
-    // [spec:pgorm:req:sql.ddl.enforcement]
+    /// (`[spec:pgorm:req:sql.ddl.enforcement+1]`), replacing any already set.
+    // [spec:pgorm:req:sql.ddl.enforcement+1]
     #[must_use]
     pub fn enforcement(mut self, enforcement: Enforcement) -> Self {
         self.enforcement = Some(enforcement);
@@ -119,7 +119,7 @@ impl Check {
 
 /// An expression, which is the unnamed and enforced `CHECK` over it, or a
 /// [`Check`] already built: what each position that holds a `CHECK` takes.
-// [spec:pgorm:req:sql.ddl.enforcement]
+// [spec:pgorm:req:sql.ddl.enforcement+1]
 pub trait IntoCheck {
     /// The constraint.
     fn into_check(self) -> Check;

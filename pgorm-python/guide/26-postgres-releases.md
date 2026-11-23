@@ -1,16 +1,14 @@
-# PostgreSQL 18 and 19
+# PostgreSQL 19
 
-pgorm targets PostgreSQL 18 or later, and nothing older. A wheel targets one
-major release, 18 unless it was built for 19, and the release decides two
-things: which statements the builders can make, and which answers the
-documentation and the tests expect where the two releases' servers answer
-one statement differently.
+pgorm targets PostgreSQL 19, and nothing older. No feature names a release:
+every wheel makes the statements 19 accepts, the documentation gives 19's
+answers, and pgorm's own tests run against a 19 server. An application whose
+server runs an older release moves it to 19 before it moves to this pgorm.
 
-## The default: PostgreSQL 18
+## What pgorm uses
 
-A wheel built with no feature named targets PostgreSQL 18. There is no
-feature to say so, and no build reaches back to 17. pgorm uses what 18 added
-wherever it fits. Among what this guide covers:
+pgorm uses what recent releases added wherever it fits. Among what this guide
+covers, from PostgreSQL 18:
 
 - *virtual generated columns*, computed when read rather than stored
   (`ColumnDef(...).generated(expression, "virtual")` in [Schema
@@ -55,76 +53,28 @@ entity gives. A temporal key over a
 plain column beside the range, such as `oven_id` here, needs the
 `btree_gist` extension in the database.
 
-## Asking for PostgreSQL 19
+## Coming from PostgreSQL 18
 
-The `pg-19` feature targets PostgreSQL 19. The package has one build option,
-and this is it: build the wheel with the feature named, from the repository
-root as [Getting started](01-getting-started.md) builds it:
-
-```sh
-.venv/bin/maturin build --manifest-path pgorm-python/Cargo.toml \
-  --interpreter .venv/bin/python --out dist --locked --features pg-19
-```
-
-The feature passes through: pgorm-python forwards it to pgorm, which
-forwards it to pgorm-query. An application wheel's registration crate
-([Registering Rust entities](24-registrations.md)) depends on pgorm itself,
-so it asks for 19 as a Rust crate does, with `features = ["pg-19"]` on that
-dependency.
-
-The feature only adds. What 19 alone accepts arrives behind it as new
-functions, methods and options, and nothing an 18 build has changes shape or
-meaning: a statement built the same way renders the same SQL under either
-target. That matters for an application wheel, which is one Cargo build:
-Cargo turns a feature on for every crate in a build once any one crate asks
-for it, so a crate elsewhere in the registration crate's dependencies that
-turns on `pg-19` cannot break the statements a Python program builds.
-
-`pgorm.POSTGRES_TARGET` is the release the installed build targets, 18 or 19,
-as Rust's `pgorm_query::POSTGRES_TARGET` is, and `pgorm.capabilities()` lists
-the build's features, `pg-19` among them in a 19 build:
-
-```python
-import pgorm
-
-assert pgorm.POSTGRES_TARGET in (18, 19)
-assert ("pg-19" in pgorm.capabilities()["features"]) == (pgorm.POSTGRES_TARGET == 19)
-
-# In a program that relies on 19:
-# if pgorm.POSTGRES_TARGET < 19:
-#     raise RuntimeError("install a pgorm wheel built with its pg-19 feature")
-```
-
-Here Python differs from Rust, where a program can refuse to compile without
-19. A Python program has no compile step, so it reads the constant when it
-starts.
-
-## Where the two releases answer differently
-
-Some statements both releases accept, but answer differently. A builder
-records only what the statement says, not what the server holds, so pgorm
-renders the statement the same way for both. Three differences exist today,
-and a Python program sees each as a different result or a different
-`DatabaseError`:
+Some statements 18 and 19 both accept, but answer differently. A builder
+records only what the statement says, not what the server holds, so the
+statement renders as it did, and the server's answer is 19's, which a Python
+program sees as a result or a `DatabaseError`:
 
 - `ALTER CONSTRAINT .. ENFORCED` and `NOT ENFORCED`
   (`alter_table(table).alter_constraint(name, "enforced")`) reach a `CHECK`
-  constraint from 19, and only a foreign key on 18, which refuses a `CHECK`
-  with SQLSTATE `42809`;
+  constraint as they reach a foreign key, `ENFORCED` checking the rows already
+  there, where 18 refused a `CHECK` with SQLSTATE `42809`;
 - `SET EXPRESSION` (`alter_table(table).set_expression(column, expression)`)
-  on a virtual generated column that a `CHECK` reads is refused on 18, with
-  SQLSTATE `0A000`, and accepted on 19;
-- `JSON_ARRAY` over a query of no rows (`json_array_query`) is `NULL` on 18
-  and the empty array on 19.
-
-Code that runs against both reads the last as `None` or a list:
+  on a virtual generated column that a `CHECK` reads checks the rows against
+  the `CHECK`, where 18 refused it with SQLSTATE `0A000`;
+- `JSON_ARRAY` over a query of no rows (`json_array_query`) is the empty
+  array, where 18 answered `NULL`.
 
 ```python
 import asyncio
 import os
 from decimal import Decimal
 
-import pgorm
 from pgorm import Pool, json_array_query, select
 
 from bakery import Cake
@@ -135,33 +85,24 @@ async def main() -> None:
         # The names of the cakes over 10.00: there are none.
         dear = select(Cake.col("name")).from_(Cake.table).where(Cake.col("price") > Decimal("10.00"))
         row = await pool.one(select(json_array_query(dear).as_("names")))
-
-        if pgorm.POSTGRES_TARGET == 19:
-            assert row["names"] == []
-        else:
-            assert row["names"] is None
+        assert row["names"] == []
 
 
 asyncio.run(main())
 ```
 
-pgorm's tests hold the answer of the release a build targets, so the
-default wheel's tests run against a PostgreSQL 18 server, and a `pg-19`
-wheel's against 19.
-
 ## The grammar is PostgreSQL 19's
 
 Every SQL parse pgorm makes uses one parser, pgsql-syntax, a Rust port of
-PostgreSQL 19's own scanner and parser, in every wheel, whichever release it
-targets. `sql()` and `prql()` ([Raw SQL](10-raw-sql.md)) check text with it,
-through the code Rust's `sql!` and `prql!` run; `pgorm.codegen.models_from_sql`
+PostgreSQL 19's own scanner and parser. `sql()` and `prql()`
+([Raw SQL](10-raw-sql.md)) check text with it, through the code Rust's `sql!`
+and `prql!` run; `pgorm.codegen.models_from_sql`
 ([Generating entities](23-codegen.md)) reads DDL with it; the pipeline reads
 the SQL it compiled with its lexer, to match the parameters it binds to the
 placeholders that remain; and the paginator's reading of raw SQL and query
 fingerprints in [Metrics](21-metrics.md) parse with it, as a registration
 crate's `sql!` and `prql!` do. A check of text is a check against 19's
-grammar, so syntax only 19 parses passes it in a wheel that targets 18 too,
-and is an 18 server's to refuse when it runs:
+grammar, so what 19 added passes it:
 
 ```python
 from pgorm import sql
@@ -172,13 +113,10 @@ upsert = "INSERT INTO cake (id) VALUES (1) ON CONFLICT (id) DO SELECT RETURNING 
 assert sql(upsert) == upsert
 ```
 
-No builder makes syntax only 19 parses in an 18 wheel: what 19 alone accepts
-arrives behind `pg-19`.
-
-19's grammar also refuses a little that 18's parses. It makes `ignore` and
+19's grammar also refuses a little that 18's parsed. It makes `ignore` and
 `respect` keywords that a column label needs `AS` before, so a bare
-`SELECT 1 ignore`, which an 18 server runs, is refused in every wheel;
-`SELECT 1 AS ignore` parses under both. pgorm writes `AS` before every column
-label it renders, so no statement a builder makes is affected. The five
-keywords 19 adds, `ignore`, `lsn`, `repack`, `respect` and `wait`, are all
-unreserved, so pgorm quotes the same identifiers for either release.
+`SELECT 1 ignore`, which an 18 server ran, is refused; `SELECT 1 AS ignore`
+parses. pgorm writes `AS` before every column label it renders, so no
+statement a builder makes is affected. The five keywords 19 adds, `ignore`,
+`lsn`, `repack`, `respect` and `wait`, are all unreserved, so pgorm quotes the
+identifiers it quoted before.

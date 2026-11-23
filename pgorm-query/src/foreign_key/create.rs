@@ -100,7 +100,7 @@ use crate::{
 ///     r#"ALTER TABLE "character" ADD CONSTRAINT "FK_character_id" FOREIGN KEY ("id") REFERENCES "character" ("id") ON DELETE CASCADE ON UPDATE CASCADE"#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.foreign-key+10]
+// [spec:pgorm:req:sql.ddl.foreign-key+11]
 #[derive(Debug, Clone)]
 pub struct ForeignKeyCreateStatement {
     pub(crate) foreign_key: TableForeignKey,
@@ -143,7 +143,7 @@ impl ForeignKeyCreateStatement {
 
     /// Match `column` to `ref_column` as periods, closing both column lists
     /// with `PERIOD`: PostgreSQL 18's temporal foreign key
-    /// (`[spec:pgorm:req:sql.ddl.foreign-key+10]`). A later call replaces the
+    /// (`[spec:pgorm:req:sql.ddl.foreign-key+11]`). A later call replaces the
     /// pair.
     ///
     /// The other pairs still match by equality, and the referencing row's
@@ -186,11 +186,11 @@ impl ForeignKeyCreateStatement {
     /// );
     /// ```
     ///
-    /// PostgreSQL 18 runs a temporal key's referential action as `NO ACTION`
+    /// PostgreSQL 19 runs a temporal key's referential action as `NO ACTION`
     /// only, and refuses any other [`ForeignKeyAction`] on it, `ON DELETE` or
     /// `ON UPDATE` (`0A000`); deferrability and
     /// [`enforcement`](Self::enforcement) it takes as a plain key does.
-    // [spec:pgorm:req:sql.ddl.foreign-key+10]
+    // [spec:pgorm:req:sql.ddl.foreign-key+11]
     pub fn period<C, S>(&mut self, column: C, ref_column: S) -> &mut Self
     where
         C: IntoName,
@@ -240,7 +240,7 @@ impl ForeignKeyCreateStatement {
     }
 
     /// Say whether the server holds rows to this key: `NOT ENFORCED` records
-    /// it and checks nothing (`[spec:pgorm:req:sql.ddl.enforcement]`).
+    /// it and checks nothing (`[spec:pgorm:req:sql.ddl.enforcement+1]`).
     ///
     /// # Examples
     ///
@@ -263,7 +263,7 @@ impl ForeignKeyCreateStatement {
     ///     .join(" ")
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.enforcement]
+    // [spec:pgorm:req:sql.ddl.enforcement+1]
     pub fn enforcement(&mut self, enforcement: Enforcement) -> &mut Self {
         self.foreign_key.enforcement(enforcement);
         self

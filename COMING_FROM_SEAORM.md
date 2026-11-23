@@ -2,7 +2,7 @@
 
 pgorm began as a fork of SeaORM 1.0. It keeps SeaORM's shape — entities,
 models, active models, relations, the query builder — but runs on PostgreSQL
-only, and many names have changed or gone. This guide maps each removed or
+only, 19 and nothing older, and many names have changed or gone. This guide maps each removed or
 renamed SeaORM API to what replaces it in pgorm, and says why where the
 reason is not obvious.
 
@@ -1397,7 +1397,7 @@ for file in output.files {
 ```
 
 The schema is read with PostgreSQL's own parser, so it is read as
-PostgreSQL 18 reads it. Enums are told apart by schema as well as name.
+PostgreSQL 19 reads it. Enums are told apart by schema as well as name.
 The files say only what the derives would not
 ([What the derives write](#what-the-derives-write)): a `Related` impl only
 for a path through a junction, and an enum's `enum_name` and `string_value`

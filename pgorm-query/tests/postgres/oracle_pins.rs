@@ -14,7 +14,7 @@ use pgorm_query::extension::{Extension, Type};
 // Fixed by plan node `bug.oracle-findings`: the frame renderer writes a space
 // between the bound value and the keyword, so the offset reads as an offset
 // rather than as trailing junk after a numeric literal.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.render.window+8/test]
 #[test]
 fn window_frame_offset_renders_spaced() {
@@ -38,7 +38,7 @@ fn window_frame_offset_renders_spaced() {
 // `OVER` after, so a windowed column reference no longer typechecks. The
 // rejection it used to be pinned to is proved by the `compile_fail` doctest on
 // `SelectStatement::expr_window`.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:def:sql.ast.window-statement+8/test]
 // [spec:pgorm:req:sql.render.window+8/test]
 #[test]
@@ -62,7 +62,7 @@ fn over_attaches_only_to_function_calls() {
 // no PostgreSQL spelling, and `TableCreateStatement` carries no options for them
 // to come from: nothing but the caller's own `extra` string can follow the
 // closing parenthesis. Deletion-proof, so there is no rejection left to pin.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
 #[test]
 fn create_table_renders_no_trailing_options() {
@@ -81,7 +81,7 @@ fn create_table_renders_no_trailing_options() {
 // pin held — a target with no action, an empty `DO UPDATE SET`, and a filter on
 // `DO NOTHING` — no longer typecheck; the `compile_fail` doctests on
 // `OnConflict` prove it. What remains is the shapes the grammar does accept.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.render.on-conflict+2/test]
 #[test]
 fn on_conflict_renders_only_valid_shapes() {
@@ -132,7 +132,7 @@ fn on_conflict_renders_only_valid_shapes() {
 // the `compile_fail` doctests on `UpdateStatement` and `DeleteStatement` prove
 // it — leaving the shape the grammar does accept, with the ordering and the
 // limit where they belong: the SELECT that chooses the rows.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.render.update-delete+3/test]
 // [spec:pgorm:req:sql.ast.update+5/test]
 // [spec:pgorm:def:sql.ast.delete+4/test]
@@ -172,7 +172,7 @@ fn writes_take_order_and_limit_by_subquery() {
 // [dec:pgorm:invalid-states-unrepresentable]: the constraint travels inside
 // `JoinKind`, so a cross join carries none to render and `JoinType` no longer
 // spells one.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.render.joins+2/test]
 // [spec:pgorm:req:sql.ast.select.join+1/test]
 #[test]
@@ -191,8 +191,8 @@ fn cross_join_renders_without_on_clause() {
 // [dec:pgorm:invalid-states-unrepresentable]: PostgreSQL admits RENAME only as
 // the sole action of an ALTER TABLE, so a column rename is a statement of its
 // own and cannot be listed beside an ADD COLUMN.
-// [spec:pgorm:req:sql.render.oracle+5/test]
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]
 #[test]
 fn column_rename_is_its_own_statement() {
     let added = Table::alter(Font::Table)
@@ -213,7 +213,7 @@ fn column_rename_is_its_own_statement() {
 // [dec:pgorm:invalid-states-unrepresentable]: the target is a `Name` rather
 // than a `TableName`, so the qualified form a rename cannot honour — the table
 // stays in the schema it is already in — no longer typechecks.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.drop-rename-truncate+4/test]
 #[test]
 fn table_rename_target_is_bare_name() {
@@ -230,7 +230,7 @@ fn table_rename_target_is_bare_name() {
 // Fixed by plan node `bug.oracle-findings`: the `RENAME TO` target is a type
 // name, not an enum label, so it leaves the value pipeline and renders as the
 // quoted identifier the grammar wants.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.type-alter-drop+7/test]
 #[test]
 fn alter_type_rename_emits_identifier() {
@@ -246,7 +246,7 @@ fn alter_type_rename_emits_identifier() {
 // [dec:pgorm:invalid-states-unrepresentable]: PostgreSQL takes a precision only
 // where the trailing field is SECOND, so the precision rides on the
 // second-bearing fields and `interval HOUR(43)` has no spelling to render.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:def:sql.render.ddl.types+8/test]
 // [spec:pgorm:def:sql.types.column-type+11/test]
 #[test]
@@ -270,7 +270,7 @@ fn interval_precision_rides_on_seconds() {
 // Fixed by plan node `bug.oracle-findings`, at the type level per
 // [dec:pgorm:invalid-states-unrepresentable]: PostgreSQL takes at most one drop
 // behaviour, so the two spellings share one slot and the later call wins.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.extension+5/test]
 #[test]
 fn extension_drop_takes_one_behaviour() {
@@ -289,9 +289,9 @@ fn extension_drop_takes_one_behaviour() {
 // `ColumnDef::extra` stays raw by design — it is the escape hatch for column SQL
 // the type vocabulary cannot spell, documented as caller responsibility by
 // `sql.ddl.column-def`, so it keeps its pin.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:sem:sql.render.ddl.extension+3/test]
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 #[test]
 fn oracle_pins_extra_interpolated_raw() {
     let version = Extension::create(Name::runtime("ltree"))
@@ -317,7 +317,7 @@ fn oracle_pins_extra_interpolated_raw() {
 // [dec:pgorm:invalid-states-unrepresentable]: `NullAlias` existed only as a
 // placeholder inside `ColumnDef::take`, which now clones the name, so the empty
 // identifier PostgreSQL rejects has no constructor left.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.render.ident-quoting+7/test]
 // [spec:pgorm:def:sql.ast.keywords+6/test]
 #[test]
@@ -337,7 +337,7 @@ fn alias_identifiers_are_never_empty() {
 // [dec:pgorm:invalid-states-unrepresentable]: ESCAPE left the operator lexicon
 // for `SimpleExpr::LikePattern`, the one place the grammar admits it, so it can
 // no longer be applied to two arbitrary operands.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:def:sql.render.operators+8/test]
 // [spec:pgorm:def:sql.types.opers+6/test]
 #[test]
@@ -360,7 +360,7 @@ fn escape_renders_only_inside_like() {
 // inference specification — which parse analysis rejects with "requires
 // inference specification or constraint name" — is gone with `OnConflict`'s
 // targeted variant.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 #[test]
 fn oracle_records_parse_valid_defects() {
     let empty_select_list = Query::select().from(Glyph::Table).to_string();
@@ -379,8 +379,8 @@ fn oracle_records_parse_valid_defects() {
 // `Index::create` takes the first column. The `No alter option found` panic went
 // with the state it guarded — the strings below have no builder left to produce
 // them.
-// [spec:pgorm:req:sql.render.oracle+5/test]
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]
 // [spec:pgorm:req:sql.ddl.index-create+11/test]
 // [spec:pgorm:sem:sql.ddl.panics+4/test]
 #[test]
@@ -405,7 +405,7 @@ fn empty_ddl_collections_do_not_construct() {
 // rather than designed out: `CREATE TABLE t ()` is valid PostgreSQL — a table
 // with no attributes is a real table — so a column-less create statement stays
 // buildable and is documented by `sql.ddl.create-table` instead.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
 #[test]
 fn create_table_with_no_columns_is_valid() {
@@ -420,13 +420,13 @@ fn create_table_with_no_columns_is_valid() {
 // names a target takes that target in its constructor, so the absent name
 // PostgreSQL rejects at the token after it has nowhere to come from. The
 // `compile_fail` doctests on each statement type prove the constructors refuse.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
 // [spec:pgorm:req:sql.ddl.index-create+11/test]
 // [spec:pgorm:req:sql.ddl.index-drop+3/test]
 // [spec:pgorm:req:sql.ddl.drop-rename-truncate+4/test]
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]
-// [spec:pgorm:req:sql.ddl.foreign-key+10/test]
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]
+// [spec:pgorm:req:sql.ddl.foreign-key+11/test]
 #[test]
 fn ddl_targets_are_taken_by_construction() {
     let rendered = [
@@ -462,7 +462,7 @@ fn ddl_targets_are_taken_by_construction() {
 // required: an index name is derived by the server when `CREATE INDEX` omits it,
 // and `DROP INDEX` names a schema-scoped index rather than a table, so both stay
 // optional where the rest of the family moved into the constructor.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.index-create+11/test]
 // [spec:pgorm:req:sql.ddl.index-drop+3/test]
 #[test]
@@ -484,8 +484,8 @@ fn index_name_and_drop_table_stay_optional() {
 // restamped onto the table it sits inside, as an embedded index is. The
 // `compile_fail` doctests on `ForeignKeyCreateStatement` prove the constructor
 // refuses the half-named key.
-// [spec:pgorm:req:sql.render.oracle+5/test]
-// [spec:pgorm:req:sql.ddl.foreign-key+10/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
+// [spec:pgorm:req:sql.ddl.foreign-key+11/test]
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
 #[test]
 fn foreign_keys_name_two_tables_and_a_pair() {
@@ -541,7 +541,7 @@ fn foreign_keys_name_two_tables_and_a_pair() {
 // turns into a statement — so the nameless renders, the empty `DROP TYPE` list
 // and the option-less `ALTER TYPE` PostgreSQL rejects have nowhere to come
 // from. The `compile_fail` doctests on each statement type prove it.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.type-enum+7/test]
 // [spec:pgorm:req:sql.ddl.type-alter-drop+7/test]
 // [spec:pgorm:req:sql.ddl.extension+5/test]
@@ -575,7 +575,7 @@ fn type_and_extension_names_are_taken() {
 // `CREATE TYPE "t"` a real shell type. It was the missing parentheses, not the
 // missing values, that PostgreSQL rejected, so the list is always parenthesised
 // once the type is an enum and both accepted shapes stay buildable.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ddl.type-enum+7/test]
 #[test]
 fn empty_enum_and_shell_type_are_valid() {
@@ -596,7 +596,7 @@ fn empty_enum_and_shell_type_are_valid() {
 // it: PostgreSQL rejects the bare projection at the quantifier itself. Nothing
 // to fix — the comparison is the whole construct — so this pin records the
 // boundary that `eq_any` / `ne_all` keep callers on the right side of.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.ast.expr.eq-any+2/test]
 #[test]
 fn quantifiers_are_valid_only_after_a_comparison() {
@@ -628,7 +628,7 @@ fn quantifiers_are_valid_only_after_a_comparison() {
 // form's `Expr::case_of` yields a `CaseOperand` that converts into nothing
 // until its first `when`. The armless `(CASE ELSE 'x' END)` this was pinned to
 // is proved unbuildable by the `compile_fail` doctests on `CaseStatement`.
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:def:sql.ast.case+3/test]
 #[test]
 fn a_case_needs_at_least_one_arm() {

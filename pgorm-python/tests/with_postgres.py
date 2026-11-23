@@ -13,7 +13,7 @@ import tempfile
 import time
 import uuid
 
-IMAGE = "postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c"
+IMAGE = "postgres:19.0-bookworm@sha256:f4859caf96de494e38efa69ed703b08a5bbd9605e152e604f2daec8841c87c41"
 
 # How long the server may take to accept connections, and then to turn TLS on.
 # A ready server ends the wait at once; a heavily loaded machine can take
@@ -57,8 +57,8 @@ def certificates(root):
 
 
 def enable_tls(name, root):
-    # The image's data directory depends on its release (18 keeps it under
-    # /var/lib/postgresql/18/docker), so ask the server where it is.
+    # The image's data directory depends on its release (19 keeps it under
+    # /var/lib/postgresql/19/docker), so ask the server where it is.
     data = run("docker", "exec", name, "psql", "-At", "-U", "postgres", "-d", "pgorm_python",
                "-c", "SHOW data_directory")
     for filename in ("server.crt", "server.key", "ca.pem"):

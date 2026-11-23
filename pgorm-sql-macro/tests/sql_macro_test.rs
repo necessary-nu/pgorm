@@ -2,7 +2,7 @@
 
 use pgorm_sql_macro::sql;
 
-// [spec:pgorm:def:macros.sql+7/test]    the expansion is the literal, in const position
+// [spec:pgorm:def:macros.sql+8/test]    the expansion is the literal, in const position
 #[test]
 fn expansion_is_the_literal_unchanged() {
     const QUERY: &str = sql!("SELECT id, name FROM cake WHERE id = $1");
@@ -14,8 +14,8 @@ fn expansion_is_the_literal_unchanged() {
     );
 }
 
-// [spec:pgorm:req:sql.target+3/test]    the grammar is PostgreSQL 19's in
-// every build, so what only 19 parses compiles
+// [spec:pgorm:req:sql.target+4/test]    the grammar is PostgreSQL 19's, so
+// what 19 added compiles
 #[test]
 fn nineteen_only_syntax_compiles() {
     const DO_SELECT: &str =
@@ -26,7 +26,7 @@ fn nineteen_only_syntax_compiles() {
     assert_eq!(REPACK, "REPACK cake USING INDEX cake_pkey");
 }
 
-// [spec:pgorm:def:macros.sql+7/test]    a `&'static str`, so it outlives any frame
+// [spec:pgorm:def:macros.sql+8/test]    a `&'static str`, so it outlives any frame
 #[test]
 fn expansion_is_a_static_str() {
     fn keep(query: &'static str) -> &'static str {
@@ -75,8 +75,8 @@ fn misapplied_type_modifiers_pass() {
     );
 }
 
-// [spec:pgorm:def:macros.sql+7/test]    the grammar is PostgreSQL 18's: statements
-// only 18 parses compile, where PostgreSQL 17's grammar refused every one
+// [spec:pgorm:def:macros.sql+8/test]    what PostgreSQL 18's grammar added
+// compiles under 19's, where PostgreSQL 17's grammar refused every one
 #[test]
 fn postgres_18_grammar_is_accepted() {
     assert_eq!(

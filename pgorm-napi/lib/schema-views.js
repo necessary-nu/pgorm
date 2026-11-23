@@ -4,7 +4,7 @@
 // and drops a materialized view takes, and CREATE TABLE AS. Each body is a
 // Select, written with its values as pgorm-query's escaped literals: a
 // definition is stored as SQL text and binds nothing.
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 
 import { arg, TRUSTED } from "./builder.js";
 import { native } from "./operations.js";

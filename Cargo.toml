@@ -15,7 +15,7 @@ keywords = ["async", "orm", "postgres"]
 rust-version = "1.89"
 
 [package.metadata.docs.rs]
-features = ["default", "postgres-array", "tests-cfg", "metrics-fingerprint", "pg-19"]
+features = ["default", "postgres-array", "tests-cfg", "metrics-fingerprint"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
@@ -64,7 +64,7 @@ rust_decimal = { version = "1.43", features = ["db-tokio-postgres"], default-fea
 # statements with it, `metrics-fingerprint` hashes with it, COPY's guard scans
 # with it, and the `sql!` / `prql!` macros, codegen's DDL path and the render
 # and identifier oracles all parse with it, so every one of them speaks the one
-# grammar it carries, in every build. pgsql-syntax ports pg_query.rs 18.1.0's
+# grammar it carries. pgsql-syntax ports pg_query.rs 18.1.0's
 # API (parse, deparse, normalize, fingerprint, scan) to pgsql-parser, a Rust
 # port of PostgreSQL 19.0's scanner and parser built from the release's own
 # Bison tables, so nothing here compiles C or runs bindgen.
@@ -169,11 +169,6 @@ macros = ["pgorm-macros/derive"]
 # that want query identities in their metrics pay for it. The parser itself is
 # linked either way (see `pgsql-syntax` above).
 metrics-fingerprint = []
-# Target PostgreSQL 19 instead of 18, the floor and the default
-# ([spec:pgorm:req:sql.target+3]). The typed surface is pgorm-query's, so this
-# forwards to it; the live suite then holds 19's answers where the two
-# releases' servers differ, and DATABASE_URL has to name a 19 server.
-pg-19 = ["pgorm-query/pg-19"]
 # A Model deriving `Serialize` / `Deserialize` (`from_json`, codegen's
 # `with_serde`) needs each field's type to serialize: the temporal, uuid and
 # numeric payloads do through their crates' `serde` features, and

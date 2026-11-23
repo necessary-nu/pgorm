@@ -655,7 +655,7 @@ fn views(table: &TableName) -> error::Result<BTreeMap<&'static str, String>> {
 // [spec:pgorm:req:bindings.schema-tables/test]
 // [spec:pgorm:req:bindings.collations/test]    a column's collation, qualified or bare and a
 // later call replacing an earlier, renders as the Rust builder renders it in each position
-// [spec:pgorm:req:bindings.schema-views+2/test]    every view, materialized view and CREATE TABLE AS
+// [spec:pgorm:req:bindings.schema-views+3/test]    every view, materialized view and CREATE TABLE AS
 // option renders as the Rust builder renders it
 // [spec:pgorm:req:bindings.schema-schemas/test]    every schema create, drop and rename renders as
 // the Rust builder renders it
@@ -690,7 +690,7 @@ fn ddl_matches_native_rust() -> Result<(), Box<dyn std::error::Error>> {
     })
 }
 
-// [spec:pgorm:req:bindings.schema-views+2/test]    each view builder refuses an unordered tie limit
+// [spec:pgorm:req:bindings.schema-views+3/test]    each view builder refuses an unordered tie limit
 // and an undeclared window with the error Rust's own checks give
 #[test]
 fn view_bodies_refused_as_rust_refuses() -> Result<(), Box<dyn std::error::Error>> {

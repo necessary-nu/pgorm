@@ -60,7 +60,7 @@ guide says what the exports are for and how they fit together.
 | 24. [Registered Rust entities](24-registered-entities.md) | *JavaScript only.* Use a Rust application's entities, hooks included, from JavaScript. |
 | 25. [Generating registrations](25-generating-registrations.md) | *JavaScript only.* Build an application's module and its TypeScript declarations. |
 | 26. [TypeScript](26-typescript.md) | *JavaScript only.* How the declarations type records, writes and keys, and what they refuse. |
-| 27. [PostgreSQL 18 and 19](27-postgres-releases.md) | The PostgreSQL release the package targets. |
+| 27. [PostgreSQL 19](27-postgres-releases.md) | The one release pgorm targets, and its grammar. |
 | 28. [Python and JavaScript](28-bindings.md) | How this package relates to pgorm and to its Python binding. |
 
 [DISTRIBUTION.md](../DISTRIBUTION.md) covers the npm packages themselves:

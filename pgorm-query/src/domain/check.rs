@@ -20,7 +20,7 @@ impl Expr {
     ///     r#"CREATE DOMAIN "percent" AS smallint CHECK (VALUE BETWEEN 0 AND 100)"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.domain+3]
+    // [spec:pgorm:req:sql.ddl.domain+4]
     pub fn domain_value() -> Expr {
         Expr::expr(SimpleExpr::Keyword(Keyword::Value))
     }
@@ -50,7 +50,7 @@ impl Expr {
 ///     r#"ALTER DOMAIN "quantity" ADD CONSTRAINT "small" CHECK (VALUE < 1000) NOT VALID"#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.domain+3]
+// [spec:pgorm:req:sql.ddl.domain+4]
 #[derive(Debug, Clone)]
 pub struct DomainCheck {
     pub(crate) expr: SimpleExpr,
@@ -104,7 +104,7 @@ impl DomainCheck {
 
 /// An expression, which is the unnamed `CHECK` over it, or a [`DomainCheck`]
 /// already built: what each position that holds a domain's `CHECK` takes.
-// [spec:pgorm:req:sql.ddl.domain+3]
+// [spec:pgorm:req:sql.ddl.domain+4]
 pub trait IntoDomainCheck {
     /// The constraint.
     fn into_domain_check(self) -> DomainCheck;

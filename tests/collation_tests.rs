@@ -94,7 +94,7 @@ fn word() -> Expr {
 // [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: ORDER BY sorts by the
 // collation its key names
 // [spec:pgorm:req:sql.render.collate+2/test]
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn the_same_values_sort_by_the_collation_named(
     db: &DatabaseConnection,
     linguistic: &str,
@@ -135,7 +135,7 @@ async fn the_same_values_sort_by_the_collation_named(
 /// server cannot create one, and says so.
 // [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: equality answers by a
 // nondeterministic collation
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn a_nondeterministic_collation_equates_distinct_bytes(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -176,10 +176,10 @@ async fn a_nondeterministic_collation_equates_distinct_bytes(
 /// the query, beside a column declared with a linguistic collation that holds
 /// the same values; retyping the second through `ALTER TABLE` moves it to
 /// `"C"` as well.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]    against a live server: a column compares by the
+// [spec:pgorm:req:sql.ddl.column-def+14/test]    against a live server: a column compares by the
 // collation it was declared with
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    the retype carries the collation
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    the retype carries the collation
+// [spec:pgorm:req:sql.scope+24/test]
 async fn a_collated_column_compares_by_its_collation(
     db: &DatabaseConnection,
     linguistic: &str,
@@ -244,7 +244,7 @@ async fn a_collated_column_compares_by_its_collation(
 /// `"C"`, as an unquoted `C` would not be either.
 // [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: an unknown collation is
 // refused, and the name is matched case-sensitively
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn an_unknown_collation_is_refused(db: &DatabaseConnection) -> Result<(), Error> {
     for name in ["no_such_collation", "c"] {
         let query = Query::select()

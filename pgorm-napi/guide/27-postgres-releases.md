@@ -1,16 +1,25 @@
-# PostgreSQL 18 and 19
+# PostgreSQL 19
 
-pgorm targets PostgreSQL 18 or later, and nothing older. A Rust build targets
-one major release, 18 unless it asks for 19, and the release decides two
-things: which statements the builders can make, and which answers the
-documentation and the tests expect where the two releases' servers answer one
-statement differently. This chapter is the JavaScript dialect of the [Rust
-guide's chapter](../../docs/guide/23-postgres-releases.md) of the same name.
+pgorm targets PostgreSQL 19, and nothing older. No feature names a release:
+every addon makes the statements 19 accepts, the documentation gives 19's
+answers, and pgorm's own tests run against a 19 server. An application whose
+server runs an older release moves it to 19 before it moves to this pgorm.
+This chapter is the JavaScript dialect of the [Rust guide's
+chapter](../../docs/guide/23-postgres-releases.md) of the same name.
 
-## The default: PostgreSQL 18
+The module reports the pgorm release it is built from as `version`:
 
-The JavaScript package targets PostgreSQL 18, and no build of it reaches back
-to 17. It uses what 18 added wherever it fits. Among what this guide covers:
+```ts
+import assert from "node:assert/strict";
+import { version } from "@necessary/pgorm";
+
+assert.match(version, /^\d+\.\d+\.\d+/);
+```
+
+## What pgorm uses
+
+pgorm uses what recent releases added wherever it fits. Among what this guide
+covers, from PostgreSQL 18:
 
 - *virtual generated columns*, computed when read rather than stored
   (`generated(expression, "virtual")` on a `ColumnDef`, and
@@ -60,83 +69,42 @@ assert.equal(booked.cakes, 36);
 await assert.rejects(pool.one(book, [1, at("07:00"), at("09:00"), 2]), ExclusionViolationError);
 ```
 
-## Asking for PostgreSQL 19
+## Coming from PostgreSQL 18
 
-The `pg-19` feature targets PostgreSQL 19. The `pgorm-napi` crate carries it
-and forwards it to pgorm, as pgorm forwards it to pgorm-query, so an addon
-built with it targets 19. Build one from the repository root as [Getting
-started](01-getting-started.md) builds the addon, naming the feature:
-
-```sh
-node pgorm-napi/scripts/build.mjs --features pg-19
-```
-
-The feature only adds: what 19 alone accepts arrives behind it as new
-functions, methods and options, and nothing an 18 build has changes shape or
-meaning, so a statement built the same way renders the same SQL under either
-target. An application's own addon ([Registering Rust
-entities](24-registered-entities.md)) depends on pgorm-napi, and asks for 19
-with `features = ["pg-19"]` on that dependency.
-
-`POSTGRES_TARGET` is the release the loaded build targets, 18 or 19, as Rust's
-`pgorm_query::POSTGRES_TARGET` is. Here JavaScript differs from Rust, where a
-program can refuse to compile without 19: a JavaScript program reads the
-constant when it starts. The module also reports the pgorm release it is
-built from, `version`:
-
-```ts
-import assert from "node:assert/strict";
-import { POSTGRES_TARGET, version } from "@necessary/pgorm";
-
-assert.ok(POSTGRES_TARGET === 18 || POSTGRES_TARGET === 19);
-assert.match(version, /^\d+\.\d+\.\d+/);
-
-// In a program that relies on 19:
-// if (POSTGRES_TARGET < 19) throw new Error("load a pgorm addon built with its pg-19 feature");
-```
-
-## Where the two releases answer differently
-
-Some statements both releases accept, but answer differently. A builder value
-records only what the statement says, not what the server holds, so pgorm
-renders the statement the same way for both. Three differences exist today:
+Some statements 18 and 19 both accept, but answer differently. A builder value
+records only what the statement says, not what the server holds, so the
+statement renders as it did, and the server's answer is 19's:
 
 - `ALTER CONSTRAINT .. ENFORCED` and `NOT ENFORCED` reach a `CHECK` constraint
-  from 19, and only a foreign key on 18;
-- `SET EXPRESSION` on a virtual generated column that a `CHECK` reads is
-  refused on 18 and accepted on 19;
-- `JSON_ARRAY` over a query of no rows is `NULL` on 18 and the empty array on
-  19.
-
-Code that runs against both reads the last as `null` or an array. pgorm's
-tests hold the answer of the release a build targets, so a default addon's
-run against PostgreSQL 18, where it is `null`, and a `pg-19` addon's against
-19:
+  as they reach a foreign key, `ENFORCED` checking the rows already there;
+- `SET EXPRESSION` on a virtual generated column that a `CHECK` reads checks
+  the rows against the `CHECK`, where 18 refused it;
+- `JSON_ARRAY` over a query of no rows is the empty array, where 18 answered
+  `null`.
 
 ```ts
 import assert from "node:assert/strict";
-import { jsonArrayQuery, POSTGRES_TARGET, select, Table } from "@necessary/pgorm";
+import { jsonArrayQuery, select, Table } from "@necessary/pgorm";
 
 // The names of the cakes over 10.00: there are none.
 const cake = new Table("cake");
 const dear = select(cake.col("name")).from(cake).where(cake.col("price").gt(10));
 const { names } = await pool.one(select(jsonArrayQuery(dear).as("names")));
 
-assert.deepEqual(names, POSTGRES_TARGET === 18 ? null : []);
+assert.deepEqual(names, []);
 ```
 
 ## The grammar is PostgreSQL 19's
 
 Every SQL parse pgorm makes uses one parser, pgsql-syntax, a Rust port of
-PostgreSQL 19's own scanner and parser, in every build, whichever release it
-targets. `sql()` and `prql()` ([Raw SQL](10-raw-sql.md)) check text with it,
-through the code Rust's `sql!` and `prql!` run; `modelsFromSql` ([Generating
-entities](23-codegen.md)) reads DDL with it; and the pipeline's reading of
-the SQL it compiled, the paginator's reading of raw SQL and query fingerprints
-in [Metrics](21-metrics.md) use it, as an application addon's `sql!` and
-`prql!` do. A check of text is a check against 19's grammar, so syntax only
-19 parses passes it in an addon that targets 18 too, and is an 18 server's to
-refuse when it runs:
+PostgreSQL 19's own scanner and parser. `sql()` and `prql()`
+([Raw SQL](10-raw-sql.md)) check text with it, through the code Rust's `sql!`
+and `prql!` run; `modelsFromSql` ([Generating entities](23-codegen.md)) reads
+DDL with it; and the pipeline's reading of the SQL it compiled, the
+paginator's reading of raw SQL and query fingerprints in
+[Metrics](21-metrics.md) use it, as an application addon's `sql!` and `prql!`
+do. A check of text is a check against 19's grammar, so what 19 added passes
+it:
 
 ```ts
 import assert from "node:assert/strict";
@@ -148,14 +116,10 @@ const upsert = "INSERT INTO cake (id) VALUES (1) ON CONFLICT (id) DO SELECT RETU
 assert.equal(sql(upsert), upsert);
 ```
 
-The statements JavaScript's builders render are pgorm-query's, so no builder
-makes syntax only 19 parses in an 18 addon: what 19 alone accepts arrives
-behind `pg-19`.
-
-19's grammar also refuses a little that 18's parses. It makes `ignore` and
+19's grammar also refuses a little that 18's parsed. It makes `ignore` and
 `respect` keywords that a column label needs `AS` before, so a bare
-`SELECT 1 ignore`, which an 18 server runs, is refused in every build;
-`SELECT 1 AS ignore` parses under both. pgorm writes `AS` before every column
-label it renders, so no statement a builder makes is affected. The five
-keywords 19 adds, `ignore`, `lsn`, `repack`, `respect` and `wait`, are all
-unreserved, so pgorm quotes the same identifiers for either release.
+`SELECT 1 ignore`, which an 18 server ran, is refused; `SELECT 1 AS ignore`
+parses. pgorm writes `AS` before every column label it renders, so no
+statement a builder makes is affected. The five keywords 19 adds, `ignore`,
+`lsn`, `repack`, `respect` and `wait`, are all unreserved, so pgorm quotes the
+identifiers it quoted before.

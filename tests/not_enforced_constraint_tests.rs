@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
-//! PostgreSQL 18's `NOT ENFORCED` foreign keys and `CHECK` constraints
-//! against a live server.
+//! `NOT ENFORCED` foreign keys and `CHECK` constraints, PostgreSQL 18's
+//! addition, against a live server.
 //!
 //! The render tests in pgorm-query settle that each spelling parses. What only
 //! a server settles is what the clause means — a constraint recorded in
@@ -64,7 +64,7 @@ async fn parent(db: &DatabaseConnection) -> Result<(), Error> {
 /// through every row that breaks it; an explicit `ENFORCED` is the default.
 /// A foreign key that is not enforced has no referential triggers, so its
 /// `ON DELETE` action never fires either.
-// [spec:pgorm:req:sql.ddl.enforcement/test]    NOT ENFORCED is recorded and not
+// [spec:pgorm:req:sql.ddl.enforcement+1/test]    NOT ENFORCED is recorded and not
 // checked, at column and table level, and ENFORCED is the default
 #[pgorm_macros::test]
 async fn not_enforced_constraints_hold_no_row() -> Result<(), Error> {
@@ -138,9 +138,9 @@ async fn not_enforced_constraints_hold_no_row() -> Result<(), Error> {
 /// while it was not enforced, refusing the statement while one breaks it, and
 /// `NOT ENFORCED` leaves it unchecked and not valid again. A constraint added
 /// `NOT ENFORCED` to a table already holding rows that break it is accepted.
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    a foreign key and a CHECK are
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    a foreign key and a CHECK are
 // added NOT ENFORCED, and ALTER CONSTRAINT moves the foreign key between the two
-// [spec:pgorm:req:sql.ddl.enforcement/test]    ENFORCED validates as it goes, and
+// [spec:pgorm:req:sql.ddl.enforcement+1/test]    ENFORCED validates as it goes, and
 // NOT ENFORCED clears validity
 #[pgorm_macros::test]
 async fn alter_constraint_enforces_a_foreign_key() -> Result<(), Error> {
@@ -215,18 +215,15 @@ async fn alter_constraint_enforces_a_foreign_key() -> Result<(), Error> {
     Ok(())
 }
 
-/// On PostgreSQL 19 `ALTER CONSTRAINT` moves a `CHECK` between enforced and
-/// not, as it moves a foreign key; 18 refuses a `CHECK`'s (`42809`), which
-/// `enforcement_refusals_by_sqlstate` holds in the default build.
-/// `ENFORCED` checks the rows already there, refusing the statement while one
-/// breaks the condition (`23514`), and the constraint is valid once they
-/// pass; `NOT ENFORCED` leaves it unchecked and not valid again.
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    ENFORCED and NOT ENFORCED apply
-// to a CHECK as to a foreign key, from PostgreSQL 19
-// [spec:pgorm:req:sql.ddl.enforcement/test]    ALTER CONSTRAINT moves a CHECK
-// between the two on 19, ENFORCED checking the rows as it goes
-// [spec:pgorm:req:sql.target+3/test]    19's answer, built and run under pg-19 alone
-#[cfg(feature = "pg-19")]
+/// `ALTER CONSTRAINT` moves a `CHECK` between enforced and not, as it moves a
+/// foreign key. `ENFORCED` checks the rows already there, refusing the
+/// statement while one breaks the condition (`23514`), and the constraint is
+/// valid once they pass; `NOT ENFORCED` leaves it unchecked and not valid
+/// again.
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    ENFORCED and NOT ENFORCED apply
+// to a CHECK as to a foreign key
+// [spec:pgorm:req:sql.ddl.enforcement+1/test]    ALTER CONSTRAINT moves a CHECK
+// between the two, ENFORCED checking the rows as it goes
 #[pgorm_macros::test]
 async fn alter_constraint_enforces_a_check() -> Result<(), Error> {
     let ctx = TestContext::new("not_enforced_alter_check").await;
@@ -281,14 +278,12 @@ async fn alter_constraint_enforces_a_check() -> Result<(), Error> {
 }
 
 /// What the server refuses around enforcement, by SQLSTATE: altering a key's
-/// enforcement, or on PostgreSQL 18 a `CHECK`'s (19 takes it:
-/// `alter_constraint_enforces_a_check`), validating a constraint that is not
-/// enforced, and deferring a `CHECK` whether or not it is enforced. A foreign
-/// key that is not enforced may still be deferrable.
-// [spec:pgorm:req:sql.ddl.enforcement/test]    the refusals around NOT ENFORCED,
+/// enforcement (a `CHECK`'s it takes: `alter_constraint_enforces_a_check`),
+/// validating a constraint that is not enforced, and deferring a `CHECK`
+/// whether or not it is enforced. A foreign key that is not enforced may still
+/// be deferrable.
+// [spec:pgorm:req:sql.ddl.enforcement+1/test]    the refusals around NOT ENFORCED,
 // and a NOT ENFORCED foreign key taking deferrability
-// [spec:pgorm:req:sql.target+3/test]    18's refusal of a CHECK's enforcement,
-// held in the default build only
 #[pgorm_macros::test]
 async fn enforcement_refusals_by_sqlstate() -> Result<(), Error> {
     let ctx = TestContext::new("not_enforced_refusals").await;
@@ -334,12 +329,6 @@ async fn enforcement_refusals_by_sqlstate() -> Result<(), Error> {
         refused_with(&error, state);
     };
     for change in [ConstraintChange::Enforced, ConstraintChange::NotEnforced] {
-        #[cfg(not(feature = "pg-19"))]
-        refused(
-            alter().alter_constraint(n("positive"), change).to_string(),
-            &SqlState::WRONG_OBJECT_TYPE,
-        )
-        .await;
         refused(
             Table::alter(n("parent"))
                 .alter_constraint(n("parent_pkey"), change)

@@ -22,7 +22,7 @@ def assemble(profile, plan, items, **overrides):
     arguments = {
         "identity": {"profile": profile.identity(), "class_claims": profiles.claims()},
         "postgres": {
-            "image": "postgres:18.6-bookworm",
+            "image": "postgres:19.0-bookworm",
             "settings": {"timezone": "UTC"},
         },
         "coverage": {
@@ -89,7 +89,7 @@ class ReportShapeTest(unittest.TestCase):
     def test_the_report_records_identity_and_seeds(self):
         self.assertEqual(self.document["profile"]["name"], "smoke")
         self.assertEqual(self.document["seeds"]["items"], [20260913])
-        self.assertEqual(self.document["postgres"]["image"], "postgres:18.6-bookworm")
+        self.assertEqual(self.document["postgres"]["image"], "postgres:19.0-bookworm")
         self.assertIn("construction", self.document["class_claims"])
 
     # [spec:pgorm:req:generative.artifacts/test]

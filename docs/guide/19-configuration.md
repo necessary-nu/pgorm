@@ -170,7 +170,7 @@ returns a [`HookError`](crate::HookError) refuses the connection, and the
 use pgorm::{ConnectionTrait, Error, Hook, HookError, PoolError, connect_with_builder};
 
 /// A hook refusing a connection to a server older than `minimum`, a
-/// `server_version_num` such as 180000 for PostgreSQL 18.
+/// `server_version_num` such as 190000 for PostgreSQL 19.
 fn requiring(minimum: i32) -> Hook {
     Hook::async_fn(move |client, _| {
         Box::pin(async move {
@@ -189,7 +189,7 @@ fn requiring(minimum: i32) -> Hook {
     })
 }
 
-let pool = connect_with_builder(config.clone(), |builder| builder.post_create(requiring(180000)))?;
+let pool = connect_with_builder(config.clone(), |builder| builder.post_create(requiring(190000)))?;
 let db = pool.get().await?;
 assert_eq!(db.query_one("SELECT 1", &[]).await?.get::<_, i32>(0), 1);
 

@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
 //! The write terminals that read a written row's two versions, against a
-//! live PostgreSQL 18 server: an update's row before and after it, and an
+//! live PostgreSQL 19 server: an update's row before and after it, and an
 //! upsert's answer to whether it inserted each row or updated the one there.
 //!
 //! Each case holds the versions a terminal returns to the rows the table held

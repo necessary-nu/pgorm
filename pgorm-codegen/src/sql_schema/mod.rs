@@ -64,7 +64,7 @@ type Declared = BTreeMap<TypeIdentity, DeclaredType>;
 /// `ALTER TABLE`s add, indexes and comments are folded into the table they
 /// describe, so the returned statements stand alone.
 // [spec:pgorm:def:codegen.ddl+5]
-// [spec:pgorm:req:codegen.ddl.unsupported+22]
+// [spec:pgorm:req:codegen.ddl.unsupported+23]
 pub fn parse_schema(sql: &str) -> Result<Vec<TableCreateStatement>, Error> {
     let parsed = pgsql_syntax::parse(sql, pgsql_syntax::ParserOptions::DEFAULT)
         .map_err(|err| Error::TransformError(format!("schema SQL did not parse: {err}")))?;
@@ -85,13 +85,13 @@ pub fn entities_from_sql(sql: &str, options: EntityWriterOptions) -> Result<Writ
 }
 
 /// A construct the bridge does not carry into the entity model.
-// [spec:pgorm:req:codegen.ddl.unsupported+22]
+// [spec:pgorm:req:codegen.ddl.unsupported+23]
 fn unsupported(what: impl Display, at: usize) -> Error {
     Error::TransformError(format!("unsupported DDL: {what} at statement {at}"))
 }
 
 /// A construct the bridge understands but cannot resolve in this schema.
-// [spec:pgorm:req:codegen.ddl.unsupported+22]
+// [spec:pgorm:req:codegen.ddl.unsupported+23]
 fn unresolved(problem: impl Display, at: usize) -> Error {
     Error::TransformError(format!("statement {at}: {problem}"))
 }
@@ -114,8 +114,8 @@ struct Collected<'a> {
 /// of one schema as the server does (`42P06`) unless it says `IF NOT EXISTS`.
 /// A qualified name is not held to the schemas the file creates: `public`
 /// exists unasked, and a dump of some schemas names others it never creates.
-// [spec:pgorm:req:codegen.ddl.unsupported+22]
-// [spec:pgorm:sem:codegen.ddl.objects+12]
+// [spec:pgorm:req:codegen.ddl.unsupported+23]
+// [spec:pgorm:sem:codegen.ddl.objects+13]
 fn collect(parsed: &pgsql_syntax::protobuf::ParseResult) -> Result<Collected<'_>, Error> {
     let mut collected = Collected::default();
     let mut schemas = BTreeSet::new();
@@ -174,7 +174,7 @@ fn collect(parsed: &pgsql_syntax::protobuf::ParseResult) -> Result<Collected<'_>
 
 /// Record a type the file declares, refusing a second declaration of one
 /// identity — whichever kinds the two are.
-// [spec:pgorm:sem:codegen.ddl.objects+12]
+// [spec:pgorm:sem:codegen.ddl.objects+13]
 fn declare(
     declared: &mut Declared,
     identity: TypeIdentity,
@@ -194,7 +194,7 @@ fn declare(
 /// Resolve the collected statements against each other: declared types into
 /// the columns naming them, what `ALTER TABLE`s add, indexes and comments into
 /// the table they describe.
-// [spec:pgorm:sem:codegen.ddl.objects+12]
+// [spec:pgorm:sem:codegen.ddl.objects+13]
 fn build(collected: Collected<'_>) -> Result<Vec<TableCreateStatement>, Error> {
     let Collected {
         declared: types,
@@ -283,7 +283,7 @@ fn build(collected: Collected<'_>) -> Result<Vec<TableCreateStatement>, Error> {
 
 /// The SQL a statement the bridge does not read was written as, named the way
 /// its author wrote it.
-// [spec:pgorm:req:codegen.ddl.unsupported+22]
+// [spec:pgorm:req:codegen.ddl.unsupported+23]
 fn statement_kind(node: &NodeEnum) -> &'static str {
     match node {
         NodeEnum::AlterSeqStmt(_) => "ALTER SEQUENCE",

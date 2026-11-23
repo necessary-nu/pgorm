@@ -7,12 +7,6 @@ from uuid import uuid4
 import pgorm as p
 from pgorm import _native, schema as s
 
-# The release the native module targets: PostgreSQL 19 when pgorm was built
-# with its pg-19 feature, 18 otherwise. Where the two servers answer a
-# statement differently, a test holds the answer of the release targeted.
-# [spec:pgorm:req:sql.target+3/test]
-PG_19 = "pg-19" in p.capabilities()["features"]
-
 
 class SchemaConstruction(unittest.TestCase):
     # [spec:pgorm:req:bindings.schema/test]
@@ -180,18 +174,12 @@ class SchemaDatabase(unittest.IsolatedAsyncioTestCase):
             derived = p.RawSQL(f'SELECT twice, next FROM {self.quoted}."items ""x"""')
             await connection.execute(s.alter_table(table).set_expression("twice", p.col("id") * 10))
             self.assertEqual(dict(await connection.one(derived)), {"twice": 10, "next": 2})
-            virtual = [s.alter_table(table).drop_expression("next", if_exists=True)]
-            if PG_19:
-                # 19 checks the rows against the table's CHECK instead of refusing.
-                await connection.execute(s.alter_table(table).set_expression("next", p.col("id") + 100))
-                self.assertEqual(dict(await connection.one(derived)), {"twice": 10, "next": 101})
-            else:
-                # 18 refuses a virtual column a new expression while its table has a CHECK.
-                virtual.insert(0, s.alter_table(table).set_expression("next", p.col("id") + 100))
-            for refused_action in virtual:
-                with self.assertRaises(p.DatabaseError) as refused_virtual:
-                    await connection.execute(refused_action)
-                self.assertEqual(refused_virtual.exception.sqlstate, "0A000")
+            # The rows are checked against the table's CHECK, which they pass.
+            await connection.execute(s.alter_table(table).set_expression("next", p.col("id") + 100))
+            self.assertEqual(dict(await connection.one(derived)), {"twice": 10, "next": 101})
+            with self.assertRaises(p.DatabaseError) as refused_virtual:
+                await connection.execute(s.alter_table(table).drop_expression("next", if_exists=True))
+            self.assertEqual(refused_virtual.exception.sqlstate, "0A000")
             await connection.execute(s.alter_table(table).drop_expression("twice"))
             await connection.execute(s.alter_table(table).drop_expression("twice", if_exists=True))
             with self.assertRaises(p.DatabaseError) as plain:
@@ -350,11 +338,11 @@ class SchemaDatabase(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.DatabaseError) as orphan:
                 await connection.execute(s.alter_table(table).alter_constraint("parent_key", "enforced"))
             self.assertEqual(orphan.exception.sqlstate, "23503")
-            # 19 enforces a CHECK as it does a foreign key, and the row already
-            # there breaks it; 18 cannot alter a CHECK's enforcement.
+            # A CHECK is enforced as a foreign key is, and the row already
+            # there breaks it.
             with self.assertRaises(p.DatabaseError) as check:
                 await connection.execute(s.alter_table(table).alter_constraint("positive", "enforced"))
-            self.assertEqual(check.exception.sqlstate, "23514" if PG_19 else "42809")
+            self.assertEqual(check.exception.sqlstate, "23514")
             rows = [dict(row) for row in await connection.query(catalog)]
             self.assertEqual(rows, [
                 {"name": "negative parent", "enforced": False, "valid": False},

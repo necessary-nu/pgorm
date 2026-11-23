@@ -10,7 +10,7 @@ error: Missing attribute 'to_period'
 17 | |         Filling,
    | |_______________^
 
-error: a PERIOD foreign key takes no referential action but `ForeignKeyAction::NoAction`; PostgreSQL 18 refuses the rest
+error: a PERIOD foreign key takes no referential action but `ForeignKeyAction::NoAction`; PostgreSQL refuses the rest
   --> tests/compile-fail/relation_period.rs:35:25
    |
 35 |             on_delete = ForeignKeyAction::Cascade

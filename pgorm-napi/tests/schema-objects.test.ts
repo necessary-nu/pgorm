@@ -24,7 +24,6 @@ import {
   dropSequence,
   dropType,
   Pool,
-  POSTGRES_TARGET,
   renameSequence,
   Table,
   TypeName,
@@ -223,17 +222,13 @@ test("an identity column's sequence takes the options a sequence does", async ()
 });
 
 // [spec:pgorm:req:bindings.schema-sequences/test]
-// [spec:pgorm:req:sql.target+3/test]    btree_gist 1.7 on 18, and on 19, which ships
-// 1.9 alone, the refusal of 1.7
 test("an extension is created in the schema and at the version asked, and dropped", async () => {
-  let version = "1.7";
-  if (POSTGRES_TARGET === 19) {
-    await assert.rejects(
-      pool().execute(createExtension("btree_gist", { schema: "app", version: "1.7" })),
-      rejectedWith("22023"),
-    );
-    version = "1.9";
-  }
+  // 19 ships btree_gist 1.9 alone, so 1.7 has no installation script.
+  await assert.rejects(
+    pool().execute(createExtension("btree_gist", { schema: "app", version: "1.7" })),
+    rejectedWith("22023"),
+  );
+  const version = "1.9";
   await pool().execute(createExtension("btree_gist", { schema: "app", version }));
   await pool().execute(createExtension("btree_gist", { ifNotExists: true }));
   const installed = await pool().one(

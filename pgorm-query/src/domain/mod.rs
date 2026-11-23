@@ -20,7 +20,7 @@ pub(crate) use alter::DomainAlterAction;
 /// `(schema, name)` pair, each part a quoted identifier
 /// ([`IntoTypeRef`]). A column of one is a
 /// [`ColumnType::Domain`](crate::ColumnType::Domain).
-// [spec:pgorm:req:sql.ddl.domain+3]
+// [spec:pgorm:req:sql.ddl.domain+4]
 #[derive(Debug, Clone, Copy)]
 pub struct Domain;
 
@@ -114,7 +114,7 @@ impl Domain {
 ///     .join(" ")
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.domain+3]
+// [spec:pgorm:req:sql.ddl.domain+4]
 #[derive(Debug, Clone)]
 pub struct DomainCreateStatement {
     pub(crate) name: TypeRef,
@@ -210,7 +210,7 @@ impl DomainCreateStatement {
 ///     r#"DROP DOMAIN IF EXISTS "quantity", "billing"."amount" CASCADE"#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.domain+3]
+// [spec:pgorm:req:sql.ddl.domain+4]
 #[derive(Debug, Clone)]
 pub struct DomainDropStatement {
     pub(crate) first: TypeRef,

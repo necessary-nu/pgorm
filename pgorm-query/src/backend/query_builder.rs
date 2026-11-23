@@ -71,7 +71,7 @@ macro_rules! truncate_to_microsecond {
 }
 
 // [spec:pgorm:def:sql.render+1]
-// [spec:pgorm:req:sql.render.oracle+5] (the renderer whose every output the oracle in
+// [spec:pgorm:req:sql.render.oracle+6] (the renderer whose every output the oracle in
 // pgorm-query/tests/postgres/oracle.rs holds to PostgreSQL 19's grammar)
 #[derive(Debug, Clone, Copy)]
 pub struct QueryBuilder;
@@ -1098,7 +1098,7 @@ impl QueryBuilder {
             Keyword::CurrentDate => write!(sql, "CURRENT_DATE").unwrap(),
             Keyword::CurrentTime => write!(sql, "CURRENT_TIME").unwrap(),
             Keyword::CurrentTimestamp => write!(sql, "CURRENT_TIMESTAMP").unwrap(),
-            // [spec:pgorm:req:sql.ddl.domain+3]
+            // [spec:pgorm:req:sql.ddl.domain+4]
             Keyword::Value => write!(sql, "VALUE").unwrap(),
         }
     }
@@ -1209,7 +1209,7 @@ impl QueryBuilder {
             // Cast, unlike the temporal literals: an untyped string is `text`
             // wherever no column types it, and an array of them is a `text[]`
             // no `interval[]` column takes.
-            // [spec:pgorm:sem:sql.value.interval-text+1]
+            // [spec:pgorm:sem:sql.value.interval-text+2]
             Value::Interval(Some(v)) => {
                 self.write_string_quoted(&v.to_string(), &mut s);
                 write!(s, "::interval").unwrap()
@@ -1383,7 +1383,7 @@ impl QueryBuilder {
     /// spells it, then every spec that has a spelling of its own. The type is
     /// a callback because `CREATE TABLE` and `ALTER TABLE ADD COLUMN` write it
     /// differently; everything around it is the same in both.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     fn prepare_column_def_parts<F>(
         &self,
         column_def: &ColumnDef,
@@ -1415,7 +1415,7 @@ impl QueryBuilder {
         });
     }
 
-    // [spec:pgorm:req:sql.ddl.column-types+8]
+    // [spec:pgorm:req:sql.ddl.column-types+9]
     // [spec:pgorm:def:sql.render.ddl.types+8]
     fn prepare_column_type(&self, column_type: &ColumnType, sql: &mut dyn SqlWriter) {
         write!(
@@ -1484,7 +1484,7 @@ impl QueryBuilder {
                 },
                 // [spec:pgorm:req:sql.render.ident-quoting+7]
                 ColumnType::Named(type_name) => type_name.to_sql_string(),
-                // [spec:pgorm:req:sql.render.ddl.enum-type+6]    the name its `CREATE TYPE` quotes
+                // [spec:pgorm:req:sql.render.ddl.enum-type+7]    the name its `CREATE TYPE` quotes
                 ColumnType::Enum { name, schema, .. }
                 | ColumnType::CreatedRange { name, schema, .. }
                 | ColumnType::CreatedMultirange { name, schema, .. }
@@ -1504,7 +1504,7 @@ impl QueryBuilder {
         .unwrap()
     }
 
-    // [spec:pgorm:req:sql.ddl.alter-table+15]
+    // [spec:pgorm:req:sql.ddl.alter-table+16]
     pub(crate) fn prepare_table_alter_statement(
         &self,
         alter: &TableAlterStatement,
@@ -1576,7 +1576,7 @@ impl QueryBuilder {
                                 column_def.name.prepare(sql.as_writer());
                                 write!(sql, " SET NOT NULL").unwrap()
                             }
-                            // [spec:pgorm:req:sql.ddl.alter-table+15]
+                            // [spec:pgorm:req:sql.ddl.alter-table+16]
                             ColumnSpec::NotNull { name, no_inherit } => {
                                 let mut constraint =
                                     NotNullConstraint::new(column_def.name.clone());
@@ -1592,7 +1592,7 @@ impl QueryBuilder {
                             }
                             // A modified column's CHECK is a constraint the
                             // table gains, which ALTER TABLE spells as an ADD.
-                            // [spec:pgorm:req:sql.ddl.alter-table+15]
+                            // [spec:pgorm:req:sql.ddl.alter-table+16]
                             ColumnSpec::Check(check) => {
                                 write!(sql, "ADD ").unwrap();
                                 self.prepare_check_constraint(check, sql);
@@ -1600,7 +1600,7 @@ impl QueryBuilder {
                             ColumnSpec::Generated { .. } => {}
                             // `ALTER TABLE` spells identity as an action on the
                             // column, not as a clause of it.
-                            // [spec:pgorm:req:sql.ddl.column-def+13]
+                            // [spec:pgorm:req:sql.ddl.column-def+14]
                             ColumnSpec::Identity(generation, options) => {
                                 write!(sql, "ALTER COLUMN ").unwrap();
                                 column_def.name.prepare(sql.as_writer());
@@ -1614,7 +1614,7 @@ impl QueryBuilder {
                         false
                     });
                 }
-                // [spec:pgorm:req:sql.ddl.alter-table+15]
+                // [spec:pgorm:req:sql.ddl.alter-table+16]
                 TableAlterOption::AlterColumnTypeUsing {
                     column,
                     column_type,
@@ -1658,7 +1658,7 @@ impl QueryBuilder {
                     );
                     self.prepare_not_valid(*not_valid, sql);
                 }
-                // [spec:pgorm:req:sql.ddl.alter-table+15]
+                // [spec:pgorm:req:sql.ddl.alter-table+16]
                 TableAlterOption::AddPrimaryKey(key) => {
                     write!(sql, "ADD ").unwrap();
                     self.prepare_table_key("PRIMARY KEY", key, sql);
@@ -1705,7 +1705,7 @@ impl QueryBuilder {
     }
 
     /// Translate [`ColumnRenameStatement`] into SQL statement.
-    // [spec:pgorm:req:sql.ddl.alter-table+15]
+    // [spec:pgorm:req:sql.ddl.alter-table+16]
     pub(crate) fn prepare_column_rename_statement(
         &self,
         rename: &ColumnRenameStatement,
@@ -1800,7 +1800,7 @@ impl QueryBuilder {
             ColumnSpec::AutoIncrement => {}
             ColumnSpec::Check(check) => self.prepare_check_constraint(check, sql),
             ColumnSpec::Generated { expr, kind } => self.prepare_generated_column(expr, *kind, sql),
-            // [spec:pgorm:req:sql.ddl.column-def+13]
+            // [spec:pgorm:req:sql.ddl.column-def+14]
             ColumnSpec::Identity(generation, options) => {
                 write!(sql, "GENERATED {} AS IDENTITY", generation.keyword()).unwrap();
                 self.prepare_identity_options(options.as_ref(), sql);
@@ -1915,7 +1915,7 @@ impl QueryBuilder {
 
     /// `[CONSTRAINT "name" ]CHECK (<expr>)[ ENFORCED | NOT ENFORCED]`, the
     /// same at column level, at table level and after `ALTER TABLE`'s `ADD`.
-    // [spec:pgorm:req:sql.ddl.enforcement]
+    // [spec:pgorm:req:sql.ddl.enforcement+1]
     pub(crate) fn prepare_check_constraint(&self, check: &Check, sql: &mut dyn SqlWriter) {
         self.prepare_constraint_name(check.name.as_ref(), sql);
         write!(sql, "CHECK (").unwrap();
@@ -2127,7 +2127,7 @@ impl QueryBuilder {
 
     // FOREIGN KEY
 
-    // [spec:pgorm:req:sql.ddl.foreign-key+10]
+    // [spec:pgorm:req:sql.ddl.foreign-key+11]
     fn prepare_foreign_key_create_statement_internal(
         &self,
         create: &ForeignKeyCreateStatement,
@@ -2158,7 +2158,7 @@ impl QueryBuilder {
             col.prepare(sql.as_writer());
             false
         });
-        // [spec:pgorm:req:sql.ddl.foreign-key+10]
+        // [spec:pgorm:req:sql.ddl.foreign-key+11]
         if let Some((period, _)) = &create.foreign_key.period {
             write!(sql, ", PERIOD ").unwrap();
             period.prepare(sql.as_writer());
@@ -2198,7 +2198,7 @@ impl QueryBuilder {
             write!(sql, "{}", deferrability.clause()).unwrap();
         }
 
-        // [spec:pgorm:req:sql.ddl.enforcement]
+        // [spec:pgorm:req:sql.ddl.enforcement+1]
         if let Some(enforcement) = create.foreign_key.enforcement {
             write!(sql, "{}", enforcement.clause()).unwrap();
         }
@@ -2336,7 +2336,7 @@ impl QueryBuilder {
         .unwrap()
     }
 
-    // [spec:pgorm:req:sql.render.ddl.enum-type+6] (ALTER TYPE label operands parameterized)
+    // [spec:pgorm:req:sql.render.ddl.enum-type+7] (ALTER TYPE label operands parameterized)
     fn prepare_alter_type_opt(&self, opt: &TypeAlterOpt, sql: &mut dyn SqlWriter) {
         match opt {
             TypeAlterOpt::Add(value, placement) => {
@@ -2371,7 +2371,7 @@ impl QueryBuilder {
     }
 
     // [spec:pgorm:req:sql.ddl.type-enum+7]
-    // [spec:pgorm:req:sql.render.ddl.enum-type+6]
+    // [spec:pgorm:req:sql.render.ddl.enum-type+7]
     pub(crate) fn prepare_type_create_statement(
         &self,
         create: &TypeCreateStatement,
