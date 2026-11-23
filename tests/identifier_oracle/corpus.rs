@@ -7,7 +7,7 @@
 //! name a careless quoting policy treats as SQL (a keyword, the empty string,
 //! a name at the identifier-length boundary).
 //!
-//! NUL is not here. No PostgreSQL identifier can hold one and libpg_query
+//! NUL is not here. No PostgreSQL identifier can hold one and the parser
 //! cannot parse a string that contains one, so its leg is judged separately,
 //! by [`NUL_NAME`], against each site's declared NUL behaviour.
 
@@ -107,7 +107,7 @@ pub fn corpus() -> Vec<Hostile> {
     ]
 }
 
-/// Every keyword the linked libpg_query scanner knows, in every category,
+/// Every keyword the linked scanner knows, in every category,
 /// for the sweep that holds `TypeName`'s part policy to the whole keyword
 /// list rather than to the corpus's handful.
 ///
@@ -116,7 +116,7 @@ pub fn corpus() -> Vec<Hostile> {
 /// lowercased and stripped of the `_P` suffix the grammar uses to dodge C
 /// names, is scanned back, and kept when the scanner reads it as a keyword.
 pub fn scanner_keywords() -> Vec<Hostile> {
-    use pg_query::protobuf::{KeywordKind, Token};
+    use pgsql_syntax::protobuf::{KeywordKind, Token};
 
     let mut words = std::collections::BTreeSet::new();
     for value in 0..4096 {
@@ -125,7 +125,7 @@ pub fn scanner_keywords() -> Vec<Hostile> {
         };
         let name = token.as_str_name().to_ascii_lowercase();
         let word = name.strip_suffix("_p").unwrap_or(&name);
-        let Ok(scanned) = pg_query::scan(word) else {
+        let Ok(scanned) = pgsql_syntax::scan(word) else {
             continue;
         };
         if let [only] = scanned.tokens.as_slice()

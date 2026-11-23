@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
-  "cargo_lock_sha256": "3cbfbe8404ce04cbb8243551b41e8778ab3b31853e751c61cab41e44473d49fe",
+  "cargo_lock_sha256": "d01dd22844618366f213cf7c5201ab861c6fe381da86748bfc52fb36b89ba530",
   "python_runtime_dependencies": [],
   "packages": [
     {
@@ -286,19 +286,6 @@
       ]
     },
     {
-      "name": "bindgen",
-      "version": "0.66.1",
-      "license": "BSD-3-Clause",
-      "repository": "https://github.com/rust-lang/rust-bindgen",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE",
-          "sha256": "c23953d9deb0a3312dbeaf6c128a657f3591acee45067612fa68405eaa4525db"
-        }
-      ]
-    },
-    {
       "name": "bitflags",
       "version": "1.3.2",
       "license": "MIT/Apache-2.0",
@@ -452,23 +439,6 @@
       ]
     },
     {
-      "name": "cexpr",
-      "version": "0.6.0",
-      "license": "Apache-2.0/MIT",
-      "repository": "https://github.com/jethrogb/rust-cexpr",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "d9771b8c6cf4426d3846de54c1febe20907f1eeadf7adfb5ade89a83bd9ea77f"
-        }
-      ]
-    },
-    {
       "name": "cfg-if",
       "version": "1.0.5",
       "license": "MIT OR Apache-2.0",
@@ -529,19 +499,6 @@
         {
           "source": "LICENSE",
           "sha256": "88f7ddf73afcffee97e0a19211ddeecd7d178ecb5c09bbfe472ce4cfcceb6269"
-        }
-      ]
-    },
-    {
-      "name": "clang-sys",
-      "version": "1.9.1",
-      "license": "Apache-2.0",
-      "repository": "https://github.com/KyleMayes/clang-sys",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE.txt",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
         }
       ]
     },
@@ -1202,7 +1159,7 @@
     },
     {
       "name": "form_urlencoded",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/servo/rust-url",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -1214,19 +1171,6 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "20c7855c364d57ea4c97889a5e8d98470a9952dade37bd9248b9a54431670e5e"
-        }
-      ]
-    },
-    {
-      "name": "fs_extra",
-      "version": "1.3.0",
-      "license": "MIT",
-      "repository": "https://github.com/webdesus/fs_extra",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE",
-          "sha256": "251ea8ccb1205ce5fa847d6e264d6b6753af62de2cecf2fd9abc0eb02c7c83fc"
         }
       ]
     },
@@ -1418,23 +1362,6 @@
       ]
     },
     {
-      "name": "glob",
-      "version": "0.3.4",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/rust-lang/glob",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
-        }
-      ]
-    },
-    {
       "name": "hashbrown",
       "version": "0.16.1",
       "license": "MIT OR Apache-2.0",
@@ -1499,23 +1426,6 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "9e0dfd2dd4173a530e238cb6adb37aa78c34c6bc7444e0e10c1ab5d8881f63ba"
-        }
-      ]
-    },
-    {
-      "name": "home",
-      "version": "0.5.12",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/rust-lang/cargo",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "8ada45cd9f843acf64e4722ae262c622a2b3b3007c7310ef36ac1061a30f6adb"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
         }
       ]
     },
@@ -1950,40 +1860,6 @@
       ]
     },
     {
-      "name": "lazy_static",
-      "version": "1.5.1",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/rust-lang-nursery/lazy-static.rs",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
-        }
-      ]
-    },
-    {
-      "name": "lazycell",
-      "version": "1.3.0",
-      "license": "MIT/Apache-2.0",
-      "repository": "https://github.com/indiv0/lazycell",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "03f6ccb4e6040abccf12b31551bbbd1800a5069a17950bbd6db850d85744800f"
-        }
-      ]
-    },
-    {
       "name": "libc",
       "version": "0.2.190",
       "license": "MIT OR Apache-2.0",
@@ -1997,19 +1873,6 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e"
-        }
-      ]
-    },
-    {
-      "name": "libloading",
-      "version": "0.8.9",
-      "license": "ISC",
-      "repository": "https://github.com/nagisa/rust_libloading/",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE",
-          "sha256": "b29f8b01452350c20dd1af16ef83b598fea3053578ccc1c7a0ef40e57be2620f"
         }
       ]
     },
@@ -2029,31 +1892,6 @@
     {
       "name": "linux-raw-sys",
       "version": "0.12.1",
-      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-      "repository": "https://github.com/sunfishcode/linux-raw-sys",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "COPYRIGHT",
-          "sha256": "3290ae0fbc9ddb77d2239121d710f0bb9d31b3b4744e6d97fe01e652b4c1870b"
-        },
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-Apache-2.0_WITH_LLVM-exception",
-          "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
-        }
-      ]
-    },
-    {
-      "name": "linux-raw-sys",
-      "version": "0.4.15",
       "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "repository": "https://github.com/sunfishcode/linux-raw-sys",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -2192,27 +2030,6 @@
       ]
     },
     {
-      "name": "minimal-lexical",
-      "version": "0.2.1",
-      "license": "MIT/Apache-2.0",
-      "repository": "https://github.com/Alexhuszagh/minimal-lexical",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
-        },
-        {
-          "source": "LICENSE.md",
-          "sha256": "dbe1fff0fb1314b6af94f161511406275cf01c5a32441fbf24528a57a051d599"
-        }
-      ]
-    },
-    {
       "name": "mio",
       "version": "1.2.4",
       "license": "MIT",
@@ -2252,19 +2069,6 @@
         {
           "source": "LICENSE",
           "sha256": "66e3ee1fa7f909ad3c612d556f2a0cdabcd809ad6e66f3b0605015ac64841b70"
-        }
-      ]
-    },
-    {
-      "name": "nom",
-      "version": "7.1.3",
-      "license": "MIT",
-      "repository": "https://github.com/Geal/nom",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE",
-          "sha256": "4dbda04344456f09a7a588140455413a9ac59b6b26a1ef7cdf9c800c012d87f0"
         }
       ]
     },
@@ -2439,23 +2243,6 @@
       ]
     },
     {
-      "name": "peeking_take_while",
-      "version": "0.1.2",
-      "license": "Apache-2.0/MIT",
-      "repository": "https://github.com/fitzgen/peeking_take_while",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0"
-        }
-      ]
-    },
-    {
       "name": "percent-encoding",
       "version": "2.3.2",
       "license": "MIT OR Apache-2.0",
@@ -2494,35 +2281,142 @@
       ]
     },
     {
-      "name": "pg_query",
-      "version": "18.0.0",
-      "license": "MIT",
-      "repository": "https://github.com/pganalyze/pg_query.rs",
-      "source": "git+https://github.com/necessary-nu/pg_query.rs.git?rev=09ebc3a4c7f50f3682e890a8372b4c4c99382ed9#09ebc3a4c7f50f3682e890a8372b4c4c99382ed9",
+      "name": "pg19-codec",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
       "notices": [
         {
-          "source": "LICENSE",
-          "sha256": "39fac7e7daa7cf3173d96f9e8a167f980b93b90386b83c342de70db3bc7bbb68"
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
         },
         {
-          "source": "libpg_query/LICENSE",
-          "sha256": "f9352c20940619a380a5e9f23cebe34d8f797cfbd747fc236a7a3e5fc8ef9b41"
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    {
+      "name": "pg19-engine",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
         },
         {
-          "source": "libpg_query/src/postgres/COPYRIGHT",
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    {
+      "name": "pg19-lexer",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
+        },
+        {
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    {
+      "name": "pg19-nodes",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "COPYRIGHT.postgresql",
           "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
         },
         {
-          "source": "libpg_query/vendor/upb/LICENSE",
-          "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
         },
         {
-          "source": "libpg_query/vendor/upb/third_party/utf8_range/LICENSE",
-          "sha256": "02de69b64fc36d9e938f418e52723e42f0b2b226d58a9cb3c8dcbdf7059f5074"
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    {
+      "name": "pg19-operations",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
         },
         {
-          "source": "libpg_query/vendor/xxhash/xxhash.h",
-          "sha256": "20bf2c9b132fe78c4256abb204159403d987af7a45345f1bdde07ecc094bed7f"
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    {
+      "name": "pg19-parser",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
+        },
+        {
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    {
+      "name": "pg19-plpgsql",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
+        },
+        {
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    {
+      "name": "pg19-tables",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
+        },
+        {
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
         }
       ]
     },
@@ -2748,6 +2642,44 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "105fba85b65585b4f8ff4d405f8cfbd297f3a4cdab21643e117bc5dc9baa9072"
+        }
+      ]
+    },
+    {
+      "name": "pgsql-parser",
+      "version": "0.1.0",
+      "license": "BSD-3-Clause AND PostgreSQL",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
+        },
+        {
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    {
+      "name": "pgsql-syntax",
+      "version": "19.0.0",
+      "license": "MIT",
+      "repository": null,
+      "source": "git+https://github.com/necessary-nu/pgsql-rs.git?rev=9f15dec2433c4139117f68392b9b3b61b154bb6b#9f15dec2433c4139117f68392b9b3b61b154bb6b",
+      "notices": [
+        {
+          "source": "LICENSE",
+          "sha256": "9d9613624b8672dce8e30fec244ab4f0a38bb3502cbbe6d2900484d51cf44aca"
+        },
+        {
+          "source": "pgsql-rs/LICENSE",
+          "sha256": "a5de6234f15c11c0e1576ec378523926fd26b1f7e13d0ff7738f25d576b6b2b7"
+        },
+        {
+          "source": "pgsql-rs/LICENSE-PostgreSQL",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
         }
       ]
     },
@@ -2991,6 +2923,19 @@
       ]
     },
     {
+      "name": "prost",
+      "version": "0.14.6",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/tokio-rs/prost",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notices": [
+        {
+          "source": "LICENSE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        }
+      ]
+    },
+    {
       "name": "prost-build",
       "version": "0.13.5",
       "license": "Apache-2.0",
@@ -3017,8 +2962,51 @@
       ]
     },
     {
+      "name": "prost-derive",
+      "version": "0.14.6",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/tokio-rs/prost",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notices": [
+        {
+          "source": "LICENSE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        }
+      ]
+    },
+    {
+      "name": "prost-reflect",
+      "version": "0.16.5",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/andrewhickman/prost-reflect",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notices": [
+        {
+          "source": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "source": "LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
       "name": "prost-types",
       "version": "0.13.5",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/tokio-rs/prost",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notices": [
+        {
+          "source": "LICENSE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        }
+      ]
+    },
+    {
+      "name": "prost-types",
+      "version": "0.14.6",
       "license": "Apache-2.0",
       "repository": "https://github.com/tokio-rs/prost",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -3521,48 +3509,6 @@
       ]
     },
     {
-      "name": "rustc-hash",
-      "version": "1.1.0",
-      "license": "Apache-2.0/MIT",
-      "repository": "https://github.com/rust-lang-nursery/rustc-hash",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
-        }
-      ]
-    },
-    {
-      "name": "rustix",
-      "version": "0.38.44",
-      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-      "repository": "https://github.com/bytecodealliance/rustix",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "COPYRIGHT",
-          "sha256": "377c2e7c53250cc5905c0b0532d35973392af16ffb9596a41d99d202cf3617c9"
-        },
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-Apache-2.0_WITH_LLVM-exception",
-          "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
-        }
-      ]
-    },
-    {
       "name": "rustix",
       "version": "1.1.5",
       "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
@@ -3920,23 +3866,6 @@
         {
           "source": "LICENSE-MIT",
           "sha256": "831e0f43ad0bf014c1c4fec5767aae470434c1d66d6e671be2d823e729063e25"
-        }
-      ]
-    },
-    {
-      "name": "shlex",
-      "version": "1.3.0",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/comex/rust-shlex",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "553fffcd9b1cb158bc3e9edc35da85ca5c3b3d7d2e61c883ebcfa8a65814b583"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "4455bf75a91154108304cb283e0fea9948c14f13e20d60887cf2552449dea3b1"
         }
       ]
     },
@@ -4840,7 +4769,7 @@
     },
     {
       "name": "url",
-      "version": "2.5.8",
+      "version": "2.5.9",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/servo/rust-url",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -5140,19 +5069,6 @@
       ]
     },
     {
-      "name": "which",
-      "version": "4.4.2",
-      "license": "MIT",
-      "repository": "https://github.com/harryfei/which-rs.git",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE.txt",
-          "sha256": "0041560f5d419c30e1594567f3b7ac2bc078ff6a68f437e0348ba85d9cf99112"
-        }
-      ]
-    },
-    {
       "name": "whoami",
       "version": "2.1.3",
       "license": "Apache-2.0 OR BSL-1.0 OR MIT",
@@ -5193,23 +5109,6 @@
     {
       "name": "windows-sys",
       "version": "0.52.0",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "license-apache-2.0",
-          "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
-        },
-        {
-          "source": "license-mit",
-          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
-        }
-      ]
-    },
-    {
-      "name": "windows-sys",
-      "version": "0.59.0",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/microsoft/windows-rs",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -5472,6 +5371,19 @@
       ]
     },
     {
+      "name": "xxhash-rust",
+      "version": "0.8.21",
+      "license": "BSL-1.0",
+      "repository": "https://github.com/DoumanAsh/xxhash-rust",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notices": [
+        {
+          "source": "LICENSE",
+          "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+        }
+      ]
+    },
+    {
       "name": "yansi",
       "version": "1.0.1",
       "license": "MIT OR Apache-2.0",
@@ -5670,33 +5582,6 @@
     }
   ],
   "bundled_native_components": [
-    {
-      "name": "libpg_query",
-      "revision": "c1546e7e97edc93fe8474d7a59881e91fbf48cfc",
-      "owner": "pg_query@18.0.0",
-      "license": "BSD-3-Clause"
-    },
-    {
-      "name": "PostgreSQL parser",
-      "version": "18.6",
-      "owner": "pg_query@18.0.0",
-      "license": "PostgreSQL"
-    },
-    {
-      "name": "upb",
-      "owner": "pg_query@18.0.0",
-      "license": "BSD-3-Clause"
-    },
-    {
-      "name": "utf8_range",
-      "owner": "pg_query@18.0.0",
-      "license": "MIT"
-    },
-    {
-      "name": "xxHash",
-      "owner": "pg_query@18.0.0",
-      "license": "BSD-2-Clause"
-    },
     {
       "name": "ring native cryptography (including BoringSSL and fiat code)",
       "owner": "ring@0.17.14",

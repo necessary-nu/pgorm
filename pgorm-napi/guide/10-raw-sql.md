@@ -287,7 +287,7 @@ assert.equal(await pool.execute(rename), 1);
 
 A typo in a SQL string shows up when the statement first runs, as the server's
 `DatabaseError` with SQLSTATE `42601`. Rust's `sql!` macro moves the check to
-compile time: it holds a string literal to PostgreSQL 18's own grammar while
+compile time: it holds a string literal to PostgreSQL 19's own grammar while
 the crate compiles, and expands to the literal unchanged. JavaScript has no
 compile step for a macro to run in, so without a check a program's SQL text
 is checked by the server, when it runs:
@@ -303,8 +303,8 @@ await assert.rejects(
 ```
 
 `sql(text)` is the check `sql!` makes, run when it is called: it holds the
-text to PostgreSQL 18's grammar with the parser pgorm links, the code `sql!`
-runs, and returns it unchanged. Called where a module defines its statements,
+text to PostgreSQL 19's grammar with the parser pgorm links, pgsql-syntax,
+the code `sql!` runs, and returns it unchanged. Called where a module defines its statements,
 it checks each once, as the module loads, rather than at its first run. SQL
 the grammar rejects is a `ConstructionError` that reprints the line with a
 caret under the token the parser stopped at; a `;`-separated script is held to

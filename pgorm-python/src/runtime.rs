@@ -221,7 +221,7 @@ impl NativePool {
     /// collector whose seven hooks `hooks` holds in `METRICS_HOOKS`' order —
     /// `None` for one never to run — each run on this pool's event loop by
     /// `dispatch`.
-    // [spec:pgorm:req:bindings.metrics]
+    // [spec:pgorm:req:bindings.metrics+2]
     fn instrumented(
         &self,
         py: Python<'_>,

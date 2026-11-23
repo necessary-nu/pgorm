@@ -162,7 +162,7 @@
 //! Everything fallible — reserved-alias screening, prqlc's resolution —
 //! surfaces as a typed [`PipelineError`] from [`Pipeline::into_sql`] or the
 //! terminal methods; nothing panics.
-// [spec:pgorm:def:pipeline.adapter+2]
+// [spec:pgorm:def:pipeline.adapter+3]
 
 mod adapter;
 mod binder;

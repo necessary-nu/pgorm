@@ -60,7 +60,7 @@ examples directly, with `PGORM_TEST_DSN` set.
 
 ## Distribution builds
 
-The distribution check requires Rust, a C compiler, libclang, CPython 3.14
+The distribution check requires Rust, a C compiler, CPython 3.14
 and `uv`. Maturin (`>=1.15,<2`) is installed into temporary PEP 517 build
 environments from the package's build requirements. It uses the committed
 Cargo lockfile and separate Cargo target directories for the standalone and
@@ -184,7 +184,7 @@ comparisons, the negative checks and the wheel's and report's hashes).
 ## Acceptance
 
 `acceptance.py` is the complete check. Run it from the repository root with
-CPython 3.14, Rust, a C compiler, libclang, OpenSSL, `uv` and the
+CPython 3.14, Rust, a C compiler, OpenSSL, `uv` and the
 repository's `nplan`, through either wrapper. Standalone builds use their own
 Cargo target directory because application extensions have a different module
 entry point, and every package is installed in a fresh environment.

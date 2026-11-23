@@ -123,7 +123,7 @@ fn within_group_accumulates_its_ordering() {
 // of those is written by a different rule, so the three composing is the whole
 // claim.
 // [spec:pgorm:req:sql.render.func-mods/test]
-// [spec:pgorm:req:sql.render.window+7/test]
+// [spec:pgorm:req:sql.render.window+8/test]
 #[test]
 fn modifiers_compose_with_each_other_and_with_over() {
     assert_eq!(

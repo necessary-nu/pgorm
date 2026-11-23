@@ -1,14 +1,14 @@
 use super::{Declared, expr, types, unresolved, unsupported};
 use crate::{Error, TableIdent, util::repeated_column};
-use pg_query::NodeEnum;
-use pg_query::protobuf::{
-    AlterTableStmt, AlterTableType, CollateClause, ColumnDef as PgColumnDef, ConstrType,
-    Constraint, CreateStmt, ObjectType, RangeVar,
-};
 use pgorm_query::{
     Check, Collation, ColumnDef, Deferrability, Enforcement, ForeignKey, ForeignKeyAction,
     ForeignKeyCreateStatement, GeneratedKind, IdentityGeneration, IntoCollation, IntoTableName,
     Name, Primary, Table, TableCreateStatement, TableKey, TableName, Unique,
+};
+use pgsql_syntax::NodeEnum;
+use pgsql_syntax::protobuf::{
+    AlterTableStmt, AlterTableType, CollateClause, ColumnDef as PgColumnDef, ConstrType,
+    Constraint, CreateStmt, ObjectType, RangeVar,
 };
 use std::collections::BTreeMap;
 
@@ -42,7 +42,7 @@ pub(super) struct Alter<'a> {
 /// elements; any other change to a table is named. `ONLY` is read as the
 /// plain form: a table the bridge reads has no child for it to exclude.
 // [spec:pgorm:sem:codegen.ddl.objects+12]
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 pub(super) fn alter(stmt: &AlterTableStmt, at: usize) -> Result<Alter<'_>, Error> {
     let statement = match ObjectType::try_from(stmt.objtype) {
         Ok(ObjectType::ObjectTable) => None,
@@ -105,7 +105,7 @@ pub(super) fn alter(stmt: &AlterTableStmt, at: usize) -> Result<Alter<'_>, Error
 }
 
 /// How an `ALTER TABLE` subcommand the bridge does not read was written.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn alter_kind(subtype: Option<AlterTableType>) -> &'static str {
     match subtype {
         Some(AlterTableType::AtDropColumn) => "ALTER TABLE ... DROP COLUMN",
@@ -318,7 +318,7 @@ pub(super) fn build(
 /// column, as a table constraint beside a column's, or twice on one column.
 /// PostgreSQL refuses every such table (42P16), and none is a composite key:
 /// that is one `PRIMARY KEY (a, b)`.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn second_primary_key(table_name: &str, at: usize) -> Error {
     unresolved(
         format!("table `{table_name}` declares more than one primary key"),
@@ -328,7 +328,7 @@ fn second_primary_key(table_name: &str, at: usize) -> Error {
 
 /// Refuse every `CREATE TABLE` feature the entity model has no place for, and
 /// hand back the table name the rest of the build hangs off.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn reject_table_features(
     stmt: &CreateStmt,
     table_name: &str,
@@ -365,7 +365,7 @@ fn reject_table_features(
     if !stmt.access_method.is_empty() {
         return Err(on("a USING access method"));
     }
-    if stmt.oncommit != pg_query::protobuf::OnCommitAction::OncommitNoop as i32 {
+    if stmt.oncommit != pgsql_syntax::protobuf::OnCommitAction::OncommitNoop as i32 {
         return Err(on("an ON COMMIT clause"));
     }
     table_target(relation, &format!("table `{table_name}`"), at)
@@ -1055,7 +1055,7 @@ fn named(created: &mut ForeignKeyCreateStatement, constraint: &Constraint) {
 }
 
 /// Constraint attributes that survive into no part of the entity model.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn reject_constraint_features(
     constraint: &Constraint,
     context: &str,
@@ -1108,7 +1108,7 @@ fn constraint_type(constraint: &Constraint, context: &str, at: usize) -> Result<
 }
 
 /// How a constraint the bridge does not carry was written.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn constraint_kind(kind: ConstrType) -> &'static str {
     match kind {
         ConstrType::ConstrCheck => "a CHECK constraint",

@@ -136,7 +136,7 @@ fn the_bridge_reads_each_interval_qualifier() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a qualifier no
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a qualifier no
 // `IntervalSpec` holds is named, as is a precision the server would quietly
 // reduce
 // [spec:pgorm:sem:codegen.ddl.types+10/test]
@@ -194,7 +194,7 @@ fn interval_columns_generate_a_compiling_entity() {
     }
 }
 
-// [spec:pgorm:def:codegen.ddl+4/test]    a table of interval columns built
+// [spec:pgorm:def:codegen.ddl+5/test]    a table of interval columns built
 // with pgorm-query and rendered generates, read back, the entity the
 // statement itself generates
 #[test]

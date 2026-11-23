@@ -904,7 +904,7 @@ known limitations.
 
 ## Compile-time SQL validation
 
-> [spec:pgorm:def:macros.sql+6]
+> [spec:pgorm:def:macros.sql+7]
 > `pgorm-sql-macro` is a proc-macro crate exporting two function-like macros for
 > callers: `sql!`, specified here, and `prql!` (`[spec:pgorm:def:macros.prql]`). A
 > third, hidden from its documentation, is the compile-time half of pgorm-migration's
@@ -912,11 +912,12 @@ known limitations.
 > crate path and holds a migration's `.sql` file to the grammar as `sql!` holds a
 > literal; nothing else is meant to call it. `sql!` takes one
 > string literal and nothing else. While the calling crate is being compiled, the
-> literal's text is handed to `pg_query::parse` — the Rust binding to libpg_query, the
-> PostgreSQL server's own parser, at the same revision the render oracle uses and for
-> the same reason (`[spec:pgorm:req:sql.render.oracle]`), so a literal is held to
-> PostgreSQL 18's grammar: a statement only 18 parses, such as a `VIRTUAL` generated
-> column, compiles. A literal the grammar
+> literal's text is parsed by pgsql-syntax — a Rust port of the PostgreSQL server's own
+> parser, at the same revision the render oracle uses and for the same reason
+> (`[spec:pgorm:req:sql.render.oracle]`) — so a literal is held to PostgreSQL 19.0's
+> grammar in every build (`[spec:pgorm:req:sql.target]`): a statement 18 introduced, such
+> as a `VIRTUAL` generated column, compiles, and so does one only 19 parses, such as
+> `REPACK`. A literal the grammar
 > accepts expands to itself, byte for byte, as a `&'static str` usable in const
 > position; there is no wrapper type, no runtime check and no allocation, so the macro
 > is invisible in the generated code.
@@ -925,7 +926,7 @@ known limitations.
 > for entity derives is the wrong place for the oracle and the PRQL compiler. The root
 > crate is a plain dependent and re-exports both as `pgorm::sql` and `pgorm::prql`,
 > unconditionally: the retired `sql-macro` feature only decided whether the name was in
-> scope — never whether anything was compiled, since `pg_query` is a plain dependency
+> scope — never whether anything was compiled, since pgsql-syntax is a plain dependency
 > of `pgorm` itself (`[spec:pgorm:sem:exec.paginator.raw]` parses raw statements at
 > runtime) and prqlc is a plain dependency by the same permanence posture
 > (`[spec:pgorm:def:pipeline.adapter]`) — and a gate that guards nothing is surface
@@ -946,7 +947,7 @@ known limitations.
 > `DecodeRaw` methods taking the pair as their receiver, its text dereferencing to
 > `SqlText`. Migration bodies are the last of them.
 
-> [spec:pgorm:req:macros.sql.reject]
+> [spec:pgorm:req:macros.sql.reject+2]
 > `sql!` MUST refuse, at compile time, both an input that is not a single string literal
 > and a literal the PostgreSQL grammar rejects. It MUST NOT panic on any input: a
 > proc-macro panic surfaces as an unattributed compiler abort rather than a diagnostic
@@ -960,17 +961,17 @@ known limitations.
 > their values supplied at the call site.
 >
 > A grammar rejection becomes `syn::Error::new(literal.span(), ..)` whose message is
-> `PostgreSQL rejected this SQL: ` followed by the parser's own diagnostic, unwrapped from
-> the `pg_query::Error` variant that would otherwise prefix it with a stage name. Input
-> the parser cannot even be handed — a literal carrying an interior NUL byte, which fails
-> the `CString` conversion — takes the same path and reports the conversion failure, so
-> no input reaches an abort.
+> `PostgreSQL rejected this SQL: ` followed by the parser's own diagnostic, taken from
+> the parse's structured error rather than from a `pgsql_syntax::Error` variant that
+> would prefix it with a stage name. Input the parser cannot even be handed — a literal
+> carrying an interior NUL byte — takes the same path and reports the conversion
+> failure, so no input reaches an abort.
 
-> [spec:pgorm:sem:macros.sql.script]
-> A literal holding a `;`-separated script is validated whole: a single `pg_query::parse`
-> call walks every statement in the string and reports the first one the grammar refuses,
-> so a well-formed opening statement does not excuse a malformed later one. No separate
-> split pass is involved — `pg_query::split_with_parser` rejects exactly what `parse`
+> [spec:pgorm:sem:macros.sql.script+2]
+> A literal holding a `;`-separated script is validated whole: a single parse walks every
+> statement in the string and reports the first one the grammar refuses, so a
+> well-formed opening statement does not excuse a malformed later one. No separate split
+> pass is involved — `pgsql_syntax::split_with_parser` rejects exactly what `parse`
 > rejects, so a split-then-parse pipeline would carry a stage that can never fire.
 >
 > A literal that yields no statements at all — empty, whitespace-only, comment-only, or a
@@ -978,11 +979,11 @@ known limitations.
 > string with an empty-query response. `sql!` reports on the grammar and nothing else, so
 > it does not add a "must contain a statement" rule of its own.
 
-> [spec:pgorm:req:macros.sql.ceiling]
+> [spec:pgorm:req:macros.sql.ceiling+2]
 > Two limits are part of the contract and MUST be stated on the macro rather than implied
 > away.
 >
-> The check is syntax only. libpg_query carries no catalog, so unknown tables, unknown
+> The check is syntax only. The parser carries no catalog, so unknown tables, unknown
 > columns and misapplied type modifiers (`money(12, 2)`) all pass — the same ceiling the
 > render oracle declares. `sql!` rules out typos in SQL, not mistakes about the schema: a
 > literal it accepts can still fail against a live server, and the integration suite
@@ -992,10 +993,9 @@ known limitations.
 > sub-literal span needs `proc_macro::Literal::subspan`, which is nightly-only —
 > `proc-macro2` compiles its call away and returns `None` on stable — so the position
 > rides in the message instead: the offending line is reprinted with a caret under the
-> column the parser named. libpg_query surfaces only the message and not a cursor offset,
-> so that column is recovered by locating the token the message quotes, using the same
-> last-occurrence heuristic as the render oracle; a message naming no token, such as
-> `syntax error at end of input`, gets no caret.
+> column the parser named. That column is the parser's own cursor, the one-based
+> character position PostgreSQL's diagnostics carry, converted to a byte offset; `syntax
+> error at end of input` points where the text ended, its trailing whitespace aside.
 
 ## Compile-time PRQL compilation
 
@@ -1004,7 +1004,7 @@ prqlc compiler and the same oracle over what it emits, but for queries known who
 compile time, where the pipeline's composability buys nothing and a literal buys
 build-time checking of the finished statement.
 
-> [spec:pgorm:def:macros.prql+2]
+> [spec:pgorm:def:macros.prql+3]
 > `prql!` takes one PRQL string literal followed by zero or more argument expressions
 > (`prql!("from invoice | filter total > $1 | take 5", min_total)`). While the calling
 > crate compiles, the literal's text is compiled by prqlc — the text path: parse,
@@ -1022,7 +1022,7 @@ build-time checking of the finished statement.
 > twice in the query is one argument, bound once, with the SQL carrying `$1` twice.
 >
 > The macro lives in `pgorm-sql-macro` beside `sql!` rather than in a third proc-macro
-> crate: both macros end at the libpg_query oracle and share its diagnostic plumbing,
+> crate: both macros end at the same grammar check and share its diagnostic plumbing,
 > and a crate split would buy a second build unit and nothing else. The compiling,
 > the oracle and the census live in `pgorm-sql-check`, the ordinary library the
 > run-time checks share (`[spec:pgorm:req:macros.runtime]`), which carries its own
@@ -1078,17 +1078,17 @@ build-time checking of the finished statement.
 > wraps them in a block so multiple `compile_error!` invocations stay legal in the
 > expression position the tuple would have occupied.
 
-> [spec:pgorm:sem:macros.prql.census]
+> [spec:pgorm:sem:macros.prql.census+2]
 > The placeholder census reads the *emitted SQL's* parse tree, not the PRQL AST: after
-> the oracle accepts the statement, the `pg_query` tree is serialized and walked whole
-> for `ParamRef` nodes, and the set of their numbers is the census. This is the only
+> the oracle accepts the statement, its tree is walked whole for `ParamRef` nodes, and
+> the set of their numbers is the census. This is the only
 > complete account of what the server will demand at prepare time — an s-string can
 > carry a raw `$N` into the SQL with no `Param` node ever existing on the PRQL side,
 > and it still costs an argument here, while `'$5'` inside a string literal is data
-> and does not. The tree is walked generically (as serialized JSON) rather than
-> through `pg_query`'s visitor, which by its own documentation covers only the node
-> types its table-extraction cares about; a placeholder must not be able to hide in a
-> clause the visitor skips.
+> and does not. The walk is pgsql-syntax's `visit`, which reaches every record of the
+> tree, embedded records and literals included, rather than its `nodes()`, which keeps
+> the narrower traversal its table-extraction needs; a placeholder must not be able to
+> hide in a clause the walk skips.
 
 > [spec:pgorm:sem:macros.prql.sstring]
 > S-strings pass through: they are PRQL's raw-SQL interpolation hole, deliberately
@@ -1099,9 +1099,9 @@ build-time checking of the finished statement.
 > SQL executes as written and one that breaks the statement is refused at build time
 > by channel (2) of `[spec:pgorm:req:macros.prql.reject]`.
 
-> [spec:pgorm:req:macros.prql.ceiling]
+> [spec:pgorm:req:macros.prql.ceiling+2]
 > The check ends where the catalog begins, and the limits MUST be stated on the macro.
-> Neither prqlc nor libpg_query knows the schema: whether `total` is a column, whether
+> Neither prqlc nor the parser knows the schema: whether `total` is a column, whether
 > `$1`'s slot accepts the value bound to it, and whether the output shape matches the
 > model that decodes it are the server's questions, answered at prepare time and by
 > `VerifyTrait::verify::<M>` (`[spec:pgorm:def:exec.verify]`) at runtime. And as with
@@ -1111,7 +1111,7 @@ build-time checking of the finished statement.
 
 ## Run-time checks
 
-> [spec:pgorm:req:macros.runtime]
+> [spec:pgorm:req:macros.runtime+2]
 > The checks `sql!` and `prql!` make MUST also be offered at run time, for text a
 > program has only once it runs and for the language bindings, which have no compile
 > step: `pgorm::sql_check`, a re-export of `pgorm-sql-check`, an ordinary library the
@@ -1119,8 +1119,8 @@ build-time checking of the finished statement.
 > refuses with the same text. `check_sql(text)` holds the text to the grammar as
 > `sql!` holds a literal, a script statement by statement
 > (`[spec:pgorm:sem:macros.sql.script]`), and refuses with a `Rejection`: the parser's
-> message, the token it quotes when it quotes one, that token's byte offset, and the
-> caret block; its `Display` is the message `sql!` reports. `compile_prql(text)`
+> message, the token it quotes when it quotes one, the byte offset of its cursor, and
+> the caret block; its `Display` is the message `sql!` reports. `compile_prql(text)`
 > compiles PRQL as `prql!` does, holds the emitted SQL to the grammar, refuses a gap and
 > `$0` (`[spec:pgorm:req:macros.prql.reject]`), and gives the SQL with the number of
 > distinct placeholders it takes; `check_arity(given)` holds a count of values to them,

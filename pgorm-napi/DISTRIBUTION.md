@@ -231,9 +231,13 @@ The packages have no JavaScript dependencies apart from the platform packages.
 including build and platform-conditional dependencies, so it covers more than
 any one addon contains, with its licence and the hashes of its notice texts.
 `notices/THIRD_PARTY_NOTICES.txt` holds those texts. Both files are copied
-into every platform package. The inventory also names the C components bundled
-through pg_query (libpg_query, PostgreSQL's parser, upb, utf8_range and xxHash)
-and ring's bundled cryptography. After a dependency update, run:
+into every platform package. The inventory also names the one native component
+compiled in, ring's bundled cryptography. PostgreSQL's parser is Rust:
+pgsql-syntax (MIT) and pgsql-parser with the `pg19-*` crates beneath them
+(BSD-3-Clause AND PostgreSQL, libpg_query's licence and the PostgreSQL
+License), ordinary packages in the inventory, each carrying the pgsql-rs
+workspace's `LICENSE` and `LICENSE-PostgreSQL` as its notices. Building the
+addon needs no LLVM, libclang or bindgen. After a dependency update, run:
 
 ```sh
 node pgorm-napi/checks/notices.js --write

@@ -183,7 +183,7 @@ class Acquisitions extends NoOpMetrics {
   }
 }
 
-// [spec:pgorm:req:bindings.metrics/test]    an instrumented pool is the pool it wraps, its configuration included, and a connection it lends discards
+// [spec:pgorm:req:bindings.metrics+2/test]    an instrumented pool is the pool it wraps, its configuration included, and a connection it lends discards
 // [spec:pgorm:req:bindings.connections+3/test]
 test("an InstrumentedPool keeps its pool's tag and hooks, and a connection it lends discards", async () => {
   let created = 0;

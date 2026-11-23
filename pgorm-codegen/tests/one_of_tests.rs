@@ -408,7 +408,7 @@ fn other_checks_are_read_and_refused() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a table-level CHECK naming a column its table lacks is refused as unresolved
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a table-level CHECK naming a column its table lacks is refused as unresolved
 #[test]
 fn a_check_on_a_missing_column_is_refused() {
     assert_eq!(

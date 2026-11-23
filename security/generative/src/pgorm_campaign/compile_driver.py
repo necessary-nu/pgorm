@@ -28,8 +28,9 @@ class DriverError(RuntimeError):
 async def build(*, root=Path("."), target=Path("target"), timeout=1800):
     """Compile the driver once, sharing the repository target directory.
 
-    A private target directory would make this a cold build of libpg_query —
-    minutes, every run, for a binary whose inputs have not changed.
+    A private target directory would make this a cold build of the parser and
+    the PRQL compiler — minutes, every run, for a binary whose inputs have not
+    changed.
     """
     root = Path(root).resolve()
     manifest = root / CRATE / "Cargo.toml"

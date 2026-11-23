@@ -9,7 +9,7 @@
 //! structurally instead. Every public API that renders a caller-supplied name
 //! into SQL text is registered (`identifier_oracle/registry*.rs`); each is
 //! rendered with every name in a hostile corpus; and each statement is parsed
-//! by libpg_query and compared, node for node, with the same statement
+//! by the parser and compared, node for node, with the same statement
 //! rendered with a benign name. A name that changed the statement's shape —
 //! closed its quote, ended the statement, opened a comment, turned into a
 //! keyword — shows up as a difference in the tree, whatever payload a scanner
@@ -37,7 +37,7 @@ use pgorm::pgorm_query::{Expr, Query};
 
 /// Every site's benign rendering parses and puts the name exactly where the
 /// registry says, and no two sites share an id.
-// [spec:pgorm:req:security.ident-oracle+17/test]
+// [spec:pgorm:req:security.ident-oracle+18/test]
 #[test]
 fn every_site_declares_where_its_name_lands() {
     let sites = sites();
@@ -68,7 +68,7 @@ fn every_site_declares_where_its_name_lands() {
 /// rejection of the empty name, a listed type spelling read as its type, a
 /// listed call form read as its expression. A failure
 /// names the site, the name and the structural difference.
-// [spec:pgorm:req:security.ident-oracle+17/test]
+// [spec:pgorm:req:security.ident-oracle+18/test]
 #[test]
 fn every_site_holds_every_hostile_name() {
     let sites = sites();
@@ -110,7 +110,7 @@ fn every_site_holds_every_hostile_name() {
     );
 }
 
-/// The byte offsets PostgreSQL 18's parse tree records beside `location` —
+/// The byte offsets PostgreSQL's parse tree records beside `location` —
 /// an `IN` list's bounds, an array constructor's — move with the length of
 /// every name written before them, so the comparison sets them aside as it
 /// does `location`. No registered site's statement puts one after its name,
@@ -118,7 +118,7 @@ fn every_site_holds_every_hostile_name() {
 /// exist to hold the comparison itself: every corpus name before an `IN` list
 /// and before an `ARRAY` constructor reads back as the name with nothing else
 /// moved.
-// [spec:pgorm:req:security.ident-oracle+17/test]
+// [spec:pgorm:req:security.ident-oracle+18/test]
 #[test]
 fn offsets_after_a_name_are_set_aside() {
     let sites = [
@@ -168,8 +168,8 @@ fn offsets_after_a_name_are_set_aside() {
 /// held for the whole keyword list, not only the words the corpus happens to
 /// hold, and a keyword whose bare spelling means something else can only
 /// render quoted.
-// [spec:pgorm:def:sql.types.type-name+9/test]
-// [spec:pgorm:req:security.ident-oracle+17/test]
+// [spec:pgorm:def:sql.types.type-name+10/test]
+// [spec:pgorm:req:security.ident-oracle+18/test]
 #[test]
 fn type_name_sites_hold_every_keyword() {
     let keywords = scanner_keywords();
@@ -211,7 +211,7 @@ fn type_name_sites_hold_every_keyword() {
 /// where the protocol encoder refuses it, or is escaped into a literal the
 /// grammar refuses — whichever the site's policy declares, and never
 /// anything that parses.
-// [spec:pgorm:req:security.ident-oracle.nul+2/test]
+// [spec:pgorm:req:security.ident-oracle.nul+3/test]
 #[test]
 fn every_site_keeps_nul_out_of_the_server() {
     let sites = sites();
@@ -236,7 +236,7 @@ fn every_site_keeps_nul_out_of_the_server() {
 /// Each pinned defect still reproduces exactly as filed. A pin fails the
 /// moment its site × name pair starts passing, so a fix cannot land without
 /// the pin being retired, and the defect is reported on every run until then.
-// [spec:pgorm:req:security.ident-oracle+17/test]
+// [spec:pgorm:req:security.ident-oracle+18/test]
 #[test]
 fn pinned_identifier_defects_still_reproduce() {
     let sites = sites();

@@ -23,7 +23,7 @@ use crate::errors::FailureJs as _;
 /// The collector an instrumented JavaScript pool hands pgorm's wrappers: each
 /// hook in `Hook::ALL`'s order, or `None` for one never to run, each run by
 /// `dispatch` on the JavaScript thread.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 pub(crate) fn metrics<'cx>(
     cx: &mut impl Context<'cx>,
     dispatch: Handle<'cx, JsFunction>,
@@ -157,7 +157,7 @@ impl Reporter for Collector {
 /// `queryFingerprint(operation, sql)`: pgorm's fingerprint of `sql` as a
 /// bigint, or `null` when it has none, parsed the first time a process asks
 /// for one of this text.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 pub(crate) fn query_fingerprint(mut cx: FunctionContext) -> JsResult<JsValue> {
     let operation = cx.argument::<JsString>(0)?.value(&mut cx);
     let sql = cx.argument::<JsValue>(1)?;

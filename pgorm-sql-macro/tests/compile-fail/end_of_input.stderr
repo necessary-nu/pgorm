@@ -1,4 +1,7 @@
 error: PostgreSQL rejected this SQL: syntax error at end of input
+
+         SELECT id FROM
+                       ^
  --> tests/compile-fail/end_of_input.rs:5:26
   |
 5 | const QUERY: &str = sql!("SELECT id FROM");

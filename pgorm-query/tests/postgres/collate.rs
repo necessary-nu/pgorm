@@ -1,6 +1,6 @@
 use super::*;
 use crate::oracle::{assert_eq, parsed_nodes};
-use pg_query::protobuf::SortByDir;
+use pgsql_syntax::protobuf::SortByDir;
 
 fn image() -> Expr {
     Expr::col(Glyph::Image)
@@ -39,7 +39,7 @@ fn collname(clause: &serde_json::Value) -> Vec<String> {
 
 // [spec:pgorm:req:sql.ast.expr.collate+2/test]    `collate` puts an expression under a named
 // collation, bare or schema-qualified
-// [spec:pgorm:req:sql.render.collate/test]    the clause renders inside its own parentheses,
+// [spec:pgorm:req:sql.render.collate+2/test]    the clause renders inside its own parentheses,
 // each part of the name quoted
 #[test]
 fn a_collation_renders_quoted_after_its_operand() {
@@ -69,7 +69,7 @@ fn a_collation_renders_quoted_after_its_operand() {
     }
 }
 
-// [spec:pgorm:req:sql.render.collate/test]    an operand that binds looser than COLLATE is
+// [spec:pgorm:req:sql.render.collate+2/test]    an operand that binds looser than COLLATE is
 // parenthesised, so the clause collates all of it; an atom is written bare
 #[test]
 fn a_compound_operand_is_parenthesised() {
@@ -98,7 +98,7 @@ fn a_compound_operand_is_parenthesised() {
     assert_eq!(parsed_nodes(&sql, "CollateClause").len(), 2);
 }
 
-// [spec:pgorm:req:sql.render.collate/test]    a collated operand is an atom under every
+// [spec:pgorm:req:sql.render.collate+2/test]    a collated operand is an atom under every
 // operator, including the two `b_expr` positions that have no COLLATE of their own
 // [spec:pgorm:def:sql.render.precedence+14/test]
 #[test]
@@ -124,7 +124,7 @@ fn a_collated_operand_is_an_atom() {
     );
 }
 
-// [spec:pgorm:req:sql.render.collate/test]    a collated DEFAULT stays the default's: bare,
+// [spec:pgorm:req:sql.render.collate+2/test]    a collated DEFAULT stays the default's: bare,
 // `DEFAULT 'a' COLLATE "C"` parses as the column's own collation clause
 // [spec:pgorm:req:sql.ddl.column-def+13/test]
 #[test]
@@ -148,7 +148,7 @@ fn a_collated_default_stays_the_default() {
 
 // [spec:pgorm:req:sql.ast.expr.collate+2/test]    ORDER BY takes a collation through its sort
 // key's expression, as the grammar does
-// [spec:pgorm:req:sql.render.collate/test]
+// [spec:pgorm:req:sql.render.collate+2/test]
 #[test]
 fn an_ordering_takes_a_collated_expression() {
     let sql = Query::select()
@@ -166,7 +166,7 @@ fn an_ordering_takes_a_collated_expression() {
     assert_eq!(collname(&collate_clause(&sql)), ["C"]);
 }
 
-// [spec:pgorm:req:sql.render.collate/test]    a bound operand is a placeholder, and the
+// [spec:pgorm:req:sql.render.collate+2/test]    a bound operand is a placeholder, and the
 // collation stays in the text
 #[test]
 fn a_bound_operand_keeps_its_placeholder() {

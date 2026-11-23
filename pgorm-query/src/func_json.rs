@@ -374,7 +374,7 @@ impl Func {
     ///     .join(" ")
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.json-table]
+    // [spec:pgorm:def:sql.ast.json-table+2]
     pub fn json_table<C, P, K>(context: C, path: P, column: K) -> JsonTable
     where
         C: Into<JsonInput>,

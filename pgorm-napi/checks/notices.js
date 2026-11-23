@@ -80,14 +80,25 @@ function noticePaths(pkg) {
 }
 
 /**
- * The bundled C components the inventory names beside the Rust packages,
- * keyed by the pg_query release that vendors libpg_query. A lockfile moving
- * pg_query to a release not listed here fails, so the libpg_query revision
- * and the PostgreSQL parser version are reviewed with it.
+ * pgsql-rs's crates share the two licence files at its workspace root —
+ * `LICENSE`, libpg_query's BSD-3-Clause for what is ported from it, and
+ * `LICENSE-PostgreSQL` for the scanner, grammar and PL/pgSQL ported from the
+ * server — and six of them declare no licence, which they are read under as
+ * deny.toml's `[[licenses.clarify]]` reads them.
  */
-const PG_QUERY_COMPONENTS = {
-  "18.0.0": { libpg_query: "c1546e7e97edc93fe8474d7a59881e91fbf48cfc", postgres: "18.6" },
-};
+const PGSQL_RS = "git+https://github.com/necessary-nu/pgsql-rs.git";
+const PGSQL_RS_FILES = ["LICENSE", "LICENSE-PostgreSQL"];
+const PGSQL_RS_LICENSE = "BSD-3-Clause AND PostgreSQL";
+
+/** @param {{ source: string | null }} pkg */
+function fromPgsqlRs(pkg) {
+  return (pkg.source ?? "").startsWith(PGSQL_RS);
+}
+
+/** @param {{ license: string | null, source: string | null }} pkg */
+function licenseOf(pkg) {
+  return !pkg.license && fromPgsqlRs(pkg) ? PGSQL_RS_LICENSE : pkg.license;
+}
 
 /**
  * @param {any} pkg
@@ -108,15 +119,11 @@ function textsFor(pkg, supplements) {
     if (digest(data) !== entry.sha256) throw new Error(`supplemental licence hash differs: ${entry.file}`);
     texts.push([entry.source, data]);
   }
-  if (pkg.name === "pg_query") {
-    // xxHash carries its licence only in its header; upb and utf8_range ship
-    // LICENSE files the search above already found.
-    const header = readFileSync(join(directory, "libpg_query", "vendor", "xxhash", "xxhash.h"));
-    const end = header.indexOf("*/");
-    if (end < 0) throw new Error("xxhash.h has no licence comment");
-    texts.push(["libpg_query/vendor/xxhash/xxhash.h", Buffer.concat([header.subarray(0, end + 2), Buffer.from("\n")])]);
+  if (fromPgsqlRs(pkg)) {
+    const workspace = dirname(dirname(directory));
+    for (const name of PGSQL_RS_FILES) texts.push([`pgsql-rs/${name}`, readFileSync(join(workspace, name))]);
   }
-  if (texts.length === 0 || !pkg.license) {
+  if (texts.length === 0 || !licenseOf(pkg)) {
     throw new Error(`missing licence evidence for ${pkg.name} ${pkg.version}`);
   }
   return texts;
@@ -152,7 +159,7 @@ export function generate() {
     return {
       name: pkg.name,
       version: pkg.version,
-      license: pkg.license,
+      license: licenseOf(pkg),
       repository: pkg.repository,
       source: pkg.source ?? "pgorm workspace",
       notices: references,
@@ -164,17 +171,7 @@ export function generate() {
     if (!found) throw new Error(`the locked graph has no ${name}`);
     return `${name}@${found.version}`;
   };
-  const pgQuery = owner("pg_query");
-  const vendored = PG_QUERY_COMPONENTS[/** @type {keyof typeof PG_QUERY_COMPONENTS} */ (pgQuery.slice("pg_query@".length))];
-  if (!vendored) {
-    throw new Error(`${pgQuery} is not in PG_QUERY_COMPONENTS: record the libpg_query revision and PostgreSQL parser it vendors`);
-  }
   const components = [
-    { name: "libpg_query", revision: vendored.libpg_query, owner: pgQuery, license: "BSD-3-Clause" },
-    { name: "PostgreSQL parser", version: vendored.postgres, owner: pgQuery, license: "PostgreSQL" },
-    { name: "upb", owner: pgQuery, license: "BSD-3-Clause" },
-    { name: "utf8_range", owner: pgQuery, license: "MIT" },
-    { name: "xxHash", owner: pgQuery, license: "BSD-2-Clause" },
     {
       name: "ring native cryptography (including BoringSSL and fiat code)",
       owner: owner("ring"),

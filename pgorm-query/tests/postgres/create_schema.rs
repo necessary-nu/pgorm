@@ -1,6 +1,6 @@
 use super::*;
 use crate::oracle::{assert_eq, parsed_nodes};
-use pg_query::protobuf::{DropBehavior, ObjectType};
+use pgsql_syntax::protobuf::{DropBehavior, ObjectType};
 
 fn n(name: &str) -> Name {
     Name::runtime(name)

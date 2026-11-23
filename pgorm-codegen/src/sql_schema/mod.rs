@@ -1,7 +1,8 @@
 //! Entities from DDL text, with no database to inspect.
 //!
-//! [`parse_schema`] reads a `schema.sql` with libpg_query — the PostgreSQL
-//! server's own parser — and bridges the parse tree into the
+//! [`parse_schema`] reads a `schema.sql` with pgsql-syntax — a Rust port of
+//! the PostgreSQL server's own parser, on PostgreSQL 19.0's grammar — and
+//! bridges the parse tree into the
 //! [`TableCreateStatement`]s
 //! [`EntityTransformer::entities`](crate::EntityTransformer::entities)
 //! consumes;
@@ -30,9 +31,9 @@ mod types;
 #[cfg(feature = "rust")]
 use crate::{EntityTransformer, EntityWriterContext, EntityWriterOptions, WriterOutput};
 use crate::{Error, TableIdent, resolve_reference};
-use pg_query::NodeEnum;
-use pg_query::protobuf::{AlterTableStmt, CommentStmt, CreateStmt, IndexStmt};
 use pgorm_query::{ColumnType, TableCreateStatement};
+use pgsql_syntax::NodeEnum;
+use pgsql_syntax::protobuf::{AlterTableStmt, CommentStmt, CreateStmt, IndexStmt};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 
@@ -62,10 +63,10 @@ type Declared = BTreeMap<TypeIdentity, DeclaredType>;
 /// Enum types are resolved into the column types that name them, and what
 /// `ALTER TABLE`s add, indexes and comments are folded into the table they
 /// describe, so the returned statements stand alone.
-// [spec:pgorm:def:codegen.ddl+4]
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:def:codegen.ddl+5]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 pub fn parse_schema(sql: &str) -> Result<Vec<TableCreateStatement>, Error> {
-    let parsed = pg_query::parse(sql, pg_query::ParserOptions::DEFAULT)
+    let parsed = pgsql_syntax::parse(sql, pgsql_syntax::ParserOptions::DEFAULT)
         .map_err(|err| Error::TransformError(format!("schema SQL did not parse: {err}")))?;
     build(collect(&parsed.protobuf)?)
 }
@@ -75,7 +76,7 @@ pub fn parse_schema(sql: &str) -> Result<Vec<TableCreateStatement>, Error> {
 /// The whole pipeline: parse, bridge, [`EntityTransformer::transform`],
 /// [`crate::EntityWriter::generate`]. Options are validated first, so an
 /// unusable option is reported before the schema is read.
-// [spec:pgorm:def:codegen.ddl+4]
+// [spec:pgorm:def:codegen.ddl+5]
 #[cfg(feature = "rust")]
 pub fn entities_from_sql(sql: &str, options: EntityWriterOptions) -> Result<WriterOutput, Error> {
     let context = EntityWriterContext::new(options)?;
@@ -84,13 +85,13 @@ pub fn entities_from_sql(sql: &str, options: EntityWriterOptions) -> Result<Writ
 }
 
 /// A construct the bridge does not carry into the entity model.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn unsupported(what: impl Display, at: usize) -> Error {
     Error::TransformError(format!("unsupported DDL: {what} at statement {at}"))
 }
 
 /// A construct the bridge understands but cannot resolve in this schema.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn unresolved(problem: impl Display, at: usize) -> Error {
     Error::TransformError(format!("statement {at}: {problem}"))
 }
@@ -113,9 +114,9 @@ struct Collected<'a> {
 /// of one schema as the server does (`42P06`) unless it says `IF NOT EXISTS`.
 /// A qualified name is not held to the schemas the file creates: `public`
 /// exists unasked, and a dump of some schemas names others it never creates.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 // [spec:pgorm:sem:codegen.ddl.objects+12]
-fn collect(parsed: &pg_query::protobuf::ParseResult) -> Result<Collected<'_>, Error> {
+fn collect(parsed: &pgsql_syntax::protobuf::ParseResult) -> Result<Collected<'_>, Error> {
     let mut collected = Collected::default();
     let mut schemas = BTreeSet::new();
     for (index, raw) in parsed.stmts.iter().enumerate() {
@@ -282,7 +283,7 @@ fn build(collected: Collected<'_>) -> Result<Vec<TableCreateStatement>, Error> {
 
 /// The SQL a statement the bridge does not read was written as, named the way
 /// its author wrote it.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn statement_kind(node: &NodeEnum) -> &'static str {
     match node {
         NodeEnum::AlterSeqStmt(_) => "ALTER SEQUENCE",
@@ -297,7 +298,7 @@ fn statement_kind(node: &NodeEnum) -> &'static str {
         NodeEnum::CreatePolicyStmt(_) => "CREATE POLICY",
         NodeEnum::CreateForeignTableStmt(_) => "CREATE FOREIGN TABLE",
         NodeEnum::CreateTableAsStmt(create)
-            if create.objtype == pg_query::protobuf::ObjectType::ObjectMatview as i32 =>
+            if create.objtype == pgsql_syntax::protobuf::ObjectType::ObjectMatview as i32 =>
         {
             "CREATE MATERIALIZED VIEW"
         }

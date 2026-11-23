@@ -23,7 +23,7 @@ impl ColumnType {
     /// assert_eq!(cast(ColumnType::String(StringLen::N(20))).as_deref(), Some("varchar(20)"));
     /// assert_eq!(cast(ColumnType::Bit(None)), None);
     /// ```
-    // [spec:pgorm:def:sql.types.type-name+9]
+    // [spec:pgorm:def:sql.types.type-name+10]
     pub fn cast_type(&self) -> Option<TypeName> {
         let named = |name: &str| TypeName::new(Name::runtime(name));
         let sized = |name: &str, size: Option<u32>| match size {

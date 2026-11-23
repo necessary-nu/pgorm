@@ -1,4 +1,4 @@
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 import type { PgormError, Pool } from "./index.d.ts";
 
 /**
@@ -73,14 +73,14 @@ export declare class QueryContext {
    */
   readonly operation: string;
   readonly sql: string | null;
-  /** The statement's fingerprint, or `null` when it has no statement or libpg_query refuses its text. */
+  /** The statement's fingerprint, or `null` when it has no statement or the parser refuses its text. */
   readonly fingerprint: QueryFingerprint | null;
 }
 
 /**
- * libpg_query's hash of a statement's shape, the identity
- * `pg_stat_statements` groups by: its string is 16 hex digits, and `value`
- * the same number.
+ * pgsql-syntax's hash of a statement's shape under PostgreSQL 19's grammar,
+ * the identity `pg_stat_statements` groups by: its string is 16 hex digits,
+ * and `value` the same number.
  */
 export declare class QueryFingerprint {
   private constructor();

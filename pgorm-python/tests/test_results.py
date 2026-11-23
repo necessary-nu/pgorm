@@ -257,7 +257,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(str(caught.exception), "the statement takes 0 parameters, and 2 were given")
         self.assertEqual((await self.pool.one(p.RawSQL("SELECT 1 AS n")))["n"], 1)
 
-    # [spec:pgorm:req:conn.copy.statement/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
+    # [spec:pgorm:req:conn.copy.statement+2/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
     async def test_copy_as_statement_is_refused(self):
         for run in (
             lambda: self.pool.query(p.RawSQL("COPY (SELECT 1) TO STDOUT")),

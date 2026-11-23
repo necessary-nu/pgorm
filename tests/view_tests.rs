@@ -3,7 +3,7 @@
 //! Views, materialized views and `CREATE TABLE AS` against a live PostgreSQL
 //! server.
 //!
-//! The render tests in pgorm-query hold each statement to libpg_query's
+//! The render tests in pgorm-query hold each statement to the parser's
 //! `ViewStmt`, `CreateTableAsStmt`, `RefreshMatViewStmt` and `DropStmt`. What
 //! only a server settles is what the statements mean: that an entity whose
 //! table is a view reads the rows the view shows and writes through it to the

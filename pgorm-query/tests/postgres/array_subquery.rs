@@ -1,7 +1,7 @@
 use super::*;
 use crate::oracle::{assert_eq, parsed_nodes};
 
-/// libpg_query's `SubLinkType`, by the number it serialises as.
+/// The parse tree's `SubLinkType`, by the number it serialises as.
 const ARRAY_SUBLINK: i64 = 7;
 
 fn ids() -> SelectStatement {

@@ -387,7 +387,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## Target release
 
-> [spec:pgorm:req:sql.target+2]
+> [spec:pgorm:req:sql.target+3]
 > A build of pgorm targets one PostgreSQL major release. 18 is the floor and
 > the default: a build that names no release targets 18, there is no `pg-18`
 > feature to say so, and nothing older is kept working. The `pg-19` cargo
@@ -433,14 +433,25 @@ today, including panicking edges and deliberate failsafes.
 > `CHECK` (`sql.ddl.alter-table`), and `JSON_ARRAY` over a query of no rows
 > (`sql.ast.expr.sql-json`).
 >
-> Every parse pgorm makes stays on PostgreSQL 18's grammar under either target
-> until libpg_query releases a 19 one: the render oracle
-> (`sql.render.oracle`), `sql!` and `prql!`, codegen's DDL reader, the
-> paginator and metric fingerprints. Building 19-only syntax waits for that
-> grammar, since every render has to parse, and until it lands `sql!` refuses
-> 19-only syntax under `pg-19` too. That work decides how the parsers follow
-> the target, and whether pgorm-sql-macro and pgorm-codegen gain the feature
-> for it, keeping an 18 build's `sql!` from accepting what 18 cannot parse.
+> Every parse pgorm makes uses PostgreSQL 19.0's grammar, in every build:
+> the render oracle (`sql.render.oracle`), `sql!`, `prql!`, `sql_migration!`
+> and `pgorm::sql_check`, codegen's DDL reader, the paginator, COPY's
+> statement guard, metric fingerprints, the pipeline's placeholder census and
+> the identifier oracle all parse with pgsql-syntax, a Rust port of the
+> server's scanner and parser built from the release's Bison tables, at the
+> one revision of necessary-nu/pgsql-rs the root manifest names. A build that
+> targets 18 accepts what only 19 parses too (`ON CONFLICT .. DO SELECT`, a
+> call's `IGNORE NULLS`, `REPACK`, `WAIT FOR LSN` among it), so `sql!`
+> compiles text an 18 server refuses; the server is the judge of it, as of
+> every statement that names something the server lacks. And 19's grammar
+> refuses a little 18's parsed: `ignore` and `respect` became keywords that
+> are not bare column labels, so `SELECT 1 ignore` is a syntax error where
+> `SELECT 1 AS ignore` is not, and the five words 19 added (`ignore`, `lsn`,
+> `repack`, `respect`, `wait`) stop being identifiers in the few productions
+> that take a bare `IDENT` (a role or database option name, an `EXTRACT`
+> field, `SET TIME ZONE`'s value), each of which 18's server refused as
+> unrecognized anyway. pgorm writes `AS` before every column label, so no
+> render is affected.
 
 ## SELECT statements
 
@@ -1478,7 +1489,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## MERGE statements
 
-> [spec:pgorm:req:sql.ast.merge+2]
+> [spec:pgorm:req:sql.ast.merge+3]
 > `MergeStatement` is the MERGE AST node. It holds a target `NamedTable`
 > (`[spec:pgorm:def:sql.types.table-ref]`: a name, bare or
 > schema-qualified, with an optional alias), an `only` flag, a source
@@ -1531,7 +1542,7 @@ today, including panicking edges and deliberate failsafes.
 > the statement's meaning, and the unconditional arm takes the rows they
 > leave. PostgreSQL refuses an arm after an unconditional arm of the same
 > kind as unreachable (`42601`), for each of the three kinds. That error is
-> raised in parse analysis, so libpg_query alone would accept the statement.
+> raised in parse analysis, so the grammar alone accepts the statement.
 > This builder cannot represent it: `when_matched`, `when_not_matched` and
 > `when_not_matched_by_source` set the kind's one unconditional arm, the last
 > call wins, and the arm renders after the kind's conditional arms whenever
@@ -2256,7 +2267,7 @@ today, including panicking edges and deliberate failsafes.
 > SQL/JSON expression itself. Containment, which both families can say, is
 > `@>` (`sql.ast.expr.operators`), served by either opclass.
 
-> [spec:pgorm:def:sql.ast.json-table]
+> [spec:pgorm:def:sql.ast.json-table+2]
 > `JSON_TABLE` is a FROM item, `FromItem::JsonTable(Box<JsonTable>, Name)`:
 > rows read out of a JSON document, one per item its path finds, one column
 > per column definition. `Func::json_table(context, path, column)` builds a
@@ -2321,5 +2332,5 @@ today, including panicking edges and deliberate failsafes.
 > names, so that check is the server's. Column names, path names, the
 > `PASSING` names and the alias are caller-supplied identifiers, quoted like
 > every other and registered with the identifier oracle
-> (`security.ident-oracle`). PostgreSQL 18's grammar has no `PLAN` clause
-> (`42601`), so there is none to build.
+> (`security.ident-oracle`). Neither 18's grammar nor 19's has a `PLAN`
+> clause (`42601`), so there is none to build.

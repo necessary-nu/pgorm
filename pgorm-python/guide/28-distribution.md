@@ -36,10 +36,10 @@ assert requires("pgorm") is None
 A wheel is built from a checkout of pgorm's repository with
 [maturin](https://www.maturin.rs), as [Getting
 started](01-getting-started.md) does. The build needs a Rust toolchain, a C
-compiler and libclang, since the extension compiles PostgreSQL's parser,
-libpg_query, from its C sources, and CPython 3.14 with maturin 1.15 or later
-below 2. `--locked` builds the dependency versions the committed lockfile
-holds.
+compiler for ring's cryptography, and CPython 3.14 with maturin 1.15 or later
+below 2. PostgreSQL's parser is pgsql-syntax, a Rust port of PostgreSQL 19's
+own scanner and parser, so no LLVM, libclang or bindgen takes part.
+`--locked` builds the dependency versions the committed lockfile holds.
 
 The source distribution holds the Rust crates the extension is built from,
 pgorm's own among them, and the lockfile, so it rebuilds the same package
@@ -178,8 +178,13 @@ notices inside the package:
   licence metadata also names;
 - `pgorm/DEPENDENCIES.json`, an inventory of every package in the locked
   Cargo graph, with its version, licence, source and the notices it ships,
-  and the native components compiled in: libpg_query and its PostgreSQL
-  parser, upb, utf8_range and xxHash, and ring's bundled cryptography.
+  and the native components compiled in, ring's bundled cryptography alone.
+
+The parser's packages, pgsql-syntax and pgsql-parser with the `pg19-*`
+crates beneath them, are ordinary entries there. pgsql-syntax is MIT; the
+rest are BSD-3-Clause AND PostgreSQL, libpg_query's licence and the
+PostgreSQL License, and each carries the pgsql-rs workspace's `LICENSE` and
+`LICENSE-PostgreSQL` as its notices.
 
 The inventory covers the whole locked graph, build dependencies and
 packages only some platforms use included, so it lists more than any one
@@ -196,9 +201,16 @@ package = files(pgorm)
 inventory = json.loads(package.joinpath("DEPENDENCIES.json").read_text())
 
 assert inventory["python_runtime_dependencies"] == []
-assert {"libpg_query", "PostgreSQL parser"} <= {
-    component["name"] for component in inventory["bundled_native_components"]
-}
+assert all(
+    component["owner"].startswith("ring@") for component in inventory["bundled_native_components"]
+)
+
+parser = [entry for entry in inventory["packages"] if entry["name"].startswith(("pgsql-", "pg19-"))]
+assert {"pgsql-syntax", "pgsql-parser"} <= {entry["name"] for entry in parser}
+for entry in parser:
+    sources = {notice["source"] for notice in entry["notices"]}
+    assert {"pgsql-rs/LICENSE", "pgsql-rs/LICENSE-PostgreSQL"} <= sources
+
 assert all(entry["license"] for entry in inventory["packages"])
 assert package.joinpath("THIRD_PARTY_NOTICES.txt").is_file()
 ```

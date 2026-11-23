@@ -37,9 +37,9 @@ let (sql, values) = query.build();
   parts by construction, `ON CONFLICT` is a closed enum, and empty collections
   that would render as syntax errors are unrepresentable.
 - **Grammar-checked by the real parser.** The test suite feeds every render
-  through [libpg_query](https://github.com/pganalyze/libpg_query) — the
-  PostgreSQL server's own parser — so the rendered SQL is held to the actual
-  grammar, not to string expectations. Known-invalid renders are pinned and
+  through [pgsql-syntax](https://github.com/necessary-nu/pgsql-rs) — a Rust
+  port of the PostgreSQL 19 server's own scanner and parser — so the rendered
+  SQL is held to the actual grammar, not to string expectations. Known-invalid renders are pinned and
   documented until their fix lands.
 - **No render panics.** Anything the renderer would have to refuse at runtime
   is either unconstructible or valid.

@@ -12,7 +12,7 @@ impl QueryBuilder {
     /// held elements; any other set renders parenthesised, `()` included. A
     /// `ROLLUP` or `CUBE` with no expressions stands for the one empty set and
     /// renders `()`, because `ROLLUP ()` is not in the grammar.
-    // [spec:pgorm:req:sql.render.grouping+1]
+    // [spec:pgorm:req:sql.render.grouping+2]
     pub(super) fn prepare_grouping_element(
         &self,
         element: &GroupingElement,
@@ -44,7 +44,7 @@ impl QueryBuilder {
 
     /// A comma-separated list of grouping elements: the whole `GROUP BY`
     /// list, and the inside of a `GROUPING SETS`.
-    // [spec:pgorm:req:sql.render.grouping+1]
+    // [spec:pgorm:req:sql.render.grouping+2]
     pub(super) fn prepare_grouping_list(
         &self,
         elements: &[GroupingElement],

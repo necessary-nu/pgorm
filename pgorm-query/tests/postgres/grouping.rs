@@ -18,7 +18,7 @@ fn image() -> Expr {
     Expr::col(Glyph::Image)
 }
 
-/// libpg_query's `GroupingSetKind`, by the number it serialises as. The
+/// The parse tree's `GroupingSetKind`, by the number it serialises as. The
 /// grammar never builds the fifth kind, `GROUPING_SET_SIMPLE` (2): parse
 /// analysis does, from a parenthesised row.
 const EMPTY: i64 = 1;
@@ -42,7 +42,7 @@ fn grouping_sets(sql: &str) -> Vec<(i64, usize)> {
 }
 
 // [spec:pgorm:def:sql.ast.select.grouping/test]    `rollup` and `cube` take their expressions
-// [spec:pgorm:req:sql.render.grouping+1/test]    `ROLLUP (…)` and `CUBE (…)`
+// [spec:pgorm:req:sql.render.grouping+2/test]    `ROLLUP (…)` and `CUBE (…)`
 #[test]
 fn rollup_and_cube_render_their_keyword() {
     let sql = grouped(GroupingElement::rollup([aspect(), image()]));
@@ -62,7 +62,7 @@ fn rollup_and_cube_render_their_keyword() {
 
 // [spec:pgorm:def:sql.ast.select.grouping/test]    `set` and `empty`, and `sets` taking its first
 // element up front
-// [spec:pgorm:req:sql.render.grouping+1/test]    `GROUPING SETS (…)` holding a bare expression, a
+// [spec:pgorm:req:sql.render.grouping+2/test]    `GROUPING SETS (…)` holding a bare expression, a
 // parenthesised set, `()` and a nested element
 #[test]
 fn grouping_sets_hold_every_element_kind() {
@@ -89,7 +89,7 @@ fn grouping_sets_hold_every_element_kind() {
     assert_eq!(parsed_nodes(&sql, "RowExpr").len(), 1);
 }
 
-// [spec:pgorm:req:sql.render.grouping+1/test]    a plain group-by list renders exactly as before,
+// [spec:pgorm:req:sql.render.grouping+2/test]    a plain group-by list renders exactly as before,
 // with no grouping-set node
 #[test]
 fn plain_group_by_is_unchanged() {
@@ -134,7 +134,7 @@ fn elements_and_expressions_share_one_list() {
 }
 
 // [spec:pgorm:def:sql.ast.select.grouping/test]    a tuple item is one unit of a ROLLUP or CUBE
-// [spec:pgorm:req:sql.render.grouping+1/test]    an empty ROLLUP or CUBE renders `()`
+// [spec:pgorm:req:sql.render.grouping+2/test]    an empty ROLLUP or CUBE renders `()`
 #[test]
 fn units_and_empty_lists() {
     let pair: SimpleExpr = Expr::tuple([aspect().into(), image().into()]).into();

@@ -28,7 +28,7 @@ __all__ = [
 ]
 
 
-# [spec:pgorm:req:bindings.metrics]
+# [spec:pgorm:req:bindings.metrics+2]
 class MetricsCollector(Protocol):
     """What an ``InstrumentedPool`` reports to: Rust's seven hooks, each a
     plain method or an async one.
@@ -172,7 +172,7 @@ def _settled(name: str, answer: Callable[[], None], task: asyncio.Future[object]
         answer()
 
 
-# [spec:pgorm:req:bindings.metrics]
+# [spec:pgorm:req:bindings.metrics+2]
 def _dispatch(name: str, hook: _Hook, args: tuple[object, ...], answer: Callable[[], None]) -> None:
     """Run one hook on the pool's event loop and ``answer`` once it has
     finished, which lets the statement it reports on go on. Its failure is
@@ -205,7 +205,7 @@ def _hooks(metrics: object) -> list[_Hook | None]:
     return hooks
 
 
-# [spec:pgorm:req:bindings.metrics]
+# [spec:pgorm:req:bindings.metrics+2]
 class InstrumentedPool[M: MetricsCollector](Pool):
     """``pool``, reporting to ``metrics`` what runs through it.
 

@@ -15,7 +15,7 @@ use prqlc::{Options, Target};
 pub(super) use prqlc::pr::{BinOp, UnOp};
 
 /// The PL expression node the builder assembles.
-// [spec:pgorm:def:pipeline.adapter+2]
+// [spec:pgorm:def:pipeline.adapter+3]
 pub(super) type PlExpr = Expr;
 
 pub(super) fn ident(name: &str) -> PlExpr {
@@ -48,7 +48,7 @@ pub(super) fn tuple(items: Vec<PlExpr>) -> PlExpr {
 
 /// One piece of an expression whose SQL pgorm writes itself: either text that
 /// reaches the query verbatim, or a node prqlc renders in place.
-// [spec:pgorm:def:pipeline.adapter+2]
+// [spec:pgorm:def:pipeline.adapter+3]
 #[derive(Debug, Clone)]
 pub(super) enum Piece {
     Text(String),
@@ -60,7 +60,7 @@ pub(super) enum Piece {
 /// prqlc renders each interpolated node and emits the text between them
 /// unchanged, so this is how pgorm writes SQL prqlc has no vocabulary for
 /// while still letting prqlc resolve the column references inside it.
-// [spec:pgorm:def:pipeline.adapter+2]
+// [spec:pgorm:def:pipeline.adapter+3]
 pub(super) fn assembled(pieces: Vec<Piece>, alias: Option<String>) -> PlExpr {
     let mut node = Expr::new(ExprKind::SString(
         pieces
@@ -80,7 +80,7 @@ pub(super) fn assembled(pieces: Vec<Piece>, alias: Option<String>) -> PlExpr {
 
 /// The arguments a call node applies its function to, or `None` for a node
 /// that is not a call of a bare name.
-// [spec:pgorm:def:pipeline.adapter+2]
+// [spec:pgorm:def:pipeline.adapter+3]
 pub(super) fn call_args(node: &PlExpr) -> Option<&[PlExpr]> {
     let ExprKind::FuncCall(call) = &node.kind else {
         return None;
@@ -92,7 +92,7 @@ pub(super) fn call_args(node: &PlExpr) -> Option<&[PlExpr]> {
 /// `desc` is a leading `-` and `asc` a leading `+`, both of which are marks on
 /// the key rather than arithmetic, and neither of which belongs in the SQL
 /// text an `ORDER BY` renders them into.
-// [spec:pgorm:def:pipeline.adapter+2]
+// [spec:pgorm:def:pipeline.adapter+3]
 pub(super) fn sort_key(node: &PlExpr) -> (PlExpr, bool) {
     if let ExprKind::Unary(unary) = &node.kind {
         match unary.op {
@@ -146,7 +146,7 @@ pub(super) fn lit_float(value: f64) -> PlExpr {
 /// read as SQL. Rendering the literal here keeps one regime end to end, and
 /// the text reaches the emitted SQL through the pass-through node so that
 /// nothing downstream escapes it a second time.
-// [spec:pgorm:req:pipeline.params+4]
+// [spec:pgorm:req:pipeline.params+5]
 pub(super) fn lit_str(value: &str) -> PlExpr {
     Expr::new(ExprKind::SString(vec![InterpolateItem::String(
         string_literal(value),
@@ -161,7 +161,7 @@ pub(super) fn lit_str(value: &str) -> PlExpr {
 /// backslashes doubled — the trigger `pgorm-query` renders on
 /// ([spec:pgorm:req:sql.render.string-escape+1]) — and the literal then
 /// denotes the value whichever way the server is configured.
-// [spec:pgorm:req:pipeline.params+4]
+// [spec:pgorm:req:pipeline.params+5]
 fn string_literal(value: &str) -> String {
     let quoted = value.replace('\'', "''");
     if value.contains('\\') {
@@ -183,7 +183,7 @@ pub(super) fn lit_null() -> PlExpr {
 /// so an index minted here that survives is the index the emitted SQL
 /// carries — but the optimizer may prune the expression around it, which is
 /// what the census in `into_sql` accounts for.
-// [spec:pgorm:req:pipeline.params+4]
+// [spec:pgorm:req:pipeline.params+5]
 pub(super) fn param(index: usize) -> PlExpr {
     Expr::new(ExprKind::Param(index.to_string()))
 }
@@ -556,7 +556,7 @@ pub(super) fn collect_identifiers(node: &PlExpr, found: &mut Vec<String>) {
 /// `prqlc::prql_to_pl` produces for query text, so direct construction and
 /// text compilation are interchangeable. prqlc lowers each referenced
 /// binding to a CTE (or inlines it where SQL allows).
-// [spec:pgorm:def:pipeline.adapter+2]
+// [spec:pgorm:def:pipeline.adapter+3]
 // [spec:pgorm:req:pipeline.compose+2]
 pub(super) fn compile(bindings: Vec<Vec<PlExpr>>, stages: Vec<PlExpr>) -> Result<String, String> {
     let stmts = bindings

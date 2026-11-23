@@ -61,7 +61,7 @@ where
 /// Each column kind reads what it names out of each item, the table reading
 /// its context from the FROM item before it, and a nested path's rows joining
 /// their parent's as an outer join would.
-// [spec:pgorm:def:sql.ast.json-table/test]    the column kinds, lateral, and NESTED as an outer
+// [spec:pgorm:def:sql.ast.json-table+2/test]    the column kinds, lateral, and NESTED as an outer
 // join, live
 // [spec:pgorm:req:sql.render.json-table/test]
 #[pgorm_macros::test]
@@ -141,7 +141,7 @@ async fn a_document_becomes_rows_and_columns() -> Result<(), Error> {
 
 /// The behaviours: a column's ON EMPTY and ON ERROR, an EXISTS column's ON
 /// ERROR, and the table's own ON ERROR for a failing root path.
-// [spec:pgorm:def:sql.ast.json-table/test]    the column and table behaviours, live
+// [spec:pgorm:def:sql.ast.json-table+2/test]    the column and table behaviours, live
 #[pgorm_macros::test]
 async fn behaviours_decide_what_a_row_holds() -> Result<(), Error> {
     let ctx = TestContext::new("json_table_behaviours").await;
@@ -286,7 +286,7 @@ async fn paths_are_escaped_literals_the_server_requires() -> Result<(), Error> {
 
 /// `LEFT JOIN JSON_TABLE(..) ON TRUE` keeps a row whose document yields
 /// nothing, and a duplicate column name is the server's refusal.
-// [spec:pgorm:def:sql.ast.json-table/test]    a JSON_TABLE joined, and a duplicate name (42712)
+// [spec:pgorm:def:sql.ast.json-table+2/test]    a JSON_TABLE joined, and a duplicate name (42712)
 #[pgorm_macros::test]
 async fn json_table_joins_and_names_are_unique() -> Result<(), Error> {
     let ctx = TestContext::new("json_table_join").await;

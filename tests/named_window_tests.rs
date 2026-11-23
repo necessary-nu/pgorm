@@ -2,7 +2,7 @@
 
 //! A SELECT's WINDOW clause against a live server.
 //!
-//! The render tests hold each clause to libpg_query's reading of it: which
+//! The render tests hold each clause to the parser's reading of it: which
 //! entries it has, in what order, and which base each extends. What they
 //! cannot settle is what the server then does with it — that every entry is
 //! read, that an extended window really runs over its base's partitions and
@@ -108,7 +108,7 @@ struct Running {
 /// over the row before and the row itself. The frame's offset is bound.
 // [spec:pgorm:def:sql.ast.window-statement+8/test]    against a live server: an extended window
 // copies its base's PARTITION BY and ORDER BY and adds what the base left open
-// [spec:pgorm:req:sql.render.window+7/test]    `( "base" ORDER BY … <frame> )`, its offset bound
+// [spec:pgorm:req:sql.render.window+8/test]    `( "base" ORDER BY … <frame> )`, its offset bound
 async fn an_extended_window_runs_over_its_base(db: &DatabaseConnection) -> Result<(), Error> {
     let query = reading()
         .expr_window_name_as(Func::sum(col("weight")), n("running"), n("running"))

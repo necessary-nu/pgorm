@@ -29,8 +29,8 @@ const SCHEMA: &str = sql!(
      INSERT INTO cake (id, name) VALUES (1, 'Chocolate'), (2, 'Lemon');"
 );
 
-// [spec:pgorm:def:macros.sql+6/test]    the literal reaches the server unchanged
-// [spec:pgorm:sem:macros.sql.script/test]    a validated script through `batch_execute`
+// [spec:pgorm:def:macros.sql+7/test]    the literal reaches the server unchanged
+// [spec:pgorm:sem:macros.sql.script+2/test]    a validated script through `batch_execute`
 #[pgorm_macros::test]
 async fn checked_literal_drives_selector_raw() -> Result<(), Error> {
     let ctx = TestContext::new("sql_macro_selector_raw").await;
@@ -57,7 +57,7 @@ async fn checked_literal_drives_selector_raw() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.sql+6/test]    the same literal bound as a prepared statement
+// [spec:pgorm:def:macros.sql+7/test]    the same literal bound as a prepared statement
 #[pgorm_macros::test]
 async fn checked_literal_drives_query_raw() -> Result<(), Error> {
     let ctx = TestContext::new("sql_macro_query_raw").await;
@@ -88,7 +88,7 @@ async fn checked_literal_drives_query_raw() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:macros.sql.ceiling/test]    grammar, not schema: a statement the
+// [spec:pgorm:req:macros.sql.ceiling+2/test]    grammar, not schema: a statement the
 // macro accepts can still fail against a real catalog
 #[pgorm_macros::test]
 async fn checked_literal_can_still_fail_at_runtime() -> Result<(), Error> {
@@ -105,10 +105,10 @@ async fn checked_literal_can_still_fail_at_runtime() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.sql+6/test]    a statement only PostgreSQL 18's grammar
-// parses compiles and runs: the macro and the server read the same release
+// [spec:pgorm:def:macros.sql+7/test]    a statement PostgreSQL 18 introduced
+// compiles and runs: the macro's grammar, 19's, keeps what 18 added
 #[pgorm_macros::test]
-async fn postgres_18_grammar_reaches_the_server() -> Result<(), Error> {
+async fn postgres_18_syntax_reaches_the_server() -> Result<(), Error> {
     let ctx = TestContext::new("sql_macro_postgres_18").await;
     let db = ctx.db.get().await?;
 

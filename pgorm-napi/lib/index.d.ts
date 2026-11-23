@@ -629,14 +629,14 @@ export interface RetryOptions extends TransactionOptions {
  */
 export type Statement = Select | Insert | Update | Delete | Merge | DDL | Pipeline;
 
-// [spec:pgorm:req:bindings.sql-check]
+// [spec:pgorm:req:bindings.sql-check+2]
 /**
- * `text`, held to PostgreSQL 18's grammar and returned unchanged, as Rust's
- * `sql!` holds a literal while its crate compiles; a script is held to it
- * statement by statement. What the grammar rejects is a
+ * `text`, held to PostgreSQL 19's grammar in every build and returned
+ * unchanged, as Rust's `sql!` holds a literal while its crate compiles; a
+ * script is held to it statement by statement. What the grammar rejects is a
  * {@link ConstructionError} whose message reprints the line with a caret
- * under the token the parser stopped at. Call it once, where a module
- * defines its statements.
+ * where the parser stopped. Call it once, where a module defines its
+ * statements.
  */
 export declare function sql<T extends string>(text: T): T;
 

@@ -15,7 +15,7 @@ pub trait SqlName: Any + Send + Sync {
     /// Write the identifier as PostgreSQL spells one: wrapped in double
     /// quotes, with any embedded double quote doubled.
     // [spec:pgorm:req:sql.render.ident-quoting+7]
-    // [spec:pgorm:req:security.ident-oracle+17] (the quoting every registered
+    // [spec:pgorm:req:security.ident-oracle+18] (the quoting every registered
     // name position renders through, held to the identifier render oracle)
     fn prepare(&self, s: &mut dyn fmt::Write) {
         write!(s, "\"{}\"", self.quoted()).unwrap();
@@ -229,7 +229,7 @@ pub trait IntoColumnRef {
 /// This is the *only* thing a cast carries as its type: one node shape, the
 /// quoted-or-verbatim question answered inside the type rather than by
 /// picking a different node.
-// [spec:pgorm:def:sql.types.type-name+9]
+// [spec:pgorm:def:sql.types.type-name+10]
 // [spec:pgorm:req:sql.ast.cast-shape+2]
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeName {
@@ -333,7 +333,7 @@ impl TypeName {
     /// let query = Query::select().expr(Expr::val("0111110").cast_as_type(bits)).to_owned();
     /// assert_eq!(query.to_string(), "SELECT CAST('0111110' AS bit(7))");
     /// ```
-    // [spec:pgorm:def:sql.types.type-name+9]
+    // [spec:pgorm:def:sql.types.type-name+10]
     pub fn modifiers(mut self, modifiers: impl IntoIterator<Item = u32>) -> Self {
         self.modifiers = modifiers.into_iter().collect();
         self
@@ -353,7 +353,7 @@ impl TypeName {
     /// that is what a caller naming it means. A [`raw`](Self::raw) type
     /// expression is the one exception to all of this and renders as
     /// written — that text alone, the schema qualifying it still a name.
-    // [spec:pgorm:def:sql.types.type-name+9]
+    // [spec:pgorm:def:sql.types.type-name+10]
     pub fn to_sql_string(&self) -> String {
         let mut out = String::new();
         let name = match &self.schema {
@@ -391,7 +391,7 @@ impl TypeName {
     /// every name-shaped position, each position saying only which of the
     /// grammar's own forms it reads.
     // [spec:pgorm:req:sql.render.ident-quoting+7]
-    // [spec:pgorm:def:sql.types.type-name+9]
+    // [spec:pgorm:def:sql.types.type-name+10]
     pub(crate) fn prepare_part(part: &Name, position: Position, out: &mut String) {
         let text = part.to_string();
         if keywords::bare(&text, position) {
@@ -540,7 +540,7 @@ pub enum FromItem {
     FunctionCall(FunctionCall, Name),
     /// `JSON_TABLE` with alias, built by
     /// [`JsonTable::alias`](crate::JsonTable::alias).
-    // [spec:pgorm:def:sql.ast.json-table]
+    // [spec:pgorm:def:sql.ast.json-table+2]
     JsonTable(Box<crate::JsonTable>, Name),
     /// A function with an ordinal column, column names or `ROWS FROM`, with
     /// alias, built by [`TableFunction::alias`](crate::TableFunction::alias).
@@ -1104,7 +1104,7 @@ mod tests {
     pub use Character as CharReexport;
     use pretty_assertions::assert_eq;
 
-    // [spec:pgorm:def:sql.types.type-name+9/test]    only the text `raw` was
+    // [spec:pgorm:def:sql.types.type-name+10/test]    only the text `raw` was
     // given renders verbatim: a schema on a raw type is a name, and
     // reassigning `name` afterwards changes nothing that renders
     #[test]

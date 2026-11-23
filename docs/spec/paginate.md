@@ -548,10 +548,10 @@ bound parameter is held to.
 > stream ends at the first empty page and yields the error (then ends)
 > if any fetch fails.
 
-> [spec:pgorm:sem:exec.paginator.raw+7]
+> [spec:pgorm:sem:exec.paginator.raw+8]
 > Paginating a `SelectorRaw` MUST decide what the raw statement is by
-> parsing it with libpg_query — the PostgreSQL server's own parser, the
-> same `pg_query` revision, on PostgreSQL 18's grammar, that the render
+> parsing it with pgsql-syntax — a Rust port of the PostgreSQL server's own
+> parser, the same revision, on PostgreSQL 19.0's grammar, that the render
 > oracle and `sql!` use (`[spec:pgorm:req:sql.render.oracle]`,
 > `[spec:pgorm:def:macros.sql]`) — and MUST NOT decide it by inspecting
 > the statement's text. The
@@ -561,12 +561,12 @@ bound parameter is held to.
 > clause off the `SelectStmt` itself rather than making it a statement of
 > its own, so a CTE pages like any other `SELECT`. `VALUES (…), (…)` and
 > set operations qualify for the same reason — both parse as a
-> `SelectStmt`. This check stays in the ORM because libpg_query is the
+> `SelectStmt`. This check stays in the ORM because the parser is the
 > ORM's dependency and deliberately not the query builder's.
 >
 > An accepted statement is taken at the extent the parser reports for it,
 > which excludes any terminating `;` that a subquery position would
-> refuse. PostgreSQL 18's parser starts that extent at the statement's
+> refuse. PostgreSQL's parser starts that extent at the statement's
 > first token, so whitespace and comments leading the statement are not
 > carried into the wrapper: they lie outside the statement, as the `;`
 > does. A comment trailing the statement lies inside its extent and is

@@ -95,7 +95,7 @@ const SERIAL_KEYS: &str = "CREATE TABLE tenant_order (
 CREATE TABLE coded_row (code text PRIMARY KEY, seq serial NOT NULL);
 CREATE TABLE badge (id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label text NOT NULL);";
 
-// [spec:pgorm:def:codegen.ddl+4/test]    the whole pipeline runs from DDL text:
+// [spec:pgorm:def:codegen.ddl+5/test]    the whole pipeline runs from DDL text:
 // one entity file per CREATE TABLE, plus index, prelude and active enums
 #[test]
 fn schema_sql_generates_one_file_per_table() {
@@ -314,7 +314,7 @@ fn a_column_collation_rides_on_the_statement() {
     assert_eq!(collations(&rendered), expected);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a statement the bridge does
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a statement the bridge does
 // not read is named, never skipped
 #[test]
 fn unsupported_statements_are_named() {
@@ -360,7 +360,7 @@ fn unsupported_statements_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a CREATE TABLE clause with
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a CREATE TABLE clause with
 // no entity meaning is named rather than dropped
 #[test]
 fn unsupported_table_clauses_are_named() {
@@ -395,7 +395,7 @@ fn unsupported_table_clauses_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    the same holds for column
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    the same holds for column
 // clauses the entity model has no room for
 #[test]
 fn unsupported_column_clauses_are_named() {
@@ -417,9 +417,9 @@ fn unsupported_column_clauses_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    what PostgreSQL 18's grammar
-// added and the entity model cannot hold yet is named, not read as the older
-// shape each one resembles
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    what PostgreSQL 18's grammar
+// added, and 19's still parses, and the entity model cannot hold yet is named,
+// not read as the older shape each one resembles
 #[test]
 fn postgres_18_constraints_are_named() {
     // An entity's unique columns are single columns, and a temporal unique
@@ -454,7 +454,7 @@ fn postgres_18_constraints_are_named() {
 
 // [spec:pgorm:sem:codegen.ddl.tables+13/test]    an explicit ENFORCED on a column's
 // REFERENCES rides on the statement, and the entity is the plain key's
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    an ENFORCED anywhere else is
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    an ENFORCED anywhere else is
 // named, as PostgreSQL refuses it there
 #[test]
 fn an_explicit_enforced_rides_on_the_statement() {
@@ -560,7 +560,7 @@ fn a_not_null_constraint_rides_on_the_statement() {
     assert_eq!(from_sql(declared).files, from_sql(plain).files);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    two NOT NULL clauses on one
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    two NOT NULL clauses on one
 // column that PostgreSQL would refuse to make one constraint of are refused
 #[test]
 fn conflicting_not_null_constraints_are_refused() {
@@ -615,7 +615,7 @@ fn unsupported_types_are_named() {
     );
 }
 
-// [spec:pgorm:def:codegen.ddl+4/test]    a type the builder can spell but codegen
+// [spec:pgorm:def:codegen.ddl+5/test]    a type the builder can spell but codegen
 // cannot render passes the bridge and is refused by the transform gate
 #[test]
 fn types_codegen_cannot_render_reach_the_gate() {
@@ -626,7 +626,7 @@ fn types_codegen_cannot_render_reach_the_gate() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    an index clause the builder
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    an index clause the builder
 // cannot express is named
 #[test]
 fn unsupported_index_clauses_are_named() {
@@ -697,7 +697,7 @@ fn a_unique_index_folds_into_its_constraint() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a COMMENT the bridge cannot
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a COMMENT the bridge cannot
 // attach is named
 #[test]
 fn unsupported_comment_targets_are_named() {
@@ -707,7 +707,7 @@ fn unsupported_comment_targets_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a statement that names an
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a statement that names an
 // object the file does not declare is named too
 #[test]
 fn unresolved_references_are_named() {
@@ -729,7 +729,7 @@ fn unresolved_references_are_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a table declaring a second
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a table declaring a second
 // primary key is named in every spelling PostgreSQL refuses (42P16), rather
 // than read as the composite key one `PRIMARY KEY (a, b)` declares
 #[test]
@@ -747,7 +747,7 @@ fn a_second_primary_key_is_named() {
     assert!(parse_schema("CREATE TABLE t (a int, b int, PRIMARY KEY (a, b));").is_ok());
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a key naming one column
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a key naming one column
 // twice, which PostgreSQL refuses (42701), is named rather than read with or
 // without its repeat; a unique index doing so is named as a DESC column on one is
 #[test]
@@ -777,7 +777,7 @@ fn a_key_naming_a_column_twice_is_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a foreign key onto a table
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a foreign key onto a table
 // or a column the file never declares is named too — by the transform gate the
 // whole pipeline runs, which is where every table is in hand at once
 #[test]
@@ -793,7 +793,7 @@ fn unresolved_foreign_keys_are_named() {
          not have");
 }
 
-// [spec:pgorm:def:codegen.ddl+4/test]    text the PostgreSQL grammar rejects
+// [spec:pgorm:def:codegen.ddl+5/test]    text the PostgreSQL grammar rejects
 // comes back as the parser's own message
 #[test]
 fn invalid_sql_reports_the_parser_message() {
@@ -808,7 +808,7 @@ fn invalid_sql_reports_the_parser_message() {
     );
 }
 
-// [spec:pgorm:def:codegen.ddl+4/test]    the bridge is the inverse of the DDL
+// [spec:pgorm:def:codegen.ddl+5/test]    the bridge is the inverse of the DDL
 // builder: statements rendered to text and parsed back generate the same
 // entities as the statements themselves
 #[test]
@@ -1182,7 +1182,7 @@ fn a_foreign_keys_check_reaches_the_relation() {
     assert_eq!(from_sql(defaults).files, from_sql(plain).files);
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a foreign key's attribute clause
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a foreign key's attribute clause
 // said twice, or INITIALLY DEFERRED on a NOT DEFERRABLE key, is named, as
 // PostgreSQL refuses each (42601); a deferrable key is still named
 #[test]
@@ -1315,7 +1315,7 @@ fn an_alter_table_adds_to_its_table() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    an ALTER TABLE changing a table otherwise
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    an ALTER TABLE changing a table otherwise
 // than by adding to it is named, and so are IF EXISTS, ADD COLUMN IF NOT EXISTS, a constraint
 // added NOT VALID, an ALTER of another kind of relation, and an ALTER naming a table the file
 // never creates; a construct the bridge names inside an added column or constraint is named

@@ -21,7 +21,7 @@ use crate::{config::DIALECT, errors::raised};
 
 /// The collector an instrumented Python pool hands pgorm's wrappers, its
 /// hooks run on the pool's event loop.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 pub(crate) fn metrics(
     event_loop: Py<PyAny>,
     dispatch: Py<PyAny>,
@@ -149,7 +149,7 @@ impl Answer {
 
 /// `pgorm::metric::QueryContext`, owned, so that it outlives the hook call it
 /// is made for and its fingerprint is computed only when Python asks.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 #[pyclass(name = "QueryContext", module = "pgorm", frozen, skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub(crate) struct Context {
@@ -194,7 +194,7 @@ impl Context {
 
 /// `pgorm::metric::QueryFingerprint`: its 16 hex digits as its `str`, the
 /// same number as `value`.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 #[pyclass(
     name = "QueryFingerprint",
     module = "pgorm",

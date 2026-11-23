@@ -7,8 +7,9 @@ table, in the form [Entities](crate::guide::entities) teaches. It is a library w
 no command-line tool: a build script or a small binary of your own calls it
 and writes the files where the program keeps its entities.
 
-The DDL is read with libpg_query, PostgreSQL's own parser, so it is read as
-PostgreSQL 18 reads it. Nothing connects to a database.
+The DDL is read with pgsql-syntax, a Rust port of PostgreSQL 19's own
+scanner and parser, so it is read as PostgreSQL 19 reads it, whichever
+release a build targets. Nothing connects to a database.
 
 ## Adding the crate
 

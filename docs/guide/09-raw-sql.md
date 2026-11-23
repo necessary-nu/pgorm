@@ -327,7 +327,7 @@ assert_eq!(renamed, 1);
 
 A typo in a SQL string normally shows up when the statement first runs.
 [`sql!`](crate::sql) moves it to compile time: it holds a string literal to
-PostgreSQL 18's own grammar while your crate compiles, and expands to the
+PostgreSQL 19's own grammar while your crate compiles, and expands to the
 literal unchanged, a `&'static str` that costs nothing at run time.
 
 ```rust

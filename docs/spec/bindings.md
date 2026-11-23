@@ -824,7 +824,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > empty channel, one longer than 63 bytes — are its `DatabaseError`, SQLSTATE
 > `22023`.
 
-> [spec:pgorm:req:bindings.metrics]
+> [spec:pgorm:req:bindings.metrics+2]
 > `InstrumentedPool(pool, metrics)` MUST wrap `pool` in pgorm's
 > `InstrumentedPool` (`metric.layer`), reporting to `metrics`, a collector the
 > program writes: an object with the seven hooks of `metric.layer.collector`,
@@ -860,7 +860,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `value` the same number — or null, computed by pgorm's
 > `QueryContext::fingerprint` when it is read. Both bindings build pgorm with
 > `metrics-fingerprint`, so only a context with no statement text, or text
-> libpg_query refuses, has none. `duration` is a number in the unit the
+> PostgreSQL 19's grammar refuses, has none. `duration` is a number in the unit the
 > binding's timeouts take, seconds in Python and milliseconds in JavaScript;
 > `rows` a whole number or null; and `error` the error the caller is given, not
 > raised.
@@ -896,13 +896,14 @@ closed, and a transaction by the block or callback it was opened for ending.
 > nothing; a pool's on a connection of its own. A script is text, a `TypeError`
 > otherwise, and what the server refuses is its `DatabaseError`.
 
-> [spec:pgorm:req:bindings.sql-check]
-> `sql(text)` MUST hold `text` to PostgreSQL 18's grammar through
-> `pgorm::sql_check::check_sql` (`macros.runtime`), a script statement by
-> statement, and return it unchanged: the run-time counterpart of Rust's
+> [spec:pgorm:req:bindings.sql-check+2]
+> `sql(text)` MUST hold `text` to PostgreSQL 19.0's grammar, in every build
+> (`sql.target`), through `pgorm::sql_check::check_sql` (`macros.runtime`), a
+> script statement by statement, and return it unchanged: the run-time counterpart of Rust's
 > compile-time `sql!`, called where a module defines its statements. A
 > rejection is a `ConstructionError` whose message is the rejection's text:
-> the parser's message and the line it stopped on with a caret under the token.
+> the parser's message and the line it stopped on with a caret under the
+> parser's cursor.
 > The check is the grammar's alone. Text that is not a string is a `TypeError`.
 
 > [spec:pgorm:req:bindings.prql-text]

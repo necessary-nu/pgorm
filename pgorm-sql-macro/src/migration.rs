@@ -43,7 +43,7 @@ pub(crate) struct Script {
 /// The file's name and checked text as literals in a constant expression,
 /// with the file itself included so that editing it rebuilds the calling crate.
 // [spec:pgorm:def:migration.sql-file+1]
-// [spec:pgorm:req:migration.sql-file.compile+1]    the file is an input of the calling crate's build
+// [spec:pgorm:req:migration.sql-file.compile+2]    the file is an input of the calling crate's build
 // [spec:pgorm:req:migration.sql-file.const]    a block of an item and a const fn call is a constant expression
 pub(crate) fn expand(input: &MigrationInput) -> Result<TokenStream, Error> {
     let literal = &input.path;
@@ -71,7 +71,7 @@ pub(crate) fn expand(input: &MigrationInput) -> Result<TokenStream, Error> {
 
 /// Read the file `literal` names under `manifest_dir`, and hold it to the
 /// grammar.
-// [spec:pgorm:req:migration.sql-file.compile+1]    resolved against the manifest directory, refused at compile time
+// [spec:pgorm:req:migration.sql-file.compile+2]    resolved against the manifest directory, refused at compile time
 // [spec:pgorm:req:migration.sql-file.checksum]    line endings are LF before anything sees the text
 pub(crate) fn load(literal: &LitStr, manifest_dir: &Path) -> Result<Script, Error> {
     let relative = literal.value();
@@ -97,8 +97,8 @@ pub(crate) fn load(literal: &LitStr, manifest_dir: &Path) -> Result<Script, Erro
 }
 
 /// The message for a file the grammar refused: the parser's diagnostic and,
-/// when it quotes a token the file holds, that token's line, reprinted with a
-/// caret under it. A diagnostic quoting no token carries no position.
+/// when the parser gave a cursor, the line it stopped on, reprinted with a
+/// caret under the column. A diagnostic with no cursor carries no position.
 fn rejection(relative: &str, text: &str, refused: &pgorm_sql_check::Rejection) -> String {
     let mut rendered = format!("PostgreSQL rejected {relative}: {}", refused.message());
     if let Some(offset) = refused.offset() {
@@ -180,7 +180,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:req:migration.sql-file.compile+1/test]    the refusal names the file and the line
+    // [spec:pgorm:req:migration.sql-file.compile+2/test]    the refusal names the file and the line
     #[test]
     fn a_grammar_refusal_names_file_and_line() -> std::io::Result<()> {
         let files = Files::new(
@@ -203,25 +203,35 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:req:migration.sql-file.compile+1/test]    a refusal quoting no token names no line
+    // [spec:pgorm:req:migration.sql-file.compile+2/test]    the end of the text is
+    // where a cut-off file stops, and a refusal with no cursor names no line
     #[test]
-    fn a_refusal_quoting_no_token_names_no_line() -> std::io::Result<()> {
+    fn a_refusal_names_its_cursors_line() -> std::io::Result<()> {
         let files = Files::new(
             "end-of-input",
-            &[(
-                "m20260101_000001_cut.sql",
-                b"CREATE TABLE note (id int);\nSELECT (",
-            )],
+            &[
+                (
+                    "m20260101_000001_cut.sql",
+                    b"CREATE TABLE note (id int);\nSELECT (\n",
+                ),
+                ("m20260101_000002_nul.sql", b"SELECT 1;\0"),
+            ],
         )?;
 
         assert_eq!(
             files.refusal("m20260101_000001_cut.sql"),
-            "PostgreSQL rejected m20260101_000001_cut.sql: syntax error at end of input"
+            "PostgreSQL rejected m20260101_000001_cut.sql: syntax error at end of input (line 2)\n\n  SELECT (\n          ^"
+        );
+        let nul = files.refusal("m20260101_000002_nul.sql");
+        assert!(
+            nul.starts_with("PostgreSQL rejected m20260101_000002_nul.sql: ")
+                && !nul.contains("(line"),
+            "{nul}"
         );
         Ok(())
     }
 
-    // [spec:pgorm:req:migration.sql-file.compile+1/test]    unusable files are refused, not run
+    // [spec:pgorm:req:migration.sql-file.compile+2/test]    unusable files are refused, not run
     #[test]
     fn unreadable_files_are_refused() -> std::io::Result<()> {
         let files = Files::new("unusable", &[("latin1.sql", b"SELECT '\xe9';")])?;

@@ -131,10 +131,11 @@ pub use tokio_postgres::row::RowIndex;
 /// Hold a raw SQL string literal to the PostgreSQL grammar at compile time,
 /// expanding to the literal unchanged.
 ///
-/// libpg_query — the PostgreSQL server's own parser, which performs the
-/// check — is compiled into every build regardless, since `SelectorRaw`
-/// pagination parses raw statements with it at runtime. The check is syntax
-/// only: unknown tables and columns pass.
+/// The parser that performs the check — pgsql-syntax, a Rust port of
+/// PostgreSQL 19.0's own, the grammar every build parses with — is compiled
+/// into every build regardless, since `SelectorRaw` pagination parses raw
+/// statements with it at runtime. The check is syntax only: unknown tables
+/// and columns pass.
 ///
 /// ```
 /// # use pgorm::sql;
@@ -175,14 +176,14 @@ pub use tokio_postgres::row::RowIndex;
 /// [`DecodeRaw::into_tuple`]: crate::DecodeRaw::into_tuple
 /// [`into_values`]: crate::DecodeRaw::into_values
 /// [`FromQueryResult::find_by_statement`]: crate::FromQueryResult::find_by_statement
-// [spec:pgorm:def:macros.sql+6]
+// [spec:pgorm:def:macros.sql+7]
 pub use pgorm_sql_macro::sql;
 
 /// Compile a PRQL string literal to PostgreSQL SQL at build time, expanding
 /// to `(&'static str, Values)` for the raw-SQL entry points.
 ///
 /// The text sibling of [`pipeline`]: the same prqlc
-/// compiler, the same libpg_query oracle over what it emits, but for
+/// compiler, the same grammar check over what it emits, but for
 /// queries known whole at compile time. The arguments after the literal are
 /// converted via `Into<`[`Value`]`>` in placeholder order,
 /// and the macro refuses at compile time any PRQL prqlc rejects, any
@@ -210,12 +211,12 @@ pub use pgorm_sql_macro::sql;
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:macros.prql+2]
+// [spec:pgorm:def:macros.prql+3]
 pub use pgorm_sql_macro::prql;
 
 /// The checks behind [`sql!`](crate::sql) and [`prql!`](crate::prql), run on
 /// text at run time: [`check_sql`](sql_check::check_sql) holds SQL to
-/// PostgreSQL 18's grammar, and [`compile_prql`](sql_check::compile_prql)
+/// PostgreSQL 19's grammar, and [`compile_prql`](sql_check::compile_prql)
 /// compiles PRQL to SQL the grammar accepts and counts its placeholders. The
 /// macros run the same code while a crate compiles, so a refusal reads the
 /// same either way. They are for text a program has only once it runs, such
@@ -234,7 +235,7 @@ pub use pgorm_sql_macro::prql;
 /// assert_eq!(compiled.placeholders(), 1);
 /// # Ok::<(), pgorm::sql_check::PrqlRejection>(())
 /// ```
-// [spec:pgorm:req:macros.runtime]
+// [spec:pgorm:req:macros.runtime+2]
 pub use pgorm_sql_check as sql_check;
 
 pub use pgorm_query;

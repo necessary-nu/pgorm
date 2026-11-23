@@ -1,6 +1,6 @@
 use super::*;
 use crate::oracle::{assert_eq, parsed_nodes};
-use pg_query::protobuf::{DropBehavior, ObjectType};
+use pgsql_syntax::protobuf::{DropBehavior, ObjectType};
 
 fn n(name: &str) -> Name {
     Name::runtime(name)
@@ -301,7 +301,7 @@ fn identity_options(sql: &str) -> Vec<(String, serde_json::Value)> {
     let found: Vec<_> = parsed_nodes(sql, "Constraint")
         .into_iter()
         .filter(|constraint| {
-            constraint["contype"] == pg_query::protobuf::ConstrType::ConstrIdentity as i32
+            constraint["contype"] == pgsql_syntax::protobuf::ConstrType::ConstrIdentity as i32
         })
         .collect();
     assert_eq!(found.len(), 1, "exactly one identity in {sql}");

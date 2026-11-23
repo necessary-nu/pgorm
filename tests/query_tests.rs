@@ -481,7 +481,7 @@ pub async fn raw_selector_one_semantics() -> Result<(), Error> {
 
 // [spec:pgorm:req:sql.render.select-order+7/test]    a named window combined with ORDER BY and
 // LIMIT, run against a live server
-// [spec:pgorm:req:sql.render.window+7/test]
+// [spec:pgorm:req:sql.render.window+8/test]
 #[pgorm_macros::test]
 pub async fn named_window_over_a_real_query() -> Result<(), Error> {
     use pgorm::alias;

@@ -117,7 +117,7 @@ impl From<PipelineError> for crate::Error {
 /// different question, about what it may collide with once the server
 /// truncates it.
 // [spec:pgorm:req:pipeline.errors+5]
-// [spec:pgorm:req:security.ident-oracle.nul+2] (the pipeline's refusal class)
+// [spec:pgorm:req:security.ident-oracle.nul+3] (the pipeline's refusal class)
 pub(super) fn unquotable(name: &str) -> bool {
     name.contains(['"', '\0']) || name.starts_with('$') || name == "*"
 }

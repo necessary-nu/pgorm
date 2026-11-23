@@ -223,7 +223,7 @@ fn a_created_range_generates_a_compiling_newtype() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    what the bridge cannot
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    what the bridge cannot
 // carry out of a range type is named: a subtype no newtype can hold, an
 // option PostgreSQL does not have, a range with no subtype, a serial subtype,
 // and a type declared twice
@@ -269,7 +269,7 @@ fn what_a_created_range_cannot_carry_is_named() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a type modifier on a range
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a type modifier on a range
 // type's SUBTYPE, which PostgreSQL drops, is named rather than carried, `char`'s
 // implicit length among them; the subtype written without one is read
 #[test]

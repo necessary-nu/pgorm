@@ -17,7 +17,7 @@ fn aspect_names() -> SimpleCaseStatement {
 
 // [spec:pgorm:def:sql.ast.case+3/test]    `Expr::case_of` takes the operand, `when` the arms,
 // `finally` the ELSE
-// [spec:pgorm:req:sql.render.case/test]    the operand once after `CASE`, each value bare
+// [spec:pgorm:req:sql.render.case+2/test]    the operand once after `CASE`, each value bare
 // between `WHEN` and `THEN`
 #[test]
 fn simple_case_writes_its_operand_once() {
@@ -55,7 +55,7 @@ fn simple_case_writes_its_operand_once() {
     );
 }
 
-// [spec:pgorm:req:sql.render.case/test]    the searched form carries no operand, and the
+// [spec:pgorm:req:sql.render.case+2/test]    the searched form carries no operand, and the
 // parser tells the two apart by exactly that
 #[test]
 fn searched_case_leaves_the_operand_empty() {
@@ -122,7 +122,7 @@ fn simple_case_without_else_has_no_default() {
     assert!(case.get("defresult").is_none());
 }
 
-// [spec:pgorm:req:sql.render.case/test]    parameters number in textual order: operand, then
+// [spec:pgorm:req:sql.render.case+2/test]    parameters number in textual order: operand, then
 // each arm's value and result, then the ELSE
 #[test]
 fn simple_case_binds_in_textual_order() {
@@ -152,7 +152,7 @@ fn simple_case_binds_in_textual_order() {
     );
 }
 
-// [spec:pgorm:req:sql.render.case/test]    a compound operand or value needs no parentheses:
+// [spec:pgorm:req:sql.render.case+2/test]    a compound operand or value needs no parentheses:
 // the keywords delimit it
 // [spec:pgorm:def:sql.render.precedence+14/test]    the simple form is an atom under an
 // operator

@@ -7,8 +7,28 @@ from pathlib import Path
 import subprocess
 
 
+# pgsql-rs's crates share the two license files at its workspace root —
+# `LICENSE`, libpg_query's BSD-3-Clause for what is ported from it, and
+# `LICENSE-PostgreSQL` for the scanner, grammar and PL/pgSQL ported from the
+# server — and six of them declare no license, which they are read under as
+# deny.toml's `[[licenses.clarify]]` reads them.
+PGSQL_RS = "git+https://github.com/necessary-nu/pgsql-rs.git"
+PGSQL_RS_FILES = ("LICENSE", "LICENSE-PostgreSQL")
+PGSQL_RS_LICENSE = "BSD-3-Clause AND PostgreSQL"
+
+
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def from_pgsql_rs(package):
+    return (package["source"] or "").startswith(PGSQL_RS)
+
+
+def license_of(package):
+    if not package["license"] and from_pgsql_rs(package):
+        return PGSQL_RS_LICENSE
+    return package["license"]
 
 
 def notice_paths(package, root):
@@ -52,19 +72,11 @@ def texts_for(package, root, supplements):
         if digest(data) != entry["sha256"]:
             raise RuntimeError("supplemental license hash differs: " + entry["file"])
         texts.append((entry["source"], data))
-    if package["name"] == "pg_query":
-        # xxHash carries its license only in its header; upb and utf8_range
-        # ship LICENSE files the walk above already found.
-        native = Path(package["manifest_path"]).parent / "libpg_query/vendor"
-        for relative in ("xxhash/xxhash.h",):
-            header = (native / relative).read_bytes()
-            texts.append(
-                (
-                    "libpg_query/vendor/" + relative,
-                    header[: header.index(b"*/") + 2] + b"\n",
-                )
-            )
-    if not texts or not package["license"]:
+    if from_pgsql_rs(package):
+        workspace = directory.parents[1]
+        for name in PGSQL_RS_FILES:
+            texts.append(("pgsql-rs/" + name, (workspace / name).read_bytes()))
+    if not texts or not license_of(package):
         raise RuntimeError(
             f"missing license evidence for {package['name']} {package['version']}"
         )
@@ -102,28 +114,13 @@ def generate(root):
             {
                 "name": package["name"],
                 "version": package["version"],
-                "license": package["license"],
+                "license": license_of(package),
                 "repository": package["repository"],
                 "source": package["source"] or "pgorm workspace",
                 "notices": references,
             }
         )
     components = [
-        {
-            "name": "libpg_query",
-            "revision": "c1546e7e97edc93fe8474d7a59881e91fbf48cfc",
-            "owner": "pg_query@18.0.0",
-            "license": "BSD-3-Clause",
-        },
-        {
-            "name": "PostgreSQL parser",
-            "version": "18.6",
-            "owner": "pg_query@18.0.0",
-            "license": "PostgreSQL",
-        },
-        {"name": "upb", "owner": "pg_query@18.0.0", "license": "BSD-3-Clause"},
-        {"name": "utf8_range", "owner": "pg_query@18.0.0", "license": "MIT"},
-        {"name": "xxHash", "owner": "pg_query@18.0.0", "license": "BSD-2-Clause"},
         {
             "name": "ring native cryptography (including BoringSSL and fiat code)",
             "owner": "ring@0.17.14",

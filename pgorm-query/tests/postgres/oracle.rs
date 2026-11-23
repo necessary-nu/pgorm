@@ -1,9 +1,8 @@
 //! Render-conformance oracle: rendered SQL is fed to the real PostgreSQL grammar.
 //!
-//! `pg_query` statically links libpg_query, which is the PostgreSQL server's own
-//! parser. The pinned fork carries the PostgreSQL 18 grammar (libpg_query
-//! 18.1.0), the same release the live test server runs, so a string it accepts
-//! is a string the server's parser accepts.
+//! pgsql-syntax is a Rust port of PostgreSQL 19.0's own scanner and parser,
+//! built from the release's Bison tables, the grammar every pgorm build parses
+//! with, so a string it accepts is a string the server's parser accepts.
 //!
 //! The oracle is syntax-only: it has no catalog, so unknown tables, unknown
 //! columns and type-modifier misuse pass. The live-Postgres integration suite in
@@ -65,17 +64,16 @@ fn opens_with_any(sql: &str, keywords: &[&str]) -> bool {
 /// Run `sql` through the PostgreSQL grammar, returning the parser's diagnostic on
 /// rejection.
 pub fn parses(sql: &str) -> Result<(), String> {
-    match pg_query::parse(sql, pg_query::ParserOptions::DEFAULT) {
-        Ok(_) => Ok(()),
-        Err(err) => Err(diagnostic(sql, &err.to_string())),
-    }
+    pgsql_syntax::detailed::parse(sql, pgsql_syntax::ParserOptions::DEFAULT)
+        .map(|_| ())
+        .map_err(|error| diagnostic(sql, &error))
 }
 
 /// [`parses`], as an assertion.
 ///
 /// # Panics
 /// Panics when the PostgreSQL grammar rejects `sql`.
-// [spec:pgorm:req:sql.render.oracle+4]
+// [spec:pgorm:req:sql.render.oracle+5]
 pub fn assert_parses(sql: &str) {
     if let Err(report) = parses(sql) {
         panic!("{report}");
@@ -89,7 +87,7 @@ pub fn assert_parses(sql: &str) {
 /// # Panics
 /// Panics when the grammar accepts `sql`.
 pub fn assert_rejected(sql: &str) -> String {
-    match pg_query::parse(sql, pg_query::ParserOptions::DEFAULT) {
+    match pgsql_syntax::parse(sql, pgsql_syntax::ParserOptions::DEFAULT) {
         Ok(_) => panic!(
             "oracle pin is stale: PostgreSQL now accepts this render, so the pin \
              should become an ordinary conformance assertion\n  {sql}"
@@ -123,8 +121,8 @@ pub fn assert_query_eq(built: &str, expected: &str) {
 /// # Panics
 /// Panics when the PostgreSQL grammar rejects `sql`.
 pub fn parsed_nodes(sql: &str, kind: &str) -> Vec<serde_json::Value> {
-    let parsed = pg_query::parse(sql, pg_query::ParserOptions::DEFAULT)
-        .unwrap_or_else(|err| panic!("{}", diagnostic(sql, &err.to_string())));
+    let parsed = pgsql_syntax::detailed::parse(sql, pgsql_syntax::ParserOptions::DEFAULT)
+        .unwrap_or_else(|err| panic!("{}", diagnostic(sql, &err)));
     let tree = serde_json::to_value(&parsed.protobuf).expect("a parse tree serialises");
     let mut found = Vec::new();
     collect_nodes(&unwrapped(tree), kind, &mut found);
@@ -169,24 +167,19 @@ fn collect_nodes(node: &serde_json::Value, kind: &str, found: &mut Vec<serde_jso
     }
 }
 
-fn diagnostic(sql: &str, message: &str) -> String {
+fn diagnostic(sql: &str, error: &pgsql_syntax::detailed::Error) -> String {
     let mut report = format!(
-        "render-conformance oracle: PostgreSQL rejected the rendered SQL\n  {message}\n\n  {sql}\n"
+        "render-conformance oracle: PostgreSQL rejected the rendered SQL\n  {error}\n\n  {sql}\n"
     );
-    if let Some(column) = error_column(sql, message) {
+    // The parser's cursor is a one-based character position.
+    if let pgsql_syntax::detailed::Error::Postgres { diagnostic, .. } = error
+        && let Some(position) = diagnostic.cursor_position()
+    {
         report.push_str("  ");
-        report.push_str(&"-".repeat(column));
+        report.push_str(&"-".repeat(position.get() - 1));
         report.push_str("^\n");
     }
     report
-}
-
-/// libpg_query surfaces only the message, not the cursor position, so the
-/// caret is placed at the last occurrence of the token the message names.
-fn error_column(sql: &str, message: &str) -> Option<usize> {
-    let token = message.split("at or near \"").nth(1)?.strip_suffix('"')?;
-    let byte = sql.rfind(token)?;
-    Some(sql[..byte].chars().count())
 }
 
 /// Carrier for the [`assert_eq`] shim's type dispatch: the inherent impls below
