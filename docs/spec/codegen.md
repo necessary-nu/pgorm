@@ -1230,15 +1230,16 @@ specified under [Schema from DDL text](#schema-from-ddl-text).
 ## Schema from DDL text
 
 `pgorm_codegen::entities_from_sql` reads a `schema.sql` — DDL text, with no
-database to inspect — using libpg_query, the PostgreSQL server's own parser, and bridges the
-parse tree into the statements the transformer already consumes. `pg_query` is a
-plain dependency of `pgorm-codegen` rather than an optional one: the crate is a
-build-time tool nothing links into a running application, so the cost of
-compiling the C parser falls on people generating entities and on nobody else.
+database to inspect — using pgsql-syntax, a Rust port of the PostgreSQL server's own
+parser on PostgreSQL 19.0's grammar, and bridges the parse tree into the statements the
+transformer already consumes. pgsql-syntax is a plain dependency of `pgorm-codegen`
+rather than an optional one, as it is of `pgorm` itself, so reading DDL adds nothing to
+a build beyond the bridge.
 
-> [spec:pgorm:def:codegen.ddl+4]
+> [spec:pgorm:def:codegen.ddl+5]
 > `parse_schema(&str) -> Result<Vec<TableCreateStatement>, Error>`
-> parses DDL text with `pg_query::parse` and returns one statement per
+> parses DDL text with `pgsql_syntax::parse`, PostgreSQL 19.0's grammar, and
+> returns one statement per
 > `CREATE TABLE`, in file order, with every other statement it read folded into
 > the table that statement describes.
 > `entities_from_sql(&str, EntityWriterOptions) -> Result<WriterOutput, Error>`
@@ -1252,7 +1253,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > Both report failure as `Error::TransformError`, the channel the transform gate
 > already uses, and neither panics on any input: text the grammar rejects comes
 > back as ``TransformError("schema SQL did not parse: <parser message>")``,
-> carrying libpg_query's own message. The bridge validates only what it must to
+> carrying the parser's own message. The bridge validates only what it must to
 > build statements; whether the result can be generated at all stays the
 > transform gate's decision (`codegen.entity.transform`), so a column type
 > `pgorm-query` can spell but `codegen.entity.types.unsupported` cannot render
@@ -1266,7 +1267,7 @@ compiling the C parser falls on people generating entities and on nobody else.
 > (`sql.ddl.create-table`), so a key the statement declares and the key the
 > bridge reads back from its rendering are one fact.
 
-> [spec:pgorm:req:codegen.ddl.unsupported+21]
+> [spec:pgorm:req:codegen.ddl.unsupported+22]
 > The supported subset is what the entity model can hold: `CREATE TABLE` with
 > its columns, `NULL`/`NOT NULL`, primary-key, unique and foreign-key
 > constraints, its `DEFAULT`s and generation expressions within the subset
@@ -1367,8 +1368,8 @@ compiling the C parser falls on people generating entities and on nobody else.
 > and a bit-string (`a literal`); a qualified column reference; and a SQL value
 > function other than `CURRENT_DATE`, `CURRENT_TIME` and `CURRENT_TIMESTAMP`.
 >
-> The file is read with PostgreSQL 18's grammar (`codegen.ddl`), which
-> accepts constraint shapes earlier releases refused. Each resembles a shape
+> The file is read with PostgreSQL 19's grammar (`codegen.ddl`), which,
+> as 18's did, accepts constraint shapes releases before 18 refused. Each resembles a shape
 > the bridge does read, so reading it as that shape would be the quiet
 > reinterpretation this rule forbids, and each is named instead until the
 > entity model can hold it: a

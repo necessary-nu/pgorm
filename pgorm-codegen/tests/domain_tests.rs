@@ -133,7 +133,7 @@ fn domain_constraints_are_set_aside() {
     assert_eq!(generate(nullable), generate(bare));
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+21/test]    a constraint PostgreSQL refuses on a
+// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a constraint PostgreSQL refuses on a
 // domain is named, as are a serial base, a base the file does not declare and a domain
 // column under a qualification the domain was not declared with
 #[test]
@@ -294,7 +294,7 @@ fn built() -> (Vec<String>, TableCreateStatement) {
     (statements, keyed_with("stock_line", &["id"], columns))
 }
 
-// [spec:pgorm:def:codegen.ddl+4/test]    domains and a table of domain columns built with
+// [spec:pgorm:def:codegen.ddl+5/test]    domains and a table of domain columns built with
 // pgorm-query and rendered generate, read back, the entity the statement itself generates
 #[test]
 fn rendered_domain_columns_read_back_whole() {

@@ -1,15 +1,18 @@
 use super::{Declared, TypeIdentity, table, types, unresolved, unsupported};
 use crate::{Error, TableIdent, util::repeated_column};
-use pg_query::NodeEnum;
-use pg_query::protobuf::{
+use pgorm_query::{ColumnType, Name, TableKey, Unique};
+use pgsql_syntax::NodeEnum;
+use pgsql_syntax::protobuf::{
     CommentStmt, ConstrType, Constraint, CreateDomainStmt, CreateEnumStmt, CreateRangeStmt,
     CreateSchemaStmt, IndexStmt, ObjectType, RoleSpecType, SortByDir, SortByNulls,
 };
-use pgorm_query::{ColumnType, Name, TableKey, Unique};
 
 /// The full identity — schema and name — a `CREATE TYPE` declares.
 // [spec:pgorm:sem:codegen.ddl.objects+12]
-fn type_identity(type_name: &[pg_query::protobuf::Node], at: usize) -> Result<TypeIdentity, Error> {
+fn type_identity(
+    type_name: &[pgsql_syntax::protobuf::Node],
+    at: usize,
+) -> Result<TypeIdentity, Error> {
     declared_identity(type_name, "CREATE TYPE", at)
 }
 
@@ -17,7 +20,7 @@ fn type_identity(type_name: &[pg_query::protobuf::Node], at: usize) -> Result<Ty
 /// it in an error.
 // [spec:pgorm:sem:codegen.ddl.objects+12]
 fn declared_identity(
-    type_name: &[pg_query::protobuf::Node],
+    type_name: &[pgsql_syntax::protobuf::Node],
     statement: &str,
     at: usize,
 ) -> Result<TypeIdentity, Error> {
@@ -45,7 +48,7 @@ fn declared_identity(
 /// changes what a value of it is. A constraint PostgreSQL refuses on a domain
 /// is named, as the server would refuse the file.
 // [spec:pgorm:sem:codegen.ddl.objects+12]
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 pub(super) fn domain(
     stmt: &CreateDomainStmt,
     declared: &Declared,
@@ -80,7 +83,7 @@ pub(super) fn domain(
 
 /// How a constraint PostgreSQL refuses on a domain was written, or `None` for
 /// the four it takes.
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 fn refused_on_domain(constraint: &Constraint) -> Option<&'static str> {
     let kind = ConstrType::try_from(constraint.contype).ok();
     if constraint.is_no_inherit {
@@ -122,7 +125,7 @@ fn refused_on_domain(constraint: &Constraint) -> Option<&'static str> {
 /// unqualified names with the schema when it runs it, which the parse tree
 /// does not, so reading one would place its table outside the schema.
 // [spec:pgorm:sem:codegen.ddl.objects+12]
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 pub(super) fn schema(stmt: &CreateSchemaStmt, at: usize) -> Result<Option<String>, Error> {
     let name = match (stmt.schemaname.as_str(), &stmt.authrole) {
         ("", Some(role)) if role.roletype == RoleSpecType::RolespecCstring as i32 => {
@@ -185,7 +188,7 @@ pub(super) struct ParsedRange {
 /// it is created where an unqualified name is, not beside the range — or
 /// otherwise the name PostgreSQL derives, in the range's schema.
 // [spec:pgorm:sem:codegen.ddl.objects+12]
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 pub(super) fn range_type(
     stmt: &CreateRangeStmt,
     declared: &Declared,
@@ -293,7 +296,7 @@ pub(super) struct ParsedIndex {
 }
 
 // [spec:pgorm:sem:codegen.ddl.objects+12]
-// [spec:pgorm:req:codegen.ddl.unsupported+21]
+// [spec:pgorm:req:codegen.ddl.unsupported+22]
 pub(super) fn index(stmt: &IndexStmt, at: usize) -> Result<ParsedIndex, Error> {
     let table = match stmt.relation.as_ref() {
         Some(relation) if !relation.relname.is_empty() => TableIdent {

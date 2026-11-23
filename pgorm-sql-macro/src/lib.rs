@@ -7,7 +7,11 @@
 //! of pgorm-migration's `sql_migration!`, which holds a migration's `.sql`
 //! file to the same grammar. The crate is a sibling of `pgorm-macros` rather
 //! than more macros inside it because the entity derives have no use for
-//! either the libpg_query oracle or the PRQL compiler.
+//! either the grammar check or the PRQL compiler.
+//!
+//! Both macros hold text to the release the build targets: PostgreSQL 18's
+//! grammar by default, which refuses what only 19 parses, and 19's under the
+//! `pg-19` feature, which pgorm's own `pg-19` turns on.
 #![warn(missing_docs)]
 #![deny(
     clippy::expect_used,
@@ -32,10 +36,13 @@ use syn::{LitStr, parse_macro_input};
 
 /// Hold a raw SQL string literal to the PostgreSQL grammar at compile time.
 ///
-/// The literal is parsed by libpg_query — the PostgreSQL server's own parser —
-/// while the crate that wrote it is compiled. A literal the grammar accepts
-/// expands to itself, unchanged, as a `&'static str`; a literal the grammar
-/// rejects is a compile error on the literal carrying the parser's own message.
+/// The literal is parsed with PostgreSQL 19's grammar — pgsql-syntax, a Rust
+/// port of the server's own parser — while the crate that wrote it is
+/// compiled, and held to the release the build targets: without the `pg-19`
+/// feature, a construct only 19 parses (`REPACK`, `ON CONFLICT DO SELECT`,
+/// `IGNORE NULLS`) is refused by name. A literal the grammar accepts expands
+/// to itself, unchanged, as a `&'static str`; a literal the grammar rejects is
+/// a compile error on the literal carrying the parser's own message.
 ///
 /// ```
 /// use pgorm_sql_macro::sql;
@@ -50,13 +57,13 @@ use syn::{LitStr, parse_macro_input};
 ///
 /// `sql!("SELECT * FORM cake")` does not compile: the parser reports
 /// `syntax error at or near "cake"`, and the macro reports it back on the
-/// literal with a caret under the offending column.
+/// literal with a caret under the column the parser stopped at.
 ///
-/// The check is syntax only. libpg_query carries no catalog, so a well-formed
+/// The check is syntax only. The parser carries no catalog, so a well-formed
 /// statement against tables and columns that do not exist passes happily — this
 /// rules out typos in SQL, not mistakes about the schema.
-// [spec:pgorm:def:macros.sql+6]
-// [spec:pgorm:req:macros.sql.reject]    non-literal input is `syn`'s own refusal
+// [spec:pgorm:def:macros.sql+7]
+// [spec:pgorm:req:macros.sql.reject+2]    non-literal input is `syn`'s own refusal
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
     let literal = parse_macro_input!(input as LitStr);
@@ -71,7 +78,7 @@ pub fn sql(input: TokenStream) -> TokenStream {
 /// to `(&'static str, pgorm::Values)`.
 ///
 /// The literal is compiled by prqlc while your crate compiles; the emitted
-/// SQL is then held to libpg_query — the same oracle behind [`sql!`] — and
+/// SQL is then held to the grammar check behind [`sql!`] — and
 /// its `$N` placeholders are counted against the arguments that follow the
 /// literal. What lands in your code is the finished SQL as a `&'static str`
 /// and the arguments converted via `Into<pgorm::Value>`, in placeholder
@@ -112,9 +119,9 @@ pub fn sql(input: TokenStream) -> TokenStream {
 /// The check ends where the catalog begins: whether `total` is a column and
 /// whether `$1` accepts an `i64` are the server's questions, answered at
 /// prepare time and by `VerifyTrait::verify` at runtime.
-// [spec:pgorm:def:macros.prql+2]
+// [spec:pgorm:def:macros.prql+3]
 // [spec:pgorm:req:macros.prql.reject]    non-literal input is `syn`'s own refusal
-// [spec:pgorm:req:macros.prql.ceiling]    the limits are stated on the macro
+// [spec:pgorm:req:macros.prql.ceiling+2]    the limits are stated on the macro
 #[proc_macro]
 pub fn prql(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as prql::PrqlInput);
@@ -139,7 +146,7 @@ pub fn prql(input: TokenStream) -> TokenStream {
 /// expression, the name being the file stem and the text the file's with CRLF
 /// line endings read as LF, after holding that text to the grammar [`sql!`]
 /// uses. The path is resolved against `CARGO_MANIFEST_DIR`.
-// [spec:pgorm:def:macros.sql+6]    the hidden third macro
+// [spec:pgorm:def:macros.sql+7]    the hidden third macro
 // [spec:pgorm:def:migration.sql-file+1]
 // [spec:pgorm:req:migration.sql-file.const]
 #[doc(hidden)]

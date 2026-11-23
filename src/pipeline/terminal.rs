@@ -36,7 +36,7 @@ impl Pipeline {
     /// which prqlc the build resolved, which no dependency pgorm declares can
     /// guarantee for a downstream consumer that patches it.
     // [spec:pgorm:req:pipeline.errors+5]
-    // [spec:pgorm:req:pipeline.params+4]
+    // [spec:pgorm:req:pipeline.params+5]
     pub fn into_sql(mut self) -> Result<(String, Values), PipelineError> {
         self.screen(true)?;
         let Some(columns) = self.read.take() else {
@@ -118,7 +118,7 @@ impl Pipeline {
     }
 
     /// prqlc's name resolution and lowering, then the placeholder census.
-    // [spec:pgorm:req:pipeline.params+4]
+    // [spec:pgorm:req:pipeline.params+5]
     fn compile(self) -> Result<(String, Values), PipelineError> {
         let sql = adapter::compile(self.bindings, self.stages).map_err(PipelineError::Compile)?;
         Ok(census::prune(sql, self.values))

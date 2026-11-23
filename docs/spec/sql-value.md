@@ -913,7 +913,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Column type vocabulary
 
-> [spec:pgorm:def:sql.types.type-name+9]
+> [spec:pgorm:def:sql.types.type-name+10]
 > `TypeName` (`pgorm-query/src/types.rs`) is the structured spelling of a
 > type in cast or column-type position: `schema: Option<Name>`,
 > `name: Name`, `array: bool`, a private `verbatim`, and private
@@ -936,11 +936,13 @@ including panic semantics and quirks inherited from sea-query.
 > Every other part renders as a quoted identifier, case preserved. The
 > restricted keywords are PostgreSQL's `COL_NAME`, `TYPE_FUNC_NAME` and
 > `RESERVED` categories — the set PostgreSQL's own `quote_ident()` quotes —
-> embedded from the `kwlist.h` of the release the linked libpg_query
-> carries, 18.6. A test pins the embedded list against that scanner in both
+> embedded from the `kwlist.h` of the release the linked parser carries,
+> 19.0. A test pins the embedded list against that scanner in both
 > directions, and fails when the linked parser moves; the restricted set is
-> unchanged from PostgreSQL 17 and in 19, and PostgreSQL 16 differs only in
-> leaving `json` unrestricted. A restricted keyword written bare is not a
+> the same in PostgreSQL 17, 18 and 19 (19's five new words, `ignore`, `lsn`,
+> `repack`, `respect` and `wait`, are unreserved), so an 18 build quotes what
+> 18 restricts, and PostgreSQL 16 differs only in leaving `json`
+> unrestricted. A restricted keyword written bare is not a
 > name. In a type position `select` is a syntax error, and in a function
 > position the shape of the statement changes: `not(1)` is a boolean NOT,
 > `row(1)` a row constructor, `distinct(1)` first in a projection a

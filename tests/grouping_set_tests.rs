@@ -124,7 +124,7 @@ async fn a_plain_group_by_is_the_control(db: &DatabaseConnection) -> Result<(), 
 /// the plain list gives four. No row groups by product alone (mask 2).
 // [spec:pgorm:def:sql.ast.select.grouping/test]    against a live server: ROLLUP groups by each
 // prefix
-// [spec:pgorm:req:sql.render.grouping+1/test]
+// [spec:pgorm:req:sql.render.grouping+2/test]
 // [spec:pgorm:req:sql.scope+23/test]
 async fn rollup_adds_the_prefix_subtotals(db: &DatabaseConnection) -> Result<(), Error> {
     let query = grouped(|q| q.group_by_element(GroupingElement::rollup([region(), product()])));
@@ -146,7 +146,7 @@ async fn rollup_adds_the_prefix_subtotals(db: &DatabaseConnection) -> Result<(),
 /// each of the two products (mask 2) — ten rows.
 // [spec:pgorm:def:sql.ast.select.grouping/test]    against a live server: CUBE groups by each
 // subset
-// [spec:pgorm:req:sql.render.grouping+1/test]
+// [spec:pgorm:req:sql.render.grouping+2/test]
 async fn cube_adds_every_subset(db: &DatabaseConnection) -> Result<(), Error> {
     let query = grouped(|q| q.group_by_element(GroupingElement::cube([region(), product()])));
 
@@ -163,7 +163,7 @@ async fn cube_adds_every_subset(db: &DatabaseConnection) -> Result<(), Error> {
 /// grand total — five rows.
 // [spec:pgorm:def:sql.ast.select.grouping/test]    against a live server: GROUPING SETS groups by
 // exactly the sets it names
-// [spec:pgorm:req:sql.render.grouping+1/test]
+// [spec:pgorm:req:sql.render.grouping+2/test]
 async fn grouping_sets_group_by_exactly_the_sets_named(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -287,7 +287,7 @@ async fn element_beside_plain_expression_crosses_with_it(
 /// plain aggregate-free `GROUP BY` answers none. `GROUPING()` has nothing to
 /// read here: under `GROUP BY ()` no column is a grouping expression, so the
 /// server refuses it.
-// [spec:pgorm:req:sql.render.grouping+1/test]    against a live server: an empty ROLLUP or CUBE is
+// [spec:pgorm:req:sql.render.grouping+2/test]    against a live server: an empty ROLLUP or CUBE is
 // the grand total
 async fn an_empty_rollup_is_the_grand_total(db: &DatabaseConnection) -> Result<(), Error> {
     let total = |element: GroupingElement, table: &'static str| {

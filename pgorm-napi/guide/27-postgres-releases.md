@@ -125,9 +125,37 @@ const { names } = await pool.one(select(jsonArrayQuery(dear).as("names")));
 assert.deepEqual(names, POSTGRES_TARGET === 18 ? null : []);
 ```
 
-## The grammar stays at 18 for now
+## The grammar is PostgreSQL 19's
 
-Every SQL parse pgorm makes uses PostgreSQL 18's grammar, whichever release a
-build targets, because the parser, libpg_query, has no 19 grammar yet. The
-statements JavaScript's builders render are pgorm-query's, and everything a
-builder renders has to parse, so no builder makes syntax only 19 parses.
+Every SQL parse pgorm makes uses one parser, pgsql-syntax, a Rust port of
+PostgreSQL 19's own scanner and parser, in every build, whichever release it
+targets. `sql()` and `prql()` ([Raw SQL](10-raw-sql.md)) check text with it,
+through the code Rust's `sql!` and `prql!` run; `modelsFromSql` ([Generating
+entities](23-codegen.md)) reads DDL with it; and the pipeline's reading of
+the SQL it compiled, the paginator's reading of raw SQL and query fingerprints
+in [Metrics](21-metrics.md) use it, as an application addon's `sql!` and
+`prql!` do. A check of text is a check against 19's grammar, so syntax only
+19 parses passes it in an addon that targets 18 too, and is an 18 server's to
+refuse when it runs:
+
+```ts
+import assert from "node:assert/strict";
+import { sql } from "@necessary/pgorm";
+
+// REPACK and ON CONFLICT .. DO SELECT are PostgreSQL 19's.
+assert.equal(sql("REPACK cake"), "REPACK cake");
+const upsert = "INSERT INTO cake (id) VALUES (1) ON CONFLICT (id) DO SELECT RETURNING *";
+assert.equal(sql(upsert), upsert);
+```
+
+The statements JavaScript's builders render are pgorm-query's, so no builder
+makes syntax only 19 parses in an 18 addon: what 19 alone accepts arrives
+behind `pg-19`.
+
+19's grammar also refuses a little that 18's parses. It makes `ignore` and
+`respect` keywords that a column label needs `AS` before, so a bare
+`SELECT 1 ignore`, which an 18 server runs, is refused in every build;
+`SELECT 1 AS ignore` parses under both. pgorm writes `AS` before every column
+label it renders, so no statement a builder makes is affected. The five
+keywords 19 adds, `ignore`, `lsn`, `repack`, `respect` and `wait`, are all
+unreserved, so pgorm quotes the same identifiers for either release.

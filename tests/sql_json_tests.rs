@@ -2,7 +2,7 @@
 
 //! PostgreSQL's SQL/JSON against a live PostgreSQL 18 server.
 //!
-//! The render tests in pgorm-query hold each form to libpg_query's grammar.
+//! The render tests in pgorm-query hold each form to the parser's grammar.
 //! Only a server settles what a form returns: that a bound path selects what it
 //! names and a `PASSING` name is matched exactly, that each behaviour answers
 //! as specified and the server refuses what the types leave out, that a value
@@ -419,7 +419,7 @@ async fn constructor_clauses_hold_live() -> Result<(), Error> {
     };
     let from_query: Json = both_paths(&db, series_array(3)).await?;
     assert_eq!(from_query, json!([3, 2, 1]));
-    // [spec:pgorm:req:sql.target+2/test]    a query of no rows: NULL on 18, the
+    // [spec:pgorm:req:sql.target+3/test]    a query of no rows: NULL on 18, the
     // empty array on 19
     let from_no_rows: Option<Json> = both_paths(&db, series_array(0)).await?;
     #[cfg(not(feature = "pg-19"))]
@@ -560,7 +560,7 @@ async fn bare_json_serialize_over_jsonb_is_broken() -> Result<(), Error> {
 /// each row on both.
 // [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    JSON_VALUE's RETURNING leaves out the
 // types 18.6 returns wrongly
-// [spec:pgorm:req:sql.target+2/test]    18.6's sticking NULL by default, 19's
+// [spec:pgorm:req:sql.target+3/test]    18.6's sticking NULL by default, 19's
 // answer per row under pg-19
 #[pgorm_macros::test]
 async fn json_value_returning_jsonb_after_a_null() -> Result<(), Error> {

@@ -3,7 +3,7 @@
 //! `DEFERRABLE` unique and primary-key constraints against a live PostgreSQL
 //! server.
 //!
-//! The render tests in pgorm-query hold each spelling to libpg_query's
+//! The render tests in pgorm-query hold each spelling to the parser's
 //! `Constraint` node. What only a server settles is *when* the uniqueness
 //! check runs — per row, at the end of the statement, or at `COMMIT` — and
 //! that is the whole content of the clause. Each case below makes a state that

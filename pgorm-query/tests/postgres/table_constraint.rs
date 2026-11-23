@@ -1,6 +1,6 @@
 use super::*;
 use crate::oracle::{assert_eq, parsed_nodes};
-use pg_query::protobuf::ConstrType;
+use pgsql_syntax::protobuf::ConstrType;
 
 /// `glyph`, its three columns, and whatever keys `keyed` declares on it.
 fn table(keyed: impl FnOnce(&mut TableCreateStatement) -> &mut TableCreateStatement) -> String {

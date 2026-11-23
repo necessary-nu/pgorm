@@ -2,7 +2,7 @@
 
 //! `COLLATE` against a live PostgreSQL server.
 //!
-//! The render tests in pgorm-query hold each spelling to libpg_query's
+//! The render tests in pgorm-query hold each spelling to the parser's
 //! `CollateClause`. What only a server settles is what the clause *does*: the
 //! order the same values sort in, which strings compare equal, and that a
 //! column declared with a collation compares by it without a statement saying
@@ -93,7 +93,7 @@ fn word() -> Expr {
 /// before both spellings of `b`. Same rows, same statement shape, two orders.
 // [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: ORDER BY sorts by the
 // collation its key names
-// [spec:pgorm:req:sql.render.collate/test]
+// [spec:pgorm:req:sql.render.collate+2/test]
 // [spec:pgorm:req:sql.scope+23/test]
 async fn the_same_values_sort_by_the_collation_named(
     db: &DatabaseConnection,

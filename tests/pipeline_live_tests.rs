@@ -3,7 +3,7 @@
 //! The pipeline API against a live server, with bound parameters.
 //!
 //! The unit suite holds every emitted string to a golden form and the
-//! pg_query oracle; what it cannot prove is that the clause placement means
+//! grammar oracle; what it cannot prove is that the clause placement means
 //! what it says — that a `HAVING` filters groups, that a filter-after-window
 //! really applies outside the CTE, that `$N` values arrive in the right
 //! slots. Those are semantics, so they are asserted against PostgreSQL with
@@ -137,15 +137,16 @@ async fn seed(db: &impl ConnectionTrait) -> Seeded {
     }
 }
 
-fn parsed_select(sql: &str) -> pg_query::protobuf::SelectStmt {
-    let parsed = pg_query::parse(sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+fn parsed_select(sql: &str) -> pgsql_syntax::protobuf::SelectStmt {
+    let parsed =
+        pgsql_syntax::parse(sql, pgsql_syntax::ParserOptions::DEFAULT).expect("grammar accepts");
     let node = parsed.protobuf.stmts[0]
         .stmt
         .as_ref()
         .and_then(|stmt| stmt.node.as_ref())
         .expect("statement present");
     match node {
-        pg_query::NodeEnum::SelectStmt(select) => (**select).clone(),
+        pgsql_syntax::NodeEnum::SelectStmt(select) => (**select).clone(),
         other => panic!("expected SelectStmt, got {other:?}"),
     }
 }
@@ -904,7 +905,7 @@ async fn embedded_self_join_renames_before_crossing() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    a bound derivation the
+// [spec:pgorm:req:pipeline.params+5/test]    a bound derivation the
 // optimizer prunes must not leave its value behind: the statement executes
 // with exactly the parameters it asks for
 #[pgorm_macros::test]
@@ -935,7 +936,7 @@ async fn pruned_binding_executes() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    a surviving placeholder
+// [spec:pgorm:req:pipeline.params+5/test]    a surviving placeholder
 // renumbered past a pruned one binds the right value on the server
 #[pgorm_macros::test]
 async fn renumbered_binding_executes() {
@@ -959,7 +960,7 @@ async fn renumbered_binding_executes() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    an embedded pipeline's pruned
+// [spec:pgorm:req:pipeline.params+5/test]    an embedded pipeline's pruned
 // binding and the consumer's surviving one: the rebase offsets and the
 // census compose, and the joined rows decode
 #[pgorm_macros::test]

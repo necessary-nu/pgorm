@@ -36,19 +36,21 @@ pub(crate) enum Category {
 
 use Category::{ColName, Reserved, TypeFuncName};
 
-/// Every keyword PostgreSQL 18.6 does not classify `UNRESERVED`, in byte
+/// Every keyword PostgreSQL 19.0 does not classify `UNRESERVED`, in byte
 /// order, copied from its `src/include/parser/kwlist.h`.
 ///
-/// 18.6 is the release of the libpg_query pgorm links (libpg_query 18.1.0,
-/// through the pg_query fork the root manifest names), so the list the policy
-/// reads is the one the parser-backed tests judge it by, and the test that
-/// pins it to that scanner fails when the linked parser moves to another
-/// release. The set is the same in PostgreSQL 17 and 19: the four words 18
-/// added (`enforced`, `objects`, `period`, `virtual`) are unreserved, as was
-/// the `recheck` it dropped. PostgreSQL 16 lacks the SQL/JSON words 17 added
-/// and leaves `json` unreserved, and quoting a word an older server does not
-/// reserve names the same object. A word a later release restricts is an
-/// ordinary name here until the list is copied again.
+/// 19.0 is the release of the scanner pgorm links (pgsql-syntax, at the
+/// revision the root manifest names), so the list the policy reads is the one
+/// the parser-backed tests judge it by, and the test that pins it to that
+/// scanner fails when the linked parser moves to another release. The set is
+/// the same in PostgreSQL 17, 18 and 19, so an 18 build quotes exactly what
+/// 18 restricts: the five words 19 added (`ignore`, `lsn`, `repack`,
+/// `respect`, `wait`) are unreserved, as are the four 18 added (`enforced`,
+/// `objects`, `period`, `virtual`) and the `recheck` 18 dropped. PostgreSQL 16
+/// lacks the SQL/JSON words 17 added and leaves `json` unreserved, and quoting
+/// a word an older server does not reserve names the same object. A word a
+/// later release restricts is an ordinary name here until the list is copied
+/// again.
 const KEYWORDS: &[(&str, Category)] = &[
     ("all", Reserved),
     ("analyse", Reserved),
@@ -317,13 +319,13 @@ pub(crate) fn bare(part: &str, position: Position) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use pg_query::protobuf::{KeywordKind, Token};
+    use pgsql_syntax::protobuf::{KeywordKind, Token};
 
     use super::*;
 
     /// The category the linked scanner gives `word`.
     fn scanned(word: &str) -> KeywordKind {
-        let tokens = pg_query::scan(word).expect("a word scans").tokens;
+        let tokens = pgsql_syntax::scan(word).expect("a word scans").tokens;
         assert_eq!(tokens.len(), 1, "`{word}` is one token");
         KeywordKind::try_from(tokens[0].keyword_kind).expect("a known keyword kind")
     }
@@ -336,19 +338,19 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:def:sql.types.type-name+9/test]    the list is the linked
+    // [spec:pgorm:def:sql.types.type-name+10/test]    the list is the linked
     // parser's, both ways: every entry scans as its category, and every
     // keyword the scanner restricts is an entry
     #[test]
     fn keywords_are_the_linked_scanners() {
-        const COPIED_FROM: i32 = 180_006;
-        let version = pg_query::parse("SELECT 1", pg_query::ParserOptions::DEFAULT)
+        const COPIED_FROM: i32 = 190_000;
+        let version = pgsql_syntax::parse("SELECT 1", pgsql_syntax::ParserOptions::DEFAULT)
             .expect("parses")
             .protobuf
             .version;
         assert_eq!(
             version, COPIED_FROM,
-            "the linked libpg_query moved; re-copy KEYWORDS from its kwlist.h"
+            "the linked parser moved; re-copy KEYWORDS from its release's kwlist.h"
         );
         assert!(
             KEYWORDS.windows(2).all(|pair| pair[0].0 < pair[1].0),
@@ -364,7 +366,7 @@ mod tests {
             };
             let name = token.as_str_name().to_ascii_lowercase();
             let word = name.strip_suffix("_p").unwrap_or(&name);
-            let Ok(scan) = pg_query::scan(word) else {
+            let Ok(scan) = pgsql_syntax::scan(word) else {
                 continue;
             };
             let [only] = scan.tokens.as_slice() else {

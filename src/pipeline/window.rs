@@ -85,7 +85,7 @@ pub fn sort_by(keys: impl ExprList<'static>) -> Over {
 
 impl Over {
     /// `PARTITION BY` these keys.
-    // [spec:pgorm:req:pipeline.params+4]
+    // [spec:pgorm:req:pipeline.params+5]
     pub fn by(mut self, keys: impl ExprList<'static>) -> Self {
         self.partition = nodes_of(keys);
         self
@@ -95,7 +95,7 @@ impl Over {
     ///
     /// Without a partition the sort is a real pipeline stage, so it also
     /// orders the output — PRQL semantics, kept rather than hidden.
-    // [spec:pgorm:req:pipeline.params+4]
+    // [spec:pgorm:req:pipeline.params+5]
     pub fn sort_by(mut self, keys: impl ExprList<'static>) -> Self {
         self.sort = nodes_of(keys);
         self

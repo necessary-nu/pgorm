@@ -6,7 +6,7 @@
 // hook hears what, are pgorm's own. Each hook runs on the JavaScript thread,
 // and the statement it reports on settles once the hook has: a plain hook
 // once it returns, one returning a promise once that settles.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 
 import process from "node:process";
 
@@ -27,7 +27,7 @@ const HOOKS = /** @type {const} */ ([
 ]);
 
 /**
- * A statement's fingerprint: libpg_query's hash of its shape, which
+ * A statement's fingerprint: pgsql-syntax's hash of its shape, which
  * `pg_stat_statements` groups by too. Its string is the 16 hex digits Rust's
  * writes, and `value` the same number.
  */

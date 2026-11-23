@@ -13,7 +13,7 @@ pgorm = { path = "..", features = ["macros"] }
 # The `MigrationName` derive, re-exported beside the trait it implements.
 pgorm-macros = { version = "0.2.0", path = "../pgorm-macros", default-features = false, features = ["derive"] }
 # The compile-time half of `sql_migration!`: it reads and checks the file
-# through the same libpg_query oracle as `pgorm::sql!`.
+# through the same grammar check as `pgorm::sql!`.
 pgorm-sql-macro = { version = "0.2.0", path = "../pgorm-sql-macro" }
 # The grammar check `sql_migration!` makes while a crate compiles, made of a
 # file `SqlMigration::read` reads as the program runs.

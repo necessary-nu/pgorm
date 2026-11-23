@@ -1820,6 +1820,7 @@ assertions (
     {id binding-parity.coverage-restored, kind @complete, author "brendan@necessary.nu", at 2026-11-09T16:01:50.49527Z}
     {id prqlc-without-chrono, kind @complete, author "brendan@necessary.nu", at 2026-11-19T18:53:20.276808Z}
     {id prqlc-rebase-2026-11, kind @complete, author "brendan@necessary.nu", at 2026-11-19T21:49:18.646501Z}
+    {id pg-query-19, kind @doing, author "brendan@necessary.nu", at 2026-11-23T14:14:07.265664Z}
 )
 
 impl_evidence (

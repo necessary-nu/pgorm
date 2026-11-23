@@ -35,7 +35,7 @@ const ENDED: &str = "the transaction has ended";
 /// The transaction a frame serves: a plain one, or pgorm's metrics wrapper
 /// around one on an instrumented pool's connection, whose savepoints are
 /// instrumented too.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 #[derive(Debug)]
 pub enum Tx<'a, 't> {
     /// A transaction on a pool's plain connection.

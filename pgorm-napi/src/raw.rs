@@ -40,9 +40,9 @@ pub(crate) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     Ok(())
 }
 
-/// `sqlCheck(text)`: the text, held to PostgreSQL 18's grammar, a script
-/// statement by statement, as Rust's `sql!` holds a literal.
-// [spec:pgorm:req:bindings.sql-check]
+/// `sqlCheck(text)`: the text, held to PostgreSQL 19's grammar in every
+/// build, a script statement by statement, as Rust's `sql!` holds a literal.
+// [spec:pgorm:req:bindings.sql-check+2]
 fn sql_check(mut cx: FunctionContext) -> JsResult<JsValue> {
     let argument = cx.argument::<JsValue>(0)?;
     let text = read::text(&mut cx, argument, "SQL text")?;

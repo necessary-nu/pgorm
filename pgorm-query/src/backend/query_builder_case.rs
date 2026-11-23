@@ -7,7 +7,7 @@ use super::*;
 
 impl QueryBuilder {
     /// Translate [`CaseStatement`] into SQL statement.
-    // [spec:pgorm:req:sql.render.case]
+    // [spec:pgorm:req:sql.render.case+2]
     pub(super) fn prepare_case_statement(&self, stmts: &CaseStatement, sql: &mut dyn SqlWriter) {
         write!(sql, "(CASE").unwrap();
 
@@ -26,7 +26,7 @@ impl QueryBuilder {
     /// Translate [`SimpleCaseStatement`] into SQL statement: the operand once,
     /// after `CASE`, then each arm's value bare between `WHEN` and `THEN`.
     /// The keywords delimit every operand, so none needs parentheses.
-    // [spec:pgorm:req:sql.render.case]
+    // [spec:pgorm:req:sql.render.case+2]
     pub(super) fn prepare_simple_case_statement(
         &self,
         case: &SimpleCaseStatement,

@@ -4,8 +4,8 @@
 
 use super::unsupported;
 use crate::{CaseExpr, CastType, ColumnExpr, CurrentKeyword, Error, Operator};
-use pg_query::NodeEnum;
-use pg_query::protobuf::{
+use pgsql_syntax::NodeEnum;
+use pgsql_syntax::protobuf::{
     AConst, AExpr, AExprKind, BoolExpr, BoolExprType, CaseExpr as PgCaseExpr, CoercionForm,
     FuncCall, MinMaxOp, Node, NullTest, NullTestType, SqlValueFunction, SqlValueFunctionOp,
     TypeCast, TypeName, a_const,

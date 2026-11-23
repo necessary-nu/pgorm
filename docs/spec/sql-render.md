@@ -41,26 +41,24 @@ an ideal Postgres renderer would emit.
 
 ## Render conformance
 
-> [spec:pgorm:req:sql.render.oracle+4]
+> [spec:pgorm:req:sql.render.oracle+5]
 > Every string `QueryBuilder` renders — through the `to_string()` path with
 > literals inlined, or through the `build()` path with `$N` placeholders — MUST
 > parse under the PostgreSQL grammar. The contract is enforced inside the test
-> suite by an oracle: pgorm-query carries a dev-dependency on `pg_query`, the
-> Rust binding to libpg_query (the PostgreSQL server's own parser), at the one
-> revision of the necessary-nu fork every pgorm crate names (the root manifest
-> says what the fork carries, and `tests/fork_pin_tests.rs` holds the
-> declarations and lockfiles to it). That revision is upstream's unreleased
-> 18.0.0 on libpg_query 18.1.0, so the oracle parses with PostgreSQL 18.6's
-> grammar — the release the live test server runs. Oracle and server read one
-> grammar: a render the server would refuse is not passed by a newer parser,
-> and a render only 18 accepts (a `VIRTUAL` generated column, a
-> `WITHOUT OVERLAPS` key) is not refused by an older one. crates.io's
-> `pg_query` carries PostgreSQL 17's grammar; upstream's own 18 release
-> replaces the fork when it ships.
+> suite by an oracle: pgorm-query carries a development dependency on
+> pgsql-syntax, a Rust port of PostgreSQL 19.0's own scanner and parser built
+> from the release's Bison tables, at the one revision of necessary-nu/pgsql-rs
+> every pgorm crate names (the root manifest says what it carries, and
+> `tests/fork_pin_tests.rs` holds the declarations and lockfiles to it), so
+> the oracle parses with 19.0's grammar in every build (`sql.target`). Oracle
+> and runtime read one grammar: `sql!`, the paginator and the identifier
+> oracle parse with the same revision, and a render 18 introduced (a
+> `VIRTUAL` generated column, a `WITHOUT OVERLAPS` key) parses as a render
+> only 19 accepts would.
 >
 > The oracle is `pgorm-query/tests/postgres/oracle.rs`. `assert_parses` feeds a
-> string to the parser and fails with the parser's message and a caret at the
-> token it names; `assert_query_eq` pairs that check with the expected spelling;
+> string to the parser and fails with the parser's message and a caret at its
+> cursor; `assert_query_eq` pairs that check with the expected spelling;
 > and an `assert_eq!` shim — imported by a test module in place of
 > `pretty_assertions::assert_eq` — applies the oracle to any left-hand `String`
 > or `&str` that opens with a statement keyword — a query keyword (`SELECT`,
@@ -589,7 +587,7 @@ an ideal Postgres renderer would emit.
 > ` TABLESAMPLE SYSTEM (`, the percentage as a parameter, and `)`; then, when
 > seeded, ` REPEATABLE (`, the seed as a parameter, and `)`.
 
-> [spec:pgorm:req:sql.render.window+7]
+> [spec:pgorm:req:sql.render.window+8]
 > A window specification is never emitted bare: `prepare_window_spec` wraps a
 > `WindowStatement` in `( ` … ` )` (note the spaces inside the parentheses),
 > `prepare_extended_window` wraps an `ExtendedWindow` the same way, and they
@@ -631,9 +629,9 @@ an ideal Postgres renderer would emit.
 > The WINDOW clause, both specifications and the frame render in a child
 > module of the query builder, `query_builder_window.rs`. A frame whose bound,
 > `BETWEEN` or exclusion went missing still parses — as a different frame —
-> so each rendering is held to libpg_query's `frame_options` bitmask and its
-> offset nodes, not only to the grammar, and a WINDOW clause to the entries,
-> names and bases libpg_query reads from it.
+> so each rendering is held to the parse tree's `frame_options` bitmask and
+> its offset nodes, not only to the grammar, and a WINDOW clause to the
+> entries, names and bases the parser reads from it.
 
 > [spec:pgorm:req:sql.render.func-mods]
 > `prepare_function_arguments` MUST render a call's parenthesized argument
@@ -963,7 +961,7 @@ an ideal Postgres renderer would emit.
 
 ## CASE
 
-> [spec:pgorm:req:sql.render.case]
+> [spec:pgorm:req:sql.render.case+2]
 > Both forms of `sql.ast.case` MUST render self-parenthesised, `(CASE … END)`,
 > which is what places them among the atoms of `sql.render.precedence`. The
 > searched form renders each arm as ` WHEN (` condition `) THEN ` result, the
@@ -982,7 +980,7 @@ an ideal Postgres renderer would emit.
 > a result is typed only by its sibling results, so a CASE whose results are
 > all bound values leaves the caller to supply their type.
 >
-> The parser tells the two forms apart by one field — libpg_query's
+> The parser tells the two forms apart by one field — the parse tree's
 > `CaseExpr.arg`, set for the simple form and empty for the searched one — so
 > each rendering is held to that node and not only to the grammar: a simple
 > CASE whose operand went missing still parses, as a searched CASE over
@@ -990,7 +988,7 @@ an ideal Postgres renderer would emit.
 
 ## Grouping sets
 
-> [spec:pgorm:req:sql.render.grouping+1]
+> [spec:pgorm:req:sql.render.grouping+2]
 > The GROUP BY list MUST render ` GROUP BY ` and its elements
 > comma-separated, and nothing at all when it is empty — its `DISTINCT`
 > quantifier included, which renders `DISTINCT ` between the keyword and the
@@ -1010,7 +1008,7 @@ an ideal Postgres renderer would emit.
 > which is what makes it one unit of the list. The raw grammar does not say
 > so: it reads `("a", "b")` as a row expression — here and as a set of
 > several alike — and only parse analysis turns a parenthesised row in a
-> grouping position into a set. libpg_query, the render oracle, therefore
+> grouping position into a set. The render oracle's parse therefore
 > shows a grouping-set node only for `ROLLUP`, `CUBE`, `GROUPING SETS` and
 > `()`, and the goldens are held to exactly those nodes and kinds; that a row
 > groups as one unit is held by the live suite, which counts the rows each
@@ -1047,7 +1045,7 @@ an ideal Postgres renderer would emit.
 
 ## Collations
 
-> [spec:pgorm:req:sql.render.collate]
+> [spec:pgorm:req:sql.render.collate+2]
 > A `SimpleExpr::Collate` MUST render inside its own parentheses: `(`, the
 > operand, ` COLLATE `, the collation's name, `)`. The name renders through
 > `SqlName::prepare` part by part — the schema, `.`, then the name when it is
@@ -1079,7 +1077,7 @@ an ideal Postgres renderer would emit.
 > (`sql.render.placeholder-typing`), and none is needed, because the server
 > types a collated placeholder `text` from the clause itself.
 >
-> The goldens are held to libpg_query's `CollateClause`: its `collname` parts
+> The goldens are held to the parse tree's `CollateClause`: its `collname` parts
 > are the name's, and its `arg` is the whole operand — a compound one's
 > operator node, not the operator's right-hand side.
 

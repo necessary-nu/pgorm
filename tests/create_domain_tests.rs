@@ -3,7 +3,7 @@
 //! `CREATE DOMAIN`, `ALTER DOMAIN` and `DROP DOMAIN` against a live
 //! PostgreSQL server, and an entity whose columns are domains.
 //!
-//! The render tests in pgorm-query hold each statement to libpg_query's
+//! The render tests in pgorm-query hold each statement to the parser's
 //! `CreateDomainStmt`, `AlterDomainStmt`, `RenameStmt` and `DropStmt`. What
 //! only a server settles is what they do: that a domain's default, `NOT NULL`
 //! and checks hold every column typed with it, that each alter action changes

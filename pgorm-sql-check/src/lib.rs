@@ -1,14 +1,15 @@
 //! PostgreSQL's grammar held to SQL text, and PRQL compiled to it.
 //!
-//! [`check_sql`] parses text with libpg_query, the PostgreSQL server's own
-//! parser, and [`compile_prql`] compiles PRQL to PostgreSQL SQL through prqlc,
-//! holds the result to the same grammar, and counts its `$N` placeholders.
-//! pgorm-sql-macro runs both on a literal while its caller compiles (`sql!`,
-//! `prql!`), and pgorm runs them on text at run time for the language
-//! bindings, which have no compile step; one implementation serves both, so a
-//! refusal reads the same wherever it is made.
+//! [`check_sql`] parses text with PostgreSQL 19's grammar (pgsql-syntax, a
+//! Rust port of the server's own scanner and parser), and [`compile_prql`]
+//! compiles PRQL to PostgreSQL SQL through prqlc, holds the result to the same
+//! grammar, and counts its `$N` placeholders. pgorm-sql-macro runs both on a
+//! literal while its caller compiles (`sql!`, `prql!`), and pgorm runs them on
+//! text at run time for the language bindings, which have no compile step; one
+//! implementation serves both, so a refusal reads the same wherever it is
+//! made.
 //!
-//! The checks are of the grammar alone. libpg_query carries no catalog, so a
+//! The checks are of the grammar alone. The parser carries no catalog, so a
 //! table or a column that does not exist passes.
 #![warn(missing_docs)]
 #![deny(
@@ -25,9 +26,11 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
+use pgsql_syntax::detailed;
+
 /// What the grammar refused: the parser's own diagnostic, and where in the
-/// text it stopped when the diagnostic names a token.
-// [spec:pgorm:req:macros.sql.reject]
+/// text it stopped when the parser gives a cursor.
+// [spec:pgorm:req:macros.sql.reject+2]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rejection {
     message: String,
@@ -36,12 +39,24 @@ pub struct Rejection {
 }
 
 impl Rejection {
-    fn of(sql: &str, error: &pg_query::Error) -> Self {
-        let message = match error {
-            pg_query::Error::Parse(message) => message.clone(),
-            other => other.to_string(),
-        };
-        let offset = token_offset(sql, &message);
+    fn of(sql: &str, error: &detailed::Error) -> Self {
+        match error {
+            detailed::Error::Postgres { diagnostic, .. } => Self::at(
+                sql,
+                diagnostic.message.clone(),
+                diagnostic
+                    .cursor_position()
+                    .and_then(|position| byte_offset(sql, position.get())),
+            ),
+            detailed::Error::Api(pgsql_syntax::Error::Parse(message)) => {
+                Self::at(sql, message.clone(), None)
+            }
+            detailed::Error::Api(other) => Self::at(sql, other.to_string(), None),
+        }
+    }
+
+    fn at(sql: &str, message: String, offset: Option<usize>) -> Self {
+        let offset = offset.map(|offset| offset.min(sql.trim_end().len()));
         let caret = offset.and_then(|offset| caret_block(sql, offset));
         Self {
             message,
@@ -64,20 +79,21 @@ impl Rejection {
             .strip_suffix('"')
     }
 
-    /// Where the parser stopped, as a byte offset into the text it read.
+    /// Where the parser stopped, as a byte offset into the text it read: the
+    /// token it refused, or the end of the text when the text ended too soon.
     pub fn offset(&self) -> Option<usize> {
         self.offset
     }
 
     /// The line of the text holding [`offset`](Rejection::offset), reprinted
-    /// with a caret under the token, as a block that follows the message.
+    /// with a caret under that column, as a block that follows the message.
     pub fn caret(&self) -> Option<&str> {
         self.caret.as_deref()
     }
 }
 
 /// `PostgreSQL rejected this SQL: <message>`, the line the parser stopped on
-/// reprinted beneath with a caret under the token.
+/// reprinted beneath with a caret where it stopped.
 impl fmt::Display for Rejection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "PostgreSQL rejected this SQL: {}", self.message)?;
@@ -90,17 +106,31 @@ impl fmt::Display for Rejection {
 
 impl std::error::Error for Rejection {}
 
-/// Hold `sql` to PostgreSQL's grammar: one statement, or a `;`-separated
+/// Hold `sql` to PostgreSQL 19's grammar: one statement, or a `;`-separated
 /// script, each statement of which is held to it.
 ///
-/// `pg_query::parse` walks a whole script in one pass and stops at the first
-/// statement the grammar refuses, so a script needs no splitting of its own.
-// [spec:pgorm:sem:macros.sql.script]
-// [spec:pgorm:req:macros.sql.ceiling]    syntax only: the parser has no catalog
+/// One parse walks a whole script and stops at the first statement the
+/// grammar refuses, so a script needs no splitting of its own.
+// [spec:pgorm:sem:macros.sql.script+2]
+// [spec:pgorm:req:macros.sql.ceiling+2]    syntax only: the parser has no catalog
 pub fn check_sql(sql: &str) -> Result<(), Rejection> {
-    pg_query::parse(sql, pg_query::ParserOptions::DEFAULT)
-        .map(|_| ())
+    parse(sql).map(|_| ())
+}
+
+/// The tree of `sql`, or the grammar's refusal of it.
+fn parse(sql: &str) -> Result<pgsql_syntax::ParseResult, Rejection> {
+    detailed::parse(sql, pgsql_syntax::ParserOptions::DEFAULT)
         .map_err(|error| Rejection::of(sql, &error))
+}
+
+/// The byte offset of the one-based character `position` the parser reports,
+/// which is one past the last character when the text ended too soon.
+fn byte_offset(sql: &str, position: usize) -> Option<usize> {
+    let index = position.checked_sub(1)?;
+    sql.char_indices()
+        .map(|(offset, _)| offset)
+        .chain(std::iter::once(sql.len()))
+        .nth(index)
 }
 
 /// The line of `sql` holding byte `offset`, with a caret beneath that column.
@@ -113,23 +143,9 @@ fn caret_block(sql: &str, offset: usize) -> Option<String> {
     Some(format!("\n\n  {head}{tail}\n  {column}^"))
 }
 
-/// Where the parser stopped, as a byte offset into `sql`.
-///
-/// libpg_query surfaces only the message, not the cursor position, so the offset
-/// is recovered from the token the message names — and messages that name no
-/// token, such as `syntax error at end of input`, get no caret. Matching the
-/// render oracle in `pgorm-query/tests/postgres/oracle.rs`, the last occurrence
-/// is taken: a token the parser choked on rarely reappears past the point it
-/// gave up.
-fn token_offset(sql: &str, message: &str) -> Option<usize> {
-    let token = message.split("at or near \"").nth(1)?.strip_suffix('"')?;
-
-    sql.rfind(token)
-}
-
 /// PRQL compiled to PostgreSQL SQL, and the number of distinct `$N`
 /// placeholders the SQL asks values for.
-// [spec:pgorm:def:macros.prql+2]
+// [spec:pgorm:def:macros.prql+3]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledPrql {
     sql: String,
@@ -197,9 +213,6 @@ pub enum PrqlRejection {
         /// The first placeholder below it that is not.
         missing: i64,
     },
-    /// The grammar accepted the SQL, and its parse tree did not serialize for
-    /// the placeholder census: a pgorm bug.
-    Census(String),
 }
 
 impl fmt::Display for PrqlRejection {
@@ -226,10 +239,6 @@ impl fmt::Display for PrqlRejection {
             Self::Gap { max, missing } => write!(
                 f,
                 "the query uses ${max} but never ${missing}: placeholders must be contiguous from $1"
-            ),
-            Self::Census(error) => write!(
-                f,
-                "pgorm bug: the accepted parse tree did not serialize: {error}"
             ),
         }
     }
@@ -291,7 +300,7 @@ impl std::error::Error for ArityRejection {}
 /// server will ask for is the parser's own view of the finished statement.
 /// S-strings splice through unscreened; their boundary is the grammar, over
 /// the finished statement.
-// [spec:pgorm:def:macros.prql+2]
+// [spec:pgorm:def:macros.prql+3]
 // [spec:pgorm:req:macros.prql.reject]    PRQL rejections carry prqlc's message
 // [spec:pgorm:sem:macros.prql.sstring]    pass-through; the oracle is the gate
 pub fn compile_prql(prql: &str) -> Result<CompiledPrql, PrqlRejection> {
@@ -314,54 +323,28 @@ pub fn compile_prql(prql: &str) -> Result<CompiledPrql, PrqlRejection> {
 
 /// Every `$N` the emitted SQL asks for, straight from the parser's tree.
 ///
-/// `pg_query::parse` is both the grammar gate and the census: a statement it
-/// refuses is a refusal, and a statement it accepts is walked for `ParamRef`
-/// nodes, which is exactly the set the server will demand at prepare time —
-/// `$5` inside a string literal does not count, `$N` smuggled in through an
-/// s-string does.
+/// The parse is both the grammar gate and the census: a statement it refuses
+/// is a refusal, and a statement it accepts is walked for `ParamRef` nodes,
+/// which is exactly the set the server will demand at prepare time — `$5`
+/// inside a string literal does not count, `$N` smuggled in through an
+/// s-string does. pgsql-syntax's `visit` reaches every record of the tree, so
+/// a placeholder cannot hide in a clause a narrower walk would skip.
 // [spec:pgorm:req:macros.prql.reject]    the emitted SQL must pass the oracle
-// [spec:pgorm:sem:macros.prql.census]
+// [spec:pgorm:sem:macros.prql.census+2]
 fn census(sql: &str) -> Result<BTreeSet<i64>, PrqlRejection> {
-    let parsed = pg_query::parse(sql, pg_query::ParserOptions::DEFAULT).map_err(|error| {
-        PrqlRejection::Grammar {
-            sql: sql.to_owned(),
-            rejection: Rejection::of(sql, &error),
-        }
+    let parsed = parse(sql).map_err(|rejection| PrqlRejection::Grammar {
+        sql: sql.to_owned(),
+        rejection,
     })?;
-    let tree = serde_json::to_value(&parsed.protobuf)
-        .map_err(|error| PrqlRejection::Census(error.to_string()))?;
 
     let mut found = BTreeSet::new();
-    collect_params(&tree, &mut found);
+    pgsql_syntax::visit(&parsed.protobuf, |node| {
+        if let pgsql_syntax::NodeRef::ParamRef(param) = node {
+            found.insert(i64::from(param.number));
+        }
+    });
 
     Ok(found)
-}
-
-/// Walk the serialized parse tree for `ParamRef` nodes.
-///
-/// The tree is walked as JSON because pg_query's visitor covers only the node
-/// types its table-extraction cares about; serde sees every field, so a
-/// placeholder cannot hide in a clause the visitor skips.
-// [spec:pgorm:sem:macros.prql.census]
-fn collect_params(node: &serde_json::Value, found: &mut BTreeSet<i64>) {
-    match node {
-        serde_json::Value::Object(fields) => {
-            if let Some(serde_json::Value::Object(param)) = fields.get("ParamRef")
-                && let Some(number) = param.get("number").and_then(serde_json::Value::as_i64)
-            {
-                found.insert(number);
-            }
-            for value in fields.values() {
-                collect_params(value, found);
-            }
-        }
-        serde_json::Value::Array(items) => {
-            for item in items {
-                collect_params(item, found);
-            }
-        }
-        _ => {}
-    }
 }
 
 /// The placeholders must run `$1..=$max` with no gaps.
@@ -390,8 +373,8 @@ fn check_contiguity(placeholders: &BTreeSet<i64>) -> Result<(), PrqlRejection> {
 mod tests {
     use super::*;
 
-    // [spec:pgorm:req:macros.sql.reject/test]    the token, its offset and the caret
-    // [spec:pgorm:req:macros.runtime/test]    a run-time check refuses as the macro does
+    // [spec:pgorm:req:macros.sql.reject+2/test]    the token, its offset and the caret
+    // [spec:pgorm:req:macros.runtime+2/test]    a run-time check refuses as the macro does
     #[test]
     fn a_rejection_points_at_its_token() {
         let sql = "SELECT id FROM cake\nORDER name";
@@ -405,11 +388,31 @@ mod tests {
             rejection.to_string(),
             "PostgreSQL rejected this SQL: syntax error at or near \"name\"\n\n  ORDER name\n        ^"
         );
-        let end = check_sql("SELECT").err();
-        assert_eq!(end.as_ref().and_then(Rejection::token), None);
+        let Err(end) = check_sql("SELECT id FROM\n") else {
+            panic!("FROM takes a table");
+        };
+        assert_eq!(end.message(), "syntax error at end of input");
+        assert_eq!(end.token(), None);
+        assert_eq!(end.offset(), Some(14));
+        assert_eq!(end.caret(), Some("\n\n  SELECT id FROM\n                ^"));
     }
 
-    // [spec:pgorm:req:macros.sql.reject/test]    a script's offset counts from its start
+    // [spec:pgorm:req:macros.sql.ceiling+2/test]    the parser's own cursor, not the
+    // token's last occurrence in the text
+    #[test]
+    fn the_caret_is_the_parsers_cursor() {
+        let Err(rejection) = check_sql("SELECT name FROM cake ORDER name") else {
+            panic!("ORDER takes BY");
+        };
+        assert_eq!(rejection.token(), Some("name"));
+        assert_eq!(rejection.offset(), Some(28));
+        let Err(wide) = check_sql("SELECT 'é' FROM cake ORDER name") else {
+            panic!("ORDER takes BY");
+        };
+        assert_eq!(wide.offset(), Some(28));
+    }
+
+    // [spec:pgorm:req:macros.sql.reject+2/test]    a script's offset counts from its start
     #[test]
     fn a_script_is_held_statement_by_statement() {
         assert!(check_sql("SELECT 1; SELECT 2").is_ok());
@@ -438,7 +441,7 @@ mod tests {
     }
 
     // [spec:pgorm:req:macros.prql.reject/test]    placeholders counted, gaps and arity refused
-    // [spec:pgorm:req:macros.runtime/test]
+    // [spec:pgorm:req:macros.runtime+2/test]
     #[test]
     fn prql_counts_its_placeholders() {
         let compiled = compile_prql("from cake | filter price < $1 | filter id > $1")
@@ -464,5 +467,34 @@ mod tests {
             compile_prql("from cake | take $1"),
             Err(PrqlRejection::Compile(_))
         ));
+    }
+
+    // [spec:pgorm:req:sql.target+3/test]    every build parses with
+    // PostgreSQL 19's grammar: what only 19 added passes, in `sql!`'s check
+    // and in PRQL's emitted SQL alike
+    #[test]
+    fn nineteens_grammar_is_the_one_linked() {
+        for sql in [
+            "INSERT INTO cake (id) VALUES (1) ON CONFLICT (id) DO SELECT RETURNING *",
+            "SELECT lag(price) IGNORE NULLS OVER (ORDER BY id) FROM cake",
+            "REPACK cake USING INDEX cake_pkey",
+            "WAIT FOR LSN '0/1'",
+        ] {
+            assert!(check_sql(sql).is_ok(), "{sql}");
+        }
+        let compiled = compile_prql(r#"from cake | select {s"lag(price) RESPECT NULLS OVER ()"}"#)
+            .unwrap_or_else(|error| panic!("{error}"));
+        assert!(
+            compiled.sql().contains("RESPECT NULLS"),
+            "{}",
+            compiled.sql()
+        );
+        // 19 made `ignore` and `respect` keywords that are not bare column
+        // labels, which 18 read as identifiers.
+        for word in ["ignore", "respect"] {
+            let bare = check_sql(&format!("SELECT 1 {word}"));
+            assert_eq!(bare.as_ref().err().and_then(Rejection::token), Some(word));
+            assert!(check_sql(&format!("SELECT 1 AS {word}")).is_ok());
+        }
     }
 }

@@ -60,32 +60,27 @@ log = { version = "0.4.34", default-features = false }
 # `db-tokio-postgres` carries that `ToSql` impl and only this dependency edge
 # turns it on; `pgorm-query` takes the same crate without it.
 rust_decimal = { version = "1.43", features = ["db-tokio-postgres"], default-features = false }
-# libpg_query, the PostgreSQL server's own parser: the paginator reads raw
-# statements with it, `metrics-fingerprint` hashes with it, and the `sql!` /
-# `prql!` macros, codegen's DDL path and the render and identifier oracles all
-# parse with it, so every one of them speaks the grammar it carries.
+# PostgreSQL 19's grammar, parsed natively in Rust: the paginator reads raw
+# statements with it, `metrics-fingerprint` hashes with it, COPY's guard scans
+# with it, and the `sql!` / `prql!` macros, codegen's DDL path and the render
+# and identifier oracles all parse with it, so every one of them speaks the one
+# grammar it carries, in every build. pgsql-syntax ports pg_query.rs 18.1.0's
+# API (parse, deparse, normalize, fingerprint, scan) to pgsql-parser, a Rust
+# port of PostgreSQL 19.0's scanner and parser built from the release's own
+# Bison tables, so nothing here compiles C or runs bindgen.
 #
-# It is a git dependency on the fork's pgorm/postgres-18 branch, which is
-# upstream pg_query.rs 6.2.1 with upstream's unreleased 18.0.0 merged in
-# (pganalyze/pg_query.rs#79) and its libpg_query submodule at tag 18.1.0 —
-# PostgreSQL 18.6's grammar, the release the test server runs. crates.io's
-# pg_query still carries PostgreSQL 17's, which refuses every statement 18
-# added (a VIRTUAL generated column, a WITHOUT OVERLAPS key, a named NOT
-# NULL). A dependency rather than a `[patch.crates-io]` entry for the reason
-# prqlc's below is: a patch reaches only the workspace that declares it.
-# Upstream's own 18 release replaces the fork when it ships.
-#
-# The cost is the one prqlc's states — `cargo publish` refuses a git
-# dependency — and the revision is held the same way: pgorm-sql-check,
-# pgorm-codegen and pgorm-query's oracle name the same commit, and
-# tests/fork_pin_tests.rs holds every declaration and every committed lockfile
-# to it.
-pg_query = { git = "https://github.com/necessary-nu/pg_query.rs.git", rev = "09ebc3a4c7f50f3682e890a8372b4c4c99382ed9" }
+# It is a git dependency because pgsql-rs publishes nothing (its crates are
+# `publish = false`), pinned to one commit of its main branch. The cost is the
+# one prqlc's states below — `cargo publish` refuses a git dependency — and
+# the revision is held the same way: pgorm-sql-check, pgorm-codegen and
+# pgorm-query's oracle name the same commit, and tests/fork_pin_tests.rs holds
+# every declaration and every committed lockfile to it.
+pgsql-syntax = { git = "https://github.com/necessary-nu/pgsql-rs.git", rev = "9f15dec2433c4139117f68392b9b3b61b154bb6b" }
 pgorm-macros = { version = "0.2.0", path = "pgorm-macros", default-features = false }
 pgorm-sql-check = { version = "0.2.0", path = "pgorm-sql-check" }
 pgorm-sql-macro = { version = "0.2.0", path = "pgorm-sql-macro" }
 # The PRQL compiler behind pgorm::pipeline. Pure Rust but a heavyweight
-# compile; a permanent dependency by decision, like pg_query above. The pin
+# compile; a permanent dependency by decision, like pgsql-syntax above. The pin
 # is exact: the PL AST is not a stable API, and the adapter module is
 # written against this one revision.
 #
@@ -171,11 +166,11 @@ default = [
 ]
 macros = ["pgorm-macros/derive"]
 # Off by default: fingerprinting costs a parse per statement, so only builds
-# that want query identities in their metrics pay for it. libpg_query itself is
-# linked either way (see `pg_query` above).
+# that want query identities in their metrics pay for it. The parser itself is
+# linked either way (see `pgsql-syntax` above).
 metrics-fingerprint = []
 # Target PostgreSQL 19 instead of 18, the floor and the default
-# ([spec:pgorm:req:sql.target]). The typed surface is pgorm-query's, so this
+# ([spec:pgorm:req:sql.target+3]). The typed surface is pgorm-query's, so this
 # forwards to it; the live suite then holds 19's answers where the two
 # releases' servers differ, and DATABASE_URL has to name a 19 server.
 pg-19 = ["pgorm-query/pg-19"]

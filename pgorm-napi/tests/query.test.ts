@@ -96,7 +96,7 @@ test("a statement given another number of values than its placeholders take reje
   assert.equal(await scalar("SELECT 1 AS n"), 1);
 });
 
-// [spec:pgorm:req:conn.copy.statement/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
+// [spec:pgorm:req:conn.copy.statement+2/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
 test("a COPY given as a statement rejects with a ConstructionError naming copyIn and copyOut", async () => {
   for (
     const run of [

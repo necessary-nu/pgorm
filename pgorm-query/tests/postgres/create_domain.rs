@@ -1,6 +1,6 @@
 use super::*;
 use crate::oracle::{assert_eq, parsed_nodes};
-use pg_query::protobuf::{ConstrType, DropBehavior, ObjectType};
+use pgsql_syntax::protobuf::{AlterDomainType, ConstrType, DropBehavior, ObjectType};
 use std::sync::Arc;
 
 fn n(name: &str) -> Name {
@@ -245,29 +245,35 @@ fn an_alter_carries_one_action() {
     let sql = qualified().set_default(5).to_string();
     assert_eq!(sql, format!("{prefix} SET DEFAULT 5"));
     let alter = subtype(&sql);
-    assert_eq!(alter["subtype"], "T");
+    assert_eq!(alter["subtype"], AlterDomainType::AdAlterDefault as i32);
     assert!(alter.get("def").is_some(), "{sql}");
 
     let sql = qualified().drop_default().to_string();
     assert_eq!(sql, format!("{prefix} DROP DEFAULT"));
     let alter = subtype(&sql);
-    assert_eq!(alter["subtype"], "T");
+    assert_eq!(alter["subtype"], AlterDomainType::AdAlterDefault as i32);
     assert!(alter.get("def").is_none(), "{sql}");
 
     let sql = qualified().set_not_null().to_string();
     assert_eq!(sql, format!("{prefix} SET NOT NULL"));
-    assert_eq!(subtype(&sql)["subtype"], "O");
+    assert_eq!(
+        subtype(&sql)["subtype"],
+        AlterDomainType::AdSetNotNull as i32
+    );
 
     let sql = qualified().drop_not_null().to_string();
     assert_eq!(sql, format!("{prefix} DROP NOT NULL"));
-    assert_eq!(subtype(&sql)["subtype"], "N");
+    assert_eq!(
+        subtype(&sql)["subtype"],
+        AlterDomainType::AdDropNotNull as i32
+    );
 
     let sql = qualified()
         .add_check(Expr::domain_value().gt(0))
         .to_string();
     assert_eq!(sql, format!("{prefix} ADD CHECK (VALUE > 0)"));
     let alter = subtype(&sql);
-    assert_eq!(alter["subtype"], "C");
+    assert_eq!(alter["subtype"], AlterDomainType::AdAddConstraint as i32);
     assert_eq!(alter["def"]["Constraint"]["skip_validation"], false);
 
     let sql = qualified()
@@ -288,7 +294,7 @@ fn an_alter_carries_one_action() {
     let sql = qualified().drop_constraint(n("small")).to_string();
     assert_eq!(sql, format!(r#"{prefix} DROP CONSTRAINT "small""#));
     let alter = subtype(&sql);
-    assert_eq!(alter["subtype"], "X");
+    assert_eq!(alter["subtype"], AlterDomainType::AdDropConstraint as i32);
     assert_eq!(alter["name"], "small");
     assert_eq!(alter["missing_ok"], false);
     assert_eq!(alter["behavior"], DropBehavior::DropRestrict as i32);
@@ -307,7 +313,10 @@ fn an_alter_carries_one_action() {
     let sql = qualified().validate_constraint(n("small")).to_string();
     assert_eq!(sql, format!(r#"{prefix} VALIDATE CONSTRAINT "small""#));
     let alter = subtype(&sql);
-    assert_eq!(alter["subtype"], "V");
+    assert_eq!(
+        alter["subtype"],
+        AlterDomainType::AdValidateConstraint as i32
+    );
     assert_eq!(alter["name"], "small");
 
     let sql = qualified()

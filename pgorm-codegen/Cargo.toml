@@ -26,13 +26,10 @@ rust = ["dep:syn", "dep:quote", "dep:prettyplease", "dep:proc-macro2"]
 
 [dependencies]
 pgorm-query.workspace = true
-# libpg_query, the PostgreSQL server's own parser, is a plain dependency here:
-# pgorm-codegen is a build-time tool nothing links into a running application,
-# so the C build cost lands on people generating entities and on nobody else.
-# It is the root crate's pg_query fork at the root's revision, so a schema is
-# read with the grammar the server it describes speaks; the root manifest says
-# why it is a git dependency.
-pg_query = { git = "https://github.com/necessary-nu/pg_query.rs.git", rev = "09ebc3a4c7f50f3682e890a8372b4c4c99382ed9" }
+# PostgreSQL 19's grammar, through pgsql-syntax at the root crate's revision,
+# so a schema is read with the grammar every other parse in pgorm uses; the
+# root manifest says why it is a git dependency.
+pgsql-syntax = { git = "https://github.com/necessary-nu/pgsql-rs.git", rev = "9f15dec2433c4139117f68392b9b3b61b154bb6b" }
 # The Rust writer's: it builds generated source as tokens (proc-macro2 and
 # quote) and parses it back as a syntax tree (syn) to lay it out.
 syn = { version = "3", default-features = false, features = ["parsing", "proc-macro", "derive", "printing", "full"], optional = true }

@@ -136,7 +136,7 @@ async fn within_group_reads_the_ordering_it_is_given(db: &DatabaseConnection) ->
 /// are written by different rules, so that they compose is worth asserting
 /// against a server and not only against the grammar.
 // [spec:pgorm:req:sql.render.func-mods/test]
-// [spec:pgorm:req:sql.render.window+7/test]
+// [spec:pgorm:req:sql.render.window+8/test]
 async fn filter_composes_with_a_window(db: &DatabaseConnection) -> Result<(), Error> {
     let sql = Query::select()
         .expr_window(

@@ -9,16 +9,16 @@
 //! values and renumbers the survivors contiguously, rewriting the SQL and
 //! compacting the values in one pass.
 //!
-//! The count is a lexer census, not a text scan: `pg_query::scan` — the
+//! The count is a lexer census, not a text scan: `pgsql_syntax::scan` — the
 //! PostgreSQL lexer pgorm already links — hands back `PARAM` tokens with
 //! byte extents, so a `$1` sitting inside a string literal
 //! (`filter(note.eq("costs $1"))` renders as `'costs $1'`) is never
 //! miscounted, and the extents are exactly what the rewrite needs. Reading
 //! the finished SQL is complete here where it has to be defended in `prql!`
-//! ([spec:pgorm:sem:macros.prql.census]): the pipeline offers no raw-SQL
+//! ([spec:pgorm:sem:macros.prql.census+2]): the pipeline offers no raw-SQL
 //! hole ([spec:pgorm:req:pipeline.surface+4] cuts s-strings), and the one
 //! text it hands the compiler to pass through untouched is a string literal
-//! it rendered itself ([spec:pgorm:req:pipeline.params+4]), which the lexer
+//! it rendered itself ([spec:pgorm:req:pipeline.params+5]), which the lexer
 //! reads as a single constant. Nor can a name lex as one: the identifier
 //! screen refuses every name that begins with `$`
 //! ([spec:pgorm:req:pipeline.errors+5]), which the compiler would otherwise
@@ -41,7 +41,7 @@ use pgorm_query::{Value, Values};
 /// outside what the binder minted; both unreachable from this module's own
 /// output) — the statement passes through unchanged for the server to
 /// judge, so this function never panics and never invents a binding.
-// [spec:pgorm:req:pipeline.params+4]
+// [spec:pgorm:req:pipeline.params+5]
 pub(super) fn prune(sql: String, values: Vec<Value>) -> (String, Values) {
     if values.is_empty() {
         return (sql, Values(values));
@@ -94,10 +94,10 @@ fn renumbered(sql: &str, minted: usize) -> Option<(String, Vec<usize>)> {
 /// `None` means the text could not be lexed or a token was not the `$N`
 /// shape the lexer promises — either way, no census to act on.
 fn census(sql: &str) -> Option<Vec<(Range<usize>, usize)>> {
-    let scanned = pg_query::scan(sql).ok()?;
+    let scanned = pgsql_syntax::scan(sql).ok()?;
     let mut occurrences = Vec::new();
     for token in &scanned.tokens {
-        if token.token != pg_query::protobuf::Token::Param as i32 {
+        if token.token != pgsql_syntax::protobuf::Token::Param as i32 {
             continue;
         }
         let extent = usize::try_from(token.start).ok()?..usize::try_from(token.end).ok()?;

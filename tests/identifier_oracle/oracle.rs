@@ -1,8 +1,8 @@
 //! The structural engine: render a name at a site, parse the statement with
-//! libpg_query, and compare its parse tree with the tree of the same statement
+//! PostgreSQL 19's grammar, and compare its parse tree with the tree of the same statement
 //! rendered with a benign name.
 //!
-//! The comparison is generic. Both trees are libpg_query's protobuf serialised
+//! The comparison is generic. Both trees are the parser's protobuf serialised
 //! to JSON; they are walked in parallel, `location`-style fields skipped, and
 //! must agree on every key, every array length and every leaf — except the
 //! leaves where the benign tree holds [`BENIGN`], which are the name's
@@ -38,13 +38,13 @@ pub const IDENTIFIER_BYTES: usize = NAMEDATALEN - 1;
 /// differ between two renderings whose names differ in length, and carry no
 /// structure.
 ///
-/// Every byte-offset field libpg_query's protobuf carries: the `location` of
-/// most nodes and a statement's extent, and the offsets PostgreSQL 18 added
+/// Every byte-offset field PostgreSQL 19's parse tree carries: the `location`
+/// of most nodes and a statement's extent, the offsets PostgreSQL 18 added
 /// beside them — an `IN` list's bounds on `A_Expr`, an array constructor's
 /// bounds on `A_ArrayExpr` and `ArrayExpr`, the value of a `DefElem`, a
-/// `NOTIFY` payload and a subscription's connection string — plus a JSON
-/// table path's name.
-const POSITION_KEYS: [&str; 11] = [
+/// `NOTIFY` payload and a subscription's connection string — a JSON table
+/// path's name, and the LSN of 19's `WAIT FOR LSN`.
+const POSITION_KEYS: [&str; 12] = [
     "location",
     "stmt_location",
     "stmt_len",
@@ -56,6 +56,7 @@ const POSITION_KEYS: [&str; 11] = [
     "payload_location",
     "conninfo_location",
     "name_location",
+    "lsn_location",
 ];
 
 /// Node kinds that only wrap a value; a name's position is named by the node
@@ -363,8 +364,8 @@ pub enum Seg {
 
 /// Parse `sql` and return its protobuf parse tree as JSON.
 pub fn parse_tree(sql: &str) -> Result<Json, String> {
-    let parsed =
-        pg_query::parse(sql, pg_query::ParserOptions::DEFAULT).map_err(|err| err.to_string())?;
+    let parsed = pgsql_syntax::parse(sql, pgsql_syntax::ParserOptions::DEFAULT)
+        .map_err(|err| err.to_string())?;
     serde_json::to_value(&parsed.protobuf).map_err(|err| err.to_string())
 }
 
@@ -718,7 +719,7 @@ pub fn judge_nul(site: &Site) -> Result<NulBehaviour, String> {
 
 /// Prove the protocol encoder refuses `sql` in both the extended-query
 /// `Parse` message and the simple-query `Query` message — the only two routes
-/// statement text takes to the server — and that libpg_query cannot parse it
+/// statement text takes to the server — and that the parser cannot parse it
 /// either.
 pub fn encoder_refuses(sql: &str) -> Result<(), String> {
     let mut buf = BytesMut::new();
@@ -728,8 +729,8 @@ pub fn encoder_refuses(sql: &str) -> Result<(), String> {
     if frontend::query(sql, &mut buf).is_ok() {
         return Err(format!("the Query encoder accepted {}", show(sql)));
     }
-    if pg_query::parse(sql, pg_query::ParserOptions::DEFAULT).is_ok() {
-        return Err(format!("libpg_query parsed {}", show(sql)));
+    if pgsql_syntax::parse(sql, pgsql_syntax::ParserOptions::DEFAULT).is_ok() {
+        return Err(format!("the parser parsed {}", show(sql)));
     }
     Ok(())
 }

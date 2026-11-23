@@ -3,7 +3,7 @@
 use pgorm::{Value, Values};
 use pgorm_sql_macro::prql;
 
-// [spec:pgorm:def:macros.prql+2/test]    the expansion is the emitted SQL plus Values
+// [spec:pgorm:def:macros.prql+3/test]    the expansion is the emitted SQL plus Values
 #[test]
 fn expansion_is_sql_and_values() {
     let (sql, values) = prql!("from invoice | filter total > $1 | take 5", 100_i64);
@@ -12,7 +12,7 @@ fn expansion_is_sql_and_values() {
     assert_eq!(values, Values(vec![Value::from(100_i64)]));
 }
 
-// [spec:pgorm:def:macros.prql+2/test]    a `&'static str`, so it outlives any frame
+// [spec:pgorm:def:macros.prql+3/test]    a `&'static str`, so it outlives any frame
 #[test]
 fn emitted_sql_is_a_static_str() {
     fn keep(query: &'static str) -> &'static str {
@@ -23,7 +23,7 @@ fn emitted_sql_is_a_static_str() {
     assert_eq!(keep(sql), "SELECT * FROM invoice LIMIT 3");
 }
 
-// [spec:pgorm:sem:macros.prql.census/test]    `$1` twice is one argument, bound once
+// [spec:pgorm:sem:macros.prql.census+2/test]    `$1` twice is one argument, bound once
 #[test]
 fn reused_placeholder_binds_one_argument() {
     let (sql, values) = prql!(
@@ -39,7 +39,7 @@ fn reused_placeholder_binds_one_argument() {
     assert_eq!(values, Values(vec![Value::from(7_i64)]));
 }
 
-// [spec:pgorm:sem:macros.prql.census/test]    no placeholders, no arguments, empty Values
+// [spec:pgorm:sem:macros.prql.census+2/test]    no placeholders, no arguments, empty Values
 #[test]
 fn placeholder_free_query_takes_no_arguments() {
     let (sql, values) = prql!("from invoice | sort {-total} | take 1");
@@ -48,7 +48,7 @@ fn placeholder_free_query_takes_no_arguments() {
     assert_eq!(values, Values(Vec::new()));
 }
 
-// [spec:pgorm:def:macros.prql+2/test]    arguments convert in placeholder order
+// [spec:pgorm:def:macros.prql+3/test]    arguments convert in placeholder order
 #[test]
 fn arguments_convert_in_placeholder_order() {
     let city = "Berlin".to_owned();
@@ -68,7 +68,7 @@ fn arguments_convert_in_placeholder_order() {
     );
 }
 
-// [spec:pgorm:def:macros.prql+2/test]    prqlc places the clause: a filter after
+// [spec:pgorm:def:macros.prql+3/test]    prqlc places the clause: a filter after
 // an aggregation compiles to HAVING
 #[test]
 fn filter_after_aggregate_becomes_having() {
@@ -87,7 +87,7 @@ fn filter_after_aggregate_becomes_having() {
     assert_eq!(values.0.len(), 1);
 }
 
-// [spec:pgorm:def:macros.prql+2/test]    a join with a bound filter survives whole
+// [spec:pgorm:def:macros.prql+3/test]    a join with a bound filter survives whole
 #[test]
 fn join_compiles_with_bound_filter() {
     let (sql, values) = prql!(
@@ -123,7 +123,7 @@ fn sstring_passes_through_to_emitted_sql() {
     assert_eq!(values.0.len(), 1);
 }
 
-// [spec:pgorm:sem:macros.prql.census/test]    a raw `$N` inside an s-string is
+// [spec:pgorm:sem:macros.prql.census+2/test]    a raw `$N` inside an s-string is
 // invisible to PRQL but not to the census: it still demands an argument
 #[test]
 fn sstring_placeholder_counts_toward_arity() {
@@ -133,7 +133,7 @@ fn sstring_placeholder_counts_toward_arity() {
     assert_eq!(values, Values(vec![Value::from(5_i64)]));
 }
 
-// [spec:pgorm:req:macros.prql.ceiling/test]    no catalog: unknown names compile
+// [spec:pgorm:req:macros.prql.ceiling+2/test]    no catalog: unknown names compile
 #[test]
 fn unknown_tables_and_columns_pass() {
     let (sql, values) = prql!("from no_such_table | filter nowhere > $1", 1_i64);

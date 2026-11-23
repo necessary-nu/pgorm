@@ -333,13 +333,18 @@ the caller and not to the collector.
 
 A fingerprint names a statement's shape: two statements that differ only in
 their constants share one, and two that differ in shape do not. It is
-libpg_query's hash of the parsed statement, the notion of "same query"
+pgsql-syntax's hash of the parsed statement, the notion of "same query"
 `pg_stat_statements` groups by, so a collector keyed on it lines up with the
 server's statistics. A `QueryFingerprint`'s string is its 16 hex digits and
 its `value` the same number as a `bigint`; either is a key for a `Map` of
-counters, and `equals` compares two. Like Rust's, it follows PostgreSQL 18's
+counters, and `equals` compares two. Like Rust's, it follows PostgreSQL 19's
 rules for query identity: a schema qualifier is not part of a table's
-identity, and a table given an alias is identified by the alias.
+identity, and a table given an alias is identified by the alias. The hash is
+of 19's parse tree. A plain `SELECT`, `INSERT`, `UPDATE`, `DELETE` or `MERGE`,
+`RETURNING`, an alias and a transaction verb hash as they do in libpg_query's
+fingerprint over 18's grammar; a statement holding `ON CONFLICT`, `FETCH` or
+`MOVE`, `CLUSTER`, `ALTER DOMAIN` or `ALTER SUBSCRIPTION .. REFRESH
+PUBLICATION` hashes differently.
 
 ```ts
 import assert from "node:assert/strict";
@@ -364,10 +369,11 @@ assert.equal(new QueryContext("begin").fingerprint, null);
 
 Here JavaScript differs from Rust, where fingerprints sit behind the
 `metrics-fingerprint` feature: the addon is built with it, so `fingerprint`
-is there for every statement libpg_query parses. It is `null` for a
+is there for every statement the parser reads. It is `null` for a
 transaction verb, which has no statement, and for raw SQL the server accepts
-but libpg_query refuses, which runs and is reported as usual with only its
-identity missing. A fingerprint is computed when it is read, so a collector
+but the parser refuses, such as `SELECT 1 ignore`, a bare column label
+PostgreSQL 18 reads and 19's grammar does not; such a statement runs and is
+reported as usual with only its identity missing. A fingerprint is computed when it is read, so a collector
 that never reads one pays no parse, and the answer is kept process-wide by
 statement text, each text parsed once, up to 1024 texts.
 

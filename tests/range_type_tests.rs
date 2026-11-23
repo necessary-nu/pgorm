@@ -2,7 +2,7 @@
 
 //! `CREATE TYPE ... AS RANGE` against a live PostgreSQL server.
 //!
-//! The render tests in pgorm-query hold the statement to libpg_query's
+//! The render tests in pgorm-query hold the statement to the parser's
 //! `CreateRangeStmt`. What only a server settles is what it made: a range type
 //! over the subtype written, ordered by the operator class and collation
 //! given, measured by the difference function given, with a multirange of the

@@ -2,7 +2,7 @@
 
 //! `CREATE TYPE ... AS (composite)` against a live PostgreSQL server.
 //!
-//! The render tests in pgorm-query hold the statement to libpg_query's
+//! The render tests in pgorm-query hold the statement to the parser's
 //! `CompositeTypeStmt`. What only a server settles is what it made: a row
 //! type whose attributes are the ones written, in order, each with the type
 //! and collation it was given; a type a table column can then be declared

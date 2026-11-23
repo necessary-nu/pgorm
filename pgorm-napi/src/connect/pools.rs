@@ -49,7 +49,7 @@ fn pool_new(mut cx: FunctionContext) -> JsResult<JsBox<PoolHandle>> {
 /// connections and its closing, reporting to the collector whose seven hooks
 /// `hooks` holds in `MetricsCollector`'s order — `null` for one never to
 /// run — each run on the JavaScript thread by `dispatch`.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 fn pool_instrument(mut cx: FunctionContext) -> JsResult<JsBox<PoolHandle>> {
     let lender = pool(&mut cx)?;
     if lender.metered.is_some() {

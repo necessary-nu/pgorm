@@ -1,10 +1,10 @@
 use super::{Declared, DeclaredType, unresolved, unsupported};
 use crate::Error;
-use pg_query::NodeEnum;
-use pg_query::protobuf::TypeName;
 use pgorm_query::{
     ColumnType, IntervalPrecision, IntervalSpec, Name, PgInterval, RangeType, StringLen,
 };
+use pgsql_syntax::NodeEnum;
+use pgsql_syntax::protobuf::TypeName;
 use std::sync::Arc;
 
 /// A column's type together with the auto-increment fact the `serial` family
@@ -60,7 +60,9 @@ fn modifiers(type_name: &TypeName, context: &str, at: usize) -> Result<Vec<u32>,
     for node in &type_name.typmods {
         let value = match &node.node {
             Some(NodeEnum::AConst(constant)) => match &constant.val {
-                Some(pg_query::protobuf::a_const::Val::Ival(int)) => u32::try_from(int.ival).ok(),
+                Some(pgsql_syntax::protobuf::a_const::Val::Ival(int)) => {
+                    u32::try_from(int.ival).ok()
+                }
                 _ => None,
             },
             _ => None,
@@ -351,7 +353,7 @@ fn serial(col_type: ColumnType) -> ColumnKind {
 
 /// The `String` nodes of a name list, or `None` when the list holds anything
 /// else.
-pub(super) fn idents(nodes: &[pg_query::protobuf::Node]) -> Option<Vec<String>> {
+pub(super) fn idents(nodes: &[pgsql_syntax::protobuf::Node]) -> Option<Vec<String>> {
     nodes
         .iter()
         .map(|node| match &node.node {

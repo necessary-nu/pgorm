@@ -20,7 +20,8 @@ ignore = []
 # Every license below is permissive and already in the tree. `r-efi` is the
 # only crate offering a copyleft option (LGPL-2.1-or-later); it is licensed
 # MIT OR Apache-2.0 OR LGPL-2.1-or-later, so omitting LGPL here selects one of
-# the permissive alternatives rather than excluding the crate.
+# the permissive alternatives rather than excluding the crate. `PostgreSQL`
+# came with pgsql-rs, whose parser is ported from PostgreSQL's own source.
 allow = [
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
@@ -28,11 +29,69 @@ allow = [
     "BSL-1.0",
     "ISC",
     "MIT",
+    "PostgreSQL",
     "Unicode-3.0",
     "Unlicense",
     "Zlib",
 ]
 confidence-threshold = 0.9
+
+# pgsql-rs's internal crates. Six declare no license, and none carries a
+# license file of its own: the workspace's two, `LICENSE` (libpg_query's
+# BSD-3-Clause, the operations and codecs ported from it) and
+# `LICENSE-PostgreSQL` (the PostgreSQL License, the scanner, grammar and
+# PL/pgSQL ported from the server), sit at its root, and the README names them
+# as the licenses of the code the workspace includes. Each crate here is read
+# under both, the expression its siblings `pg19-nodes`, `pg19-parser` and
+# `pgsql-parser` declare. The paths are relative to each crate's directory, and
+# the hashes hold the files to the text read at the pinned revision.
+[[licenses.clarify]]
+crate = "pg19-codec"
+expression = "BSD-3-Clause AND PostgreSQL"
+license-files = [
+    { path = "../../LICENSE", hash = 0xa1c5ff14 },
+    { path = "../../LICENSE-PostgreSQL", hash = 0xaca84184 },
+]
+
+[[licenses.clarify]]
+crate = "pg19-engine"
+expression = "BSD-3-Clause AND PostgreSQL"
+license-files = [
+    { path = "../../LICENSE", hash = 0xa1c5ff14 },
+    { path = "../../LICENSE-PostgreSQL", hash = 0xaca84184 },
+]
+
+[[licenses.clarify]]
+crate = "pg19-lexer"
+expression = "BSD-3-Clause AND PostgreSQL"
+license-files = [
+    { path = "../../LICENSE", hash = 0xa1c5ff14 },
+    { path = "../../LICENSE-PostgreSQL", hash = 0xaca84184 },
+]
+
+[[licenses.clarify]]
+crate = "pg19-operations"
+expression = "BSD-3-Clause AND PostgreSQL"
+license-files = [
+    { path = "../../LICENSE", hash = 0xa1c5ff14 },
+    { path = "../../LICENSE-PostgreSQL", hash = 0xaca84184 },
+]
+
+[[licenses.clarify]]
+crate = "pg19-plpgsql"
+expression = "BSD-3-Clause AND PostgreSQL"
+license-files = [
+    { path = "../../LICENSE", hash = 0xa1c5ff14 },
+    { path = "../../LICENSE-PostgreSQL", hash = 0xaca84184 },
+]
+
+[[licenses.clarify]]
+crate = "pg19-tables"
+expression = "BSD-3-Clause AND PostgreSQL"
+license-files = [
+    { path = "../../LICENSE", hash = 0xa1c5ff14 },
+    { path = "../../LICENSE-PostgreSQL", hash = 0xaca84184 },
+]
 
 [bans]
 # Duplicate versions are a transitive fact we mostly cannot act on — the tree
@@ -59,14 +118,14 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# Two forks are the dependencies not resolved from crates.io: prqlc
-# (necessary-nu/prql, the compiler behind pgorm::pipeline and `prql!`) and
-# pg_query (necessary-nu/pg_query.rs, PostgreSQL 18's grammar ahead of
-# upstream's release). Listing each here is what makes it a reviewed exception
-# instead of an unremarked git dependency, so adding a fork has to be a
-# deliberate edit to this file. The second was one: the operator's decision of
-# 2026-10-06 to parse with PostgreSQL 18's grammar through a fork of
-# pg_query.rs (plan node pg-query-18). The root Cargo.toml says what each fork
-# carries, and tests/fork_pin_tests.rs holds every declaration and lockfile to
-# one revision of each.
-allow-git = ["https://github.com/necessary-nu/prql", "https://github.com/necessary-nu/pg_query.rs"]
+# Two git repositories are the dependencies not resolved from crates.io:
+# prqlc (necessary-nu/prql, a fork of the compiler behind pgorm::pipeline and
+# `prql!`) and pgsql-syntax (necessary-nu/pgsql-rs, PostgreSQL 19's grammar in
+# native Rust, which publishes nothing). Listing each here is what makes it a
+# reviewed exception instead of an unremarked git dependency, so adding one has
+# to be a deliberate edit to this file. The second was one: the operator's
+# decision of 2026-11-23 to parse with pgsql-rs (plan node pg-query-19). The
+# root Cargo.toml says what each carries, and
+# tests/fork_pin_tests.rs holds every declaration and lockfile to one revision
+# of each.
+allow-git = ["https://github.com/necessary-nu/prql", "https://github.com/necessary-nu/pgsql-rs"]

@@ -149,14 +149,36 @@ pgorm's tests hold the answer of the release a build targets, so the
 default wheel's tests run against a PostgreSQL 18 server, and a `pg-19`
 wheel's against 19.
 
-## The grammar stays at 18 for now
+## The grammar is PostgreSQL 19's
 
-Every SQL parse pgorm makes uses PostgreSQL 18's grammar, whichever release
-a build targets. The parser is libpg_query, which has no 19 grammar yet. In
-a Python program, the pipeline reads the SQL it compiled with PostgreSQL's
-lexer, to match the parameters it binds to the placeholders that remain. The
-other parses the Rust guide names are Rust's: the `sql!` and `prql!` macros,
-the DDL reader of Rust's code generation, the paginator's reading of raw
-SQL, and query fingerprints in metrics. A registration crate that uses them
-gets 18's grammar too, under `pg-19` as well. No builder makes syntax only 19
-parses, since everything a builder renders has to parse.
+Every SQL parse pgorm makes uses one parser, pgsql-syntax, a Rust port of
+PostgreSQL 19's own scanner and parser, in every wheel, whichever release it
+targets. `sql()` and `prql()` ([Raw SQL](10-raw-sql.md)) check text with it,
+through the code Rust's `sql!` and `prql!` run; `pgorm.codegen.models_from_sql`
+([Generating entities](23-codegen.md)) reads DDL with it; the pipeline reads
+the SQL it compiled with its lexer, to match the parameters it binds to the
+placeholders that remain; and the paginator's reading of raw SQL and query
+fingerprints in [Metrics](21-metrics.md) parse with it, as a registration
+crate's `sql!` and `prql!` do. A check of text is a check against 19's
+grammar, so syntax only 19 parses passes it in a wheel that targets 18 too,
+and is an 18 server's to refuse when it runs:
+
+```python
+from pgorm import sql
+
+# REPACK and ON CONFLICT .. DO SELECT are PostgreSQL 19's.
+assert sql("REPACK cake") == "REPACK cake"
+upsert = "INSERT INTO cake (id) VALUES (1) ON CONFLICT (id) DO SELECT RETURNING *"
+assert sql(upsert) == upsert
+```
+
+No builder makes syntax only 19 parses in an 18 wheel: what 19 alone accepts
+arrives behind `pg-19`.
+
+19's grammar also refuses a little that 18's parses. It makes `ignore` and
+`respect` keywords that a column label needs `AS` before, so a bare
+`SELECT 1 ignore`, which an 18 server runs, is refused in every wheel;
+`SELECT 1 AS ignore` parses under both. pgorm writes `AS` before every column
+label it renders, so no statement a builder makes is affected. The five
+keywords 19 adds, `ignore`, `lsn`, `repack`, `respect` and `wait`, are all
+unreserved, so pgorm quotes the same identifiers for either release.

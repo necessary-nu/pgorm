@@ -46,10 +46,10 @@ serde = { version = "1.0.229", default-features = false, features = ["std", "der
 pgorm-query = { workspace = true, features = ["tests-cfg", "serde"] }
 criterion = { version = "0.8" }
 pretty_assertions = { version = "1.4" }
-# The render oracle (tests/postgres/oracle.rs) parses with the pg_query fork at
-# the root crate's revision, so a render is held to the grammar the runtime
-# parses with. The root manifest says why it is a git dependency.
-pg_query = { git = "https://github.com/necessary-nu/pg_query.rs.git", rev = "09ebc3a4c7f50f3682e890a8372b4c4c99382ed9" }
+# The render oracle (tests/postgres/oracle.rs) parses with pgsql-syntax at the
+# root crate's revision, so a render is held to the grammar the runtime parses
+# with. The root manifest says why it is a git dependency.
+pgsql-syntax = { git = "https://github.com/necessary-nu/pgsql-rs.git", rev = "9f15dec2433c4139117f68392b9b3b61b154bb6b" }
 # The surface tests (tests/surface) read lib.rs as a syntax tree, and hold
 # what a caller cannot name with compile-fail fixtures.
 syn = { version = "3", default-features = false, features = ["parsing", "full"] }
@@ -62,7 +62,7 @@ attr = ["pgorm-query-attr"]
 tests-cfg = []
 serde = ["dep:serde"]
 # Target PostgreSQL 19 instead of 18, the floor and the default, which no
-# feature names ([spec:pgorm:req:sql.target] in docs/spec/sql-ast.md). Additive:
+# feature names ([spec:pgorm:req:sql.target+3] in docs/spec/sql-ast.md). Additive:
 # it adds what only 19 accepts and leaves every 18 render as it is.
 pg-19 = []
 all-features = [

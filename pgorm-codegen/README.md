@@ -3,8 +3,9 @@
 Entity source generation for pgorm. Give it a schema as DDL text and it
 writes the entity modules: models, columns, primary keys, relations, and
 active enums. The text is read with
-[libpg_query](https://github.com/pganalyze/libpg_query), the PostgreSQL
-server's own parser, so it is read as PostgreSQL 18 reads it. Library-only;
+[pgsql-syntax](https://github.com/necessary-nu/pgsql-rs), a Rust port of the
+PostgreSQL 19 server's own scanner and parser, so it is read as PostgreSQL 19
+reads it. Library-only;
 there is no CLI. Call it from a build script or a small binary of your own.
 
 The [Generating entities](../docs/guide/22-codegen.md) chapter of the pgorm
