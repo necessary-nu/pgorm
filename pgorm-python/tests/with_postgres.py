@@ -13,7 +13,7 @@ import tempfile
 import time
 import uuid
 
-IMAGE = "postgres:19.0-bookworm@sha256:f4859caf96de494e38efa69ed703b08a5bbd9605e152e604f2daec8841c87c41"
+IMAGE = "postgres:19.0-trixie@sha256:766ddae4967301b9802b341bb596905f11dd5c558149690a7a4d80c2f61bbcf9"
 
 # How long the server may take to accept connections, and then to turn TLS on.
 # A ready server ends the wait at once; a heavily loaded machine can take

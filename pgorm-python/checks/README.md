@@ -16,7 +16,7 @@ The live checks need a PostgreSQL 19 server with TLS. A wrapper provides a
 disposable one, runs the command given to it with `PGORM_TEST_DSN` and
 `PGORM_TEST_CA` set, and removes the server afterwards:
 
-- `tests/with_postgres.py` starts a Docker container (`postgres:19.0-bookworm`,
+- `tests/with_postgres.py` starts a Docker container (`postgres:19.0-trixie`,
   pinned by digest) with a test CA of its own. It waits up to 180 seconds for
   the container, or `PGORM_TEST_READY_SECONDS`.
 - `tests/with_local_postgres.py` starts a cluster from the PostgreSQL 19
