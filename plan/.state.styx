@@ -970,7 +970,6 @@ derived_priorities (
     {id pg17-sql-json, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-not-enforced, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-not-null-constraints, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
-    {id pg18-point-release-18-7, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg18-returning-old-new, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-security-baselines, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg18-temporal-keys, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
@@ -982,7 +981,6 @@ derived_priorities (
     {id pg19-copy-to-json, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg19-json-value-returning-json, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg19-on-conflict-do-select, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
-    {id pg19-release-differences, priority 3, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg19-test-server, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg19-window-null-treatment, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id pgparse.codegen-ddl, priority 1, derived_at 2026-09-04T14:19:01.307427Z}
@@ -1571,7 +1569,7 @@ assertions (
     {id pg18-test-server, kind @complete, author "brendan@necessary.nu", at 2026-10-06T14:14:25.161626Z}
     {id pg18-uuid-functions, kind @complete, author "brendan@necessary.nu", at 2026-10-07T08:03:19.869642Z}
     {id pg18-virtual-generated, kind @complete, author "brendan@necessary.nu", at 2026-10-06T19:26:22.580736Z}
-    {id pg19-test-server, kind @doing, author "brendan@necessary.nu", at 2026-11-19T16:12:43.592467Z}
+    {id pg19-test-server, kind @complete, author "brendan@necessary.nu", at 2026-11-23T16:22:22.871883Z}
     {id pgparse.codegen-ddl, kind @complete, author "brendan@necessary.nu", at 2026-09-02T21:15:51.896227Z}
     {id pgparse.fingerprint, kind @complete, author "brendan@necessary.nu", at 2026-09-02T19:06:32.153992Z}
     {id pgparse.oracle, kind @complete, author "brendan@necessary.nu", at 2026-09-02T16:06:45.622062Z}
