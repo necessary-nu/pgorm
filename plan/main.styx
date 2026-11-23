@@ -13273,6 +13273,7 @@ children (
                 id pg19-only
                 title "pgorm targets PostgreSQL 19 alone: 19 is the floor, the pg-19 feature and every 18 answer go, and the test servers, CI, image pins and security baselines move to 19"
                 deps (pg-query-19 pg19-test-server)
+                sealed true
                 log (
                     {
                         at 2026-11-23T16:22:11.031071Z
@@ -13293,6 +13294,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "supersedes pg19-release-differences: On 2026-11-23 the operator dropped PostgreSQL 18 support. With 19 the only target there are no per-release answers to document or hold live: each statement's 19 answer is the one, and that is pg19-only's to settle."
+                    }
+
+                    {
+                        at 2026-11-23T19:01:40.682007Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
