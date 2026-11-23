@@ -965,7 +965,6 @@ derived_priorities (
     {id parameter-wire-types, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id pg-query-18, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg-query-19, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
-    {id pg-query-crates-io, priority 1, derived_at 2026-11-19T22:47:00.188867Z}
     {id pg17-json-table, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg17-set-expression, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg17-sql-json, priority 1, derived_at 2026-10-09T14:17:42.819993Z}

@@ -1467,11 +1467,11 @@ children (
                         title "Integration tests: rollback, savepoints, isolation, batch, pool parallelism"
                         kind @test
                         deps (
-                            infra.tx.rollback
-                            infra.tx.config
                             infra.tx.batch
-                            infra.tx.metric-tx
                             infra.tx.closure
+                            infra.tx.config
+                            infra.tx.metric-tx
+                            infra.tx.rollback
                         )
                         log (
                             {
@@ -1912,7 +1912,7 @@ children (
                 id codegen-accepts-create-schema
                 title "Codegen reads a schema dump that creates its schemas, instead of refusing CREATE SCHEMA"
                 kind @fix
-                deps (sql-schemas sql-domains)
+                deps (sql-domains sql-schemas)
                 log (
                     {
                         at 2026-10-18T19:21:23.94957Z
@@ -3683,13 +3683,13 @@ children (
                 id unrep.build-any
                 title "Collapse the build_any indirection; the unit QueryBuilder argument disappears workspace-wide"
                 deps (
-                    unrep.tableref-split
+                    unrep.ddl-empty-builders
+                    unrep.ddl-table-target
+                    unrep.dml-target
                     unrep.mysql-purge
                     unrep.on-conflict
-                    unrep.ddl-table-target
                     unrep.over-function
-                    unrep.ddl-empty-builders
-                    unrep.dml-target
+                    unrep.tableref-split
                 )
                 sealed true
                 log (
@@ -3930,7 +3930,7 @@ children (
             {
                 id pgparse.codegen-ddl
                 title "Entities from schema.sql: bridge the PG parse tree into TableCreateStatement for codegen"
-                deps (pgparse.oracle nopanic.codegen-gate)
+                deps (nopanic.codegen-gate pgparse.oracle)
                 sealed true
                 log (
                     {
@@ -5303,11 +5303,11 @@ children (
                 id seaquery-doc-branding
                 title "Replace current SeaQuery branding while preserving provenance"
                 deps (
-                    seaography-feature-build
-                    sea-rc-name
-                    sql-value-json
                     migration-ledger-module-name
                     migration-ledger-table-name
+                    sea-rc-name
+                    seaography-feature-build
+                    sql-value-json
                 )
                 sealed true
                 log (
@@ -5375,7 +5375,7 @@ children (
                 id codegen-schema-qualifiers
                 title "Preserve source schema qualifiers through entity generation"
                 kind @fix
-                deps (pgparse.codegen-ddl codegen-identity-collisions)
+                deps (codegen-identity-collisions pgparse.codegen-ddl)
                 log (
                     {
                         at 2026-09-06T11:34:46.636642Z
@@ -6253,7 +6253,7 @@ children (
                 implements {
                     main ([spec:pgorm:def:security.sqlmap] [spec:pgorm:req:security.sqlmap.isolation] [spec:pgorm:req:security.sqlmap.fixtures])
                 }
-                deps (sqlmap.spec orm.exec)
+                deps (orm.exec sqlmap.spec)
                 log (
                     {
                         at 2026-09-08T10:02:45.834322Z
@@ -6283,7 +6283,7 @@ children (
                         [spec:pgorm:req:security.sqlmap.observability]
                     )
                 }
-                deps (sqlmap.fixtures core pipeline-sources)
+                deps (core pipeline-sources sqlmap.fixtures)
                 log (
                     {
                         at 2026-09-08T10:02:45.964503Z
@@ -6453,12 +6453,12 @@ children (
                     main ([spec:pgorm:req:security.sqlmap.acceptance])
                 }
                 deps (
-                    sqlmap.ci
+                    inject-parameters-lexing
                     inline-string-escaping
                     like-sugar-escaping
-                    inject-parameters-lexing
                     pipeline-hostile-identifiers
                     raw-identifier-casts
+                    sqlmap.ci
                 )
                 log (
                     {
@@ -6574,7 +6574,7 @@ children (
                         id sqlmap.controls.verify
                         title "A full profile detects every scheduled control"
                         kind @test
-                        deps (sqlmap.controls.literal sqlmap.controls.inapplicable)
+                        deps (sqlmap.controls.inapplicable sqlmap.controls.literal)
                         sealed true
                         log (
                             {
@@ -6729,7 +6729,7 @@ children (
                 id sqlmap-harness-fixes
                 title "The sqlmap harness takes Python 3.14's latest patch and runs exactly the settings its profiles and cases declare"
                 kind @fix
-                deps (sqlmap.runner sqlmap.ci)
+                deps (sqlmap.ci sqlmap.runner)
                 log (
                     {
                         at 2026-10-18T14:28:24.709884Z
@@ -6953,7 +6953,7 @@ children (
                 implements {
                     python ([spec:pgorm:req:python.raw])
                 }
-                deps (python.expressions orm.query)
+                deps (orm.query python.expressions)
                 sealed true
                 log (
                     {
@@ -7056,10 +7056,10 @@ children (
                 title "Integrate asyncio with reusable Tokio pools, TLS and structured exceptions"
                 kind @feat
                 deps (
-                    python.package
+                    connect-tls
                     infra.conn
                     infra.error
-                    connect-tls
+                    python.package
                 )
                 sealed true
                 log (
@@ -7106,10 +7106,10 @@ children (
                 title "Decode Python records and implement bounded asynchronous streaming"
                 kind @feat
                 deps (
-                    python.values
-                    python.runtime
                     orm.stream
                     orm.value-decode
+                    python.runtime
+                    python.values
                 )
                 sealed true
                 log (
@@ -7154,7 +7154,7 @@ children (
                 id python.transactions
                 title "Preserve transactions, cancellation and connection lifecycle"
                 kind @feat
-                deps (python.runtime python.results infra.tx)
+                deps (infra.tx python.results python.runtime)
                 sealed true
                 log (
                     {
@@ -7198,7 +7198,7 @@ children (
                 id python.models
                 title "Support application-defined runtime model descriptors and CRUD records"
                 kind @feat
-                deps (python.statements python.results)
+                deps (python.results python.statements)
                 sealed true
                 log (
                     {
@@ -7242,7 +7242,7 @@ children (
                 id python.entities
                 title "Register concrete Rust entities, ActiveModels and downstream extension types"
                 kind @feat
-                deps (python.expressions python.results orm.entity)
+                deps (orm.entity python.expressions python.results)
                 sealed true
                 log (
                     {
@@ -7318,7 +7318,7 @@ children (
                 id python.graph
                 title "Expose registered typed graphs, optional decoding and cursor bounds"
                 kind @feat
-                deps (python.entities core cursor)
+                deps (core cursor python.entities)
                 sealed true
                 log (
                     {
@@ -7363,10 +7363,10 @@ children (
                 title "Expose composable pipelines, scoped binders and typed source terminals"
                 kind @feat
                 deps (
+                    pipeline-sources
+                    python.entities
                     python.expressions
                     python.models
-                    python.entities
-                    pipeline-sources
                 )
                 sealed true
                 log (
@@ -7447,10 +7447,10 @@ children (
                 title "Generate downstream Python registrations and stubs for Rust entities and graph shapes"
                 kind @feat
                 deps (
-                    python.entities
-                    python.graph
                     codegen.generate
                     codegen.macros
+                    python.entities
+                    python.graph
                 )
                 sealed true
                 log (
@@ -7496,12 +7496,12 @@ children (
                 title "Ship typing and runnable application documentation for the public API"
                 kind @docs
                 deps (
-                    python.models
-                    python.graph
-                    python.pipeline
-                    python.transactions
                     python.codegen
+                    python.graph
+                    python.models
+                    python.pipeline
                     python.schema
+                    python.transactions
                 )
                 sealed true
                 log (
@@ -7589,7 +7589,7 @@ children (
                 implements {
                     python ([spec:pgorm:req:python.acceptance])
                 }
-                deps (python.distribution python.direct-builders)
+                deps (python.direct-builders python.distribution)
                 sealed true
                 log (
                     {
@@ -7626,10 +7626,10 @@ children (
                 id python.schema
                 title "Expose explicit Rust DDL builders and registered-entity schema generation"
                 deps (
-                    python.expressions
-                    python.entities
-                    sql.ddl
                     infra.schema-gen
+                    python.entities
+                    python.expressions
+                    sql.ddl
                 )
                 sealed true
                 log (
@@ -7716,7 +7716,7 @@ children (
                 implements {
                     python ([spec:pgorm:req:python.direct-builders])
                 }
-                deps (python.statements python.results)
+                deps (python.results python.statements)
                 sealed true
                 log (
                     {
@@ -7929,7 +7929,7 @@ children (
                 implements {
                     main ([spec:pgorm:req:generative.grammar])
                 }
-                deps (generative.program generative.corpus generative.fixtures)
+                deps (generative.corpus generative.fixtures generative.program)
                 sealed true
                 log (
                     {
@@ -7984,13 +7984,13 @@ children (
                     main ([spec:pgorm:req:generative.execution] [spec:pgorm:req:generative.build-amortization])
                 }
                 deps (
-                    generative.program
                     generative.fixtures
-                    python.models
+                    generative.program
                     python.graph
+                    python.models
                     python.pipeline
-                    python.transactions
                     python.schema
+                    python.transactions
                 )
                 sealed true
                 log (
@@ -8024,7 +8024,7 @@ children (
                 implements {
                     main ([spec:pgorm:req:generative.oracles] [spec:pgorm:req:generative.comparison])
                 }
-                deps (generative.program generative.fixtures)
+                deps (generative.fixtures generative.program)
                 sealed true
                 log (
                     {
@@ -8160,7 +8160,7 @@ children (
                 implements {
                     main ([spec:pgorm:req:generative.replay] [spec:pgorm:req:generative.replay-parity])
                 }
-                deps (generative.shrink codegen.macros)
+                deps (codegen.macros generative.shrink)
                 sealed true
                 log (
                     {
@@ -8227,7 +8227,7 @@ children (
                 implements {
                     main ([spec:pgorm:req:generative.profiles] [spec:pgorm:req:generative.verdict] [spec:pgorm:req:generative.artifacts])
                 }
-                deps (generative.grammar generative.controls generative.replay)
+                deps (generative.controls generative.grammar generative.replay)
                 sealed true
                 log (
                     {
@@ -8253,7 +8253,7 @@ children (
                 implements {
                     main ([spec:pgorm:req:generative.ci])
                 }
-                deps (generative.runner generative.compile python.distribution)
+                deps (generative.compile generative.runner python.distribution)
                 sealed true
                 log (
                     {
@@ -8281,9 +8281,9 @@ children (
                 }
                 deps (
                     generative.ci
+                    inject-parameters-lexing
                     inline-string-escaping
                     like-sugar-escaping
-                    inject-parameters-lexing
                     pipeline-hostile-identifiers
                     raw-identifier-casts
                 )
@@ -10170,7 +10170,7 @@ children (
                         [spec:pgorm:req:exec.tie-limit]
                     )
                 }
-                deps (query-second-tier python-statement-typing)
+                deps (python-statement-typing query-second-tier)
                 log (
                     {
                         at 2026-10-18T15:48:25.999776Z
@@ -10213,11 +10213,11 @@ children (
                     main ([spec:pgorm:req:sql.ddl.domain])
                 }
                 deps (
-                    query-second-tier
-                    sql-views
                     codegen-interval-columns
                     python-schema-truth-testing
+                    query-second-tier
                     sql-schemas
+                    sql-views
                 )
                 log (
                     {
@@ -10236,7 +10236,7 @@ children (
                 implements {
                     main ([spec:pgorm:req:sql.ddl.schema])
                 }
-                deps (query-second-tier sql-views python-schema-truth-testing)
+                deps (python-schema-truth-testing query-second-tier sql-views)
                 log (
                     {
                         at 2026-10-18T15:48:26.265572Z
@@ -10251,7 +10251,7 @@ children (
                 id select-named-windows
                 title "A SELECT's WINDOW clause holds every named window, from Rust, Python and JavaScript"
                 kind @fix
-                deps (sql-select-extras python-select-set-operations)
+                deps (python-select-set-operations sql-select-extras)
                 log (
                     {
                         at 2026-10-18T16:22:56.441121Z
@@ -10414,7 +10414,7 @@ children (
                 implements {
                     main ([spec:pgorm:req:sql.ast.select.column-definitions] [spec:pgorm:req:sql.render.column-definitions])
                 }
-                deps (sql-select-extras sql-domains)
+                deps (sql-domains sql-select-extras)
                 log (
                     {
                         at 2026-10-18T20:20:15.749081Z
@@ -12030,7 +12030,7 @@ children (
                 id pg18-security-baselines
                 title "sqlmap and the generative campaign pin PostgreSQL 18 and their acceptance is re-recorded on it"
                 kind @test
-                deps (pg18-test-server pg-query-18)
+                deps (pg-query-18 pg18-test-server)
                 sealed true
                 log (
                     {
@@ -12081,7 +12081,7 @@ children (
                 id pg18-virtual-generated
                 title "A generated column can be VIRTUAL as well as STORED"
                 kind @feat
-                deps (pg18-test-server pg-query-18)
+                deps (pg-query-18 pg18-test-server)
                 sealed true
                 log (
                     {
@@ -12118,7 +12118,7 @@ children (
                 id pg18-temporal-keys
                 title "A table key can end WITHOUT OVERLAPS and a foreign key can reference a PERIOD"
                 kind @feat
-                deps (pg18-test-server pg-query-18)
+                deps (pg-query-18 pg18-test-server)
                 sealed true
                 log (
                     {
@@ -12155,7 +12155,7 @@ children (
                 id pg18-not-null-constraints
                 title "A NOT NULL constraint can be named, NOT VALID and NO INHERIT"
                 kind @feat
-                deps (pg18-test-server pg-query-18)
+                deps (pg-query-18 pg18-test-server)
                 sealed true
                 log (
                     {
@@ -12192,7 +12192,7 @@ children (
                 id pg18-returning-old-new
                 title "RETURNING names a row's old and new values, and can rename them"
                 kind @feat
-                deps (pg18-test-server pg-query-18)
+                deps (pg-query-18 pg18-test-server)
                 sealed true
                 log (
                     {
@@ -12434,7 +12434,7 @@ children (
                 id pg18-not-enforced
                 title "A foreign key or CHECK constraint can be NOT ENFORCED"
                 kind @feat
-                deps (pg18-test-server pg-query-18)
+                deps (pg-query-18 pg18-test-server)
                 sealed true
                 log (
                     {
@@ -12811,6 +12811,7 @@ children (
             {
                 id pg-query-crates-io
                 title "pg_query comes from crates.io again: upstream released 18.1.0 on libpg_query 18.1.0, so the necessary-nu fork retires"
+                superseded_by pg-query-19
                 kind @build
                 deps (pg-query-18)
                 log (
@@ -12819,6 +12820,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Filed 2026-11-19. crates.io now has pg_query 18.1.0 (max_version 18.1.0, updated 2026-10-27), and pganalyze/pg_query.rs has a v18.1.0 tag. pgorm still pins its fork at rev 09ebc3a4c7f50f3682e890a8372b4c4c99382ed9 in the root Cargo.toml, pgorm-codegen and pgorm-sql-check. The root Cargo.toml describes the fork as upstream 6.2.1 with upstream's unreleased 18.0.0 (pganalyze/pg_query.rs#79) merged in and its libpg_query submodule at tag 18.1.0, so it should carry nothing pgorm-specific; verify that by diffing the fork rev against upstream v18.1.0 before relying on it. If upstream's release covers it, the dependency becomes a crates.io range (no exact pin, per the manifests-take-ranges rule). Then deny.toml's allow-git drops the fork, tests/fork_pin_tests.rs stops holding a pg_query pin and checks instead that one pg_query is linked from crates.io, and every committed lockfile is re-resolved, including the detached workspaces under security/ and pgorm-python/. CLAUDE.md's two-forks paragraph changes to match. Acceptance is unchanged: every pg_query user (the render oracle, sql!, prql!, codegen's parse_schema, metric fingerprints, the paginator) parses PostgreSQL 18.6's grammar and its tests pass. prqlc remains a git fork, so pgorm stays unpublishable on crates.io until that one goes too."
+                    }
+
+                    {
+                        at 2026-11-23T14:13:10.294177Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "superseded by pg-query-19: On 2026-11-23 the operator chose necessary-nu/pgsql-rs (pgsql-syntax, native Rust, PostgreSQL 19 grammar) to replace pg_query entirely. That leaves no pg_query to move back to crates.io: the fork retires because pg_query leaves pgorm, not because pgorm returns to upstream."
                     }
                 )
             }
@@ -13032,8 +13040,9 @@ children (
         children (
             {
                 id pg-query-19
-                title "pgorm parses with PostgreSQL 19's grammar once libpg_query releases one"
+                title "pgorm parses with PostgreSQL 19's grammar through necessary-nu/pgsql-rs's pgsql-syntax, which replaces pg_query everywhere"
                 kind @build
+                deps (pg-query-18)
                 log (
                     {
                         at 2026-10-07T15:47:52.370747Z
@@ -13061,6 +13070,27 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Checked again 2026-11-19, the day PostgreSQL 19.0 was released, using the GitHub API. libpg_query's newest tag is 18.1.0. Its branches stop at 18-latest (last commit 2026-11-10, an OSS-Fuzz deparser target) and 18-latest-dev (last commit 2026-05-21, the 18.0.0 release). pg_query.rs's newest tag is v18.1.0, which crates.io also has. Neither has a 19 grammar, so this node and its dependants (pg19-on-conflict-do-select, pg19-window-null-treatment) still wait on upstream."
+                    }
+
+                    {
+                        at 2026-11-23T14:13:01.097279Z
+                        author "brendan@necessary.nu"
+                        kind @unblock
+                        text "Unblocked 2026-11-23 by the operator: \"https://github.com/necessary-nu/pgsql-rs use this instead of pg_query\". pgsql-rs (public, necessary-nu, main at 9f15dec2433c4139117f68392b9b3b61b154bb6b, 2026-11-23) is a native Rust PostgreSQL 19 parser with no C and no libpg_query. Its pgsql-syntax crate (version 19.0.0, MIT) ports the pg_query.rs 18.1.0 API: parse, deparse, normalize, fingerprint, scan, scan_tokens, split_with_parser, and protobuf types generated from the PG19 schema. pgsql-parser is the arena-backed raw parser below it. This node no longer waits for libpg_query."
+                    }
+
+                    {
+                        at 2026-11-23T14:13:01.64335Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Scope, 2026-11-23. pg_query leaves pgorm entirely; nothing links libpg_query.\n\npgsql-syntax replaces it at one exact rev of https://github.com/necessary-nu/pgsql-rs in every manifest that named pg_query: the root Cargo.toml, pgorm-codegen, pgorm-sql-check, and pgorm-query's dev-dependency. pgsql-rs's crates are publish = false, so a git rev is the only way to use them. Everything that held the pg_query pin now holds this one:\n- deny.toml's allow-git swaps the pg_query.rs fork for pgsql-rs.\n- The license allowlist gains PostgreSQL.\n- [[licenses.clarify]] entries cover the pg19-* crates that declare no license.\n- tests/fork_pin_tests.rs swaps its pg_query pin for this one.\n- Every committed lockfile is re-resolved, including the detached ones under security/ and pgorm-python/.\n- The bindings' notices are regenerated.\n- CI drops its clang/libclang/llvm installs if nothing else needs them.\n\nEvery parse moves to 19's grammar in both builds: the render oracle, sql!, prql!, check_sql/compile_prql, codegen's parse_schema, the paginator, metric fingerprints, COPY's token scan, the pipeline census, the identifier oracle and pgorm-query's keyword pin. Features are additive, so one grammar serves both targets.\n\nsql.target's condition holds: an 18 build's sql!/prql!/check_sql must not accept what 18 cannot parse. pgorm-sql-check gains pg-19, and pgorm-sql-macro and pgorm forward it. Under cfg(not(feature = \"pg-19\")) it walks the parse tree and refuses every 19-only production, the set taken from a diff of gram.y between 18.6 and 19.0. Under pg-19 it accepts them.\n\nThe other direction cannot be closed without an 18 grammar. 19 refuses a few things 18 parses, such as the bare labels `SELECT 1 ignore` and `respect`. That is a documented narrowing.\n\nMetric fingerprints follow 19's query-ID rules from here on. pg-query-crates-io is superseded by this node."
+                    }
+
+                    {
+                        at 2026-11-23T14:13:10.294177Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "supersedes pg-query-crates-io: On 2026-11-23 the operator chose necessary-nu/pgsql-rs (pgsql-syntax, native Rust, PostgreSQL 19 grammar) to replace pg_query entirely. That leaves no pg_query to move back to crates.io: the fork retires because pg_query leaves pgorm, not because pgorm returns to upstream."
                     }
                 )
             }
@@ -13112,7 +13142,7 @@ children (
             {
                 id pg19-json-value-returning-json
                 title "JSON_VALUE returns json and jsonb again where the server carries the fix for bug #19695"
-                deps (pg19-test-server pg18-point-release-18-7)
+                deps (pg18-point-release-18-7 pg19-test-server)
                 log (
                     {
                         at 2026-11-19T16:46:33.280949Z
@@ -13154,7 +13184,7 @@ children (
             {
                 id pg19-copy-to-json
                 title "A COPY TO writes JSON: PostgreSQL 19's FORMAT json and FORCE_ARRAY"
-                deps (pg19-test-server pg-query-19)
+                deps (pg-query-19 pg19-test-server)
                 log (
                     {
                         at 2026-11-19T16:48:04.853444Z
@@ -13578,10 +13608,10 @@ children (
                     )
                 }
                 deps (
-                    napi-entities
-                    napi-schema
-                    napi-pipeline
                     napi-codegen
+                    napi-entities
+                    napi-pipeline
+                    napi-schema
                 )
                 log (
                     {
@@ -13605,7 +13635,7 @@ children (
                 id napi-pipeline-sources
                 title "JavaScript pipelines read registered Rust entities as sources and decode them into their models through select_sources"
                 kind @feat
-                deps (napi-pipeline napi-entities)
+                deps (napi-entities napi-pipeline)
                 sealed true
                 log (
                     {
@@ -13756,7 +13786,7 @@ children (
                             javascript ([spec:pgorm:req:bindings.model-clauses] [spec:pgorm:req:bindings.distinct-on])
                             python ([spec:pgorm:req:bindings.model-clauses] [spec:pgorm:req:bindings.distinct-on])
                         }
-                        deps (napi-models guide.javascript)
+                        deps (guide.javascript napi-models)
                         log (
                             {
                                 at 2026-11-05T18:49:32.257721Z
@@ -13781,7 +13811,7 @@ children (
                             javascript ([spec:pgorm:req:bindings.partial-models])
                             python ([spec:pgorm:req:bindings.partial-models])
                         }
-                        deps (napi-models guide.javascript guide.python-gaps.partial-model-skip)
+                        deps (guide.javascript guide.python-gaps.partial-model-skip napi-models)
                         log (
                             {
                                 at 2026-11-05T18:49:33.31256Z
@@ -13805,7 +13835,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.cursor-secondary-order])
                         }
-                        deps (napi-models guide.javascript)
+                        deps (guide.javascript napi-models)
                         log (
                             {
                                 at 2026-11-05T18:49:33.973141Z
@@ -13841,7 +13871,7 @@ children (
                     {
                         id napi.guide-gaps.transaction-streams
                         title "A transaction streams the rows of SQL text, a statement and a model query, as Rust's stream and query_raw on a DatabaseTransaction do; today Transaction has no stream and ModelQuery.stream refuses one with a TypeError (guide 06-pagination)"
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                         sealed true
                         log (
                             {
@@ -13863,7 +13893,7 @@ children (
                     {
                         id napi.guide-gaps.relation-loaders
                         title "Relation.load takes a filtered, ordered query of the far end and follows a junction, as Rust's load_one(Select), load_many(Select) and load_many_via do (guide 07-relations)"
-                        deps (napi-models guide.javascript)
+                        deps (guide.javascript napi-models)
                         sealed true
                         log (
                             {
@@ -13902,7 +13932,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.related] [spec:pgorm:req:bindings.linked])
                         }
-                        deps (napi-models guide.javascript)
+                        deps (guide.javascript napi-models)
                         log (
                             {
                                 at 2026-11-05T19:36:34.31633Z
@@ -13930,7 +13960,7 @@ children (
                     {
                         id napi.guide-gaps.graph-joins
                         title "A model graph joins a relation starting from an aliased via hop, narrows an optional slot's ON with a predicate, and orders a cursor by a slot's columns, as Rust's via_as with RelationDef::from_alias, join_maybe_filtered and cursor_by_on do (guide 07-relations)"
-                        deps (napi-models guide.javascript)
+                        deps (guide.javascript napi-models)
                         sealed true
                         log (
                             {
@@ -13967,7 +13997,7 @@ children (
                         id napi.guide-gaps.graph-limit-refusal
                         title "A limited model graph refuses allGrouped, count, paginate and cursor, as Rust refuses them at compile time, instead of allGrouped truncating a root's rows, count ignoring the limit and paginate and cursor replacing it (guide 07-relations, whose example asserts today's truncation)"
                         kind @fix
-                        deps (napi-models guide.javascript)
+                        deps (guide.javascript napi-models)
                         sealed true
                         log (
                             {
@@ -13992,7 +14022,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.schema-from-model])
                         }
-                        deps (napi-models napi-schema guide.javascript)
+                        deps (guide.javascript napi-models napi-schema)
                         log (
                             {
                                 at 2026-11-05T19:49:41.609273Z
@@ -14023,7 +14053,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.model-conversions])
                         }
-                        deps (napi-models guide.javascript)
+                        deps (guide.javascript napi-models)
                         log (
                             {
                                 at 2026-11-05T22:13:21.198647Z
@@ -14047,7 +14077,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.transaction-retry] [spec:pgorm:req:bindings.rollback-failed] [spec:pgorm:req:bindings.refusal-fields])
                         }
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                         log (
                             {
                                 at 2026-11-05T21:41:50.031602Z
@@ -14064,7 +14094,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.batch-execute])
                         }
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                         log (
                             {
                                 at 2026-11-05T21:41:39.352474Z
@@ -14081,7 +14111,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.raw-models])
                         }
-                        deps (napi-models napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections napi-models)
                         log (
                             {
                                 at 2026-11-05T21:41:40.529145Z
@@ -14098,7 +14128,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.verify])
                         }
-                        deps (napi-models napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections napi-models)
                         log (
                             {
                                 at 2026-11-05T21:41:41.686426Z
@@ -14115,7 +14145,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.sql-check])
                         }
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                         log (
                             {
                                 at 2026-11-05T21:41:45.526557Z
@@ -14132,7 +14162,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.prql-text])
                         }
-                        deps (napi-pipeline guide.javascript)
+                        deps (guide.javascript napi-pipeline)
                         log (
                             {
                                 at 2026-11-05T21:41:46.950782Z
@@ -14149,7 +14179,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.raw-pages])
                         }
-                        deps (napi-models napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections napi-models)
                         log (
                             {
                                 at 2026-11-05T21:41:43.071009Z
@@ -14166,7 +14196,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.named-functions] [spec:pgorm:req:bindings.template] [spec:pgorm:req:bindings.json-operators])
                         }
-                        deps (napi-statements guide.javascript)
+                        deps (guide.javascript napi-statements)
                         log (
                             {
                                 at 2026-11-05T21:41:48.438329Z
@@ -14180,7 +14210,7 @@ children (
                     {
                         id napi.guide-gaps.copy-described-rows
                         title "A binary COPY describes its columns' names and types before it starts, takes rows one at a time, writes a model's records and reads its rows as a model's records, as Rust's copy_in_columns, copy_out_columns, CopyRowSink::send, send_model and CopyRowStream::models do (guide 17-copy)"
-                        deps (copy-binary-rows napi-models guide.javascript)
+                        deps (copy-binary-rows guide.javascript napi-models)
                         sealed true
                         log (
                             {
@@ -14250,7 +14280,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.pool-hooks])
                         }
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                     }
 
                     {
@@ -14259,7 +14289,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.multi-pool])
                         }
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                     }
 
                     {
@@ -14268,13 +14298,13 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.tls])
                         }
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                     }
 
                     {
                         id napi.guide-gaps.connection-discard
                         title "A checked-out JavaScript connection is discarded rather than returned to its pool, as Rust's DatabaseConnection::discard does; today close() always returns it (guide 20-configuration)"
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                         sealed true
                         log (
                             {
@@ -14292,7 +14322,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.metrics])
                         }
-                        deps (napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections)
                         log (
                             {
                                 at 2026-11-05T18:47:11.083072Z
@@ -14316,7 +14346,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.migrations])
                         }
-                        deps (napi-connections napi-schema guide.javascript)
+                        deps (guide.javascript napi-connections napi-schema)
                         log (
                             {
                                 at 2026-11-05T18:10:02.163978Z
@@ -14347,7 +14377,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.models-from-sql] [spec:pgorm:req:bindings.current-keywords])
                         }
-                        deps (napi-models napi-codegen guide.javascript)
+                        deps (guide.javascript napi-codegen napi-models)
                         log (
                             {
                                 at 2026-11-06T12:34:21.999904Z
@@ -14371,7 +14401,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.postgres-target])
                         }
-                        deps (napi-packaging guide.javascript)
+                        deps (guide.javascript napi-packaging)
                         log (
                             {
                                 at 2026-11-05T18:55:45.372306Z
@@ -14392,7 +14422,7 @@ children (
                     {
                         id napi.guide-gaps.entity-select-reads
                         title "A registered entity's Select<E> counts, streams, pages, takes a cursor and joins a relation from JavaScript, as Rust's Select count, stream, paginate, cursor_by and join methods do (guide 24-registered-entities)"
-                        deps (napi-entities guide.javascript)
+                        deps (guide.javascript napi-entities)
                         sealed true
                         log (
                             {
@@ -14424,7 +14454,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.pipeline-models])
                         }
-                        deps (napi-pipeline napi-models guide.javascript)
+                        deps (guide.javascript napi-models napi-pipeline)
                         log (
                             {
                                 at 2026-11-05T18:56:42.074984Z
@@ -14448,7 +14478,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.model-casts])
                         }
-                        deps (napi-models napi-values guide.javascript)
+                        deps (guide.javascript napi-models napi-values)
                         log (
                             {
                                 at 2026-11-05T22:13:54.84877Z
@@ -14470,7 +14500,7 @@ children (
                         id napi.guide-gaps.binding-refusals
                         title "pgorm-napi's inconsistencies the guide found are fixed: an empty model insert batch takes onConflict and sends nothing as Rust's does; new Pool and Relation.load refuse an option they do not know with a TypeError as the builders do; CopyRowStream's rows type-check as CopyRows; DisjointPaginator.numItemsAndPages returns { items, pages } as Paginator's does"
                         kind @fix
-                        deps (napi-models napi-connections guide.javascript)
+                        deps (guide.javascript napi-connections napi-models)
                         sealed true
                         log (
                             {
@@ -14509,7 +14539,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources] [spec:pgorm:req:bindings.entity-active-changes])
                         }
-                        deps (napi-models napi-entities guide.javascript)
+                        deps (guide.javascript napi-entities napi-models)
                         log (
                             {
                                 at 2026-11-05T21:33:41.038525Z
@@ -14541,7 +14571,7 @@ children (
                         implements {
                             javascript ([spec:pgorm:req:bindings.model-hooks])
                         }
-                        deps (napi-models guide.javascript napi.guide-gaps.model-writes)
+                        deps (guide.javascript napi-models napi.guide-gaps.model-writes)
                         log (
                             {
                                 at 2026-11-05T23:05:00.725823Z
@@ -14787,10 +14817,10 @@ children (
         title "Python's execution methods type-check a MERGE, every query object refuses truth testing, and the Python rules say what the code does"
         kind @fix
         deps (
-            python.statements
-            python.expressions
-            python.values
             python.entities
+            python.expressions
+            python.statements
+            python.values
             statement-interval-value
         )
         log (
@@ -14894,7 +14924,7 @@ children (
         implements {
             main ([spec:pgorm:req:conn.listen])
         }
-        deps (query-second-tier conn-copy)
+        deps (conn-copy query-second-tier)
         log (
             {
                 at 2026-10-18T15:48:26.548871Z
@@ -14939,7 +14969,7 @@ children (
         id python-select-set-operations
         title "Python's Select combines with UNION, INTERSECT and EXCEPT, with and without ALL, as JavaScript's and Rust's do"
         kind @feat
-        deps (sql-views sql-select-extras)
+        deps (sql-select-extras sql-views)
         log (
             {
                 at 2026-10-18T16:42:47.882511Z
@@ -15013,7 +15043,7 @@ children (
         id python-truth-testing-rest
         title "Every remaining pgorm-python query object refuses truth testing: entity write terminals, windows, WITH, FROM items, joins, tables, conflicts, frames and MERGE actions"
         kind @fix
-        deps (python-schema-truth-testing sql-select-extras select-named-windows)
+        deps (python-schema-truth-testing select-named-windows sql-select-extras)
         sealed true
         log (
             {
@@ -15128,7 +15158,7 @@ children (
         id python-view-body-check
         title "Python's view and CREATE TABLE AS builders check their query as JavaScript's do, refusing a tie limit without ORDER BY"
         kind @fix
-        deps (sql-views sql-select-extras sql-domains)
+        deps (sql-domains sql-select-extras sql-views)
         log (
             {
                 at 2026-10-18T19:21:23.848757Z
@@ -15329,7 +15359,7 @@ children (
         id spec-prose-unversioned-refs
         title "Rule text cites other rules without a version pin, so a bump does not leave stale numbers in prose"
         kind @docs
-        deps (domain-enum-predicates binding-spec-consolidation)
+        deps (binding-spec-consolidation domain-enum-predicates)
         sealed true
         log (
             {
@@ -17731,8 +17761,8 @@ children (
                 kind @chore
                 deps (
                     security-remediation-2026-10-31.advisories
-                    security-remediation-2026-10-31.campaign-evidence
                     security-remediation-2026-10-31.automation
+                    security-remediation-2026-10-31.campaign-evidence
                     security-remediation-2026-10-31.disclosure
                 )
                 sealed true
@@ -18258,7 +18288,7 @@ children (
                 implements {
                     main ([spec:pgorm:req:macros.derive.one-form])
                 }
-                deps (derives.expanded codegen-compact-string-length)
+                deps (codegen-compact-string-length derives.expanded)
                 log (
                     {
                         at 2026-11-02T12:46:25.792721Z
@@ -18612,7 +18642,7 @@ children (
                     javascript ([spec:pgorm:req:bindings.disjoint-unkinded])
                     python ([spec:pgorm:req:bindings.disjoint-unkinded])
                 }
-                deps (disjoint.codegen-unkinded disjoint.bindings)
+                deps (disjoint.bindings disjoint.codegen-unkinded)
                 log (
                     {
                         at 2026-11-03T07:45:03.209189Z
@@ -18693,7 +18723,7 @@ children (
                     javascript ([spec:pgorm:req:bindings.disjoint-evolve])
                     python ([spec:pgorm:req:bindings.disjoint-evolve])
                 }
-                deps (disjoint.evolve disjoint.bindings)
+                deps (disjoint.bindings disjoint.evolve)
                 log (
                     {
                         at 2026-11-03T17:47:42.09892Z
@@ -18719,7 +18749,7 @@ children (
                     javascript ([spec:pgorm:req:bindings.one-of])
                     python ([spec:pgorm:req:bindings.one-of])
                 }
-                deps (disjoint.one-of disjoint.bindings)
+                deps (disjoint.bindings disjoint.one-of)
                 log (
                     {
                         at 2026-11-03T17:47:54.308669Z
@@ -19774,7 +19804,7 @@ children (
                 id typed-binds.created-range-quantified
                 title "A quantified comparison on a created-range column binds its array under the created type"
                 kind @fix
-                deps (typed-binds.quantified-casts pipeline-created-range-bind)
+                deps (pipeline-created-range-bind typed-binds.quantified-casts)
                 sealed true
                 log (
                     {
@@ -20589,7 +20619,7 @@ children (
                 implements {
                     python ([spec:pgorm:req:guide.dialects])
                 }
-                deps (guide.rust binding-parity)
+                deps (binding-parity guide.rust)
                 log (
                     {
                         at 2026-11-05T17:44:21.266285Z
@@ -20606,7 +20636,7 @@ children (
                 implements {
                     javascript ([spec:pgorm:req:guide.dialects])
                 }
-                deps (guide.rust binding-parity)
+                deps (binding-parity guide.rust)
                 log (
                     {
                         at 2026-11-05T17:19:47.576171Z
@@ -20673,7 +20703,7 @@ children (
                         implements {
                             python ([spec:pgorm:req:bindings.related] [spec:pgorm:req:bindings.linked] [spec:pgorm:req:bindings.cursor-secondary-order])
                         }
-                        deps (python.models python.graph)
+                        deps (python.graph python.models)
                         log (
                             {
                                 at 2026-11-05T19:50:25.670514Z
@@ -20707,7 +20737,7 @@ children (
                             main ([spec:pgorm:req:entity.active-model.set-if-not-equals])
                             python ([spec:pgorm:req:bindings.model-try-inserts] [spec:pgorm:req:bindings.model-write-sources] [spec:pgorm:req:bindings.entity-active-changes])
                         }
-                        deps (python.models python.entities)
+                        deps (python.entities python.models)
                         log (
                             {
                                 at 2026-11-05T20:52:32.538422Z
@@ -20779,7 +20809,7 @@ children (
                                 [spec:pgorm:req:bindings.raw-pages]
                             )
                         }
-                        deps (python.statements python.results python.pipeline)
+                        deps (python.pipeline python.results python.statements)
                         log (
                             {
                                 at 2026-11-05T21:44:14.791811Z
@@ -20847,7 +20877,7 @@ children (
                             main ([spec:pgorm:def:migration.runtime] [spec:pgorm:req:migration.sql-file.read])
                             python ([spec:pgorm:req:bindings.migrations])
                         }
-                        deps (python.transactions python.schema)
+                        deps (python.schema python.transactions)
                         log (
                             {
                                 at 2026-11-06T08:37:51.841955Z
@@ -20960,7 +20990,7 @@ children (
                         implements {
                             python ([spec:pgorm:req:bindings.transaction-retry] [spec:pgorm:req:bindings.rollback-failed] [spec:pgorm:req:bindings.refusal-fields])
                         }
-                        deps (python.transactions python.runtime)
+                        deps (python.runtime python.transactions)
                         log (
                             {
                                 at 2026-11-05T21:41:16.646322Z
@@ -21113,7 +21143,7 @@ children (
                         id guide.python-gaps.limited-graph
                         title "A declared model's graph with a limit or offset refuses all_grouped, paginate, cursor and count with ConstructionError, as Rust refuses them at compile time, instead of answering partial groups, replacing the limit or dropping it"
                         kind @fix
-                        deps (python.models python.graph)
+                        deps (python.graph python.models)
                         sealed true
                         log (
                             {
@@ -21150,7 +21180,7 @@ children (
                         id guide.python-gaps.version-classes
                         title "The Change, Inserted and Updated a declared model's or a generated view's returning_change(s) and returning_upsert(s) return have public names, and are the classes pgorm.Change and pgorm.Upserted name, rather than private pgorm._registered.versions classes a program must import to match or annotate them"
                         kind @fix
-                        deps (python.models python.entities)
+                        deps (python.entities python.models)
                         sealed true
                         log (
                             {
@@ -21375,7 +21405,7 @@ children (
                         implements {
                             python ([spec:pgorm:req:bindings.model-hooks])
                         }
-                        deps (python.models guide.python-gaps.model-writes)
+                        deps (guide.python-gaps.model-writes python.models)
                         log (
                             {
                                 at 2026-11-05T22:40:48.853106Z
@@ -21409,7 +21439,7 @@ children (
                             main ([spec:pgorm:req:bindings.entity-try-inserts])
                             python ([spec:pgorm:req:bindings.entity-try-inserts])
                         }
-                        deps (python.entities guide.python-gaps.model-writes)
+                        deps (guide.python-gaps.model-writes python.entities)
                         log (
                             {
                                 at 2026-11-06T11:33:47.097294Z
@@ -21504,7 +21534,7 @@ children (
                         id guide.python-gaps.pipeline-model-column-types
                         title "A declared model used as a pipeline source reads its columns through their declared column types and casts in both bindings: today pipeline_typed / pipelineTyped lower a model column from its kind alone (column_type(tag, values, None)), so a column declared column_type=\"money\" (or a domain over an enum, or select_as) reaches the pipeline as its kind's type and `pl.from_(model).all(pool)` fails with DecodeError \"column 1 has an unsupported PostgreSQL type\", where the model's own find() reads it as numeric"
                         kind @fix
-                        deps (guide.python-gaps.model-types guide.python-gaps.model-relations)
+                        deps (guide.python-gaps.model-relations guide.python-gaps.model-types)
                         sealed true
                         log (
                             {
@@ -21582,7 +21612,7 @@ children (
                 id guide.binding-typed-placeholders
                 title "The Python and JavaScript guides' SQL goldens show the typed placeholders sql.render.placeholder-typing writes ($1::numeric, $1::int4 in arithmetic), as the Rust guide's do since func-aggregate-expr-methods"
                 kind @docs
-                deps (func-aggregate-expr-methods guide.python guide.javascript)
+                deps (func-aggregate-expr-methods guide.javascript guide.python)
                 sealed true
                 log (
                     {
