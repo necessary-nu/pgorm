@@ -81,6 +81,9 @@ jobs:
       - name: macOS PostgreSQL tools
         if: runner.os == 'macOS'
         run: |
+          # The runner image's formula list predates postgresql@19 (added to
+          # homebrew-core on 2026-11-19), and brew install does not refresh it.
+          brew update
           brew install postgresql@19 openssl@3
           echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@19)/bin" >> "$GITHUB_ENV"
           echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
