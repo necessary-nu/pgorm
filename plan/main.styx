@@ -13066,6 +13066,7 @@ children (
                 title "pgorm parses with PostgreSQL 19's grammar through necessary-nu/pgsql-rs's pgsql-syntax, which replaces pg_query everywhere"
                 kind @build
                 deps (pg-query-18)
+                sealed true
                 log (
                     {
                         at 2026-10-07T15:47:52.370747Z
@@ -13114,6 +13115,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @decision
                         text "supersedes pg-query-crates-io: On 2026-11-23 the operator chose necessary-nu/pgsql-rs (pgsql-syntax, native Rust, PostgreSQL 19 grammar) to replace pg_query entirely. That leaves no pg_query to move back to crates.io: the fork retires because pg_query leaves pgorm, not because pgorm returns to upstream."
+                    }
+
+                    {
+                        at 2026-11-23T17:58:24.800732Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
