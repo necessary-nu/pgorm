@@ -64,7 +64,7 @@ impl Collation {
 
     /// Write the name as a `COLLATE` clause spells it: each part quoted like
     /// every other identifier, the schema first when there is one.
-    // [spec:pgorm:req:sql.render.collate]
+    // [spec:pgorm:req:sql.render.collate+2]
     pub(crate) fn prepare(&self, s: &mut dyn fmt::Write) {
         if let Some(schema) = &self.schema {
             schema.prepare(s);

@@ -60,7 +60,7 @@ fn feature<'a>(manifest: &'a Table, name: &str) -> Option<&'a Value> {
 
 /// The build's constant names the release pgorm's own feature asks for, so
 /// pgorm's `pg-19` reached pgorm-query in this build.
-// [spec:pgorm:req:sql.target+2/test]    the constant follows the feature through
+// [spec:pgorm:req:sql.target+3/test]    the constant follows the feature through
 // pgorm into pgorm-query
 #[test]
 fn the_target_follows_the_feature() {
@@ -72,7 +72,7 @@ fn the_target_follows_the_feature() {
 /// beneath them and to nothing else, no other crate carries it, and none
 /// declares a feature for 18, the default.
 // [spec:pgorm:req:bindings.postgres-target/test]    each binding forwards it to pgorm
-// [spec:pgorm:req:sql.target+2/test]    the feature's declarations and forwarding
+// [spec:pgorm:req:sql.target+3/test]    the feature's declarations and forwarding
 // edges, and the absence of a pg-18 feature
 #[test]
 fn pg_19_is_declared_once_and_forwarded() {

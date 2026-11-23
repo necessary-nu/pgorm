@@ -2,7 +2,7 @@
 
 use pgorm_sql_macro::sql;
 
-// [spec:pgorm:def:macros.sql+6/test]    the expansion is the literal, in const position
+// [spec:pgorm:def:macros.sql+7/test]    the expansion is the literal, in const position
 #[test]
 fn expansion_is_the_literal_unchanged() {
     const QUERY: &str = sql!("SELECT id, name FROM cake WHERE id = $1");
@@ -14,7 +14,19 @@ fn expansion_is_the_literal_unchanged() {
     );
 }
 
-// [spec:pgorm:def:macros.sql+6/test]    a `&'static str`, so it outlives any frame
+// [spec:pgorm:req:sql.target+3/test]    the grammar is PostgreSQL 19's in
+// every build, so what only 19 parses compiles
+#[test]
+fn nineteen_only_syntax_compiles() {
+    const DO_SELECT: &str =
+        sql!("INSERT INTO cake (id) VALUES ($1) ON CONFLICT (id) DO SELECT RETURNING *");
+    const REPACK: &str = sql!("REPACK cake USING INDEX cake_pkey");
+
+    assert!(DO_SELECT.ends_with("DO SELECT RETURNING *"));
+    assert_eq!(REPACK, "REPACK cake USING INDEX cake_pkey");
+}
+
+// [spec:pgorm:def:macros.sql+7/test]    a `&'static str`, so it outlives any frame
 #[test]
 fn expansion_is_a_static_str() {
     fn keep(query: &'static str) -> &'static str {
@@ -24,7 +36,7 @@ fn expansion_is_a_static_str() {
     assert_eq!(keep(sql!("SELECT 1")), "SELECT 1");
 }
 
-// [spec:pgorm:sem:macros.sql.script/test]    every statement of a script is checked
+// [spec:pgorm:sem:macros.sql.script+2/test]    every statement of a script is checked
 #[test]
 fn multi_statement_literal_passes_through() {
     const SCRIPT: &str = sql!(
@@ -37,7 +49,7 @@ fn multi_statement_literal_passes_through() {
     assert_eq!(SCRIPT.matches(';').count(), 3);
 }
 
-// [spec:pgorm:sem:macros.sql.script/test]    a script with no statements in it
+// [spec:pgorm:sem:macros.sql.script+2/test]    a script with no statements in it
 #[test]
 fn empty_and_comment_only_literals_pass() {
     assert_eq!(sql!(""), "");
@@ -45,7 +57,7 @@ fn empty_and_comment_only_literals_pass() {
     assert_eq!(sql!(";"), ";");
 }
 
-// [spec:pgorm:req:macros.sql.ceiling/test]    no catalog: unknown names are fine
+// [spec:pgorm:req:macros.sql.ceiling+2/test]    no catalog: unknown names are fine
 #[test]
 fn unknown_tables_and_columns_pass() {
     assert_eq!(
@@ -54,7 +66,7 @@ fn unknown_tables_and_columns_pass() {
     );
 }
 
-// [spec:pgorm:req:macros.sql.ceiling/test]    no catalog: type modifiers unchecked
+// [spec:pgorm:req:macros.sql.ceiling+2/test]    no catalog: type modifiers unchecked
 #[test]
 fn misapplied_type_modifiers_pass() {
     assert_eq!(
@@ -63,7 +75,7 @@ fn misapplied_type_modifiers_pass() {
     );
 }
 
-// [spec:pgorm:def:macros.sql+6/test]    the grammar is PostgreSQL 18's: statements
+// [spec:pgorm:def:macros.sql+7/test]    the grammar is PostgreSQL 18's: statements
 // only 18 parses compile, where PostgreSQL 17's grammar refused every one
 #[test]
 fn postgres_18_grammar_is_accepted() {

@@ -75,7 +75,7 @@ fn some(answers: [Option<&str>; 4]) -> Vec<Option<String>> {
 /// catches the same row.
 // [spec:pgorm:def:sql.ast.case+3/test]    against a live server: the simple form compares by
 // `=`, so a NULL operand matches no arm and takes the ELSE
-// [spec:pgorm:req:sql.render.case/test]
+// [spec:pgorm:req:sql.render.case+2/test]
 // [spec:pgorm:req:sql.scope+23/test]
 async fn a_null_operand_matches_no_arm(db: &DatabaseConnection) -> Result<(), Error> {
     let simple = per_row(
@@ -157,7 +157,7 @@ async fn the_first_matching_arm_wins(db: &DatabaseConnection) -> Result<(), Erro
 /// server types each arm value from its comparison with the operand, so
 /// bound values answer exactly as the inlined literals do, NULL operand
 /// included.
-// [spec:pgorm:req:sql.render.case/test]    against a live server: the bound rendering answers as
+// [spec:pgorm:req:sql.render.case+2/test]    against a live server: the bound rendering answers as
 // the inlined one does
 async fn bound_arm_values_compare_like_literals(db: &DatabaseConnection) -> Result<(), Error> {
     let query = per_row(

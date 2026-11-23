@@ -551,7 +551,7 @@ class SchemaObjectDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.rows(f"SELECT n FROM {self.ns}.numbered ORDER BY x"), [(100,), (110,), (5,)])
 
     # [spec:pgorm:req:bindings.schema-sequences/test]
-    # [spec:pgorm:req:sql.target+2/test]    btree_gist 1.7 on 18, and on 19, which
+    # [spec:pgorm:req:sql.target+3/test]    btree_gist 1.7 on 18, and on 19, which
     # ships 1.9 alone, the refusal of 1.7
     async def test_extension_schema_and_version_hold(self):
         version = "1.7"

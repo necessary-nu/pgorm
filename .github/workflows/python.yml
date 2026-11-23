@@ -56,7 +56,7 @@ jobs:
           python -m pip install 'uv'
           rustup toolchain install stable --profile minimal
           rustup default stable
-      - name: Linux native build and PostgreSQL tools
+      - name: Linux PostgreSQL tools
         if: runner.os == 'Linux'
         run: |
           # Ubuntu 24.04's own archive stops at PostgreSQL 16, so 18 comes
@@ -76,16 +76,15 @@ jobs:
             'Components: main' "Signed-By: $key" \
             | sudo tee /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
-          sudo apt-get install --yes clang libclang-dev postgresql-18 openssl
+          sudo apt-get install --yes postgresql-18 openssl
           echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/18/bin' >> "$GITHUB_ENV"
-      - name: macOS native build and PostgreSQL tools
+      - name: macOS PostgreSQL tools
         if: runner.os == 'macOS'
         run: |
           # Homebrew has no postgresql@19, so the build that targets 19 is
           # tested on Linux alone, by the postgres-19 job.
-          brew install llvm postgresql@18 openssl@3
+          brew install postgresql@18 openssl@3
           echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@18)/bin" >> "$GITHUB_ENV"
-          echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
           echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
       # The Rust unit tests, as `nplan check`'s python-native unit check
       # runs them.
@@ -137,7 +136,7 @@ jobs:
             'Components: main' "Signed-By: $key" \
             | sudo tee /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
-          sudo apt-get install --yes clang libclang-dev postgresql-18 openssl
+          sudo apt-get install --yes postgresql-18 openssl
           echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/18/bin' >> "$GITHUB_ENV"
       - name: Build, install and exercise the application wheel
         run: |
@@ -194,7 +193,7 @@ jobs:
             'Components: main' "Signed-By: $key" \
             | sudo tee /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
-          sudo apt-get install --yes clang libclang-dev postgresql-19 openssl
+          sudo apt-get install --yes postgresql-19 openssl
           echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/19/bin' >> "$GITHUB_ENV"
       - name: Build the pg-19 wheel and run the installed suite
         run: |

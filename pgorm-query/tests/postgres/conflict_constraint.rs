@@ -1,6 +1,6 @@
 use super::*;
 use crate::oracle::{assert_eq, parsed_nodes};
-use pg_query::protobuf::OnConflictAction;
+use pgsql_syntax::protobuf::OnConflictAction;
 
 fn insert(conflict: impl Into<OnConflict>) -> String {
     Query::insert()

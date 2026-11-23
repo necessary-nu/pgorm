@@ -1,7 +1,7 @@
 use super::*;
 use crate::oracle::{assert_eq, parsed_nodes};
 use ReturningRow::{New, Old};
-use pg_query::protobuf::ReturningOptionKind;
+use pgsql_syntax::protobuf::ReturningOptionKind;
 
 fn update() -> UpdateStatement {
     Query::update()

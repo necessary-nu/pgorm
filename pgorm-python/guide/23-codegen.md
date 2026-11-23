@@ -5,8 +5,9 @@ A database that already exists has its schema written down as DDL: the
 `pgorm-codegen` reads that DDL and writes the entity modules that describe
 it, one file per table. It is a library with no command-line tool: a build
 script or a small binary calls it and writes the files where the program
-keeps its entities. It reads the DDL with libpg_query, PostgreSQL's own
-parser, as PostgreSQL 18 reads it, and connects to no database.
+keeps its entities. It reads the DDL with pgsql-syntax, a Rust port of
+PostgreSQL 19's own scanner and parser, as PostgreSQL 19 reads it whichever
+release the package targets, and connects to no database.
 
 `pgorm.codegen.models_from_sql` brings it to Python. It hands the DDL to
 pgorm-codegen, which reads it as it reads it for Rust entities, and returns

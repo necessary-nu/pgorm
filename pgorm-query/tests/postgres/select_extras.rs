@@ -2,7 +2,7 @@ use super::*;
 use crate::oracle::{assert_eq, assert_rejected, parsed_nodes};
 use pgorm_query::error::Error;
 
-/// libpg_query's `LimitOption`, by the number it serialises as.
+/// The parse tree's `LimitOption`, by the number it serialises as.
 const LIMIT_COUNT: i64 = 2;
 const LIMIT_WITH_TIES: i64 = 3;
 
@@ -110,7 +110,7 @@ fn narrowing_keeps_a_zero_limit() {
 
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]    the two shapes the grammar refuses are refused by
 // `check_tie_limit`, and the grammar does refuse what they render
-// [spec:pgorm:req:sql.render.oracle+4/test]    the one render held rejected by design
+// [spec:pgorm:req:sql.render.oracle+5/test]    the one render held rejected by design
 // [spec:pgorm:req:sql.render.tie-limit/test]
 #[test]
 fn ungrammatical_tie_limits_are_refused() {
@@ -154,7 +154,7 @@ fn ungrammatical_tie_limits_are_refused() {
 
 // [spec:pgorm:req:sql.ast.select.group-distinct/test]    `GROUP BY DISTINCT` over the whole list,
 // and nothing when there is no list
-// [spec:pgorm:req:sql.render.grouping+1/test]
+// [spec:pgorm:req:sql.render.grouping+2/test]
 #[test]
 fn group_by_distinct_quantifies_the_whole_list() {
     let sql = Query::select()
@@ -183,7 +183,7 @@ fn group_by_distinct_quantifies_the_whole_list() {
     assert_eq!(ungrouped, r#"SELECT "aspect" FROM "glyph""#);
 }
 
-/// libpg_query's `A_Expr_Kind` for `SIMILAR TO`, by the number it serialises
+/// The parse tree's `A_Expr_Kind` for `SIMILAR TO`, by the number it serialises
 /// as.
 const AEXPR_SIMILAR: i64 = 10;
 

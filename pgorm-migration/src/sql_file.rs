@@ -45,7 +45,7 @@ use crate::{Error, MigrationName, MigrationTrait};
 /// }
 /// ```
 ///
-/// The text is held to PostgreSQL's grammar by libpg_query, as `pgorm::sql!`
+/// The text is held to PostgreSQL 19's grammar, as `pgorm::sql!`
 /// holds a literal, so a file the server would refuse to parse does not
 /// compile. This one differs from the first file above by one keyword:
 ///
@@ -102,7 +102,7 @@ use crate::{Error, MigrationName, MigrationTrait};
 /// ```
 // [spec:pgorm:def:migration.sql-file+1]
 // [spec:pgorm:req:migration.sql-file.const]    the expansion is a constant expression
-// [spec:pgorm:req:migration.sql-file.compile+1]    a refusal is a compile error
+// [spec:pgorm:req:migration.sql-file.compile+2]    a refusal is a compile error
 #[macro_export]
 macro_rules! sql_migration {
     ($($input:tt)*) => {

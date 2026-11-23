@@ -100,7 +100,7 @@ async function warned(work: () => Promise<void>): Promise<Error[]> {
   return seen;
 }
 
-// [spec:pgorm:req:bindings.metrics/test]    a fingerprint is pgorm's, the same for statements differing in constants alone
+// [spec:pgorm:req:bindings.metrics+2/test]    a fingerprint is pgorm's, the same for statements differing in constants alone
 test("fingerprints are pgorm's, and a context with no statement has none", () => {
   const print = (sql: string) => {
     const fingerprint = new QueryContext("queryAll", sql).fingerprint;
@@ -119,7 +119,7 @@ test("fingerprints are pgorm's, and a context with no statement has none", () =>
   assert.throws(() => new QueryContext(7 as never), TypeError);
 });
 
-// [spec:pgorm:req:bindings.metrics/test]    a collector has all seven hooks, and only a Pool not instrumented is wrapped
+// [spec:pgorm:req:bindings.metrics+2/test]    a collector has all seven hooks, and only a Pool not instrumented is wrapped
 test("a collector lacking a hook, and a pool that cannot be wrapped, are refused", () => {
   const { recordQueryError: _, ...missing } = Object.fromEntries(
     ["recordQuerySuccess", "recordQueryError", "recordConnectionAcquired", "recordConnectionError",
@@ -131,7 +131,7 @@ test("a collector lacking a hook, and a pool that cannot be wrapped, are refused
   assert.throws(() => new InstrumentedPool(wrapped, new NoOpMetrics()), /not instrumented/);
 });
 
-// [spec:pgorm:req:bindings.metrics/test]    statements, their rows and their failures are reported, and the failure still reaches the caller
+// [spec:pgorm:req:bindings.metrics+2/test]    statements, their rows and their failures are reported, and the failure still reaches the caller
 test("statements and acquisitions are reported", async () => {
   const [db, recorder] = instrumented();
   assert.equal((await db.query("SELECT id FROM widget WHERE id > $1", [0])).length, 2);
@@ -149,7 +149,7 @@ test("statements and acquisitions are reported", async () => {
   ]);
 });
 
-// [spec:pgorm:req:bindings.metrics/test]    a model's query, a pipeline, a stream, a COPY's start and a notification are reported
+// [spec:pgorm:req:bindings.metrics+2/test]    a model's query, a pipeline, a stream, a COPY's start and a notification are reported
 test("every executor path is reported", async () => {
   const [db, recorder] = instrumented();
   const Widget = model("widget", { columns: { id: column("i32", { primaryKey: true }), name: column("text") } });
@@ -168,7 +168,7 @@ test("every executor path is reported", async () => {
   await pool().execute("DELETE FROM widget WHERE id = 3");
 });
 
-// [spec:pgorm:req:bindings.metrics/test]    a transaction, its savepoint, its mode and its rollback are reported as Rust reports them
+// [spec:pgorm:req:bindings.metrics+2/test]    a transaction, its savepoint, its mode and its rollback are reported as Rust reports them
 test("transactions are reported", async () => {
   const [db, recorder] = instrumented();
   await db.transaction(async (tx) => {
@@ -189,7 +189,7 @@ test("transactions are reported", async () => {
   ]);
 });
 
-// [spec:pgorm:req:bindings.metrics/test]    a hook returning a promise is awaited: once the statement settles, its collector has been told
+// [spec:pgorm:req:bindings.metrics+2/test]    a hook returning a promise is awaited: once the statement settles, its collector has been told
 test("a promise a hook returns is awaited", async () => {
   class Slow extends NoOpMetrics {
     told: string[] = [];
@@ -203,7 +203,7 @@ test("a promise a hook returns is awaited", async () => {
   assert.deepStrictEqual(slow.told, ["queryAll"]);
 });
 
-// [spec:pgorm:req:bindings.metrics/test]    a hook that throws, or a promise that rejects, breaks no statement: a MetricsWarning carries it
+// [spec:pgorm:req:bindings.metrics+2/test]    a hook that throws, or a promise that rejects, breaks no statement: a MetricsWarning carries it
 test("failing hooks become process warnings and break no statement", async () => {
   class Broken extends NoOpMetrics {
     override recordQuerySuccess(): void {
@@ -229,7 +229,7 @@ test("failing hooks become process warnings and break no statement", async () =>
   );
 });
 
-// [spec:pgorm:req:bindings.metrics/test]    the wrapped pool runs unreported, shares the instrumented pool's connections, and closes with it
+// [spec:pgorm:req:bindings.metrics+2/test]    the wrapped pool runs unreported, shares the instrumented pool's connections, and closes with it
 test("the wrapped pool is shared, unreported, and closed with it", async () => {
   const [db, recorder] = instrumented();
   assert.equal(db.inner, pool());
@@ -247,7 +247,7 @@ test("the wrapped pool is shared, unreported, and closed with it", async () => {
   assert.equal(inner.closed, true);
 });
 
-// [spec:pgorm:req:bindings.metrics/test]    LoggingMetrics writes Rust's messages at Rust's levels to the logger it is given
+// [spec:pgorm:req:bindings.metrics+2/test]    LoggingMetrics writes Rust's messages at Rust's levels to the logger it is given
 test("LoggingMetrics writes to its logger", async () => {
   const lines: [string, string][] = [];
   const logger = {

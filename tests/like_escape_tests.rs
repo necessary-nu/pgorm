@@ -2,7 +2,7 @@
 
 //! A pattern's `ESCAPE ''` against a live server.
 //!
-//! The render tests hold `ESCAPE ''` to libpg_query; only the server says
+//! The render tests hold `ESCAPE ''` to the parser; only the server says
 //! that escaping is then off, so each case reads a pattern holding a
 //! backslash under the default escape, a chosen one, and none, where the
 //! three disagree.

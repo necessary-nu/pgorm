@@ -42,10 +42,8 @@ jobs:
           if not floor <= running < ceiling:
               raise SystemExit(f"interpreter {running} is outside {declared}")
           PIN
-      - name: Prepare Rust and native dependencies
+      - name: Prepare Rust and the campaign tools
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes clang libclang-dev
           rustup toolchain install stable --profile minimal
           rustup default stable
           python3 -m pip install --disable-pip-version-check 'maturin>=1.15,<2' 'uv'

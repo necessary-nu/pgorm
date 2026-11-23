@@ -26,9 +26,9 @@ use crate::{DatabaseConnection, DatabaseTransaction, Error};
 /// holding one is scanned, by PostgreSQL's own lexer, for a statement whose
 /// first token is the `COPY` keyword, a comment before it skipped and a
 /// `copy` inside a string, an identifier or a comment no keyword.
-// [spec:pgorm:req:conn.copy.statement]
+// [spec:pgorm:req:conn.copy.statement+2]
 pub(crate) fn refuse_copy_statement(sql: &str) -> Result<(), Error> {
-    use pg_query::protobuf::Token;
+    use pgsql_syntax::protobuf::Token;
 
     if !sql
         .as_bytes()
@@ -38,7 +38,7 @@ pub(crate) fn refuse_copy_statement(sql: &str) -> Result<(), Error> {
         return Ok(());
     }
     // Text the lexer refuses is left for the server to refuse.
-    let Ok(tokens) = pg_query::scan_tokens(sql) else {
+    let Ok(tokens) = pgsql_syntax::scan_tokens(sql) else {
         return Ok(());
     };
     let mut starts_statement = true;

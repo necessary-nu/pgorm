@@ -6,7 +6,7 @@ pgorm API exercised by each protected route and its vulnerable control.
 
 ## Run locally
 
-Use Docker, Rust (CI uses the stable toolchain), a C compiler/libclang, and
+Use Docker, Rust (CI uses the stable toolchain), a C compiler, and
 any release of the Python series `pins.json` names (3.14). The runner refuses
 an interpreter outside that series and records the release it used in the
 report's `interpreter`. It verifies the upstream archive digest, uses the
@@ -216,7 +216,7 @@ route is the same kind of evidence it is anywhere else in this suite. The other
 Those positions are judged by a separate, structural instrument: the
 identifier render oracle (`tests/identifier_oracle/`, run by
 `tests/identifier_oracle_tests.rs` and specified as
-`[spec:pgorm:req:security.ident-oracle]` in
+`[spec:pgorm:req:security.ident-oracle+18]` in
 [`docs/spec/ident-oracle.md`](../../docs/spec/ident-oracle.md)). It covers:
 
 - the 38 identifier pairs no sqlmap boundary reaches;
@@ -225,7 +225,7 @@ identifier render oracle (`tests/identifier_oracle/`, run by
 
 Scanner silence says nothing about the first group. The oracle does
 not probe them with payloads. It renders each registered name position with a
-hostile-name corpus, parses the statement with libpg_query, and requires the
+hostile-name corpus, parses the statement with pgsql-syntax, and requires the
 name to come back as exactly the identifiers the position should produce,
 with the rest of the parse tree unchanged. A live leg runs the nastiest names
 against a real server.

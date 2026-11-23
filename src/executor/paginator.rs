@@ -4,11 +4,11 @@ use crate::{
 };
 use async_stream::stream;
 use futures::Stream;
-use pg_query::{NodeEnum, protobuf::RawStmt};
 use pgorm_query::{
     Asterisk, Expr, FromItem, IntoName, SelectStatement, SqlTemplate, Value, alias,
     error::{Error as QueryError, TemplateError},
 };
+use pgsql_syntax::{NodeEnum, protobuf::RawStmt};
 use std::{
     fmt::{self, Write as _},
     marker::PhantomData,
@@ -61,7 +61,7 @@ const COUNT_SUBQUERY_ALIAS: &str = "sub_query";
 /// own means. A query with no projection, one whose limit keeps ties, and an
 /// offset past `u64` are refused.
 // [spec:pgorm:sem:exec.paginator.fetch+3]
-// [spec:pgorm:sem:exec.paginator.raw+7] (one shape for a built source and a raw one)
+// [spec:pgorm:sem:exec.paginator.raw+8] (one shape for a built source and a raw one)
 // [spec:pgorm:req:exec.tie-limit+1]
 // [spec:pgorm:req:bindings.disjoint+2]
 pub fn page_statement(
@@ -89,7 +89,7 @@ pub fn page_statement(
 /// is the count. A query with no projection, and one whose limit keeps ties,
 /// are refused.
 // [spec:pgorm:sem:exec.paginator.count]
-// [spec:pgorm:sem:exec.paginator.raw+7] (one shape for a built source and a raw one)
+// [spec:pgorm:sem:exec.paginator.raw+8] (one shape for a built source and a raw one)
 // [spec:pgorm:req:exec.tie-limit+1]
 // [spec:pgorm:req:bindings.disjoint+2]
 pub fn count_statement(query: &SelectStatement) -> Result<SelectStatement, Error> {
@@ -362,7 +362,7 @@ where
     /// # }
     /// ```
     // [spec:pgorm:req:exec.paginator.page-size+2]
-    // [spec:pgorm:sem:exec.paginator.raw+7]
+    // [spec:pgorm:sem:exec.paginator.raw+8]
     pub fn paginate<'db, C>(
         self,
         db: &'db C,
@@ -385,7 +385,7 @@ where
     ///
     /// The counterpart of [`PaginatorTrait::count`], fallible for the same
     /// reason [`paginate`](SelectorRaw::paginate) is.
-    // [spec:pgorm:sem:exec.paginator.raw+7]
+    // [spec:pgorm:sem:exec.paginator.raw+8]
     pub async fn count<C>(self, db: &C) -> Result<u64, Error>
     where
         C: ConnectionTrait,
@@ -410,7 +410,7 @@ const RAW_SUBQUERY_ALIAS: &str = "sub_statement";
 /// not pair.
 ///
 /// Two checks, each where it belongs. That the text is one row-returning
-/// `SELECT` is PostgreSQL's answer and stays here, because libpg_query is a
+/// `SELECT` is PostgreSQL's answer and stays here, because the parser is a
 /// dependency of the ORM and not of the query builder. That its `$N` markers
 /// and the values behind them agree is the template machinery's answer
 /// (`SqlTemplate::from_sql`), which reads the same `$` grammar PostgreSQL does
@@ -423,7 +423,7 @@ const RAW_SUBQUERY_ALIAS: &str = "sub_statement";
 /// Both checks answer to the caller that asked for the paginator, so the
 /// refusal is returned to `paginate` rather than stored for a later reader to
 /// replay.
-// [spec:pgorm:sem:exec.paginator.raw+7]
+// [spec:pgorm:sem:exec.paginator.raw+8]
 pub fn raw_select(stmt: &str, values: Vec<Value>) -> Result<SelectStatement, Error> {
     // Both refusals are the caller's own statement being unusable, which is
     // the vocabulary their other query failures already arrive in.
@@ -444,7 +444,7 @@ pub fn raw_select(stmt: &str, values: Vec<Value>) -> Result<SelectStatement, Err
 /// A marker census failure, reported in the paginator's voice: the caller asked
 /// to page a statement, so the reason names the statement and its bind values
 /// rather than a template and its substitutions.
-// [spec:pgorm:sem:exec.paginator.raw+7]
+// [spec:pgorm:sem:exec.paginator.raw+8]
 fn marker_report(error: QueryError) -> String {
     let supplied = |count: usize| {
         if count == 1 {
@@ -471,21 +471,22 @@ fn marker_report(error: QueryError) -> String {
     }
 }
 
-/// The one row-returning `SELECT` in `stmt`, at the extent libpg_query reports
+/// The one row-returning `SELECT` in `stmt`, at the extent the parser reports
 /// for it — which runs from the statement's first token, past any leading
 /// whitespace or comment, and excludes any terminating `;` a subquery position
 /// would refuse.
 ///
 /// A `WITH ... SELECT` qualifies: PostgreSQL hangs the `WITH` clause off the
 /// `SelectStmt` itself rather than making it a statement of its own.
-// [spec:pgorm:sem:exec.paginator.raw+7]
+// [spec:pgorm:sem:exec.paginator.raw+8]
 fn single_select(stmt: &str) -> Result<&str, String> {
-    let parsed = pg_query::parse(stmt, pg_query::ParserOptions::DEFAULT).map_err(|error| {
-        format!(
-            "cannot paginate a raw statement PostgreSQL rejects: {}",
-            parser_message(&error)
-        )
-    })?;
+    let parsed =
+        pgsql_syntax::parse(stmt, pgsql_syntax::ParserOptions::DEFAULT).map_err(|error| {
+            format!(
+                "cannot paginate a raw statement PostgreSQL rejects: {}",
+                parser_message(&error)
+            )
+        })?;
 
     let [raw] = parsed.protobuf.stmts.as_slice() else {
         return Err(format!(
@@ -554,11 +555,11 @@ impl fmt::Write for Head {
     }
 }
 
-/// The parser's own diagnostic, unwrapped from the `pg_query` error variant that
-/// would otherwise prefix it with a stage name.
-fn parser_message(error: &pg_query::Error) -> String {
+/// The parser's own diagnostic, unwrapped from the `pgsql_syntax::Error`
+/// variant that would otherwise prefix it with a stage name.
+fn parser_message(error: &pgsql_syntax::Error) -> String {
     match error {
-        pg_query::Error::Parse(message) | pg_query::Error::Scan(message) => message.clone(),
+        pgsql_syntax::Error::Parse(message) | pgsql_syntax::Error::Scan(message) => message.clone(),
         other => other.to_string(),
     }
 }
@@ -576,7 +577,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.paginator.raw+7/test]    a caller's statement reaches
+// [spec:pgorm:sem:exec.paginator.raw+8/test]    a caller's statement reaches
 // the wrapper with its non-marker text untouched, whatever token forms it is
 // made of; its markers renumber into the wrapper's own parameter space with
 // the right values behind them; and a census the supplied values cannot
@@ -702,7 +703,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:sem:exec.paginator.raw+7/test]    the statement is taken
+    // [spec:pgorm:sem:exec.paginator.raw+8/test]    the statement is taken
     // from its first token: what leads it is not carried into the wrapper,
     // and a terminating `;` is left behind with it
     #[test]

@@ -74,9 +74,15 @@ def check_wheel(path: Path) -> None:
             assert package["license"] and package["notices"], package["name"]
             for notice in package["notices"]:
                 assert notice["sha256"] in notices
-        assert {
-            component["name"] for component in dependencies["bundled_native_components"]
-        } >= {"libpg_query", "PostgreSQL parser", "upb", "utf8_range", "xxHash"}
+        parser = {
+            package["name"]: package
+            for package in dependencies["packages"]
+            if package["source"].startswith("git+https://github.com/necessary-nu/pgsql-rs.git")
+        }
+        assert {"pgsql-syntax", "pgsql-parser", "pg19-parser"} <= parser.keys()
+        for package in parser.values():
+            sources = {notice["source"] for notice in package["notices"]}
+            assert {"pgsql-rs/LICENSE", "pgsql-rs/LICENSE-PostgreSQL"} <= sources
         metadata = wheel.read(
             next(name for name in names if name.endswith(".dist-info/METADATA"))
         ).decode()

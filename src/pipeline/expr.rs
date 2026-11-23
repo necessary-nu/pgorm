@@ -23,7 +23,7 @@ use super::funcs::CastType;
 /// [`Binder::bind`](super::Binder::bind) — is pinned to the brand of the
 /// binder that minted it, so carrying it into another pipeline (whose
 /// binding stages quantify over a fresh brand) does not typecheck.
-// [spec:pgorm:req:pipeline.params+4]
+// [spec:pgorm:req:pipeline.params+5]
 #[derive(Debug, Clone)]
 pub struct Expr<'brand> {
     pub(super) node: PlExpr,
@@ -154,7 +154,7 @@ macro_rules! literal {
         /// A Rust literal is an inline SQL literal, exactly as a literal
         /// written in PRQL text would be. Runtime values belong in
         /// [`Binder::bind`](super::Binder::bind).
-        // [spec:pgorm:req:pipeline.params+4]
+        // [spec:pgorm:req:pipeline.params+5]
         impl<'brand> From<$ty> for Expr<'brand> {
             fn from(value: $ty) -> Self {
                 let conv = $conv;

@@ -223,7 +223,7 @@ test("an identity column's sequence takes the options a sequence does", async ()
 });
 
 // [spec:pgorm:req:bindings.schema-sequences/test]
-// [spec:pgorm:req:sql.target+2/test]    btree_gist 1.7 on 18, and on 19, which ships
+// [spec:pgorm:req:sql.target+3/test]    btree_gist 1.7 on 18, and on 19, which ships
 // 1.9 alone, the refusal of 1.7
 test("an extension is created in the schema and at the version asked, and dropped", async () => {
   let version = "1.7";

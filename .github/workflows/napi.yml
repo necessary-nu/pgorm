@@ -67,7 +67,7 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --component clippy,rustfmt
           rustup default stable
-      - name: Linux native build and PostgreSQL tools
+      - name: Linux PostgreSQL tools
         if: runner.os == 'Linux'
         run: |
           # The Python workflow's PostgreSQL apt setup; its comment says why.
@@ -84,15 +84,14 @@ jobs:
             'Components: main' "Signed-By: $key" \
             | sudo tee /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
-          sudo apt-get install --yes clang libclang-dev "postgresql-$POSTGRES"
+          sudo apt-get install --yes "postgresql-$POSTGRES"
           echo "PGORM_TEST_PG_BIN=/usr/lib/postgresql/$POSTGRES/bin" >> "$GITHUB_ENV"
           echo 'OPENSSL=openssl' >> "$GITHUB_ENV"
-      - name: macOS native build and PostgreSQL tools
+      - name: macOS PostgreSQL tools
         if: runner.os == 'macOS'
         run: |
-          brew install llvm postgresql@18 openssl@3
+          brew install postgresql@18 openssl@3
           echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@18)/bin" >> "$GITHUB_ENV"
-          echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
           # The system's LibreSSL is not the OpenSSL the certificate commands
           # below are written for.
           echo "OPENSSL=$(brew --prefix openssl@3)/bin/openssl" >> "$GITHUB_ENV"
@@ -213,16 +212,6 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-      - name: Linux native build tools
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes clang libclang-dev
-      - name: macOS native build tools
-        if: runner.os == 'macOS'
-        run: |
-          brew install llvm
-          echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
       # The build step builds with the crate's `addon` profile on every
       # release platform's runner, and refuses an addon still carrying a
       # symbol table. The job summary records the addon's size.

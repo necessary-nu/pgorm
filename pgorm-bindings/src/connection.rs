@@ -33,7 +33,7 @@ const CONNECTION_CLOSED: &str = "the connection is closed";
 
 /// A connection checked out of a pool: a plain one, or one an instrumented
 /// pool lent, which reports what runs on it.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 #[derive(Debug)]
 pub enum Held {
     /// A connection of a pool with no collector.

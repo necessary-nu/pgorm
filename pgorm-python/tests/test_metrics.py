@@ -48,7 +48,7 @@ class Recorder(p.NoOpMetrics):
 
 
 class Surface(unittest.TestCase):
-    # [spec:pgorm:req:bindings.metrics/test]    a fingerprint is pgorm's, the same for statements differing in constants alone
+    # [spec:pgorm:req:bindings.metrics+2/test]    a fingerprint is pgorm's, the same for statements differing in constants alone
     def test_fingerprints_are_pgorms(self):
         def print_(sql):
             fingerprint = p.QueryContext("query_all", sql).fingerprint
@@ -77,7 +77,7 @@ class Surface(unittest.TestCase):
             "pgorm::metric::InstrumentedPool::new",
         )
 
-    # [spec:pgorm:req:bindings.metrics/test]    a collector has all seven hooks, and one left as NoOpMetrics wrote it is never run
+    # [spec:pgorm:req:bindings.metrics+2/test]    a collector has all seven hooks, and one left as NoOpMetrics wrote it is never run
     def test_collectors_are_checked_and_noop_hooks_skipped(self):
         class QueriesOnly(p.NoOpMetrics):
             def record_query_success(self, query, duration, rows):
@@ -115,7 +115,7 @@ class Instrumented(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(p.RawSQL("DROP SCHEMA python_metrics CASCADE"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.metrics/test]    statements, their rows and their failures are reported, and the failure still reaches the caller
+    # [spec:pgorm:req:bindings.metrics+2/test]    statements, their rows and their failures are reported, and the failure still reaches the caller
     async def test_statements_and_acquisitions_are_reported(self):
         rows = await self.instrumented.query(p.RawSQL("SELECT id FROM python_metrics.widget WHERE id > $1", [0]))
         self.assertEqual(len(rows), 2)
@@ -133,7 +133,7 @@ class Instrumented(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(update[1], "execute")
         self.assertEqual(update[3], 2)
 
-    # [spec:pgorm:req:bindings.metrics/test]    a model's query, a pipeline, a stream, a COPY's start and a notification are reported
+    # [spec:pgorm:req:bindings.metrics+2/test]    a model's query, a pipeline, a stream, a COPY's start and a notification are reported
     async def test_every_executor_path_is_reported(self):
         widget = p.Model("widget", {
             "id": p.Column("i32", primary_key=True),
@@ -158,7 +158,7 @@ class Instrumented(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(copy_sql.startswith('COPY "python_metrics"."widget"'), copy_sql)
         self.assertEqual(self.recorder.hooks().count("acquired"), 3)
 
-    # [spec:pgorm:req:bindings.metrics/test]    a transaction, its savepoint, its mode and its rollback are reported as Rust reports them
+    # [spec:pgorm:req:bindings.metrics+2/test]    a transaction, its savepoint, its mode and its rollback are reported as Rust reports them
     async def test_transactions_are_reported(self):
         async with self.instrumented.transaction() as tx:
             await tx.query(p.RawSQL("SELECT 1"))
@@ -180,7 +180,7 @@ class Instrumented(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    # [spec:pgorm:req:bindings.metrics/test]    an async hook is awaited: once the statement returns, its collector has been told
+    # [spec:pgorm:req:bindings.metrics+2/test]    an async hook is awaited: once the statement returns, its collector has been told
     async def test_async_hooks_are_awaited(self):
         class Slow(p.NoOpMetrics):
             def __init__(self) -> None:
@@ -195,7 +195,7 @@ class Instrumented(unittest.IsolatedAsyncioTestCase):
         await instrumented.one(p.RawSQL("SELECT 1 AS one"))
         self.assertEqual(slow.told, ["query_all"])
 
-    # [spec:pgorm:req:bindings.metrics/test]    a hook that raises, or an async one that fails, breaks no statement: the loop's exception handler is told
+    # [spec:pgorm:req:bindings.metrics+2/test]    a hook that raises, or an async one that fails, breaks no statement: the loop's exception handler is told
     async def test_failing_hooks_reach_the_exception_handler(self):
         class Broken(p.NoOpMetrics):
             def record_query_success(self, query, duration, rows):
@@ -226,7 +226,7 @@ class Instrumented(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    # [spec:pgorm:req:bindings.metrics/test]    the wrapped pool runs unreported, shares the instrumented pool's connections, and closes with it
+    # [spec:pgorm:req:bindings.metrics+2/test]    the wrapped pool runs unreported, shares the instrumented pool's connections, and closes with it
     async def test_inner_pool_is_shared_and_unreported(self):
         self.assertIs(self.instrumented.inner, self.pool)
         self.assertIs(self.instrumented.metrics, self.recorder)
@@ -246,7 +246,7 @@ class Instrumented(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.pool.closed)
         await self.pool.query(p.RawSQL("SELECT 1"))
 
-    # [spec:pgorm:req:bindings.metrics/test]    LoggingMetrics writes Rust's messages to Python's logging at Rust's levels
+    # [spec:pgorm:req:bindings.metrics+2/test]    LoggingMetrics writes Rust's messages to Python's logging at Rust's levels
     async def test_logging_metrics_writes_to_logging(self):
         logger = logging.getLogger("pgorm.metrics.test")
         instrumented = p.InstrumentedPool(self.pool, p.LoggingMetrics(logger))
@@ -269,7 +269,7 @@ class Instrumented(unittest.IsolatedAsyncioTestCase):
         ) + "]"))
         self.assertIs(logging.getLogger("pgorm.metrics"), p.LoggingMetrics().logger)
 
-    # [spec:pgorm:req:bindings.metrics/test]    closing the instrumented pool closes the pool it wraps
+    # [spec:pgorm:req:bindings.metrics+2/test]    closing the instrumented pool closes the pool it wraps
     async def test_closing_either_closes_both(self):
         pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
         instrumented = p.InstrumentedPool(pool, Recorder())

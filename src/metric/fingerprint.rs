@@ -1,25 +1,26 @@
 //! Query identity: what a metrics hook is told about the statement it reports
-//! on, and the libpg_query fingerprint that names its shape.
+//! on, and the fingerprint that names its shape.
 
 use std::fmt;
 
 /// A statement's identity with its constants normalized away, as computed by
-/// libpg_query — the same notion of "same query" that `pg_stat_statements`
+/// pgsql-syntax over PostgreSQL 19's parse tree, libpg_query's fingerprint
+/// algorithm — the same notion of "same query" that `pg_stat_statements`
 /// aggregates by.
 ///
 /// Two statements that differ only in their literal values share a
 /// fingerprint; two that differ in shape do not. It is a parse-tree hash, not
 /// a hash of the text: whitespace and literals do not move it.
 ///
-/// [`Display`](fmt::Display) renders libpg_query's canonical 16-character
+/// [`Display`](fmt::Display) renders the fingerprint's canonical 16-character
 /// zero-padded hex form; [`value`](Self::value) is the same number as an
 /// integer, which is the cheaper key for aggregation.
-// [spec:pgorm:req:metric.fingerprint+3]
+// [spec:pgorm:req:metric.fingerprint+4]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QueryFingerprint(u64);
 
 impl QueryFingerprint {
-    /// The fingerprint as libpg_query's 64-bit integer.
+    /// The fingerprint as its 64-bit integer.
     pub fn value(self) -> u64 {
         self.0
     }
@@ -46,7 +47,7 @@ impl fmt::Display for QueryFingerprint {
 /// its text and nothing else (`conn.sql-text`) — and `None` only for the
 /// failed transaction verbs `record_query_error` reports (`"begin"`,
 /// `"commit"`, `"rollback"`), where there is no statement to name.
-// [spec:pgorm:req:metric.fingerprint+3]
+// [spec:pgorm:req:metric.fingerprint+4]
 #[derive(Clone, Copy, Debug)]
 pub struct QueryContext<'a> {
     operation: &'a str,
@@ -78,13 +79,13 @@ impl<'a> QueryContext<'a> {
     /// The statement's fingerprint, or `None` when it cannot be had.
     ///
     /// It cannot be had for three distinct reasons, and they are deliberately
-    /// not distinguished: the `metrics-fingerprint` feature is off, and no
-    /// parser is linked in; there is no statement to parse, as for a
-    /// transaction verb; or libpg_query rejected the text. That last case is
-    /// not an error — raw SQL
-    /// PostgreSQL's own grammar accepts may still be text this parser will not
-    /// reduce to a tree, and such a statement executes normally. Metrics simply
-    /// cannot name it.
+    /// not distinguished: the `metrics-fingerprint` feature is off, so no
+    /// statement is parsed for its identity; there is no statement to parse,
+    /// as for a transaction verb; or PostgreSQL 19's grammar rejected the
+    /// text. That last case is not an error — raw SQL the server accepts may
+    /// still be text 19's grammar refuses, such as an 18 server's bare
+    /// `ignore` column label, and such a statement executes normally. Metrics
+    /// simply cannot name it.
     ///
     /// Fingerprinting parses, so the answer is memoized process-wide by
     /// statement text — including the `None` of a rejected one — and repeated
@@ -109,8 +110,8 @@ impl fmt::Display for FingerprintSuffix {
     }
 }
 
-/// The memo behind [`QueryContext::fingerprint`], parsing with libpg_query.
-// [spec:pgorm:req:metric.fingerprint+3]    computation site and memoization
+/// The memo behind [`QueryContext::fingerprint`], parsing with pgsql-syntax.
+// [spec:pgorm:req:metric.fingerprint+4]    computation site and memoization
 #[cfg(feature = "metrics-fingerprint")]
 mod memo {
     use super::QueryFingerprint;
@@ -149,10 +150,10 @@ mod memo {
         // stands for the relation it names and a schema qualifier is not
         // part of the identity, so a fingerprint groups statements the way
         // the server's own `pg_stat_statements` does.
-        let computed = pg_query::fingerprint(
+        let computed = pgsql_syntax::fingerprint(
             sql,
-            pg_query::ParserOptions::DEFAULT,
-            pg_query::FingerprintOptions::DEFAULT,
+            pgsql_syntax::ParserOptions::DEFAULT,
+            pgsql_syntax::FingerprintOptions::DEFAULT,
         )
         .ok()
         .map(|fingerprint| QueryFingerprint(fingerprint.value));
@@ -167,7 +168,7 @@ mod memo {
 }
 
 /// The stand-in for the memo when fingerprints are not asked for.
-// [spec:pgorm:req:metric.fingerprint+3]    the feature-off answer
+// [spec:pgorm:req:metric.fingerprint+4]    the feature-off answer
 #[cfg(not(feature = "metrics-fingerprint"))]
 mod memo {
     use super::QueryFingerprint;

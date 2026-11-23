@@ -2,7 +2,7 @@
 
 //! `CREATE` / `ALTER` / `DROP SEQUENCE` against a live PostgreSQL server.
 //!
-//! The render tests in pgorm-query hold each statement to libpg_query's
+//! The render tests in pgorm-query hold each statement to the parser's
 //! `CreateSeqStmt`, `AlterSeqStmt`, `DropStmt` and `RenameStmt`, option by
 //! option. What only a server settles is what the options mean: that the
 //! values a sequence hands out follow its step, bounds, start and wrap; that

@@ -631,7 +631,7 @@ async fn answers_in_step(db: &DatabaseConnection) -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.statement/test]    a COPY given to a statement method is refused before anything is sent, a copy that is no COPY statement runs
+// [spec:pgorm:req:conn.copy.statement+2/test]    a COPY given to a statement method is refused before anything is sent, a copy that is no COPY statement runs
 #[pgorm_macros::test]
 async fn copy_through_a_statement_is_refused() -> Result<(), Error> {
     let ctx = TestContext::new("copy_through_a_statement").await;
@@ -1004,7 +1004,7 @@ impl MetricsCollector for Operations {
 }
 
 // [spec:pgorm:req:metric.layer.copy/test]    the wrappers forward COPY and report it at open, with its text
-// [spec:pgorm:req:metric.fingerprint+3/test]    a COPY is reported under copy_in and copy_out
+// [spec:pgorm:req:metric.fingerprint+4/test]    a COPY is reported under copy_in and copy_out
 #[pgorm_macros::test]
 async fn instrumented_copy_reports_at_open() -> Result<(), Error> {
     let ctx = TestContext::new("instrumented_copy_reports").await;

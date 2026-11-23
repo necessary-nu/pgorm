@@ -1,10 +1,10 @@
-//! pgorm links one prqlc and one pg_query: the forks its own manifest names,
-//! each at one revision.
+//! pgorm links one prqlc and one PostgreSQL parser: the git dependencies its
+//! own manifest names, each at one revision.
 //!
-//! The root crate depends on two forks through git dependencies — the
+//! The root crate depends on two crates through git dependencies — the
 //! necessary-nu fork of prqlc, which compiles `pgorm::pipeline` and `prql!`,
-//! and the necessary-nu fork of pg_query.rs, which carries PostgreSQL 18's
-//! grammar ahead of upstream's release — and a dependency travels with pgorm
+//! and necessary-nu's pgsql-rs, whose pgsql-syntax parses with PostgreSQL 19's
+//! grammar and is published nowhere else — and a dependency travels with pgorm
 //! into every crate that depends on it: the crates here that declare their own
 //! `[workspace]` (`pgorm-python` and `pgorm-napi`, so that each binding's
 //! configuration stays out of ordinary Rust builds
@@ -25,10 +25,11 @@
 //! crates, which no committed manifest describes, linked stock prqlc on every
 //! run. Each fix covered the instances it could see. Making the fork the
 //! dependency removes the class: nothing has to be repeated, so nothing can be
-//! forgotten. The pg_query fork was adopted the same way from the start, and is
-//! held here by the same checks, because a detached workspace resolving stock
-//! pg_query would parse with PostgreSQL 17's grammar while every pgorm test
-//! parses with 18's.
+//! forgotten. pgsql-rs is held here by the same checks, because a detached
+//! workspace resolving another revision would parse with a grammar every pgorm
+//! test does not; and pg_query, libpg_query's binding, is held out of every
+//! manifest and lockfile, so no build links the C parser and its grammar
+//! beside it.
 //!
 //! These tests hold the invariant from both ends, for each fork. The root
 //! declares the fork at a full commit, every other declaration names the same
@@ -67,7 +68,8 @@ struct Fork {
     not_linking: &'static [&'static str],
 }
 
-/// The detached crates that reach pgorm's runtime, and so both forks.
+/// The detached crates that reach pgorm's runtime, and so both git
+/// dependencies.
 const RUNTIME_DETACHED: [&str; 8] = [
     "pgorm-python",
     "pgorm-napi",
@@ -92,18 +94,31 @@ const PRQLC: Fork = Fork {
     not_linking: &["security/generative/compile"],
 };
 
-/// libpg_query's Rust binding, on PostgreSQL 18's grammar.
-const PG_QUERY: Fork = Fork {
-    dependency: "pg_query",
-    repository: "https://github.com/necessary-nu/pg_query.rs.git",
-    crates: &["pg_query"],
+/// PostgreSQL 19's grammar, natively in Rust. Only `pgsql-syntax` is declared
+/// anywhere; the rest of the workspace comes with it.
+const PGSQL_RS: Fork = Fork {
+    dependency: "pgsql-syntax",
+    repository: "https://github.com/necessary-nu/pgsql-rs.git",
+    crates: &[
+        "pgsql-syntax",
+        "pgsql-parser",
+        "pg19-codec",
+        "pg19-engine",
+        "pg19-lexer",
+        "pg19-nodes",
+        "pg19-operations",
+        "pg19-parser",
+        "pg19-plpgsql",
+        "pg19-reference",
+        "pg19-tables",
+    ],
     declarers: &[
         "Cargo.toml",
         "pgorm-sql-check/Cargo.toml",
         "pgorm-codegen/Cargo.toml",
         "pgorm-query/Cargo.toml",
     ],
-    // pgorm-codegen parses DDL with pg_query itself, so the codegen runner
+    // pgorm-codegen parses DDL with pgsql-syntax itself, so the codegen runner
     // links it where it links no prqlc.
     detached: &[
         "pgorm-python",
@@ -119,7 +134,11 @@ const PG_QUERY: Fork = Fork {
     not_linking: &[],
 };
 
-const FORKS: [&Fork; 2] = [&PRQLC, &PG_QUERY];
+const FORKS: [&Fork; 2] = [&PRQLC, &PGSQL_RS];
+
+/// libpg_query's Rust binding, which builds the C parser. Nothing in the
+/// checkout may declare or resolve it.
+const RETIRED: &str = "pg_query";
 
 fn repository_root() -> PathBuf {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -388,7 +407,7 @@ fn reaches(
 /// `security/generative/compile` out of prqlc's set: it depends on
 /// `pgorm-codegen`, whose only edge to `pgorm` is a development dependency, and
 /// a development dependency is linked by its declarer's tests and by nothing
-/// downstream. It is in pg_query's, through `pgorm-codegen`'s own edge.
+/// downstream. It is in pgsql-rs's, through `pgorm-codegen`'s own edge.
 fn linking(fork: &Fork, manifests: &BTreeMap<PathBuf, Table>) -> BTreeSet<PathBuf> {
     let mut carriers = BTreeSet::new();
     let mut growing = true;
@@ -606,4 +625,36 @@ fn discovery_finds_the_crates_a_list_missed() {
             );
         }
     }
+}
+
+/// A manifest naming pg_query, or a lockfile resolving it, would link
+/// libpg_query's C parser and its grammar beside the one every check here
+/// pins.
+#[test]
+fn no_manifest_or_lockfile_names_pg_query() {
+    let checkout = Checkout::read();
+    let mut found = Vec::new();
+    for (path, manifest) in &checkout.manifests {
+        for dependency in declared_dependencies(manifest) {
+            if dependency.crate_name == RETIRED {
+                found.push(format!(
+                    "{} declares {} in [{}]",
+                    checkout.relative(path),
+                    dependency.key,
+                    dependency.table
+                ));
+            }
+        }
+    }
+    for (path, lock) in &checkout.lockfiles {
+        let packages = lock.get("package").and_then(Value::as_array);
+        for package in packages.into_iter().flatten() {
+            if let Some(name) = package.get("name").and_then(Value::as_str)
+                && name == RETIRED
+            {
+                found.push(format!("{} resolves {name}", checkout.relative(path)));
+            }
+        }
+    }
+    assert!(found.is_empty(), "pg_query is retired: {found:?}");
 }

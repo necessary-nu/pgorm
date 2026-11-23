@@ -18,7 +18,7 @@ impl QueryBuilder {
     /// subscript, a self-wrapped `CASE` or subquery — and parenthesised
     /// otherwise, because `COLLATE` binds tighter than every binary operator:
     /// `"a" || "b" COLLATE "C"` collates only `"b"`.
-    // [spec:pgorm:req:sql.render.collate]
+    // [spec:pgorm:req:sql.render.collate+2]
     pub(super) fn prepare_collate(
         &self,
         operand: &SimpleExpr,

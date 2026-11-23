@@ -2,7 +2,7 @@
 
 //! `ALTER TYPE` on a composite's attributes against a live PostgreSQL server.
 //!
-//! The render tests in pgorm-query hold each change to libpg_query's
+//! The render tests in pgorm-query hold each change to the parser's
 //! `AlterTableCmd`. What only a server settles is what the changes make — the
 //! attributes the catalogue holds afterwards, in order, with their types and
 //! collations — and what it refuses around them: a typed table altered

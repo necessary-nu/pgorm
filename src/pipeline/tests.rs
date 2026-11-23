@@ -15,18 +15,18 @@ fn total<'brand>() -> Expr<'brand> {
     col(INVOICE, TOTAL)
 }
 
-/// Golden output plus the pg_query oracle: the emitted SQL must be a string
+/// Golden output plus the grammar oracle: the emitted SQL must be a string
 /// the real PostgreSQL grammar accepts.
 // [spec:pgorm:req:pipeline.errors+5/test]
 fn sql_of(pipeline: Pipeline) -> String {
     let (sql, _) = pipeline.into_sql().expect("pipeline compiles");
-    if let Err(err) = pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT) {
+    if let Err(err) = crate::sql_check::check_sql(&sql) {
         panic!("PostgreSQL grammar rejected the emitted SQL: {err}\n  {sql}");
     }
     sql
 }
 
-// [spec:pgorm:def:pipeline.adapter+2/test]    direct PL construction is
+// [spec:pgorm:def:pipeline.adapter+3/test]    direct PL construction is
 // interchangeable with compiling the equivalent PRQL text
 #[test]
 fn built_filter_matches_text_compilation() {
@@ -128,7 +128,7 @@ fn case_renders_case_when() {
     );
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    a string literal is escaped, not
+// [spec:pgorm:req:pipeline.params+5/test]    a string literal is escaped, not
 // interpolated: it cannot close the quote it is written into
 #[test]
 fn string_literals_are_escaped() {
@@ -140,19 +140,19 @@ fn string_literals_are_escaped() {
 /// by the server's own scanner — so an ordinary literal and an `E''` one are
 /// compared by what they denote rather than by how they were written.
 fn parsed_string(sql: &str) -> Option<String> {
-    let parsed = pg_query::parse(sql, pg_query::ParserOptions::DEFAULT).ok()?;
+    let parsed = pgsql_syntax::parse(sql, pgsql_syntax::ParserOptions::DEFAULT).ok()?;
     parsed.protobuf.nodes().into_iter().find_map(|node| {
-        let pg_query::NodeRef::AConst(constant) = node.0 else {
+        let pgsql_syntax::NodeRef::AConst(constant) = node.0 else {
             return None;
         };
         match constant.val.as_ref()? {
-            pg_query::protobuf::a_const::Val::Sval(text) => Some(text.sval.clone()),
+            pgsql_syntax::protobuf::a_const::Val::Sval(text) => Some(text.sval.clone()),
             _ => None,
         }
     })
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    an inlined literal is data: it
+// [spec:pgorm:req:pipeline.params+5/test]    an inlined literal is data: it
 // parses as one statement and denotes exactly the value it was given
 #[test]
 fn hostile_literals_stay_one_statement() {
@@ -173,8 +173,8 @@ fn hostile_literals_stay_one_statement() {
     ];
     for payload in payloads {
         let sql = sql_of(Pipeline::from(INVOICE).filter(col(INVOICE, alias("note")).eq(payload)));
-        let parsed =
-            pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+        let parsed = pgsql_syntax::parse(&sql, pgsql_syntax::ParserOptions::DEFAULT)
+            .expect("grammar accepts");
         assert_eq!(
             parsed.protobuf.stmts.len(),
             1,
@@ -699,7 +699,7 @@ fn join_takes_an_explicit_condition() {
     );
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]
+// [spec:pgorm:req:pipeline.params+5/test]
 #[test]
 fn placeholders_number_in_bind_order_across_stages() {
     let gross = alias("gross");
@@ -715,7 +715,7 @@ fn placeholders_number_in_bind_order_across_stages() {
     }
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    a literal is inlined, a bound
+// [spec:pgorm:req:pipeline.params+5/test]    a literal is inlined, a bound
 // value is not
 #[test]
 fn literals_inline_and_bound_values_do_not() {
@@ -930,20 +930,20 @@ fn an_inner_dollar_still_renders_as_a_name() {
         .expect("an inner `$` is an ordinary name");
     assert_eq!(sql, "SELECT b$$c FROM invoice WHERE a$1 = $1");
     let select = parsed_select(&sql);
-    let column = |node: &pg_query::protobuf::Node| match node.node.as_ref() {
-        Some(pg_query::NodeEnum::ColumnRef(column)) => match column.fields[0].node.as_ref() {
-            Some(pg_query::NodeEnum::String(name)) => name.sval.clone(),
+    let column = |node: &pgsql_syntax::protobuf::Node| match node.node.as_ref() {
+        Some(pgsql_syntax::NodeEnum::ColumnRef(column)) => match column.fields[0].node.as_ref() {
+            Some(pgsql_syntax::NodeEnum::String(name)) => name.sval.clone(),
             other => panic!("expected a column name, got {other:?}"),
         },
         other => panic!("expected a column reference, got {other:?}"),
     };
     let target = match select.target_list[0].node.as_ref() {
-        Some(pg_query::NodeEnum::ResTarget(target)) => target.val.as_deref().map(column),
+        Some(pgsql_syntax::NodeEnum::ResTarget(target)) => target.val.as_deref().map(column),
         other => panic!("expected a projection, got {other:?}"),
     };
     assert_eq!(target.as_deref(), Some("b$$c"));
     let condition = match select.where_clause.as_deref().and_then(|w| w.node.as_ref()) {
-        Some(pg_query::NodeEnum::AExpr(expr)) => expr.lexpr.as_deref().map(column),
+        Some(pgsql_syntax::NodeEnum::AExpr(expr)) => expr.lexpr.as_deref().map(column),
         other => panic!("expected a comparison, got {other:?}"),
     };
     assert_eq!(condition.as_deref(), Some("a$1"));
@@ -969,15 +969,16 @@ fn identifier_refusal_precedes_the_prqlc_call() {
     );
 }
 
-fn parsed_select(sql: &str) -> pg_query::protobuf::SelectStmt {
-    let parsed = pg_query::parse(sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+fn parsed_select(sql: &str) -> pgsql_syntax::protobuf::SelectStmt {
+    let parsed =
+        pgsql_syntax::parse(sql, pgsql_syntax::ParserOptions::DEFAULT).expect("grammar accepts");
     let node = parsed.protobuf.stmts[0]
         .stmt
         .as_ref()
         .and_then(|stmt| stmt.node.as_ref())
         .expect("statement present");
     match node {
-        pg_query::NodeEnum::SelectStmt(select) => (**select).clone(),
+        pgsql_syntax::NodeEnum::SelectStmt(select) => (**select).clone(),
         other => panic!("expected SelectStmt, got {other:?}"),
     }
 }
@@ -1005,7 +1006,7 @@ fn from_pipeline_binds_as_cte() {
     .sort(spent.desc())
     .into_sql()
     .expect("pipeline compiles");
-    pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+    pgsql_syntax::parse(&sql, pgsql_syntax::ParserOptions::DEFAULT).expect("grammar accepts");
     assert_eq!(
         sql,
         "WITH table_0 AS (SELECT customer_id, COALESCE(SUM(total), 0) AS spent FROM invoice \
@@ -1030,7 +1031,7 @@ fn join_pipeline_renumbers_embedded_params() {
         .select((col(CUSTOMER, alias("name")), spent))
         .into_sql()
         .expect("pipeline compiles");
-    pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+    pgsql_syntax::parse(&sql, pgsql_syntax::ParserOptions::DEFAULT).expect("grammar accepts");
     assert_eq!(
         sql,
         "WITH table_1 AS (SELECT name, id FROM customer WHERE active = $1), \
@@ -1053,7 +1054,7 @@ fn append_renders_union_all() {
         )
         .into_sql()
         .expect("pipeline compiles");
-    pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+    pgsql_syntax::parse(&sql, pgsql_syntax::ParserOptions::DEFAULT).expect("grammar accepts");
     assert_eq!(
         sql,
         "SELECT * FROM invoice WHERE total > $1 \
@@ -1137,7 +1138,7 @@ fn take_and_sort_survive_embedding() {
     .filter(CUSTOMER_ID.gt(1))
     .into_sql()
     .expect("pipeline compiles");
-    pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+    pgsql_syntax::parse(&sql, pgsql_syntax::ParserOptions::DEFAULT).expect("grammar accepts");
     assert_eq!(
         sql,
         "WITH table_0 AS (SELECT * FROM invoice WHERE total > $1 ORDER BY total DESC LIMIT 3) \
@@ -1161,7 +1162,7 @@ fn nested_embedding_renumbers_bindings_and_params() {
         )
         .into_sql()
         .expect("pipeline compiles");
-    pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+    pgsql_syntax::parse(&sql, pgsql_syntax::ParserOptions::DEFAULT).expect("grammar accepts");
     assert_eq!(
         sql,
         "WITH table_2 AS (SELECT * FROM customer WHERE id > $1), \
@@ -1247,7 +1248,7 @@ fn reserved_alias_inside_embedded_pipeline_is_refused() {
     assert_eq!(err, PipelineError::ReservedAlias("sum".to_owned()));
 }
 
-// [spec:pgorm:def:pipeline.adapter+2/test]    a let-bound composition built
+// [spec:pgorm:def:pipeline.adapter+3/test]    a let-bound composition built
 // directly matches the same query compiled from PRQL text
 #[test]
 fn built_composition_matches_text_compilation() {
@@ -1392,7 +1393,7 @@ fn a_named_pipeline_joins_as_an_aliased_cte() {
         .select((col(EMPLOYEE, NAME), col(MANAGER, NAME).as_(alias("boss"))))
         .into_sql()
         .expect("pipeline compiles");
-    pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT).expect("grammar accepts");
+    pgsql_syntax::parse(&sql, pgsql_syntax::ParserOptions::DEFAULT).expect("grammar accepts");
     assert_eq!(
         sql,
         "WITH table_0 AS (SELECT * FROM employee WHERE level > $1) \
@@ -1477,10 +1478,10 @@ fn a_reserved_source_name_is_refused() {
 
 /// Like [`sql_of`], keeping the values: the emitted SQL must pass the
 /// grammar oracle after any census rewrite too.
-// [spec:pgorm:req:pipeline.params+4/test]
+// [spec:pgorm:req:pipeline.params+5/test]
 fn sql_and_values_of(pipeline: Pipeline) -> (String, Values) {
     let (sql, values) = pipeline.into_sql().expect("pipeline compiles");
-    if let Err(err) = pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT) {
+    if let Err(err) = crate::sql_check::check_sql(&sql) {
         panic!("PostgreSQL grammar rejected the emitted SQL: {err}\n  {sql}");
     }
     (sql, values)
@@ -1501,7 +1502,7 @@ fn three_bound() -> Pipeline {
     })
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    a bound derivation nothing
+// [spec:pgorm:req:pipeline.params+5/test]    a bound derivation nothing
 // reads is pruned by the optimizer; its value must not survive it
 #[test]
 fn pruned_binding_drops_its_value() {
@@ -1514,7 +1515,7 @@ fn pruned_binding_drops_its_value() {
     assert!(values.0.is_empty(), "{values:?}");
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    pruning the first placeholder
+// [spec:pgorm:req:pipeline.params+5/test]    pruning the first placeholder
 // renumbers the survivors down
 #[test]
 fn pruning_the_first_placeholder_renumbers_survivors() {
@@ -1523,7 +1524,7 @@ fn pruning_the_first_placeholder_renumbers_survivors() {
     assert_eq!(ints(&values), vec![2_i32.into(), 3_i32.into()]);
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    pruning a middle placeholder
+// [spec:pgorm:req:pipeline.params+5/test]    pruning a middle placeholder
 // leaves a gap the census closes
 #[test]
 fn pruning_a_middle_placeholder_renumbers_survivors() {
@@ -1532,7 +1533,7 @@ fn pruning_a_middle_placeholder_renumbers_survivors() {
     assert_eq!(ints(&values), vec![1_i32.into(), 3_i32.into()]);
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    pruning the last placeholder
+// [spec:pgorm:req:pipeline.params+5/test]    pruning the last placeholder
 // changes no numbering but still drops the value
 #[test]
 fn pruning_the_last_placeholder_compacts_the_values() {
@@ -1541,7 +1542,7 @@ fn pruning_the_last_placeholder_compacts_the_values() {
     assert_eq!(ints(&values), vec![1_i32.into(), 2_i32.into()]);
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    pruning every placeholder
+// [spec:pgorm:req:pipeline.params+5/test]    pruning every placeholder
 // leaves an unparameterized statement and no values at all
 #[test]
 fn pruning_every_placeholder_empties_the_values() {
@@ -1550,7 +1551,7 @@ fn pruning_every_placeholder_empties_the_values() {
     assert!(values.0.is_empty(), "{values:?}");
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    a placeholder written twice
+// [spec:pgorm:req:pipeline.params+5/test]    a placeholder written twice
 // keeps its value once, both occurrences renumbered alike
 #[test]
 fn repeated_placeholder_keeps_one_value() {
@@ -1571,7 +1572,7 @@ fn repeated_placeholder_keeps_one_value() {
     assert_eq!(ints(&values), vec![7_i32.into()]);
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    an embedded pipeline's pruned
+// [spec:pgorm:req:pipeline.params+5/test]    an embedded pipeline's pruned
 // binding sits below the consumer's surviving one, which renumbers down
 // past it — the rebase offset and the census compose
 #[test]
@@ -1599,7 +1600,7 @@ fn pruned_embedded_binding_renumbers_the_consumer() {
     assert_eq!(ints(&values), vec![3_i32.into()]);
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    the mirror ordering: the
+// [spec:pgorm:req:pipeline.params+5/test]    the mirror ordering: the
 // consumer's binding survives at $1 and the embedded pipeline's, rebased
 // past it, is the one pruned
 #[test]
@@ -1627,7 +1628,7 @@ fn pruned_embedded_binding_after_a_surviving_one() {
     assert_eq!(ints(&values), vec![3_i32.into()]);
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    a pruned placeholder between
+// [spec:pgorm:req:pipeline.params+5/test]    a pruned placeholder between
 // two survivors, one on each side of an embedding
 #[test]
 fn prune_between_survivors_across_pipelines() {
@@ -1656,7 +1657,7 @@ fn prune_between_survivors_across_pipelines() {
     assert_eq!(ints(&values), vec![3_i32.into(), 100_i32.into()]);
 }
 
-// [spec:pgorm:req:pipeline.params+4/test]    nesting rides along: the
+// [spec:pgorm:req:pipeline.params+5/test]    nesting rides along: the
 // innermost pipeline's pruned binding crosses two embeddings before the
 // census discards it
 #[test]
@@ -1689,7 +1690,7 @@ fn nested_embedding_prunes_through_two_levels() {
 // [spec:pgorm:sem:pipeline.select-sources+6/test]
 fn sources_sql_of<T: SourceList>(selected: SelectedSources<T>) -> String {
     let (sql, _) = selected.into_sql().expect("select_sources compiles");
-    if let Err(err) = pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT) {
+    if let Err(err) = crate::sql_check::check_sql(&sql) {
         panic!("PostgreSQL grammar rejected the emitted SQL: {err}\n  {sql}");
     }
     sql
@@ -2861,18 +2862,18 @@ fn projected_id() -> Pipeline {
 /// the chain.
 // [spec:pgorm:req:pipeline.compose+2/test]
 fn set_association(sql: &str) -> String {
-    fn walk(select: Option<&pg_query::protobuf::SelectStmt>) -> String {
+    fn walk(select: Option<&pgsql_syntax::protobuf::SelectStmt>) -> String {
         let Some(select) = select else {
             return "()".to_owned();
         };
         let verb = match select.op() {
-            pg_query::protobuf::SetOperation::SetopNone => return "select".to_owned(),
-            pg_query::protobuf::SetOperation::SetopUnion => "union",
-            pg_query::protobuf::SetOperation::SetopIntersect => "intersect",
-            pg_query::protobuf::SetOperation::SetopExcept => "except",
+            pgsql_syntax::protobuf::SetOperation::SetopNone => return "select".to_owned(),
+            pgsql_syntax::protobuf::SetOperation::SetopUnion => "union",
+            pgsql_syntax::protobuf::SetOperation::SetopIntersect => "intersect",
+            pgsql_syntax::protobuf::SetOperation::SetopExcept => "except",
             other => panic!("unexpected set operation {other:?}"),
         };
-        let arm = |side: &Option<Box<pg_query::protobuf::SelectStmt>>| {
+        let arm = |side: &Option<Box<pgsql_syntax::protobuf::SelectStmt>>| {
             walk(side.as_ref().map(std::convert::AsRef::as_ref))
         };
         format!("{verb}({}, {})", arm(&select.larg), arm(&select.rarg))
@@ -3417,7 +3418,7 @@ fn model_sql_of<M: crate::FromQueryResult>(pipeline: Pipeline) -> String {
     let (sql, _) = pipeline
         .into_sql_for::<M>()
         .expect("pipeline compiles for the model");
-    if let Err(err) = pg_query::parse(&sql, pg_query::ParserOptions::DEFAULT) {
+    if let Err(err) = crate::sql_check::check_sql(&sql) {
         panic!("PostgreSQL grammar rejected the emitted SQL: {err}\n  {sql}");
     }
     sql

@@ -3,7 +3,7 @@
 //! A RETURNING list reading a written row's old and new versions, against a
 //! live PostgreSQL 18 server.
 //!
-//! The render tests in pgorm-query hold the spelling to libpg_query's
+//! The render tests in pgorm-query hold the spelling to the parser's
 //! `ColumnRef` and `ReturningOption`. Only a server settles what each version
 //! holds per statement kind, that a rename reaches the same rows and hides
 //! the keyword, that a relation of the statement called `old` or `new` takes

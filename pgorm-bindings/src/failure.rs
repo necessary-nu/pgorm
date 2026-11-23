@@ -328,7 +328,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
         // caller's input, as a parameter that cannot be bound is.
         // [spec:pgorm:req:bindings.listen+3]
         Error::Listen(ListenError::ChannelTooLong { .. }) => Failure::Construction(message()),
-        // [spec:pgorm:req:conn.copy.statement]
+        // [spec:pgorm:req:conn.copy.statement+2]
         Error::CopyStatement => Failure::Construction(format!(
             "a COPY runs through {copy_in} or {copy_out}, which carry its data, not as a \
              statement: {}",

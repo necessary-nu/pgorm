@@ -3,7 +3,7 @@
 //! Window frames with expression offsets and an `EXCLUDE` clause, against a
 //! live PostgreSQL server.
 //!
-//! The render tests hold every frame to libpg_query's `WindowDef`, which
+//! The render tests hold every frame to the parser's `WindowDef`, which
 //! settles that it parses as the frame it was written as. What they cannot
 //! settle is what the frame then *means*, and both halves of this work are
 //! ones whose meaning only the server decides. A `RANGE` offset is a distance
@@ -113,7 +113,7 @@ fn one_day() -> SimpleExpr {
 /// offsets could not spell, and it answers the same bound as inlined.
 // [spec:pgorm:def:sql.ast.window-statement+8/test]    against a live server: a RANGE offset is
 // a distance in the ordering column's values, an interval over a timestamp
-// [spec:pgorm:req:sql.render.window+7/test]    the offset renders through the expression path,
+// [spec:pgorm:req:sql.render.window+8/test]    the offset renders through the expression path,
 // bound and inlined alike
 // [spec:pgorm:req:sql.scope+23/test]
 async fn an_interval_offset_measures_time(db: &DatabaseConnection) -> Result<(), Error> {
@@ -181,7 +181,7 @@ async fn a_numeric_offset_measures_value_distance(db: &DatabaseConnection) -> Re
 /// answer as no clause at all. Four options, four different columns of sums.
 // [spec:pgorm:def:sql.ast.window-statement+8/test]    against a live server: each exclusion
 // removes the rows it names relative to the current row's peers
-// [spec:pgorm:req:sql.render.window+7/test]    ` EXCLUDE …` renders after the frame's bounds
+// [spec:pgorm:req:sql.render.window+8/test]    ` EXCLUDE …` renders after the frame's bounds
 // [spec:pgorm:req:sql.scope+23/test]
 async fn each_exclusion_removes_its_own_rows(db: &DatabaseConnection) -> Result<(), Error> {
     let whole = || {

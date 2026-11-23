@@ -11,7 +11,7 @@ impl QueryBuilder {
     /// Translate a WINDOW clause, ` WINDOW "a" AS ( … ), "b" AS ( … )`, its
     /// entries in the order the statement holds them, or nothing when it
     /// names no window.
-    // [spec:pgorm:req:sql.render.window+7]
+    // [spec:pgorm:req:sql.render.window+8]
     pub(super) fn prepare_window_clause(&self, windows: &[NamedWindow], sql: &mut dyn SqlWriter) {
         windows.iter().fold(true, |first, entry| {
             write!(sql, "{}", if first { " WINDOW " } else { ", " }).unwrap();
@@ -27,7 +27,7 @@ impl QueryBuilder {
 
     /// Translate a [`WindowStatement`] into the parenthesized window
     /// specification PostgreSQL requires after `OVER` and after `WINDOW n AS`.
-    // [spec:pgorm:req:sql.render.window+7]
+    // [spec:pgorm:req:sql.render.window+8]
     pub(super) fn prepare_window_spec(&self, window: &WindowStatement, sql: &mut dyn SqlWriter) {
         write!(sql, "( ").unwrap();
         if !window.partition_by.is_empty() {
@@ -46,7 +46,7 @@ impl QueryBuilder {
     /// Translate an [`ExtendedWindow`] into `( "base" … )`: the base's name
     /// where a window of its own writes its PARTITION BY, which it copies. A
     /// WINDOW clause entry and an inline window after `OVER` write it alike.
-    // [spec:pgorm:req:sql.render.window+7]
+    // [spec:pgorm:req:sql.render.window+8]
     pub(super) fn prepare_extended_window(&self, window: &ExtendedWindow, sql: &mut dyn SqlWriter) {
         write!(sql, "( ").unwrap();
         window.base.prepare(sql.as_writer());
@@ -55,7 +55,7 @@ impl QueryBuilder {
 
     /// The part of a window specification both kinds share: ` ORDER BY …`,
     /// the frame, and the closing ` )`.
-    // [spec:pgorm:req:sql.render.window+7]
+    // [spec:pgorm:req:sql.render.window+8]
     fn prepare_window_tail(
         &self,
         order_by: &[OrderExpr],
@@ -80,7 +80,7 @@ impl QueryBuilder {
 
     /// Translate a [`FrameClause`] into ` <mode> <start>` or ` <mode> BETWEEN
     /// <start> AND <end>`, then ` EXCLUDE …` when an exclusion is set.
-    // [spec:pgorm:req:sql.render.window+7]
+    // [spec:pgorm:req:sql.render.window+8]
     fn prepare_frame_clause(&self, frame: &FrameClause, sql: &mut dyn SqlWriter) {
         match frame.r#type {
             FrameType::Range => write!(sql, " RANGE ").unwrap(),
@@ -103,7 +103,7 @@ impl QueryBuilder {
     /// Translate one frame bound. An offset renders through the expression
     /// path — a value as a placeholder or an inline literal, anything else as
     /// itself — and needs no parentheses, because the keyword after it ends it.
-    // [spec:pgorm:req:sql.render.window+7] (frame bounds)
+    // [spec:pgorm:req:sql.render.window+8] (frame bounds)
     fn prepare_frame_bound(&self, bound: &FrameBound, sql: &mut dyn SqlWriter) {
         match bound {
             FrameBound::UnboundedPreceding => write!(sql, "UNBOUNDED PRECEDING").unwrap(),

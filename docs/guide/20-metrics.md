@@ -339,16 +339,21 @@ are not statements a caller wrote.
 
 A fingerprint names a statement's shape: two statements that differ only in
 their constants share one, and two that differ in shape do not. It is
-libpg_query's hash of the parsed statement, the same notion of "same query"
+pgsql-syntax's hash of the parsed statement, the same notion of "same query"
 `pg_stat_statements` groups by, so a collector keyed on it lines up with the
 server's statistics. [`QueryFingerprint`](crate::metric::QueryFingerprint)
 writes itself as 16 hex digits, and
 [`value`](crate::metric::QueryFingerprint::value) gives the same number as a
 `u64`, the cheaper key for a map of counters.
 
-Fingerprints follow PostgreSQL 18's rules for query identity: a schema
+Fingerprints follow PostgreSQL 19's rules for query identity: a schema
 qualifier is not part of a table's identity, and a table given an alias is
-identified by the alias.
+identified by the alias. The hash is of 19's parse tree. A plain `SELECT`,
+`INSERT`, `UPDATE`, `DELETE` or `MERGE`, `RETURNING`, an alias and a
+transaction verb hash as they do in libpg_query's fingerprint over 18's
+grammar; a statement holding `ON CONFLICT`, `FETCH` or `MOVE`, `CLUSTER`,
+`ALTER DOMAIN` or `ALTER SUBSCRIPTION .. REFRESH PUBLICATION` hashes
+differently.
 
 ```rust
 use pgorm::metric::QueryContext;
@@ -382,8 +387,10 @@ Without the feature no statement is parsed for its identity and `fingerprint`
 answers `None`. The types and hooks are the same either way, so a collector
 compiles against both builds. With it, `fingerprint` still answers `None`, and
 never fails the query, in two more cases: a transaction verb has no statement
-to parse, and libpg_query may refuse raw SQL that the server accepts. Such a
-statement runs and is reported as usual; only its identity is missing.
+to parse, and the parser may refuse raw SQL that the server accepts, such as
+`SELECT 1 ignore`, a bare column label PostgreSQL 18 reads and 19's grammar
+does not. Such a statement runs and is reported as usual; only its identity
+is missing.
 
 A fingerprint is computed when a collector asks for it, so a collector that
 never asks pays no parse. Answers are kept process-wide by statement text, so
@@ -405,7 +412,7 @@ and statements with no fingerprint need a bucket of their own.
   `async_trait` methods. `NoOpMetrics` saves the reporting, not the timing.
 - Building a `QueryContext` costs nothing beyond two borrowed fields; the
   parse happens only when `fingerprint` is asked for, once per text.
-- Turning `metrics-fingerprint` off costs nothing either. libpg_query is
+- Turning `metrics-fingerprint` off costs nothing either. The parser is
   linked into every build anyway, since pgorm parses with it elsewhere.
 
 ## Choosing what to run

@@ -8,7 +8,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Architecture
 
-> [spec:pgorm:def:pipeline.adapter+2]
+> [spec:pgorm:def:pipeline.adapter+3]
 > The pipeline lowers typed Rust construction directly into prqlc's PL AST —
 > no PRQL text round-trip — and compiles it with `pl_to_rq` followed by
 > `rq_to_sql` targeting `Dialect::Postgres`, producing a single SQL string
@@ -24,7 +24,8 @@ of the crate, compiled in every build. Rules are grouped under
 > appears in the public API. A compiler bump is
 > absorbed by rewriting the adapter alone. prqlc is a plain dependency of the
 > root crate by operator decision — the pipeline is part of the permanent
-> story, and every build pays its compile, the same posture as `pg_query` —
+> story, and every build pays its compile, the same posture as
+> pgsql-syntax's —
 > and it MUST NOT appear in any other workspace crate's dependencies, with
 > exactly one exception: `pgorm-sql-macro` carries the same pinned revision for the
 > `prql!` macro (`[spec:pgorm:def:macros.prql]`), which runs the compiler at
@@ -142,7 +143,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Parameters
 
-> [spec:pgorm:req:pipeline.params+4]
+> [spec:pgorm:req:pipeline.params+5]
 > Values reach the SQL by exactly two routes, and the spelling says which.
 > A Rust literal — `1`, `1.5`, `true`, `"text"` — converts into an `Expr` and
 > is inlined into the SQL text, exactly as a literal written in PRQL text
@@ -169,7 +170,7 @@ of the crate, compiled in every build. Rules are grouped under
 > arguments — but its optimizer MAY prune an expression nothing reads (a
 > derived column no later stage keeps), and the placeholder vanishes with it
 > while the bound value remains. `into_sql` therefore takes a census of the
-> emitted SQL: `pg_query::scan`, the PostgreSQL lexer pgorm already links,
+> emitted SQL: `pgsql_syntax::scan`, the PostgreSQL lexer pgorm already links,
 > whose `PARAM` tokens cannot be confused with a `$N` inside a string
 > literal. Values whose placeholders were optimized away are discarded and
 > the surviving placeholders renumber contiguously `$1..$K`, the SQL text

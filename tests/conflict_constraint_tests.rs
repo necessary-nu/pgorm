@@ -2,7 +2,7 @@
 
 //! `ON CONFLICT ON CONSTRAINT` against a live PostgreSQL server.
 //!
-//! The render tests in pgorm-query hold the spelling to libpg_query's
+//! The render tests in pgorm-query hold the spelling to the parser's
 //! `InferClause`. What only a server settles is which constraint a name
 //! reaches and what it does there: that the named constraint arbitrates and
 //! no other does, so a conflict elsewhere in the row is still raised; that an

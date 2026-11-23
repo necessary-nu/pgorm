@@ -71,8 +71,8 @@ macro_rules! truncate_to_microsecond {
 }
 
 // [spec:pgorm:def:sql.render+1]
-// [spec:pgorm:req:sql.render.oracle+4] (the renderer whose every output the oracle in
-// pgorm-query/tests/postgres/oracle.rs holds to the libpg_query grammar)
+// [spec:pgorm:req:sql.render.oracle+5] (the renderer whose every output the oracle in
+// pgorm-query/tests/postgres/oracle.rs holds to PostgreSQL 19's grammar)
 #[derive(Debug, Clone, Copy)]
 pub struct QueryBuilder;
 
@@ -504,7 +504,7 @@ impl QueryBuilder {
             SimpleExpr::Collate(operand, collation) => {
                 self.prepare_collate(operand, collation, sql);
             }
-            // [spec:pgorm:req:sql.render.grouping+1]
+            // [spec:pgorm:req:sql.render.grouping+2]
             SimpleExpr::Grouping(grouping) => {
                 write!(sql, "GROUPING").unwrap();
                 self.prepare_tuple(&grouping.args, sql);
@@ -569,7 +569,7 @@ impl QueryBuilder {
     }
 
     /// Translate [`SelectExpr`] into SQL statement.
-    // [spec:pgorm:req:sql.render.window+7] (OVER attachment: named reference, inline spec, alias)
+    // [spec:pgorm:req:sql.render.window+8] (OVER attachment: named reference, inline spec, alias)
     fn prepare_select_expr(&self, select_expr: &SelectExpr, sql: &mut dyn SqlWriter) {
         self.prepare_simple_expr(&select_expr.expr, sql);
         match &select_expr.window {

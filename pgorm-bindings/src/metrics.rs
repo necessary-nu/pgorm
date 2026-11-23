@@ -54,7 +54,7 @@ impl Hook {
     ];
 
     /// The hook's method name, as `dialect` spells it.
-    // [spec:pgorm:req:bindings.metrics]
+    // [spec:pgorm:req:bindings.metrics+2]
     pub fn name(self, dialect: Dialect) -> String {
         dialect.option(match self {
             Self::QuerySuccess => "record_query_success",
@@ -106,7 +106,7 @@ pub trait Reporter: Send + Sync + 'static {
 /// The collector an instrumented binding pool hands pgorm's wrappers: each
 /// hook they call is handed to the binding's [`Reporter`], its failures
 /// classified and redacted as `bindings.errors` says.
-// [spec:pgorm:req:bindings.metrics]
+// [spec:pgorm:req:bindings.metrics+2]
 #[derive(Clone)]
 pub struct Metrics {
     reporter: Arc<dyn Reporter>,
@@ -242,7 +242,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:req:bindings.metrics/test]    each hook is named by the binding's rule, a hook
+    // [spec:pgorm:req:bindings.metrics+2/test]    each hook is named by the binding's rule, a hook
     // the collector left out is never sent, and a failure reaches it classified
     #[tokio::test]
     async fn hooks_are_told_what_happened_in_each_spelling() {

@@ -1,5 +1,5 @@
 //! SQL/JSON: the query functions, the constructors and `IS JSON`, rendered and
-//! held to PostgreSQL 18's grammar, with the parse tree read back where the
+//! held to PostgreSQL 19's grammar, with the parse tree read back where the
 //! text alone could hide a clause in the wrong slot.
 
 use super::*;

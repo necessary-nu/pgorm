@@ -20,7 +20,7 @@ the modules under `tests/identifier_oracle/`.
 
 ## The property
 
-> [spec:pgorm:req:security.ident-oracle+17]
+> [spec:pgorm:req:security.ident-oracle+18]
 > Every public API that renders a caller-supplied name into SQL text MUST be
 > registered with the oracle. A new identifier-bearing API is incomplete until
 > it is registered, and an unregistered site is not covered by this rule. The
@@ -87,8 +87,9 @@ the modules under `tests/identifier_oracle/`.
 > - names of exactly 63 and 64 bytes, one of them splitting a two-byte
 >   character at the boundary.
 >
-> Each rendered statement is parsed by libpg_query, the `pg_query` crate that
-> the `sql!` macro, the paginator and the metrics fingerprint already use. The
+> Each rendered statement is parsed by pgsql-syntax, the port of PostgreSQL
+> 19.0's parser that the `sql!` macro, the paginator and the metrics
+> fingerprint already use. The
 > rendering MUST be exactly one statement. The name MUST come back exactly at
 > the declared positions, in the node kind each position should produce, such
 > as `RangeVar.relname`, `ColumnRef.fields[i]`, `ResTarget.name`,
@@ -120,7 +121,7 @@ the modules under `tests/identifier_oracle/`.
 >   empty label round-trips.
 > - **Identifier length.** PostgreSQL truncates an identifier longer than
 >   63 bytes (`NAMEDATALEN - 1`) on a character boundary. The truncation
->   happens in the scanner itself, so libpg_query applies it too. The oracle
+>   happens in the scanner itself, so the ported scanner applies it too. The oracle
 >   therefore expects a 64-byte name to read back as its first 63 bytes, or
 >   as fewer bytes when the cut would split a character. Two long names that
 >   share a 63-byte prefix name the same object on the server. That is a
@@ -168,7 +169,7 @@ the modules under `tests/identifier_oracle/`.
 >
 > Because that policy turns on a keyword list, its sites are also held to
 > every keyword the linked scanner knows, not only the corpus's ten. The
-> list is read off libpg_query's token table and each word scanned back, so
+> list is read off the parser's token table and each word scanned back, so
 > it is independent of the list pgorm-query embeds. At every site under the
 > policy, each keyword MUST round-trip as a name or be one of the listed
 > type spellings or call forms, accepted as above.
@@ -240,7 +241,7 @@ the modules under `tests/identifier_oracle/`.
 
 ## Refusals and NUL
 
-> [spec:pgorm:req:security.ident-oracle.nul+2]
+> [spec:pgorm:req:security.ident-oracle.nul+3]
 > Where an API refuses a name, the oracle MUST see the refusal and never
 > rendered SQL. The pipeline refuses in three ways, all at `into_sql` and
 > never at construction:
@@ -260,8 +261,8 @@ the modules under `tests/identifier_oracle/`.
 >
 > No pgorm-query or other pgorm API refuses a name on its content.
 >
-> PostgreSQL has no identifier that can contain NUL, and libpg_query cannot
-> parse text containing one. Every registered site MUST declare what it does
+> PostgreSQL has no identifier that can contain NUL, and the parser refuses
+> text containing one before scanning it. Every registered site MUST declare what it does
 > with a NUL-bearing name, and the oracle holds it to that declaration:
 >
 > | Site class | Behaviour |

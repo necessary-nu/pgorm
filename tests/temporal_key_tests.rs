@@ -3,7 +3,7 @@
 //! PostgreSQL 18's temporal keys against a live server: a primary or unique
 //! key ending `WITHOUT OVERLAPS`, and a foreign key matching on a `PERIOD`.
 //!
-//! The render tests in pgorm-query hold each spelling to libpg_query's
+//! The render tests in pgorm-query hold each spelling to the parser's
 //! `Constraint` node. What only a server settles is what the clauses mean —
 //! that two rows may share a key's other columns only while their periods do
 //! not overlap, and that a referencing row's period must be covered by the

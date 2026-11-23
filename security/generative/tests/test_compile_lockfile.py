@@ -1,4 +1,4 @@
-"""A compile-suite crate has to link the prqlc and pg_query that pgorm ships.
+"""A compile-suite crate has to link the prqlc and pgsql-syntax that pgorm ships.
 
 Every batch the compile suite builds is a crate rendered at run time, with its
 own `[workspace]` and a path dependency on the checkout under test. No
@@ -8,10 +8,10 @@ crates never repeated the table, so they resolved stock prqlc from crates.io:
 every local compile suite built against a compiler pgorm does not ship, and in
 CI, where only the fork had been fetched, the lock step failed outright.
 
-Both forks are now pgorm's own dependencies, which a batch inherits — prqlc
-through pgorm, pg_query through pgorm and pgorm-codegen alike. This renders a
-batch through the real crate writer, locks it through the runner's own lock
-step, and reads the lockfile that step wrote.
+Both git dependencies are now pgorm's own, which a batch inherits — prqlc
+through pgorm, pgsql-syntax through pgorm and pgorm-codegen alike — and
+pg_query, libpg_query's binding, must not come with them. This renders a batch through the real crate writer, locks it through the
+runner's own lock step, and reads the lockfile that step wrote.
 """
 
 import tempfile
@@ -23,9 +23,26 @@ from pgorm_campaign import compile_crate, compile_runner
 from pgorm_campaign.compile_case import CompileCase
 
 ROOT = Path(__file__).resolve().parents[3]
-# Each fork the root depends on, by its dependency key, with every crate its
-# repository provides.
-FORKS = {"prqlc": ("prqlc", "prqlc-parser"), "pg_query": ("pg_query",)}
+# Each git dependency the root declares, by its dependency key, with every
+# crate its repository provides.
+FORKS = {
+    "prqlc": ("prqlc", "prqlc-parser"),
+    "pgsql-syntax": (
+        "pgsql-syntax",
+        "pgsql-parser",
+        "pg19-codec",
+        "pg19-engine",
+        "pg19-lexer",
+        "pg19-nodes",
+        "pg19-operations",
+        "pg19-parser",
+        "pg19-plpgsql",
+        "pg19-reference",
+        "pg19-tables",
+    ),
+}
+# libpg_query's binding, which no batch may resolve.
+RETIRED = "pg_query"
 
 
 def _pinned(dependency):
@@ -74,6 +91,11 @@ class GeneratedLockfileTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("[patch", manifest.read_text())
                 await compile_runner.lock(manifest, timeout=600)
                 lock = tomllib.loads((manifest.parent / "Cargo.lock").read_text())
+                self.assertNotIn(
+                    RETIRED,
+                    [package["name"] for package in lock["package"]],
+                    batch.name,
+                )
                 for dependency, crates in FORKS.items():
                     resolved = [
                         (package["name"], package.get("source"))

@@ -147,13 +147,35 @@ assert_eq!(names, Some(serde_json::json!([])));
 Each build is tested against the server it targets: the default build
 against PostgreSQL 18, and a `pg-19` build against 19.
 
-## The grammar stays at 18 for now
+## The grammar is PostgreSQL 19's
 
-Every SQL parse pgorm makes uses PostgreSQL 18's grammar, whichever release a
-build targets: [`sql!`](crate::sql) and [`prql!`](crate::prql), code
-generation's DDL reader ([Generating entities](crate::guide::codegen)), the
-paginator's reading of raw SQL, and query fingerprints in
-[Metrics](crate::guide::metrics). The parser is libpg_query, which has no 19 grammar
-yet. Until it does, `sql!` refuses syntax only 19 parses under `pg-19` too,
-and no builder makes such syntax, since everything a builder renders has to
-parse.
+Every SQL parse pgorm makes uses one parser, pgsql-syntax, a Rust port of
+PostgreSQL 19's own scanner and parser, in every build, whichever release it
+targets: [`sql!`](crate::sql) and [`prql!`](crate::prql), the files
+`sql_migration!` reads, their run-time forms
+[`sql_check::check_sql`](crate::sql_check::check_sql) and
+[`sql_check::compile_prql`](crate::sql_check::compile_prql)
+([Raw SQL](crate::guide::raw_sql)), code generation's DDL reader
+([Generating entities](crate::guide::codegen)), the paginator's reading of
+raw SQL, and query fingerprints in [Metrics](crate::guide::metrics). A check
+of text is a check against 19's grammar, so syntax only 19 parses passes it
+in a build that targets 18 too, and is an 18 server's to refuse when it runs:
+
+```rust
+use pgorm::sql_check::check_sql;
+
+// REPACK and ON CONFLICT .. DO SELECT are PostgreSQL 19's.
+assert!(check_sql("REPACK cake").is_ok());
+assert!(check_sql("INSERT INTO cake (id) VALUES (1) ON CONFLICT (id) DO SELECT RETURNING *").is_ok());
+```
+
+No builder makes syntax only 19 parses in an 18 build: what 19 alone accepts
+arrives behind `pg-19`.
+
+19's grammar also refuses a little that 18's parses. It makes `ignore` and
+`respect` keywords that a column label needs `AS` before, so a bare
+`SELECT 1 ignore`, which an 18 server runs, is refused in every build;
+`SELECT 1 AS ignore` parses under both. pgorm writes `AS` before every column
+label it renders, so no statement a builder makes is affected. The five
+keywords 19 adds, `ignore`, `lsn`, `repack`, `respect` and `wait`, are all
+unreserved, so pgorm quotes the same identifiers for either release.

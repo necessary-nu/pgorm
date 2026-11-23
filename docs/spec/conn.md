@@ -1089,7 +1089,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > computing them as the rows go in; a COPY TO reads one only through a
 > `SELECT` source naming it, since `CopyToStatement` takes no column list.
 
-> [spec:pgorm:req:conn.copy.statement]
+> [spec:pgorm:req:conn.copy.statement+2]
 > A `COPY` MUST run only through `CopyTrait` (`conn.copy`). The statement
 > methods of `ConnectionTrait` — `execute`, `execute_raw`, `query_one`,
 > `query_opt`, `query_all`, `query_raw` and `batch_execute`, on a
@@ -1102,7 +1102,8 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > anything is sent, the statement cache untouched. The text is first asked
 > whether it spells `copy` at all, in any case, which a statement pgorm
 > composes never does unless a name or a value it holds does, and only one
-> that does is scanned by libpg_query's lexer (`pg_query::scan_tokens`), so a
+> that does is scanned by PostgreSQL 19.0's lexer, ported in pgsql-syntax
+> (`pgsql_syntax::scan_tokens`), so a
 > comment before the keyword is skipped and a `copy` in a string, a quoted
 > identifier or a comment is no statement. `batch_execute`'s text is a
 > simple query of any number of statements, and a `COPY` anywhere among them

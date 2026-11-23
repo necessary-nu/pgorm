@@ -3,7 +3,7 @@
 //! `CREATE SCHEMA`, `DROP SCHEMA` and `ALTER SCHEMA ... RENAME TO` against a
 //! live PostgreSQL server.
 //!
-//! The render tests in pgorm-query hold each statement to libpg_query's
+//! The render tests in pgorm-query hold each statement to the parser's
 //! `CreateSchemaStmt`, `DropStmt` and `RenameStmt`. What only a server settles
 //! is what they do: that a schema the builder creates holds the tables, enum
 //! types and sequences other builders qualify by its name, and an entity

@@ -11,7 +11,7 @@
 //!
 //! - `id` — `<crate>/<statement>.<position>`, unique;
 //! - `api` — the public entry point, as a caller spells it;
-//! - `kinds` — where the name must land in libpg_query's parse tree, one entry
+//! - `kinds` — where the name must land in the parser's tree, one entry
 //!   per occurrence: the innermost node holding it and the field path to the
 //!   value (`RangeVar.relname`, `ColumnRef.fields[1]`, `ResTarget.name`). A
 //!   wrong guess fails with the positions the benign rendering actually
