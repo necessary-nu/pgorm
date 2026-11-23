@@ -31,26 +31,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Homebrew has no postgresql@19, so the build that targets 19 (the
-          # crate's pg-19 feature) is tested on Linux alone.
           - name: macos-arm64
             os: macos-15
-            postgres: '18'
           - name: linux-x86_64
             os: ubuntu-24.04
-            postgres: '18'
-          - name: linux-x86_64-pg-19
-            os: ubuntu-24.04
-            postgres: '19'
-            features: pg-19
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     env:
       CARGO_TERM_COLOR: never
       CARGO_BUILD_JOBS: '2'
       NO_COLOR: '1'
-      POSTGRES: ${{ matrix.postgres }}
-      FEATURES: ${{ matrix.features }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -84,18 +74,21 @@ jobs:
             'Components: main' "Signed-By: $key" \
             | sudo tee /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
-          sudo apt-get install --yes "postgresql-$POSTGRES"
-          echo "PGORM_TEST_PG_BIN=/usr/lib/postgresql/$POSTGRES/bin" >> "$GITHUB_ENV"
+          sudo apt-get install --yes postgresql-19
+          echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/19/bin' >> "$GITHUB_ENV"
           echo 'OPENSSL=openssl' >> "$GITHUB_ENV"
       - name: macOS PostgreSQL tools
         if: runner.os == 'macOS'
         run: |
-          brew install postgresql@18 openssl@3
-          echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@18)/bin" >> "$GITHUB_ENV"
+          # The runner image's formula list predates postgresql@19 (added to
+          # homebrew-core on 2026-11-19), and brew install does not refresh it.
+          brew update
+          brew install postgresql@19 openssl@3
+          echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@19)/bin" >> "$GITHUB_ENV"
           # The system's LibreSSL is not the OpenSSL the certificate commands
           # below are written for.
           echo "OPENSSL=$(brew --prefix openssl@3)/bin/openssl" >> "$GITHUB_ENV"
-      - name: Start PostgreSQL ${{ matrix.postgres }}
+      - name: Start PostgreSQL 19
         run: |
           # A cluster owned by this job, on loopback only, so the suite
           # needs no credentials and nothing else on the runner shares it.
@@ -139,10 +132,10 @@ jobs:
       - name: Check the addon's Rust
         run: |
           cargo fmt --manifest-path pgorm-napi/Cargo.toml --all -- --check
-          cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --all-targets ${FEATURES:+--features "$FEATURES"} -- -D warnings
-          cargo test --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --lib ${FEATURES:+--features "$FEATURES"}
+          cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --all-targets -- -D warnings
+          cargo test --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --lib
       - name: Build the addon
-        run: node pgorm-napi/scripts/build.mjs ${FEATURES:+--features "$FEATURES"}
+        run: node pgorm-napi/scripts/build.mjs
       - name: Type-check the declarations, module and suite
         working-directory: pgorm-napi
         run: deno check
@@ -156,10 +149,7 @@ jobs:
       # and graphs, builds one native library with the binding's API, and runs
       # its suite against it in both runtimes.
       # [spec:pgorm:req:napi.application+2]
-      # The fixture crates carry no pg-19, so they run in the builds that
-      # target 18.
       - name: Application module with registered entities
-        if: ${{ !matrix.features }}
         run: |
           cargo fmt --manifest-path pgorm-napi/tests/application-binding/Cargo.toml --all -- --check
           cargo clippy --manifest-path pgorm-napi/tests/application-binding/Cargo.toml --locked --target-dir target --all-targets -- -D warnings
@@ -169,7 +159,6 @@ jobs:
       # by deno check and its module by a live suite in both runtimes.
       # [spec:pgorm:req:napi.codegen+1]
       - name: Generated application module
-        if: ${{ !matrix.features }}
         run: |
           cargo fmt --manifest-path pgorm-napi/tests/codegen-entities/Cargo.toml --all -- --check
           cargo clippy --manifest-path pgorm-napi/tests/codegen-entities/Cargo.toml --locked --target-dir target --all-targets -- -D warnings
@@ -183,7 +172,7 @@ jobs:
   # installed on each platform from a registry serving only its tarballs,
   # into fresh Node.js and Deno projects running the smoke suite. Nothing
   # here publishes; the tarballs are kept for review.
-  # [spec:pgorm:req:napi.distribution]
+  # [spec:pgorm:req:napi.distribution+1]
   addon:
     name: ${{ matrix.name }} / release addon
     strategy:
@@ -307,14 +296,17 @@ jobs:
             'Components: main' "Signed-By: $key" \
             | sudo tee /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
-          sudo apt-get install --yes postgresql-18
-          echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/18/bin' >> "$GITHUB_ENV"
+          sudo apt-get install --yes postgresql-19
+          echo 'PGORM_TEST_PG_BIN=/usr/lib/postgresql/19/bin' >> "$GITHUB_ENV"
       - name: macOS PostgreSQL tools
         if: runner.os == 'macOS'
         run: |
-          brew install postgresql@18
-          echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@18)/bin" >> "$GITHUB_ENV"
-      - name: Start PostgreSQL 18
+          # The runner image's formula list predates postgresql@19 (added to
+          # homebrew-core on 2026-11-19), and brew install does not refresh it.
+          brew update
+          brew install postgresql@19
+          echo "PGORM_TEST_PG_BIN=$(brew --prefix postgresql@19)/bin" >> "$GITHUB_ENV"
+      - name: Start PostgreSQL 19
         run: |
           # A cluster owned by this job, on loopback only; the smoke suite
           # connects in plaintext.

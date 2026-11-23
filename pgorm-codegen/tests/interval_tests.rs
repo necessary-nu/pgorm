@@ -136,7 +136,7 @@ fn the_bridge_reads_each_interval_qualifier() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a qualifier no
+// [spec:pgorm:req:codegen.ddl.unsupported+23/test]    a qualifier no
 // `IntervalSpec` holds is named, as is a precision the server would quietly
 // reduce
 // [spec:pgorm:sem:codegen.ddl.types+10/test]

@@ -61,7 +61,7 @@ pub enum SimpleExpr {
     /// `ESCAPE` character, which the grammar admits only as a pattern's tail.
     LikePattern(LikeExpr),
     /// An SQL/JSON function, constructor or `IS JSON` predicate.
-    // [spec:pgorm:def:sql.ast.expr.sql-json+2]
+    // [spec:pgorm:def:sql.ast.expr.sql-json+3]
     SqlJson(Box<SqlJson>),
 }
 

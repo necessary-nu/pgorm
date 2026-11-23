@@ -63,7 +63,7 @@ fn renames(sql: &str) -> Vec<(ReturningOptionKind, String)> {
         .collect()
 }
 
-// [spec:pgorm:def:sql.ast.returning+3/test]    a `ReturningRow` paired with a column reads that
+// [spec:pgorm:def:sql.ast.returning+4/test]    a `ReturningRow` paired with a column reads that
 // version's column
 // [spec:pgorm:req:sql.render.returning+4/test]    the version's keyword bare, then the quoted column
 // [spec:pgorm:def:sql.types.column-ref+1/test]    `(ReturningRow, name)` converts into `RowColumn`
@@ -82,7 +82,7 @@ fn old_and_new_columns_render_the_keyword_bare() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.returning+3/test]    the same parse as a quoted `"old"` qualifier: the
+// [spec:pgorm:def:sql.ast.returning+4/test]    the same parse as a quoted `"old"` qualifier: the
 // typed form changes the AST, not what the server reads
 #[test]
 fn a_version_reads_as_the_quoted_name_would() {
@@ -122,7 +122,7 @@ fn every_column_of_a_version() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.returning+3/test]    `old_as` and `new_as` rename the versions, OLD
+// [spec:pgorm:def:sql.ast.returning+4/test]    `old_as` and `new_as` rename the versions, OLD
 // written first whichever was named first
 // [spec:pgorm:req:sql.render.returning+4/test]    `WITH (OLD AS "o", NEW AS "n")` before the list
 #[test]
@@ -152,7 +152,7 @@ fn renames_render_before_the_list() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.returning+3/test]    each version holds one name, the last call's, and
+// [spec:pgorm:def:sql.ast.returning+4/test]    each version holds one name, the last call's, and
 // a clause renaming nothing writes no `WITH`
 #[test]
 fn each_version_holds_one_name() {
@@ -224,7 +224,7 @@ fn every_statement_and_list_form_takes_a_rename() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.returning+3/test]    a value in a RETURNING expression over both
+// [spec:pgorm:def:sql.ast.returning+4/test]    a value in a RETURNING expression over both
 // versions is bound like any other
 #[test]
 fn a_value_beside_the_versions_is_bound() {
@@ -248,7 +248,7 @@ fn a_value_beside_the_versions_is_bound() {
     assert_eq!(values, Values(vec![1.into(), 1.into(), 5.into()]));
 }
 
-// [spec:pgorm:def:sql.ast.returning+3/test]    `expr_as` / `exprs_as` return each expression under
+// [spec:pgorm:def:sql.ast.returning+4/test]    `expr_as` / `exprs_as` return each expression under
 // a name, the result column's
 // [spec:pgorm:req:sql.render.returning+4/test]    `<expr> AS "<name>"`, after a rename where there is
 // one, so a list can read both versions of a column apart

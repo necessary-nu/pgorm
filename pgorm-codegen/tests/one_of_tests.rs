@@ -101,7 +101,7 @@ fn commentable() -> Check {
 }
 
 // [spec:pgorm:def:disjoint.one-of+4/test]    the statements `create_table_from_entity` and `create_one_of` write for the comment, read as DDL text, generate its module with a `#[derive(OneOf)]` enum after its `Relation` enum, named for the constraint after `ck-comment-`, a variant per column in the CHECK's order named for its target and holding its entity, and for `<= 1` the unit variant `None`
-// [spec:pgorm:sem:codegen.ddl.tables+13/test]    a CHECK added by an ALTER TABLE is read into the table's statement
+// [spec:pgorm:sem:codegen.ddl.tables+14/test]    a CHECK added by an ALTER TABLE is read into the table's statement
 #[test]
 fn a_one_of_check_generates_its_enum() {
     let generated = from_sql(SCHEMA);
@@ -382,7 +382,7 @@ fn clashing_names_are_refused() {
     );
 }
 
-// [spec:pgorm:sem:codegen.ddl.tables+13/test]    any table-level CHECK within the expression subset is read onto the statement, named or not, and one that is no one-of reference's is refused by the transform, naming it
+// [spec:pgorm:sem:codegen.ddl.tables+14/test]    any table-level CHECK within the expression subset is read onto the statement, named or not, and one that is no one-of reference's is refused by the transform, naming it
 #[test]
 fn other_checks_are_read_and_refused() {
     let sql = "CREATE TABLE t (id int PRIMARY KEY, n int NOT NULL, CHECK (n > 0), \
@@ -408,7 +408,7 @@ fn other_checks_are_read_and_refused() {
     );
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a table-level CHECK naming a column its table lacks is refused as unresolved
+// [spec:pgorm:req:codegen.ddl.unsupported+23/test]    a table-level CHECK naming a column its table lacks is refused as unresolved
 #[test]
 fn a_check_on_a_missing_column_is_refused() {
     assert_eq!(

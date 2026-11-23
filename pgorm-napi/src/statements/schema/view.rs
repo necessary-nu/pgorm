@@ -74,7 +74,7 @@ macro_rules! on_view {
 }
 
 /// `ddlCreateView(name, select)`: a view is a relation, named as a table is.
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 fn create_view(cx: &mut FunctionContext) -> NeonResult<Node> {
     let name = relation_at(cx, 0)?;
     let body = definition_at(cx, 1)?;
@@ -86,7 +86,7 @@ fn create_view(cx: &mut FunctionContext) -> NeonResult<Node> {
 
 /// `ddlCreateRecursiveView(name, columns, select)`: the column list is what
 /// the recursive query's rows are called, so it is never empty.
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 fn create_recursive_view(cx: &mut FunctionContext) -> NeonResult<Node> {
     let name = relation_at(cx, 0)?;
     let listed = arg(cx, 1);
@@ -105,14 +105,14 @@ fn view_or_replace(cx: &mut FunctionContext) -> NeonResult<Node> {
     on_view!(
         cx,
         ddl,
-        "OR REPLACE belongs to a view: PostgreSQL 18 has none for a materialized view or a table",
+        "OR REPLACE belongs to a view: PostgreSQL 19 has none for a materialized view or a table",
         or_replace()
     )
 }
 
 /// `ddlViewColumns(statement, names)`: the names appended to those the
 /// statement has, renaming the query's leading columns.
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 fn view_columns(cx: &mut FunctionContext) -> NeonResult<Node> {
     let ddl = relation_statement(cx)?;
     let listed = arg(cx, 1);
@@ -141,7 +141,7 @@ fn view_columns(cx: &mut FunctionContext) -> NeonResult<Node> {
 
 /// `ddlViewCheckOption(view, "local" | "cascaded")`. A recursive view has
 /// none to set: the grammar refuses one there.
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 fn view_check_option(cx: &mut FunctionContext) -> NeonResult<Node> {
     let ddl = relation_statement(cx)?;
     let option = arg(cx, 1);
@@ -215,7 +215,7 @@ fn drop_view(cx: &mut FunctionContext) -> NeonResult<Node> {
 }
 
 /// `ddlCreateMaterializedView(name, select)`.
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 fn create_materialized_view(cx: &mut FunctionContext) -> NeonResult<Node> {
     let name = relation_at(cx, 0)?;
     let body = definition_at(cx, 1)?;
@@ -257,7 +257,7 @@ fn relation_with_no_data(cx: &mut FunctionContext) -> NeonResult<Node> {
 /// `ddlRefreshMaterializedView(name, { concurrently, withNoData })`. The two
 /// are one choice in pgorm-query, because PostgreSQL refuses them together,
 /// so asking for both is refused here rather than one silently dropped.
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 fn refresh_materialized_view(cx: &mut FunctionContext) -> NeonResult<Node> {
     let name = relation_at(cx, 0)?;
     let options = object(cx, 1, &["concurrently", "withNoData"])?;
@@ -302,7 +302,7 @@ fn drop_materialized_view(cx: &mut FunctionContext) -> NeonResult<Node> {
 }
 
 /// `ddlCreateTableAs(name, select)`: a table of the query's columns and rows.
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 fn create_table_as(cx: &mut FunctionContext) -> NeonResult<Node> {
     let name = relation_at(cx, 0)?;
     let body = definition_at(cx, 1)?;

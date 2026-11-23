@@ -9,7 +9,7 @@ what the items are for and how they fit together.
 
 ## The Rust guide
 
-> [spec:pgorm:req:guide.rust]
+> [spec:pgorm:req:guide.rust+1]
 > The Rust guide MUST teach pgorm's features chapter by chapter, from adding
 > the dependency and running a first query to each of the following, with no
 > feature left to the API reference alone: connecting and the pool, entities
@@ -20,7 +20,7 @@ what the items are for and how they fit together.
 > pipeline, the value and type vocabulary, schema generation and the DDL
 > builders, disjoint enums, one-of references, `COPY`, `LISTEN` and `NOTIFY`,
 > statement caches, errors, connection configuration and TLS, metrics,
-> migrations, code generation, the PostgreSQL release a build targets, and
+> migrations, code generation, the PostgreSQL release pgorm targets, and
 > the language bindings. A feature pgorm adds MUST arrive in the guide with
 > the change that adds it.
 >

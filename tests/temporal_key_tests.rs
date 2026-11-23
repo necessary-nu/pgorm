@@ -243,7 +243,7 @@ async fn a_temporal_unique_key_takes_its_options() -> Result<(), Error> {
 /// running past them or naming no room is refused (`23503`), and so is
 /// deleting a month a booking needs. A plain foreign key onto the temporal
 /// key, the same pairs without `PERIOD`, is refused outright (`42830`).
-// [spec:pgorm:req:sql.ddl.foreign-key+10/test]    against a live server: a PERIOD foreign key
+// [spec:pgorm:req:sql.ddl.foreign-key+11/test]    against a live server: a PERIOD foreign key
 // needs the referencing period covered by the referenced rows' periods
 #[pgorm_macros::test]
 async fn a_period_foreign_key_needs_a_covering_row() -> Result<(), Error> {
@@ -302,11 +302,11 @@ async fn a_period_foreign_key_needs_a_covering_row() -> Result<(), Error> {
     Ok(())
 }
 
-/// PostgreSQL 18 runs a `PERIOD` foreign key's referential actions as `NO
+/// PostgreSQL 19 runs a `PERIOD` foreign key's referential actions as `NO
 /// ACTION` only: every other action, on delete or on update, is refused
 /// (`0A000`), and `NO ACTION` said outright is taken. Deferrability and
 /// enforcement it takes as a plain key does.
-// [spec:pgorm:req:sql.ddl.foreign-key+10/test]    against a live server: a PERIOD foreign key
+// [spec:pgorm:req:sql.ddl.foreign-key+11/test]    against a live server: a PERIOD foreign key
 // takes NO ACTION and refuses every other referential action
 #[pgorm_macros::test]
 async fn a_period_foreign_key_takes_only_no_action() -> Result<(), Error> {

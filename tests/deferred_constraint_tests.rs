@@ -74,8 +74,8 @@ async fn insert_cycle<C: ConnectionTrait>(db: &C, table: &str) -> Result<(), Err
 
 /// The control: rendered without the clause, the key is `NOT DEFERRABLE` by
 /// the server's own default, and the first insert of the pair fails.
-// [spec:pgorm:req:sql.ddl.foreign-key+10/test]
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.ddl.foreign-key+11/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn an_immediate_key_refuses_the_cycle(db: &DatabaseConnection) -> Result<(), Error> {
     cycle_table(db, "immediate_node", Deferrability::NotDeferrable).await?;
 
@@ -93,8 +93,8 @@ async fn an_immediate_key_refuses_the_cycle(db: &DatabaseConnection) -> Result<(
 
 /// `INITIALLY DEFERRED`: the same two statements commit, because the check
 /// runs once at the end rather than after each.
-// [spec:pgorm:req:sql.ddl.foreign-key+10/test]
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.ddl.foreign-key+11/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn a_deferred_key_admits_the_cycle(db: &mut DatabaseConnection) -> Result<(), Error> {
     cycle_table(
         db,
@@ -119,8 +119,8 @@ async fn a_deferred_key_admits_the_cycle(db: &mut DatabaseConnection) -> Result<
 /// refuses the cycle on its own, and accepts it once the transaction moves the
 /// check with `SET CONSTRAINTS`. A `NOT DEFERRABLE` key cannot be moved that
 /// way at all, so the pair of answers below is what tells them apart.
-// [spec:pgorm:req:sql.ddl.foreign-key+10/test]
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.ddl.foreign-key+11/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn an_initially_immediate_key_can_still_be_deferred(
     db: &mut DatabaseConnection,
 ) -> Result<(), Error> {

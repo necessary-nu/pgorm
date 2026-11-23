@@ -88,7 +88,7 @@ fn columns_part<'c>(columns: impl IntoIterator<Item = &'c str>) -> String {
 /// The names PostgreSQL gives the constraints and indexes of `table` it
 /// names itself: an unnamed one-column primary key's `{table}_pkey`, an
 /// unnamed unique key's `{table}_{columns}_key`, and each NOT NULL column's
-/// `{table}_{column}_not_null`, PostgreSQL 18 naming its not-null
+/// `{table}_{column}_not_null`, PostgreSQL naming its not-null
 /// constraints, the key's columns among them.
 fn implicit_names(table: &DisjointTable) -> Vec<(bool, String, String)> {
     let bare = table.name().to_string();

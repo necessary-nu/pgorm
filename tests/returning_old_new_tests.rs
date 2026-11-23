@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
 //! A RETURNING list reading a written row's old and new versions, against a
-//! live PostgreSQL 18 server.
+//! live PostgreSQL 19 server.
 //!
 //! The render tests in pgorm-query hold the spelling to the parser's
 //! `ColumnRef` and `ReturningOption`. Only a server settles what each version
@@ -141,7 +141,7 @@ fn deposit(id_: i32, amount: i32, upsert: bool) -> pgorm::pgorm_query::InsertSta
 
 /// `old` is the row the update found and `new` the row it wrote, and a
 /// target column named bare reads the new one.
-// [spec:pgorm:def:sql.ast.returning+3/test]    against a live server: UPDATE's `old` is the row
+// [spec:pgorm:def:sql.ast.returning+4/test]    against a live server: UPDATE's `old` is the row
 // before and `new` the row after; a bare column reads the new row
 // [spec:pgorm:req:sql.render.returning+4/test]
 async fn an_update_returns_the_row_before_and_after(db: &DatabaseConnection) -> Result<(), Error> {
@@ -159,7 +159,7 @@ async fn an_update_returns_the_row_before_and_after(db: &DatabaseConnection) -> 
 
 /// A delete leaves no row behind, so every column of `new` is NULL while
 /// `old` is the row it removed.
-// [spec:pgorm:def:sql.ast.returning+3/test]    against a live server: DELETE's `new` reads NULL
+// [spec:pgorm:def:sql.ast.returning+4/test]    against a live server: DELETE's `new` reads NULL
 // in every column
 // [spec:pgorm:def:sql.types.column-ref+1/test]    `old.*` and `new.*` reach every column
 async fn a_delete_has_no_new_row(db: &DatabaseConnection) -> Result<(), Error> {
@@ -180,7 +180,7 @@ async fn a_delete_has_no_new_row(db: &DatabaseConnection) -> Result<(), Error> {
 /// An inserted row had no earlier version, so `old` is NULL, unless `ON
 /// CONFLICT DO UPDATE` updated an existing row instead, whose `old` is the
 /// row as it stood. A row `DO NOTHING` skipped returns nothing at all.
-// [spec:pgorm:def:sql.ast.returning+3/test]    against a live server: INSERT's `old` is NULL except
+// [spec:pgorm:def:sql.ast.returning+4/test]    against a live server: INSERT's `old` is NULL except
 // for the row ON CONFLICT DO UPDATE updated; a skipped row returns nothing
 async fn insert_old_row_exists_only_where_updated(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;
@@ -204,7 +204,7 @@ async fn insert_old_row_exists_only_where_updated(db: &DatabaseConnection) -> Re
 
 /// A rename reads the same rows under the new names, and the keyword it
 /// replaced names nothing afterwards.
-// [spec:pgorm:def:sql.ast.returning+3/test]    against a live server: `old_as` / `new_as` reach
+// [spec:pgorm:def:sql.ast.returning+4/test]    against a live server: `old_as` / `new_as` reach
 // the same versions, and the renamed keyword is refused (42P01)
 // [spec:pgorm:req:sql.render.returning+4/test]
 async fn renamed_versions_read_the_same_rows(db: &DatabaseConnection) -> Result<(), Error> {
@@ -229,7 +229,7 @@ async fn renamed_versions_read_the_same_rows(db: &DatabaseConnection) -> Result<
 /// A relation of the statement called `old` or `new` takes the name, so the
 /// version reference reads that relation instead, and nothing says so. A
 /// rename is how the list reaches the version then.
-// [spec:pgorm:def:sql.ast.returning+3/test]    against a live server: a target called `old` and a
+// [spec:pgorm:def:sql.ast.returning+4/test]    against a live server: a target called `old` and a
 // FROM item called `new` capture the keywords silently; a rename reaches the old row
 async fn a_relation_named_old_takes_the_keyword(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;
@@ -270,7 +270,7 @@ async fn a_relation_named_old_takes_the_keyword(db: &DatabaseConnection) -> Resu
 
 /// A rename may not take a name the statement already uses, nor one name
 /// for both versions; the server refuses each rather than choosing.
-// [spec:pgorm:def:sql.ast.returning+3/test]    against a live server: a rename clashing with the
+// [spec:pgorm:def:sql.ast.returning+4/test]    against a live server: a rename clashing with the
 // target, or one name for both versions, is refused (42712)
 async fn a_rename_that_clashes_is_refused(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;
@@ -293,7 +293,7 @@ async fn a_rename_that_clashes_is_refused(db: &DatabaseConnection) -> Result<(),
 }
 
 /// Outside a RETURNING list, `old` names no relation.
-// [spec:pgorm:def:sql.ast.returning+3/test]    against a live server: a version read in WHERE is
+// [spec:pgorm:def:sql.ast.returning+4/test]    against a live server: a version read in WHERE is
 // refused (42P01)
 async fn a_version_outside_returning_names_nothing(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;
@@ -309,7 +309,7 @@ async fn a_version_outside_returning_names_nothing(db: &DatabaseConnection) -> R
 
 /// A value in a RETURNING expression over both versions travels as a
 /// parameter, so a hostile string comes back as data and the table survives.
-// [spec:pgorm:def:sql.ast.returning+3/test]    against a live server: values beside the versions
+// [spec:pgorm:def:sql.ast.returning+4/test]    against a live server: values beside the versions
 // are bound
 async fn a_value_beside_the_versions_is_bound(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;

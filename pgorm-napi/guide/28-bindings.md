@@ -106,9 +106,9 @@ never compiles Node-API or its linker settings.
 
 ## The release the package targets
 
-The package targets PostgreSQL 18, as pgorm does by default ([PostgreSQL 18
-and 19](27-postgres-releases.md)). Its `version` export is the pgorm release
-the addon was built from:
+The package targets PostgreSQL 19, as pgorm does
+([PostgreSQL 19](27-postgres-releases.md)). Its `version` export is the pgorm
+release the addon was built from:
 
 ```ts
 import assert from "node:assert/strict";

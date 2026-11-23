@@ -10,7 +10,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## Overview
 
-> [spec:pgorm:req:sql.ast+4]
+> [spec:pgorm:req:sql.ast+5]
 > pgorm-query MUST provide a programmatic AST for building SQL statements,
 > comprising `SelectStatement`, `InsertStatement`, `UpdateStatement`,
 > `DeleteStatement` and `MergeStatement`, plus the `Query` shorthand whose
@@ -28,7 +28,7 @@ today, including panicking edges and deliberate failsafes.
 > common table expression and an expression subquery hold, and which
 > displays as the statement it wraps, values inlined as that statement's
 > `Display` writes them, so a dependent renders one without matching it.
-> Every kind is a CTE body on PostgreSQL 18. A MERGE body yields the rows of its RETURNING
+> Every kind is a CTE body on PostgreSQL 19. A MERGE body yields the rows of its RETURNING
 > list, and without one it still runs, as an UPDATE does, while reading the
 > CTE is refused (`0A000`); the AST leaves that to the server as it does for
 > the other write statements (`sql.ast.with`). Only a SELECT nests as an
@@ -54,7 +54,7 @@ today, including panicking edges and deliberate failsafes.
 > `MergeStatement` do not, and a caller who wants a second copy of one writes
 > `.to_owned()`.
 
-> [spec:pgorm:req:sql.surface+40]
+> [spec:pgorm:req:sql.surface+41]
 > The crate's exports are an explicit list, not a set of module globs.
 > `pgorm-query/src/lib.rs` MUST name every exported item in `pub use` statements
 > grouped by what the items are for — names, expressions, values, query
@@ -89,7 +89,7 @@ today, including panicking edges and deliberate failsafes.
 > operators, functions, types and values, statement kinds, the clauses,
 > actions, options and behaviours a statement takes, the objects a statement
 > names — and the kinds of failure a crate reports. Adding a member to one, as
-> PostgreSQL 19 (`sql.target`) or wider coverage of 18 does, is then not a
+> a later PostgreSQL release or wider coverage of 19 does, is then not a
 > breaking change. That is `SimpleExpr`, `Function`, `UnOper`, `BinOper`,
 > `SubQueryOper`, `Keyword`, `ColumnRef`, `FromItem`, `SubQueryStatement`,
 > `Value`, `ArrayType`, `RangeType`, `ColumnType`, `JsonValueType`, `SqlJson`,
@@ -236,7 +236,6 @@ today, including panicking edges and deliberate failsafes.
 > column names and `ROWS FROM` (`sql.ast.select.table-function`);
 > `TableSample`, a table read through `TABLESAMPLE`, and `SampleMethod`, the
 > method that draws it (`sql.ast.select.table-sample`);
-> `POSTGRES_TARGET`, the PostgreSQL release a build targets (`sql.target`);
 > `base_type`, the type a value of a domain travels as, every domain
 > looked through to the type at the bottom (`sql.value.base-type`);
 > `ExprTrait`, the operator vocabulary every expression type implements
@@ -248,7 +247,8 @@ today, including panicking edges and deliberate failsafes.
 > index kind it screened the standalone renderer from did
 > (`sql.ddl.index-create`), and `IndexConstraint` when the key a
 > column could also declare did, `TableKey` replacing it
-> (`sql.ddl.create-table`), `ForeignKeyDropStatement` when the drop named
+> (`sql.ddl.create-table`), `POSTGRES_TARGET` when a build stopped having a
+> release to choose (`sql.target`), `ForeignKeyDropStatement` when the drop named
 > for one constraint kind did, `ConstraintDrop` replacing it
 > (`sql.ddl.alter-table`), and the statement-dispatch wrappers
 > `QueryStatement`, `TableStatement`, `IndexStatement`, `ForeignKeyStatement`
@@ -293,7 +293,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## Scope
 
-> [spec:pgorm:req:sql.scope+23]
+> [spec:pgorm:req:sql.scope+24]
 > pgorm-query models the PostgreSQL a data-access layer writes, not the whole
 > of PostgreSQL, and the boundary MUST be written down rather than discovered.
 > A construct outside the builder is still reachable — `Expr::raw` and
@@ -319,7 +319,7 @@ today, including panicking edges and deliberate failsafes.
 > (`sql.ddl.create-table-as`), a schema's `AUTHORIZATION`, owner and element
 > list (`sql.ddl.schema`), a domain's `SET SCHEMA`, owner and named `NOT
 > NULL` (`sql.ddl.domain`), COPY TO's column list (`sql.ast.copy`), and
-> syntax only PostgreSQL 19 parses (`sql.target`).
+> what PostgreSQL 19 added that no builder makes yet (`sql.target`).
 >
 > Three tests decide which verdict an entry gets. *Does the ORM need it to do
 > its job?* — the builder exists to render the statements an entity layer
@@ -387,71 +387,47 @@ today, including panicking edges and deliberate failsafes.
 
 ## Target release
 
-> [spec:pgorm:req:sql.target+3]
-> A build of pgorm targets one PostgreSQL major release. 18 is the floor and
-> the default: a build that names no release targets 18, there is no `pg-18`
-> feature to say so, and nothing older is kept working. The `pg-19` cargo
-> feature targets 19. pgorm-query declares it, since the typed surface lives
-> there; pgorm forwards it (`pg-19 = ["pgorm-query/pg-19"]`), and so do both
-> bindings, pgorm-python and pgorm-napi (`pg-19 = ["pgorm/pg-19"]`), each
-> module exporting the release as `POSTGRES_TARGET`
-> (`bindings.postgres-target`) and pgorm-python's capability manifest
-> listing `pg-19` among its `features` (`python.capabilities`). No other crate
-> carries it, because no other crate's surface or behaviour differs between
-> the two releases yet. `pgorm_query::POSTGRES_TARGET` is the release a build
-> targets, 18 or 19: a dependent cannot read another crate's features through
-> `cfg`, so this is how it learns the target, at compile time if it likes.
+> [spec:pgorm:req:sql.target+4]
+> pgorm targets one PostgreSQL major release, 19. It is the floor and the only
+> target: no cargo feature names a release, so no crate in a build can move
+> another's target, and nothing older is kept working. The documentation
+> gives 19's answers, and the live suite holds them against a 19 server, the
+> bindings' suites included, with no test branching on a release. Every build
+> targets 19, so no constant names the release a build targets.
 >
-> The feature is additive, as Cargo requires. Unification turns it on for
-> every crate in a build once any one asks, so it MAY add typed surface only
-> 19 accepts and MAY change which release's answers the live suite holds, and
-> it MUST NOT remove or reshape anything the default build has that 19 still
-> accepts. 19-only surface therefore arrives as new items — a type, a method,
-> a constructor, or a variant of a `#[non_exhaustive]` public enum, whose
-> dependents already match it with an arm for what they do not know
-> (`sql.surface`), each marked `doc(cfg(feature = "pg-19"))` — and never as a
-> new variant of an exhaustive public enum, a new public field or a changed
-> signature, any of which breaks a dependent that compiles today. A builder
-> value renders the same SQL under either target: what the server does with
-> that SQL is the server's, and a release difference in it is documented
-> rather than rendered around.
->
-> The type gates what the builder can know. Syntax only 19 parses is
-> reachable only under `pg-19`, so code built for 18 cannot construct a
-> statement 18 cannot parse. A difference that turns on what the server holds
-> — which kind of constraint a name is, which constraints a table has, how
-> many rows a subquery returns — is beyond what any builder value records, so
-> it is documented per release instead: the rule and the rustdoc give 18's
-> answer and 19's, naming each, and the live test holds 18's answer by
-> default and 19's under `cfg(feature = "pg-19")` (the bindings' tests branch
-> on their module's `POSTGRES_TARGET`, or pgorm-python's on the manifest's
-> `features`). Each build's suite runs against the server it
-> targets: `DATABASE_URL` names an 18 server for the default build and a 19
-> one for `pg-19`. Three such differences exist today, and no 19-only syntax
-> is built yet: `ALTER CONSTRAINT .. ENFORCED` / `NOT ENFORCED` on a `CHECK`
+> A builder value renders the same SQL whatever server it is sent to: what the
+> server does with that SQL is the server's. Where 19 answers a statement
+> differently from 18, the rule and the rustdoc give 19's answer, naming 18's
+> where a program moving from it would otherwise be surprised:
+> `ALTER CONSTRAINT .. ENFORCED` / `NOT ENFORCED` reaches a `CHECK`
 > (`sql.ddl.enforcement`), `SET EXPRESSION` on a virtual column under a
-> `CHECK` (`sql.ddl.alter-table`), and `JSON_ARRAY` over a query of no rows
-> (`sql.ast.expr.sql-json`).
+> `CHECK` checks the rows rather than being refused (`sql.ddl.alter-table`),
+> and `JSON_ARRAY` over a query of no rows is the empty array rather than
+> `NULL` (`sql.ast.expr.sql-json`).
 >
-> Every parse pgorm makes uses PostgreSQL 19.0's grammar, in every build:
-> the render oracle (`sql.render.oracle`), `sql!`, `prql!`, `sql_migration!`
-> and `pgorm::sql_check`, codegen's DDL reader, the paginator, COPY's
-> statement guard, metric fingerprints, the pipeline's placeholder census and
-> the identifier oracle all parse with pgsql-syntax, a Rust port of the
-> server's scanner and parser built from the release's Bison tables, at the
-> one revision of necessary-nu/pgsql-rs the root manifest names. A build that
-> targets 18 accepts what only 19 parses too (`ON CONFLICT .. DO SELECT`, a
-> call's `IGNORE NULLS`, `REPACK`, `WAIT FOR LSN` among it), so `sql!`
-> compiles text an 18 server refuses; the server is the judge of it, as of
-> every statement that names something the server lacks. And 19's grammar
+> What 19 adds to the statements pgorm builds, and no builder makes yet, is
+> reached through raw SQL, `Func::named`, casts and `ColumnType::Named`:
+> `ON CONFLICT .. DO SELECT`, a window call's `IGNORE NULLS` and `RESPECT
+> NULLS`, COPY's `ON_ERROR set_null`, `HEADER` with a line count and COPY TO's
+> `FORMAT json`, and `JSON_VALUE .. RETURNING json` or `jsonb`, which
+> `JsonValueType` left out for 18's bug #19695 (`sql.ast.expr.sql-json`).
+> Each arrives as ordinary surface: a new item, or a variant of a
+> `#[non_exhaustive]` enum (`sql.surface`).
+>
+> Every parse pgorm makes uses PostgreSQL 19.0's grammar: the render oracle
+> (`sql.render.oracle`), `sql!`, `prql!`, `sql_migration!` and
+> `pgorm::sql_check`, codegen's DDL reader, the paginator, COPY's statement
+> guard, metric fingerprints, the pipeline's placeholder census and the
+> identifier oracle all parse with pgsql-syntax, a Rust port of the server's
+> scanner and parser built from the release's Bison tables, at the one
+> revision of necessary-nu/pgsql-rs the root manifest names. 19's grammar
 > refuses a little 18's parsed: `ignore` and `respect` became keywords that
 > are not bare column labels, so `SELECT 1 ignore` is a syntax error where
 > `SELECT 1 AS ignore` is not, and the five words 19 added (`ignore`, `lsn`,
 > `repack`, `respect`, `wait`) stop being identifiers in the few productions
 > that take a bare `IDENT` (a role or database option name, an `EXTRACT`
-> field, `SET TIME ZONE`'s value), each of which 18's server refused as
-> unrecognized anyway. pgorm writes `AS` before every column label, so no
-> render is affected.
+> field, `SET TIME ZONE`'s value). pgorm writes `AS` before every column
+> label, so no render is affected.
 
 ## SELECT statements
 
@@ -904,7 +880,7 @@ today, including panicking edges and deliberate failsafes.
 > `SimpleExpr`, which is what allows plain Rust values wherever
 > `Into<SimpleExpr>` is accepted.
 
-> [spec:pgorm:req:sql.ast.expr.operators+6]
+> [spec:pgorm:req:sql.ast.expr.operators+7]
 > The operator vocabulary is one public trait, `ExprTrait`, and every type
 > that is an expression in its own right MUST implement it: `Expr`,
 > `SimpleExpr`, `FunctionCall`, `CaseStatement`, `SimpleCaseStatement`,
@@ -954,7 +930,7 @@ today, including panicking edges and deliberate failsafes.
 > `overlaps` asks whether its operands share a value: two ranges, a
 > multirange and a range or another multirange, two arrays. It renders
 > `BinOper::Overlap`, which `binary` still reaches. Checked live on
-> PostgreSQL 18.6: the empty range overlaps nothing, `(,)` included; beside a
+> PostgreSQL 19.0: the empty range overlaps nothing, `(,)` included; beside a
 > range column the server types a bare operand as that range (`r && $1`
 > infers `int4range`) and beside a multirange as that multirange, so a range
 > compared with a multirange is pinned with `cast_as` to reach the
@@ -1059,7 +1035,7 @@ today, including panicking edges and deliberate failsafes.
 > `Func::any`/`some`/`all` render SQL only in that position, and are the escape
 > hatch for the operators these two do not name.
 
-> [spec:pgorm:req:sql.ast.expr.json+3]
+> [spec:pgorm:req:sql.ast.expr.json+4]
 > `ExprTrait` MUST provide the JSON *operator* vocabulary as typed
 > combinators, so every expression has it, a field already extracted
 > included:
@@ -1075,7 +1051,7 @@ today, including panicking edges and deliberate failsafes.
 > the path never becomes statement text, and the driver, which writes a
 > value in the format of the type it is, is never asked to write a
 > `jsonpath`. Its bound is `Into<String>`, a path being text. It is not
-> `JSON_EXISTS` under another name: checked on PostgreSQL 18.6, a GIN index
+> `JSON_EXISTS` under another name: checked on PostgreSQL 19.0, a GIN index
 > on the column, `jsonb_ops` or `jsonb_path_ops`, serves `@?` and no index
 > serves `JSON_EXISTS`, and where a strict-mode path raises an error, as
 > `strict $.b` over a document without `b` does, `@?` answers NULL.
@@ -1083,8 +1059,9 @@ today, including panicking edges and deliberate failsafes.
 > PostgreSQL's SQL/JSON functions — `JSON_EXISTS`, `JSON_VALUE`, `JSON_QUERY`
 > and the constructors — are the neighbouring vocabulary,
 > `[spec:pgorm:def:sql.ast.expr.sql-json]`, and replace none of these. The
-> replacement was weighed operator by operator on PostgreSQL 18.6 and refused
-> on both counts it needed: a GIN `jsonb_ops` index serves `?`, `?|` and `?&`
+> replacement was weighed operator by operator on PostgreSQL 18.6, and the
+> facts it rests on checked again on 19.0, and refused on both counts it
+> needed: a GIN `jsonb_ops` index serves `?`, `?|` and `?&`
 > and no index serves `JSON_EXISTS`; an expression index on `->>` or its cast
 > is not matched by `JSON_VALUE`; and the answers differ (string array
 > elements under `?`, a failed cast that raises, an object or a boolean under
@@ -1359,7 +1336,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## RETURNING
 
-> [spec:pgorm:def:sql.ast.returning+3]
+> [spec:pgorm:def:sql.ast.returning+4]
 > `ReturningClause` expresses PostgreSQL's `RETURNING`: a list, and the names
 > the list reads a written row's two versions by. The list has four forms:
 > every column of the target (`RETURNING *`), column references, expressions,
@@ -1376,7 +1353,7 @@ today, including panicking edges and deliberate failsafes.
 > (`sql.ast.merge`); `SelectStatement` has no RETURNING support. Each call
 > replaces any previously set clause.
 >
-> PostgreSQL 18 lets the list read the row as it was before the write and as
+> Since PostgreSQL 18 the list can read the row as it was before the write and as
 > the statement left it, through the special relations `old` and `new`.
 > `ReturningRow` (`Old`, `New`) names them, and paired with a column or with
 > `Asterisk` it converts into the `RowColumn` and `RowAsterisk` forms of
@@ -1385,7 +1362,7 @@ today, including panicking edges and deliberate failsafes.
 > called `old`. A table-qualified `"old"."col"` parses to the same reference,
 > because a quoted lower-case name is the name the keyword folds to, but the
 > AST would then say a table. The live suite holds what each statement
-> answers on PostgreSQL 18.6:
+> answers on PostgreSQL 19.0:
 >
 > - `UPDATE`: `old` is the row before the update, `new` the row after it.
 > - `DELETE`: `new` reads NULL in every column.
@@ -1593,7 +1570,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## COPY statements
 
-> [spec:pgorm:def:sql.ast.copy+2]
+> [spec:pgorm:def:sql.ast.copy+3]
 > `CopyFromStatement<F>` (`COPY … FROM STDIN`) and `CopyToStatement<F>`
 > (`COPY … TO STDOUT`) are the COPY AST nodes: the statements that open
 > COPY's data flow, which `conn.copy` runs. Each is made by `new` with what
@@ -1634,8 +1611,9 @@ today, including panicking edges and deliberate failsafes.
 > server's refusal.
 >
 > The format is the statement's type parameter, chosen at construction from
-> the closed set PostgreSQL 18 has: `CopyText`, `CopyCsv` and `CopyBinary`,
-> unit types implementing the sealed `CopyFormat`; `CopyDelimitedFormat`, also
+> the closed set of formats both directions take: `CopyText`, `CopyCsv` and
+> `CopyBinary`, unit types implementing the sealed `CopyFormat` (PostgreSQL
+> 19's `FORMAT json`, which COPY TO alone takes, is not built: `sql.target`); `CopyDelimitedFormat`, also
 > sealed, marks the two text formats. An option MUST be a method only where
 > the server accepts it in that direction and that format, so a combination
 > it refuses has no spelling:
@@ -2065,7 +2043,7 @@ today, including panicking edges and deliberate failsafes.
 
 ## SQL/JSON
 
-> [spec:pgorm:def:sql.ast.expr.sql-json+2]
+> [spec:pgorm:def:sql.ast.expr.sql-json+3]
 > PostgreSQL's SQL/JSON — the query functions `JSON_EXISTS`, `JSON_VALUE` and
 > `JSON_QUERY`, the constructors `JSON_OBJECT`, `JSON_ARRAY` (over values or
 > over a one-column query), `JSON_OBJECTAGG`, `JSON_ARRAYAGG`, `JSON()`,
@@ -2157,22 +2135,18 @@ today, including panicking edges and deliberate failsafes.
 > return `json`. `JSON_VALUE` (default `text`) takes a `JsonValueType`, which
 > is `ColumnType`'s variants without `Json` and `JsonBinary`, each converting
 > into its namesake; `TryFrom<ColumnType>` converts a type chosen at run time
-> and hands those two back. They are left out because PostgreSQL 18.6 returns
-> them wrongly (bug #19695): once one evaluation of `JSON_VALUE .. RETURNING
-> jsonb` or `RETURNING json` is `NULL` — a JSON `null`, a path that finds
-> nothing or fails, a `NULL` context item — every later evaluation of it in the
-> statement is `NULL`, because the executor converts those two types without
-> clearing the null flag the previous answer set. Checked live over a
-> multi-row query: `RETURNING jsonb` and `json` stick, while `integer`,
-> `text`, an array, a composite and a domain over `jsonb` (converted by a
-> step that clears the flag) do not, and nor does a `JSON_TABLE` column of
-> type `jsonb`, which is read as `JSON_QUERY` reads it. No rewrite answers the
-> same: `JSON_QUERY` returns a JSON `null` as itself and an object or array
+> and hands those two back. They were left out because PostgreSQL 18 returned
+> them wrongly (bug #19695, fixed in 18.7 and 19.0): once one evaluation of
+> `JSON_VALUE .. RETURNING jsonb` or `RETURNING json` was `NULL` — a JSON
+> `null`, a path that finds nothing or fails, a `NULL` context item — every
+> later evaluation of it in the statement was `NULL`, because the executor
+> converted those two types without clearing the null flag the previous
+> answer set, while `integer`, `text`, an array, a composite and a domain
+> over `jsonb` did not stick. No rewrite answers the same: `JSON_QUERY` returns a JSON `null` as itself and an object or array
 > rather than failing, so a caller wanting JSON out of a path reaches for it
 > knowing those two differences, and a `Named` type is the caller's own
-> spelling, not inspected. A test pins the defect, so the release that fixes
-> it is noticed and the two variants return. 19.0 and 18.7 fix it, so the test
-> holds 18.6's answer by default and 19's under `pg-19` (`sql.target`). The
+> spelling, not inspected. A test holds 19.0's answer, each row answered, so
+> the two variants can return (`sql.target`). The
 > `FORMAT JSON [ENCODING UTF8]` a `RETURNING` may carry is not built: the
 > output is UTF-8 JSON text either way, and a `bytea` result is the same bytes
 > with or without it (live-checked); `JSON_VALUE` refuses it outright.
@@ -2187,8 +2161,8 @@ today, including panicking edges and deliberate failsafes.
 > (`42601`) and always drops `NULL`s, so it is its own builder,
 > `JsonArrayQuery`, with only `returning`; its query must have one column
 > (`42601`), which the builder cannot see through `*`. Over a query of no
-> rows it is the empty array from PostgreSQL 19, and `NULL` on 18, which
-> answered it as the aggregate below does. An object's key may
+> rows it is the empty array, where PostgreSQL 18 answered `NULL`, as the
+> aggregate below does. An object's key may
 > not be `NULL` (`22004`).
 >
 > **The aggregates** take `filter(cond)`, the `FILTER (WHERE ..)` of
@@ -2199,15 +2173,15 @@ today, including panicking edges and deliberate failsafes.
 > its siblings take any `WindowFunction` (`sql.ast.window-statement`).
 >
 > **`JSON_SERIALIZE` reads its operand through `JSON(..)`**
-> (`sql.render.sql-json`). PostgreSQL 18.6's `JSON_SERIALIZE` over a `jsonb`
+> (`sql.render.sql-json`). PostgreSQL 19.0's `JSON_SERIALIZE` over a `jsonb`
 > operand returns bytes of jsonb's binary header rather than the document —
 > `\x01` for a one-member object, `\x02` for two — whatever the `RETURNING`
 > type, and `FORMAT JSON` on a `jsonb` operand is accepted and changes
 > nothing. The parser builds the output conversion for a `json` input, so the
 > `jsonb` bytes are read as text (reported to pgsql-bugs on 2026-03-03; no fix
-> in 18.6). The builder cannot see an operand's type, and a cast to `json`
+> in 19.0, nor in 18). The builder cannot see an operand's type, and a cast to `json`
 > would fail on `bytea` (`42846`), which `JSON_SERIALIZE` takes, marked or not.
-> `JSON(..)` is the conversion that fits every operand: live on 18.6 it turns
+> `JSON(..)` is the conversion that fits every operand: live on 19.0 it turns
 > `jsonb` into the `json` of its canonical text, and makes of `json`, a
 > string, an untyped literal and `bytea`, each with or without `FORMAT JSON`,
 > exactly the `json` value `JSON_SERIALIZE` itself makes of them — the same
@@ -2221,16 +2195,16 @@ today, including panicking edges and deliberate failsafes.
 > PostgreSQL bug #19046 — `JSON_ARRAY` or `JSON_OBJECT` over a column of a
 > subquery on the nullable side of an outer join answering a value instead of
 > `NULL` (17.6, 18rc1) — is a shape the builder can write, and needs no guard:
-> it was fixed upstream in September 2025, and does not reproduce on 18.6.
+> it was fixed upstream in September 2025, and does not reproduce on 19.0.
 >
 > **The JSON operators stay, and replace nothing.** The operator decision of
 > 2026-10-06 was to replace an operator of `sql.ast.expr.json` only where the
 > SQL/JSON form has the same semantics and the same index use. Measured on
 > PostgreSQL 18.6 over 200,000 rows with a GIN `jsonb_ops` index, a GIN
 > `jsonb_path_ops` index and expression indexes on `(data->>'k')` and
-> `((data->>'k')::int)` — and held by the live suite over 2,000 rows with
-> sequential scans disabled, so a plan uses an index whenever one can serve
-> it — none qualifies:
+> `((data->>'k')::int)` — and held by the live suite on PostgreSQL 19 over
+> 2,000 rows with sequential scans disabled, so a plan uses an index whenever
+> one can serve it — none qualifies:
 >
 > - `?`, `?|` and `?&` are served by the `jsonb_ops` index (a bitmap index
 >   scan; dropping it leaves a sequential scan, `jsonb_path_ops` serving none
@@ -2267,7 +2241,7 @@ today, including panicking edges and deliberate failsafes.
 > SQL/JSON expression itself. Containment, which both families can say, is
 > `@>` (`sql.ast.expr.operators`), served by either opclass.
 
-> [spec:pgorm:def:sql.ast.json-table+2]
+> [spec:pgorm:def:sql.ast.json-table+3]
 > `JSON_TABLE` is a FROM item, `FromItem::JsonTable(Box<JsonTable>, Name)`:
 > rows read out of a JSON document, one per item its path finds, one column
 > per column definition. `Func::json_table(context, path, column)` builds a
@@ -2332,5 +2306,5 @@ today, including panicking edges and deliberate failsafes.
 > names, so that check is the server's. Column names, path names, the
 > `PASSING` names and the alias are caller-supplied identifiers, quoted like
 > every other and registered with the identifier oracle
-> (`security.ident-oracle`). Neither 18's grammar nor 19's has a `PLAN`
-> clause (`42601`), so there is none to build.
+> (`security.ident-oracle`). PostgreSQL 19's grammar has no `PLAN` clause
+> (`42601`), so there is none to build.

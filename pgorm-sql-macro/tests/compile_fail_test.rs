@@ -12,7 +12,7 @@
 //! this test.
 
 // [spec:pgorm:req:macros.sql.reject+2/test]    grammar rejections and non-literal input
-// [spec:pgorm:def:macros.sql+7/test]    valid SQL compiles and keeps its text
+// [spec:pgorm:def:macros.sql+8/test]    valid SQL compiles and keeps its text
 // [spec:pgorm:req:macros.sql.ceiling+2/test]    unknown tables pass; the span is the whole literal
 // [spec:pgorm:req:macros.prql.reject/test]    all five refusals, spanned and named
 // [spec:pgorm:sem:macros.prql.sstring/test]    a broken s-string dies at the oracle

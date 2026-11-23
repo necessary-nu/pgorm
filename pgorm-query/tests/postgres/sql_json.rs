@@ -16,8 +16,8 @@ fn data() -> Expr {
     Expr::col(Char::UserData)
 }
 
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the three query functions and their clauses
-// [spec:pgorm:req:sql.render.sql-json+1/test]    the path bound as text cast to jsonpath, the
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the three query functions and their clauses
+// [spec:pgorm:req:sql.render.sql-json+2/test]    the path bound as text cast to jsonpath, the
 // clauses in the grammar's order
 #[test]
 fn query_functions_render_their_clauses_in_order() {
@@ -88,7 +88,7 @@ fn query_functions_render_their_clauses_in_order() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the wrapper and OMIT QUOTES share one slot, the
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the wrapper and OMIT QUOTES share one slot, the
 // last call winning, so OMIT QUOTES never stands beside a wrapper
 #[test]
 fn wrapper_and_quotes_fill_one_slot() {
@@ -117,7 +117,7 @@ fn wrapper_and_quotes_fill_one_slot() {
 
 // A later behaviour replaces an earlier one in its slot, and ON EMPTY renders
 // before ON ERROR whichever was set first.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]
 #[test]
 fn behaviours_replace_and_keep_the_grammars_order() {
     assert_eq!(
@@ -135,7 +135,7 @@ fn behaviours_replace_and_keep_the_grammars_order() {
 
 // The DEFAULT value is a literal under both render paths — the server refuses a
 // parameter there — escaped as every inlined value is.
-// [spec:pgorm:req:sql.render.sql-json+1/test]    DEFAULT inline and escaped under build()
+// [spec:pgorm:req:sql.render.sql-json+2/test]    DEFAULT inline and escaped under build()
 #[test]
 fn a_default_is_an_escaped_literal_under_build() {
     let hostile = "x'); DROP TABLE t; --\\";
@@ -155,9 +155,9 @@ fn a_default_is_an_escaped_literal_under_build() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the constructors, with each ON NULL and UNIQUE
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the constructors, with each ON NULL and UNIQUE
 // spelling the one that differs from the default
-// [spec:pgorm:req:sql.render.sql-json+1/test]    `key : value` members, values carrying their
+// [spec:pgorm:req:sql.render.sql-json+2/test]    `key : value` members, values carrying their
 // type in both render paths
 #[test]
 fn constructors_render_typed_operands_in_both_paths() {
@@ -207,7 +207,7 @@ fn constructors_render_typed_operands_in_both_paths() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the query form of JSON_ARRAY, whose query
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the query form of JSON_ARRAY, whose query
 // numbers its parameters in the enclosing statement's sequence
 #[test]
 fn an_array_query_renders_its_select_bare() {
@@ -236,8 +236,8 @@ fn an_array_query_renders_its_select_bare() {
     assert_eq!(values, Values(vec![3i32.into(), 1i32.into(), 1i32.into()]));
 }
 
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the two aggregates, their ORDER BY and FILTER
-// [spec:pgorm:req:sql.render.sql-json+1/test]    FORMAT JSON before ORDER BY, FILTER after the
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the two aggregates, their ORDER BY and FILTER
+// [spec:pgorm:req:sql.render.sql-json+2/test]    FORMAT JSON before ORDER BY, FILTER after the
 // parentheses
 #[test]
 fn aggregates_render_order_and_filter() {
@@ -270,7 +270,7 @@ fn aggregates_render_order_and_filter() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    JSON(), JSON_SCALAR() and JSON_SERIALIZE()
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    JSON(), JSON_SCALAR() and JSON_SERIALIZE()
 #[test]
 fn parse_scalar_and_serialize_render_their_operand() {
     let (sql, values) = Query::select()
@@ -291,8 +291,8 @@ fn parse_scalar_and_serialize_render_their_operand() {
     assert_eq!(values, Values(vec![5i32.into(), "5".into()]));
 }
 
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    IS JSON and IS NOT JSON over each kind
-// [spec:pgorm:req:sql.render.sql-json+1/test]    self-parenthesised, and around an operator
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    IS JSON and IS NOT JSON over each kind
+// [spec:pgorm:req:sql.render.sql-json+2/test]    self-parenthesised, and around an operator
 // operand
 #[test]
 fn is_json_wraps_itself_and_an_operator_operand() {

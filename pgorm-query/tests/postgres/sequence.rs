@@ -308,7 +308,7 @@ fn identity_options(sql: &str) -> Vec<(String, serde_json::Value)> {
     options(&found[0])
 }
 
-// [spec:pgorm:req:sql.ddl.column-def+13/test]    an identity's sequence takes the same options,
+// [spec:pgorm:req:sql.ddl.column-def+14/test]    an identity's sequence takes the same options,
 // in parentheses after `AS IDENTITY`, in every place the column is written
 // [spec:pgorm:req:sql.ddl.sequence/test]
 #[test]

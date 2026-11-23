@@ -13,7 +13,7 @@ use super::{RelationDrop, definition_body, impl_view_display, relation_drop_meth
 /// it was last populated, named as a table is. Its body is a
 /// [`SelectStatement`] checked as it is taken and written with its values
 /// inlined, as a view's is.
-// [spec:pgorm:req:sql.ddl.materialized-view+1]
+// [spec:pgorm:req:sql.ddl.materialized-view+2]
 #[derive(Debug, Clone, Copy)]
 pub struct MaterializedView;
 
@@ -69,7 +69,7 @@ impl MaterializedView {
 /// [`with_no_data`](Self::with_no_data) leaves the view unpopulated, which the
 /// server refuses to read (`55000`) until it is refreshed.
 ///
-/// PostgreSQL 18 has no `OR REPLACE` for a materialized view (`42601`), so
+/// PostgreSQL 19 has no `OR REPLACE` for a materialized view (`42601`), so
 /// none is offered: one that changes is dropped and created again.
 ///
 /// ```compile_fail,E0599
@@ -109,7 +109,7 @@ impl MaterializedView {
 /// );
 /// # Ok::<(), pgorm_query::error::Error>(())
 /// ```
-// [spec:pgorm:req:sql.ddl.materialized-view+1]
+// [spec:pgorm:req:sql.ddl.materialized-view+2]
 #[derive(Debug, Clone)]
 pub struct MaterializedViewCreateStatement {
     pub(crate) name: TableName,
@@ -194,7 +194,7 @@ pub(crate) enum RefreshMode {
 ///     r#"REFRESH MATERIALIZED VIEW CONCURRENTLY "report"."daily_total""#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.materialized-view+1]
+// [spec:pgorm:req:sql.ddl.materialized-view+2]
 #[derive(Debug, Clone)]
 pub struct MaterializedViewRefreshStatement {
     pub(crate) name: TableName,
@@ -244,7 +244,7 @@ impl MaterializedViewRefreshStatement {
 ///     r#"DROP MATERIALIZED VIEW IF EXISTS "daily_total" RESTRICT"#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.materialized-view+1]
+// [spec:pgorm:req:sql.ddl.materialized-view+2]
 #[derive(Debug, Clone)]
 pub struct MaterializedViewDropStatement {
     pub(crate) relations: RelationDrop,

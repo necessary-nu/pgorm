@@ -28,7 +28,7 @@
 //   projects/             the throwaway projects `install` creates
 //   report.json           what `install` proved; `passed` stays false until it has
 // Nothing is published: no step talks to a registry but the one served here.
-// [spec:pgorm:req:napi.distribution]
+// [spec:pgorm:req:napi.distribution+1]
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";

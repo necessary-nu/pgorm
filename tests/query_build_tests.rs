@@ -243,7 +243,7 @@ fn into_simple_expr_accepts_three_shapes() {
 // and an aggregate are expressions in their own right: each stands in
 // `column_as`, `group_by`, `order_by` and `select` with no `Expr::expr`, and
 // compares in `having` and `filter`
-// [spec:pgorm:req:sql.ast.expr.operators+6/test]
+// [spec:pgorm:req:sql.ast.expr.operators+7/test]
 // [spec:pgorm:sem:query.build.modifiers+11/test]
 #[test]
 fn function_calls_and_aggregates_are_expressions() {

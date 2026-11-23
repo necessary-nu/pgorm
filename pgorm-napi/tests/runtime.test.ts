@@ -47,7 +47,7 @@ test("a promise dropped unsettled on a runtime thread is rejected through the dr
   }
 });
 
-// [spec:pgorm:req:napi.runtimes+1/test]
+// [spec:pgorm:req:napi.runtimes+2/test]
 test("a runtime without Temporal cannot load the module, and is told why", async () => {
   const outcome = await runFixture("no-temporal", 30_000);
   assert.equal(outcome.code, 0, outcome.stderr);

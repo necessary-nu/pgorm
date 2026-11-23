@@ -2,7 +2,7 @@
 //! without touching anything a running process could still own.
 //!
 //! Run the test locally:
-//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329 cargo nextest run -p pgorm-test-support
+//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo nextest run -p pgorm-test-support
 
 use std::process::{Child, Command};
 use std::time::{SystemTime, UNIX_EPOCH};

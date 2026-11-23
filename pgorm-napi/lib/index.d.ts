@@ -55,14 +55,6 @@ export declare const version: string;
  */
 export declare const STATEMENT_CACHE_CHANNEL: string;
 
-// [spec:pgorm:req:bindings.postgres-target]
-/**
- * The PostgreSQL release this build targets: 18, unless the addon was built
- * with its `pg-19` feature, which forwards pgorm's and makes it 19. It is
- * Rust's `pgorm_query::POSTGRES_TARGET`.
- */
-export declare const POSTGRES_TARGET: 18 | 19;
-
 /** The base class of every error pgorm-napi rejects with. */
 export declare class PgormError extends Error {
   /**
@@ -629,9 +621,9 @@ export interface RetryOptions extends TransactionOptions {
  */
 export type Statement = Select | Insert | Update | Delete | Merge | DDL | Pipeline;
 
-// [spec:pgorm:req:bindings.sql-check+2]
+// [spec:pgorm:req:bindings.sql-check+3]
 /**
- * `text`, held to PostgreSQL 19's grammar in every build and returned
+ * `text`, held to PostgreSQL 19's grammar and returned
  * unchanged, as Rust's `sql!` holds a literal while its crate compiles; a
  * script is held to it statement by statement. What the grammar rejects is a
  * {@link ConstructionError} whose message reprints the line with a caret

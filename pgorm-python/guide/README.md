@@ -45,7 +45,7 @@ started](01-getting-started.md) introduces and the module
 | 23. [Generating entities](23-codegen.md) | Generate declarations from a schema. |
 | 24. [Registering Rust entities](24-registrations.md) | *Python only.* Use a Rust crate's entities, graphs and hooks from Python. |
 | 25. [Types and mypy](25-typing.md) | *Python only.* The package's types, checked with mypy. |
-| 26. [PostgreSQL 18 and 19](26-postgres-releases.md) | Target PostgreSQL 18, or 19 with the `pg-19` feature. |
+| 26. [PostgreSQL 19](26-postgres-releases.md) | The one release pgorm targets, and its grammar. |
 | 27. [Python and JavaScript](27-bindings.md) | How the Python package relates to Rust and to JavaScript. |
 | 28. [Packaging and distribution](28-distribution.md) | *Python only.* Wheels, source distributions, platforms and notices. |
 

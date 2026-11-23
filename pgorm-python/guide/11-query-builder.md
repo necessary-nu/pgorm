@@ -1352,8 +1352,8 @@ assert row.inspect().sql == 'SELECT JSON_OBJECT($1::text : "id", $2::text : "nam
 ```
 
 `json_value` refuses `returning="json"` and `"jsonb"` with
-`ConstructionError`: PostgreSQL 18.6 returns `NULL` for every later row once
-one such evaluation is `NULL`, so `json_query` reads JSON out of a document
+`ConstructionError`: PostgreSQL 18 returned `NULL` for every later row once
+one such evaluation was `NULL`, so `json_query` reads JSON out of a document
 instead. `json_arrayagg`'s `order_by` takes no `NULLS FIRST` or `NULLS
 LAST`, which the builder would have to drop, so an order asking for one is
 refused.

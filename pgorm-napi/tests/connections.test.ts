@@ -14,7 +14,6 @@ import {
   DecodeError,
   LifecycleError,
   Pool,
-  POSTGRES_TARGET,
   type Queryable,
   STATEMENT_CACHE_CHANNEL,
   TimeoutError,
@@ -313,13 +312,6 @@ test("collecting unreferenced handles never cuts work short, and rolls back and 
     outcome.stdout,
     "finished 1 false\nidle size 1 available 1\nabandoned size 1 available 1\nrolled back true\n",
   );
-});
-
-// [spec:pgorm:req:bindings.postgres-target/test]
-test("POSTGRES_TARGET names the release the build targets, the one the suite's server runs", async () => {
-  assert.ok(POSTGRES_TARGET === 18 || POSTGRES_TARGET === 19);
-  const { release } = await pool().one("SELECT current_setting('server_version_num')::int / 10000 AS release");
-  assert.equal(release, POSTGRES_TARGET);
 });
 
 // [spec:pgorm:req:bindings.connections+3/test]

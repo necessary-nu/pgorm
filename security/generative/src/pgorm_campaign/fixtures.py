@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import baseline, process
 
-IMAGE = "postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c"
+IMAGE = "postgres:19.0-trixie@sha256:766ddae4967301b9802b341bb596905f11dd5c558149690a7a4d80c2f61bbcf9"
 LABEL = "pgorm.generative=disposable"
 SETTINGS = """
 SELECT json_build_object(
@@ -209,7 +209,7 @@ REVOKE ALL ON SCHEMA public FROM PUBLIC;
                 "--read-only",
                 "--security-opt",
                 "no-new-privileges",
-                # The 18 image keeps its data under /var/lib/postgresql/18/docker
+                # The 19 image keeps its data under /var/lib/postgresql/19/docker
                 # and refuses to start with anything mounted at .../data.
                 "--mount",
                 "type=volume,destination=/var/lib/postgresql",

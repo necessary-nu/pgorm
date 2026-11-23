@@ -113,6 +113,7 @@ impl std::error::Error for Rejection {}
 /// grammar refuses, so a script needs no splitting of its own.
 // [spec:pgorm:sem:macros.sql.script+2]
 // [spec:pgorm:req:macros.sql.ceiling+2]    syntax only: the parser has no catalog
+// [spec:pgorm:req:sql.target+4]    PostgreSQL 19's grammar, the one release targeted
 pub fn check_sql(sql: &str) -> Result<(), Rejection> {
     parse(sql).map(|_| ())
 }
@@ -469,9 +470,8 @@ mod tests {
         ));
     }
 
-    // [spec:pgorm:req:sql.target+3/test]    every build parses with
-    // PostgreSQL 19's grammar: what only 19 added passes, in `sql!`'s check
-    // and in PRQL's emitted SQL alike
+    // [spec:pgorm:req:sql.target+4/test]    the grammar is PostgreSQL 19's:
+    // what 19 added passes, in `sql!`'s check and in PRQL's emitted SQL alike
     #[test]
     fn nineteens_grammar_is_the_one_linked() {
         for sql in [

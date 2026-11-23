@@ -11,7 +11,7 @@
 //! render bare.
 //!
 //! Run the test locally:
-//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329 cargo test --test boolean_operator_tests
+//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test boolean_operator_tests
 
 pub mod common;
 
@@ -107,7 +107,7 @@ async fn written(db: &DatabaseConnection, predicate: &str) -> Result<Vec<i32>, E
 // the rows PostgreSQL's own operator written as SQL text selects, holding on some rows and
 // failing on others
 // [spec:pgorm:def:sql.render.operators+8/test]
-// [spec:pgorm:req:sql.ast.expr.json+3/test]
+// [spec:pgorm:req:sql.ast.expr.json+4/test]
 async fn each_operator_answers_as_postgres_does(db: &DatabaseConnection) -> Result<(), Error> {
     let cases: [(SimpleExpr, &str, Vec<i32>); 9] = [
         (

@@ -15,7 +15,7 @@ use crate::{Enforcement, types::*};
 /// catch. Further pairs are appended with [`TableForeignKey::col`], and a
 /// temporal key's `PERIOD` pair, which closes both lists, is set with
 /// [`TableForeignKey::period`].
-// [spec:pgorm:req:sql.ddl.foreign-key+10]
+// [spec:pgorm:req:sql.ddl.foreign-key+11]
 #[derive(Debug, Clone)]
 pub struct TableForeignKey {
     pub(crate) name: Option<Name>,
@@ -137,7 +137,7 @@ impl TableForeignKey {
     /// PostgreSQL 18's temporal foreign key — replacing any such pair already
     /// set; [`ForeignKeyCreateStatement::period`](crate::ForeignKeyCreateStatement::period)
     /// says what it means.
-    // [spec:pgorm:req:sql.ddl.foreign-key+10]
+    // [spec:pgorm:req:sql.ddl.foreign-key+11]
     pub fn period<C, S>(&mut self, column: C, ref_column: S) -> &mut Self
     where
         C: IntoName,
@@ -166,8 +166,8 @@ impl TableForeignKey {
     }
 
     /// Say whether the server holds rows to this key
-    /// (`[spec:pgorm:req:sql.ddl.enforcement]`), replacing any already set.
-    // [spec:pgorm:req:sql.ddl.enforcement]
+    /// (`[spec:pgorm:req:sql.ddl.enforcement+1]`), replacing any already set.
+    // [spec:pgorm:req:sql.ddl.enforcement+1]
     pub fn enforcement(&mut self, enforcement: Enforcement) -> &mut Self {
         self.enforcement = Some(enforcement);
         self
@@ -187,7 +187,7 @@ impl TableForeignKey {
 
     /// The `(column, referenced column)` pair matched as periods, if this is a
     /// temporal foreign key.
-    // [spec:pgorm:req:sql.ddl.foreign-key+10]
+    // [spec:pgorm:req:sql.ddl.foreign-key+11]
     pub fn get_period(&self) -> Option<&(Name, Name)> {
         self.period.as_ref()
     }
@@ -222,7 +222,7 @@ impl TableForeignKey {
     }
 
     /// When this key's check runs, if the caller said.
-    // [spec:pgorm:req:sql.ddl.foreign-key+10]
+    // [spec:pgorm:req:sql.ddl.foreign-key+11]
     pub fn get_deferrability(&self) -> Option<Deferrability> {
         self.deferrability
     }

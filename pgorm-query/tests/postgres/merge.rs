@@ -648,7 +648,7 @@ fn a_named_function_is_not_the_action() {
     assert_eq!(parsed_nodes(&sql, "FuncCall").len(), 1);
 }
 
-// [spec:pgorm:req:sql.ast+4/test]    a MERGE nests as a CTE body
+// [spec:pgorm:req:sql.ast+5/test]    a MERGE nests as a CTE body
 // [spec:pgorm:def:sql.ast.with+5/test]
 #[test]
 fn a_merge_is_a_cte_body() {

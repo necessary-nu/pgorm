@@ -25,9 +25,6 @@ name = "pgorm_napi"
 # disables it and exports a module of its own that calls `install`.
 default = ["standalone-module"]
 standalone-module = []
-# Targets PostgreSQL 19 ([spec:pgorm:req:sql.target+3]), which the module's
-# `POSTGRES_TARGET` then reports; a build without it targets 18.
-pg-19 = ["pgorm/pg-19"]
 
 [dependencies]
 # Query fingerprints for the metrics layer ([spec:pgorm:req:bindings.metrics+2]):

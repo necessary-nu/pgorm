@@ -7,7 +7,7 @@ pub use pgorm::entity::*;
 pub use pgorm::{ConnectionTrait, Error, QueryFilter, QueryOrder, QuerySelect, set};
 
 // Run the test locally:
-// DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329 cargo test --test query_tests
+// DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test query_tests
 // [spec:pgorm:sem:exec.crud.select+4/test]    `one` fails with RecordNotFound on
 // zero rows where `one_opt` reports `None` — pgorm's deliberate difference
 #[pgorm_macros::test]

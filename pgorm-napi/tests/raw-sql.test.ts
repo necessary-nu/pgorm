@@ -85,7 +85,7 @@ test("a script runs unprepared on a pool, a connection and a transaction", async
   await assert.rejects(pool().batchExecute(select()), TypeError);
 });
 
-// [spec:pgorm:req:bindings.sql-check+2/test]
+// [spec:pgorm:req:bindings.sql-check+3/test]
 test("sql holds text to the grammar and returns it unchanged", () => {
   const text = "SELECT name FROM raw_items WHERE id = $1";
   assert.equal(sql(text), text);

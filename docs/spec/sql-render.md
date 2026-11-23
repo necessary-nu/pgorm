@@ -41,7 +41,7 @@ an ideal Postgres renderer would emit.
 
 ## Render conformance
 
-> [spec:pgorm:req:sql.render.oracle+5]
+> [spec:pgorm:req:sql.render.oracle+6]
 > Every string `QueryBuilder` renders — through the `to_string()` path with
 > literals inlined, or through the `build()` path with `$N` placeholders — MUST
 > parse under the PostgreSQL grammar. The contract is enforced inside the test
@@ -50,11 +50,9 @@ an ideal Postgres renderer would emit.
 > from the release's Bison tables, at the one revision of necessary-nu/pgsql-rs
 > every pgorm crate names (the root manifest says what it carries, and
 > `tests/fork_pin_tests.rs` holds the declarations and lockfiles to it), so
-> the oracle parses with 19.0's grammar in every build (`sql.target`). Oracle
-> and runtime read one grammar: `sql!`, the paginator and the identifier
-> oracle parse with the same revision, and a render 18 introduced (a
-> `VIRTUAL` generated column, a `WITHOUT OVERLAPS` key) parses as a render
-> only 19 accepts would.
+> the oracle parses with 19.0's grammar, the release pgorm targets
+> (`sql.target`). Oracle and runtime read one grammar: `sql!`, the paginator
+> and the identifier oracle parse with the same revision.
 >
 > The oracle is `pgorm-query/tests/postgres/oracle.rs`. `assert_parses` feeds a
 > string to the parser and fails with the parser's message and a caret at its
@@ -662,7 +660,7 @@ an ideal Postgres renderer would emit.
 > function is PostgreSQL's determination, and a renderer that second-guessed
 > it would reject valid calls on functions this enum does not enumerate.
 
-> [spec:pgorm:req:sql.render.sql-json+1]
+> [spec:pgorm:req:sql.render.sql-json+2]
 > A `SimpleExpr::SqlJson` MUST render as an atom: each function form in its
 > own call parentheses, and `IS JSON` inside parentheses of its own —
 > `("data" IS JSON OBJECT WITH UNIQUE KEYS)` — as `CASE` takes, so
@@ -696,7 +694,7 @@ an ideal Postgres renderer would emit.
 > `JSON_SCALAR(v)` and `JSON_SERIALIZE(JSON(v)[ RETURNING t])`; an aggregate's
 > ` FILTER (WHERE …)` follows its parentheses as a `FunctionCall`'s does
 > (`sql.render.func-mods`). `JSON_SERIALIZE`'s operand MUST be read through
-> `JSON(..)`, with its ` FORMAT JSON` inside: PostgreSQL 18.6's
+> `JSON(..)`, with its ` FORMAT JSON` inside: PostgreSQL 19.0's
 > `JSON_SERIALIZE` writes a `jsonb` operand as bytes of its binary header, and
 > `JSON(..)` gives it the `json` value it makes of every other operand
 > (`sql.ast.expr.sql-json`). A clause with nothing before it between the
@@ -1237,7 +1235,7 @@ an ideal Postgres renderer would emit.
 > `RESTRICT`, `CASCADE`, `SET NULL`, `NO ACTION`, `SET DEFAULT`) are rendered
 > by the same builder with identifiers quoted per `sql.render.ident-quoting`.
 
-> [spec:pgorm:req:sql.render.ddl.enum-type+6]
+> [spec:pgorm:req:sql.render.ddl.enum-type+7]
 > `CREATE TYPE` renders `CREATE TYPE name AS ENUM (…)` — the name via
 > `TypeRef`'s quoted, dot-joined parts, so a schema-qualified type renders
 > `"schema"."name"`. In cast and column-type position an
@@ -1255,7 +1253,7 @@ an ideal Postgres renderer would emit.
 > beside `"market"."listing"`, `"Book Shop"."Shelf Kind"` and
 > `"user"."order"[]` in both places. A column `create_table_from_entity` or
 > `create_disjoint` writes therefore has the type the enum's `CREATE TYPE`
-> created, whatever its name and schema are (live on 18.6).
+> created, whatever its name and schema are (live on 19.0).
 >
 > A LABEL is not a name. Each is carried as a `String` and emitted through
 > `push_param` — a `$N` parameter in the `build()` path and a quoted string

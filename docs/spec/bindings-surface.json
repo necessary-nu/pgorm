@@ -107,7 +107,6 @@
       "PartialModel": [],
       "PendingMerge": ["when_matched", "when_not_matched", "when_not_matched_by_source"],
       "PgormError": [],
-      "POSTGRES_TARGET": null,
       "Pool": ["acquire", "batch_execute", "clear_statement_caches", "close", "connection", "copy_in", "copy_in_columns", "copy_in_rows", "copy_out", "copy_out_columns", "copy_out_rows", "execute", "listener", "notify", "one", "optional", "ping", "query", "status", "stream", "transaction", "transaction_with_retry", "verify"],
       "Quantified": [],
       "QueryContext": [],

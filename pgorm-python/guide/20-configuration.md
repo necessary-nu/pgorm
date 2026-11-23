@@ -221,7 +221,7 @@ from pgorm import HookConnection, Pool, RawSQL
 
 def requiring(minimum: int) -> Callable[[HookConnection], Awaitable[None]]:
     """A hook refusing a server older than ``minimum``, a ``server_version_num``
-    such as 180000 for PostgreSQL 18."""
+    such as 190000 for PostgreSQL 19."""
 
     async def check(connection: HookConnection) -> None:
         row = await connection.one(RawSQL("SELECT current_setting('server_version_num')::int AS version"))
@@ -238,7 +238,7 @@ def retire_old(connection: HookConnection) -> None:
 
 async def main() -> None:
     url = os.environ["DATABASE_URL"]
-    async with Pool(url, post_create=requiring(180000), pre_recycle=retire_old) as pool:
+    async with Pool(url, post_create=requiring(190000), pre_recycle=retire_old) as pool:
         assert (await pool.one(RawSQL("SELECT 1 AS one")))["one"] == 1
 
     refusing = Pool(url, post_create=requiring(990000))

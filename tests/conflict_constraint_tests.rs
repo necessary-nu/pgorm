@@ -89,7 +89,7 @@ fn slot_key() -> Name {
 // [spec:pgorm:req:sql.ast.on-conflict+4/test]    against a live server: the named constraint
 // arbitrates both actions, and the update's filter still applies
 // [spec:pgorm:req:sql.render.on-conflict+2/test]
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn the_named_constraint_arbitrates(db: &DatabaseConnection) -> Result<(), Error> {
     let updated = slot(
         2,
@@ -127,7 +127,7 @@ async fn the_named_constraint_arbitrates(db: &DatabaseConnection) -> Result<(), 
 /// any constraint — does.
 // [spec:pgorm:req:sql.ast.on-conflict+4/test]    against a live server: only the named
 // constraint arbitrates
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn a_conflict_on_another_constraint_is_raised(db: &DatabaseConnection) -> Result<(), Error> {
     let named = slot(1, 7, "z", OnConflict::constraint(slot_key()).do_nothing());
     let raised = db.execute(&named, &[]).await.expect_err(&named);
@@ -147,7 +147,7 @@ async fn a_conflict_on_another_constraint_is_raised(db: &DatabaseConnection) -> 
 /// row to update.
 // [spec:pgorm:req:sql.ast.on-conflict+4/test]    against a live server: an exclusion
 // constraint arbitrates DO NOTHING only, and only by name
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn an_exclusion_constraint_takes_only_do_nothing(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -188,7 +188,7 @@ async fn an_exclusion_constraint_takes_only_do_nothing(
 /// pending (`55000`).
 // [spec:pgorm:req:sql.ast.on-conflict+4/test]    against a live server: a name that is not
 // an arbiter is refused, never reinterpreted
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn what_is_not_an_arbiter_is_refused(db: &DatabaseConnection) -> Result<(), Error> {
     for (name, state) in [
         ("slot_v", SqlState::UNDEFINED_OBJECT),

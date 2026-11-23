@@ -125,7 +125,7 @@ async fn a_plain_group_by_is_the_control(db: &DatabaseConnection) -> Result<(), 
 // [spec:pgorm:def:sql.ast.select.grouping/test]    against a live server: ROLLUP groups by each
 // prefix
 // [spec:pgorm:req:sql.render.grouping+2/test]
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn rollup_adds_the_prefix_subtotals(db: &DatabaseConnection) -> Result<(), Error> {
     let query = grouped(|q| q.group_by_element(GroupingElement::rollup([region(), product()])));
 

@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-//! PostgreSQL 17's MERGE grammar against a live PostgreSQL 18 server: arms
+//! PostgreSQL 17's MERGE grammar against a live PostgreSQL 19 server: arms
 //! for target rows no source row matched, a RETURNING list with the action
 //! each row took, and a MERGE as a common table expression's body.
 //!
@@ -183,7 +183,7 @@ async fn a_by_source_arm_cannot_read_the_source(db: &DatabaseConnection) -> Resu
 // [spec:pgorm:req:sql.ast.merge+3/test]    against a live server: `merge_action()` names each
 // row's action, `old` / `new` hold what the action produced, and a bare name both relations
 // have is ambiguous (42702)
-// [spec:pgorm:def:sql.ast.returning+3/test]    on a MERGE
+// [spec:pgorm:def:sql.ast.returning+4/test]    on a MERGE
 // [spec:pgorm:req:sql.render.returning+4/test]
 async fn returning_reports_each_row_and_its_action(db: &DatabaseConnection) -> Result<(), Error> {
     reset(db).await?;
@@ -276,7 +276,7 @@ async fn merge_action_resolves_only_in_a_merge_list(db: &DatabaseConnection) -> 
 
 /// A MERGE body yields the rows its RETURNING list returns. Without a list
 /// it still runs, and only reading it is refused.
-// [spec:pgorm:req:sql.ast+4/test]    against a live server: a MERGE CTE body runs and yields its
+// [spec:pgorm:req:sql.ast+5/test]    against a live server: a MERGE CTE body runs and yields its
 // returned rows; one without RETURNING runs, and reading it is refused (0A000)
 // [spec:pgorm:def:sql.ast.with+5/test]
 async fn a_merge_body_yields_its_returned_rows(db: &DatabaseConnection) -> Result<(), Error> {

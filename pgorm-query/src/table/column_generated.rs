@@ -9,13 +9,13 @@ use super::{ColumnDef, ColumnSpec};
 /// is written and kept on disk, or computed each time it is read.
 ///
 /// The kind is always written out, because the server's default is not one
-/// pgorm can lean on: PostgreSQL 17 refuses a generated column that does not
-/// say `STORED`, and 18 reads one that says nothing as `VIRTUAL`. A closed
-/// pair rather than a `stored: bool`, for the reason
+/// pgorm can lean on: PostgreSQL 19 reads a generated column that says
+/// nothing as `VIRTUAL`, where 17 refused one that did not say `STORED`. A
+/// closed pair rather than a `stored: bool`, for the reason
 /// [`IdentityGeneration`](crate::IdentityGeneration) is one
 /// (`[dec:pgorm:invalid-states-unrepresentable]`): there is no third kind,
 /// and a flag reads backwards at the call site.
-// [spec:pgorm:req:sql.ddl.column-def+13]
+// [spec:pgorm:req:sql.ddl.column-def+14]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GeneratedKind {
     /// `STORED`: computed when the row is inserted or updated, and kept like
@@ -31,7 +31,7 @@ pub enum GeneratedKind {
 
 impl GeneratedKind {
     /// The keyword PostgreSQL spells this kind with — `STORED` or `VIRTUAL`.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub const fn keyword(self) -> &'static str {
         match self {
             Self::Stored => "STORED",
@@ -72,8 +72,8 @@ impl ColumnDef {
     /// ```
     ///
     /// The kind has no default to fall back on: PostgreSQL's changed between
-    /// releases, so a column that left it out would mean one thing on 17 and
-    /// another on 18.
+    /// releases, so the statement names the kind rather than leaving a reader
+    /// to know which release's default applies.
     ///
     /// ```compile_fail,E0061
     /// use pgorm_query::{tests_cfg::*, *};
@@ -88,7 +88,7 @@ impl ColumnDef {
     /// an identity (`42601`). A row cannot write the column either: an insert
     /// or update that supplies a value other than `DEFAULT` is refused
     /// (`428C9`).
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn generated<T>(&mut self, expr: T, kind: GeneratedKind) -> &mut Self
     where
         T: Into<SimpleExpr>,

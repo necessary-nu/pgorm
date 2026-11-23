@@ -41,7 +41,7 @@ impl ColumnDef {
     ///     .join(" "),
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn identity_with<O>(&mut self, generation: IdentityGeneration, options: O) -> &mut Self
     where
         O: Into<SequenceOptions>,

@@ -7,8 +7,6 @@ from uuid import uuid4
 import pgorm as p
 from pgorm import schema as s
 
-PG_19 = "pg-19" in p.capabilities()["features"]
-
 
 class SchemaObjectConstruction(unittest.TestCase):
     # [spec:pgorm:req:bindings.schema/test]    every complete statement is a DDL the terminals
@@ -551,13 +549,10 @@ class SchemaObjectDatabase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.rows(f"SELECT n FROM {self.ns}.numbered ORDER BY x"), [(100,), (110,), (5,)])
 
     # [spec:pgorm:req:bindings.schema-sequences/test]
-    # [spec:pgorm:req:sql.target+3/test]    btree_gist 1.7 on 18, and on 19, which
-    # ships 1.9 alone, the refusal of 1.7
     async def test_extension_schema_and_version_hold(self):
-        version = "1.7"
-        if PG_19:
-            await self.refused(s.create_extension("btree_gist", schema=self.ns, version="1.7"), "22023")
-            version = "1.9"
+        # 19 ships btree_gist 1.9 alone, so 1.7 has no installation script.
+        await self.refused(s.create_extension("btree_gist", schema=self.ns, version="1.7"), "22023")
+        version = "1.9"
         await self.pool.execute(s.create_extension("btree_gist", schema=self.ns, version=version))
         await self.pool.execute(s.create_extension("btree_gist", if_not_exists=True))
         installed = await self.rows(

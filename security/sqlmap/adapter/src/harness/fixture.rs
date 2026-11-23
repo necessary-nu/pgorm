@@ -251,8 +251,8 @@ impl Fixture {
 /// The disposable server's `docker run` arguments, its default statement and lock timeouts
 /// the profile's.
 ///
-/// The data volume mounts at `/var/lib/postgresql`: the 18 image keeps its
-/// data under `/var/lib/postgresql/18/docker` and refuses to start with
+/// The data volume mounts at `/var/lib/postgresql`: the 19 image keeps its
+/// data under `/var/lib/postgresql/19/docker` and refuses to start with
 /// anything mounted at the `.../data` path older images used.
 // [spec:pgorm:req:security.sqlmap.profiles+4]
 pub fn container_args(name: &str, image: &str, settings: &Settings) -> Vec<String> {

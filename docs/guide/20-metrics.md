@@ -387,10 +387,9 @@ Without the feature no statement is parsed for its identity and `fingerprint`
 answers `None`. The types and hooks are the same either way, so a collector
 compiles against both builds. With it, `fingerprint` still answers `None`, and
 never fails the query, in two more cases: a transaction verb has no statement
-to parse, and the parser may refuse raw SQL that the server accepts, such as
-`SELECT 1 ignore`, a bare column label PostgreSQL 18 reads and 19's grammar
-does not. Such a statement runs and is reported as usual; only its identity
-is missing.
+to parse, and the parser may refuse raw SQL, such as `SELECT 1 ignore`, which
+19's grammar reads as a syntax error. Such a statement is reported as usual,
+here as the failure the server answers it with; only its identity is missing.
 
 A fingerprint is computed when a collector asks for it, so a collector that
 never asks pays no parse. Answers are kept process-wide by statement text, so

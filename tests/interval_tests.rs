@@ -128,7 +128,7 @@ async fn bound_intervals_round_trip_exactly() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:sql.value.interval-text+1/test]
+// [spec:pgorm:sem:sql.value.interval-text+2/test]
 #[pgorm_macros::test]
 async fn inlined_intervals_read_back_as_bound_ones() -> Result<(), Error> {
     let ctx = TestContext::new("interval_tests_inlined").await;

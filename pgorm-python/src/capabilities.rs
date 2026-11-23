@@ -233,14 +233,6 @@ fn manifest() -> Value {
         "registrations": {"entities": [], "graphs": [], "sources": [], "disjoints": [], "one_ofs": []},
         "python": {"abi": "cp314", "free_threading": false, "subinterpreters": false}
     });
-    // The release pgorm targets: 18 by default, 19 when it was built with
-    // pg-19, through this crate's feature or any other's.
-    // [spec:pgorm:req:sql.target+3]
-    if pgorm::pgorm_query::POSTGRES_TARGET == 19
-        && let Some(features) = manifest["features"].as_array_mut()
-    {
-        features.push("pg-19".into());
-    }
     if let Some(operations) = manifest["operations"].as_object_mut() {
         operations.extend(crate::expressions::capabilities());
         operations.extend(crate::json::capabilities());

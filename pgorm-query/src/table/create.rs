@@ -142,7 +142,7 @@ impl TableCreateStatement {
     /// Add a table-level `CHECK (<expr>)`, after the ones already added.
     ///
     /// An expression is the unnamed, enforced constraint; a [`Check`] names it
-    /// or says it is `NOT ENFORCED` (`[spec:pgorm:req:sql.ddl.enforcement]`).
+    /// or says it is `NOT ENFORCED` (`[spec:pgorm:req:sql.ddl.enforcement+1]`).
     ///
     /// ```
     /// use pgorm_query::{tests_cfg::*, *};

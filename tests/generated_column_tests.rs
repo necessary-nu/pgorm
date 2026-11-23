@@ -72,7 +72,7 @@ async fn generated_kinds(
 
 /// Each kind lands in the catalog as itself: the column written `STORED` is
 /// stored and the one written `VIRTUAL` virtual, and both compute from the row.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]    each kind reaches the catalog as
+// [spec:pgorm:req:sql.ddl.column-def+14/test]    each kind reaches the catalog as
 // written, so neither column's kind is the server's default
 #[pgorm_macros::test]
 async fn each_kind_reaches_the_catalog() -> Result<(), Error> {
@@ -213,11 +213,11 @@ async fn entity_generated_columns_compute_on_write() -> Result<(), Error> {
     Ok(())
 }
 
-/// What PostgreSQL 18 refuses around a generated column, each by the SQLSTATE
+/// What PostgreSQL refuses around a generated column, each by the SQLSTATE
 /// the rule records: a virtual column takes no index, key or user-defined type,
 /// and neither kind takes a volatile expression, another generated column, or
 /// a `DEFAULT` beside it. A stored column takes the key a virtual one cannot.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]    the refusals around each kind,
+// [spec:pgorm:req:sql.ddl.column-def+14/test]    the refusals around each kind,
 // by SQLSTATE
 #[pgorm_macros::test]
 async fn server_refusals_around_generated_columns() -> Result<(), Error> {
@@ -397,7 +397,7 @@ async fn derived_values(db: &DatabaseConnection) -> Result<Vec<(i32, i32)>, Erro
 /// A new expression reaches the rows already written, for either kind: the
 /// stored column's table is rewritten to hold the new values, and the virtual
 /// column's is left alone, since it computes on read. Neither changes kind.
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    SET EXPRESSION recomputes existing
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    SET EXPRESSION recomputes existing
 // rows, rewriting the table for a stored column and not for a virtual one
 #[pgorm_macros::test]
 async fn set_expression_recomputes_existing_rows() -> Result<(), Error> {
@@ -456,7 +456,7 @@ async fn set_expression_recomputes_existing_rows() -> Result<(), Error> {
 
 /// Dropping a stored column's expression leaves each row the value it was
 /// last computed to, and the column plain: a later row writes its own value.
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    DROP EXPRESSION keeps a stored
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    DROP EXPRESSION keeps a stored
 // column's values and leaves it writable
 #[pgorm_macros::test]
 async fn drop_expression_keeps_stored_values() -> Result<(), Error> {
@@ -494,7 +494,7 @@ async fn drop_expression_keeps_stored_values() -> Result<(), Error> {
 /// could not have been created with (`42P17`); and a new expression for a
 /// virtual column once the table belongs to a publication (`0A000`), where a
 /// stored column's still goes through.
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    the refusals of SET and DROP
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    the refusals of SET and DROP
 // EXPRESSION, by SQLSTATE, and IF EXISTS passing over a plain column
 #[pgorm_macros::test]
 async fn expression_actions_refused_by_sqlstate() -> Result<(), Error> {
@@ -571,15 +571,12 @@ async fn expression_actions_refused_by_sqlstate() -> Result<(), Error> {
     Ok(())
 }
 
-/// A `CHECK` constraint on the table, by release. PostgreSQL 18 refuses a
-/// virtual column a new expression under one (`0A000`) and the old expression
-/// stays. 19 takes it without rewriting the table, as for any virtual column,
-/// and checks the rows against the constraint instead: one that breaks it
-/// refuses the action (`23514`) and leaves the old expression in place.
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    SET EXPRESSION on a virtual
-// column under a CHECK constraint, refused on 18 and checking the rows on 19
-// [spec:pgorm:req:sql.target+3/test]    18's answer in the default build, 19's
-// under pg-19
+/// A `CHECK` constraint on the table: the virtual column takes the new
+/// expression without rewriting the table, as it does under none, and the rows
+/// are checked against the constraint instead. A row that breaks it refuses
+/// the action (`23514`) and leaves the old expression in place.
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    SET EXPRESSION on a virtual
+// column under a CHECK constraint checks the rows
 #[pgorm_macros::test]
 async fn set_expression_under_a_check() -> Result<(), Error> {
     let ctx = TestContext::new("generated_set_expression_check").await;
@@ -597,30 +594,17 @@ async fn set_expression_under_a_check() -> Result<(), Error> {
             .to_string()
     };
 
-    #[cfg(not(feature = "pg-19"))]
-    {
-        let error = db
-            .batch_execute(&computed(10))
-            .await
-            .expect_err("PostgreSQL 18 refuses it while the table has a CHECK");
-        refused_with(&error, &SqlState::FEATURE_NOT_SUPPORTED);
-        assert_eq!(derived_values(&db).await?, [(2, 2), (4, 3)]);
-    }
+    let before = relfilenode(&db, "reading").await?;
+    db.batch_execute(&computed(10)).await?;
+    assert_eq!(relfilenode(&db, "reading").await?, before);
+    assert_eq!(derived_values(&db).await?, [(2, 10), (4, 20)]);
 
-    #[cfg(feature = "pg-19")]
-    {
-        let before = relfilenode(&db, "reading").await?;
-        db.batch_execute(&computed(10)).await?;
-        assert_eq!(relfilenode(&db, "reading").await?, before);
-        assert_eq!(derived_values(&db).await?, [(2, 10), (4, 20)]);
-
-        let error = db
-            .batch_execute(&computed(-1))
-            .await
-            .expect_err("every row breaks the CHECK");
-        refused_with(&error, &SqlState::CHECK_VIOLATION);
-        assert_eq!(derived_values(&db).await?, [(2, 10), (4, 20)]);
-    }
+    let error = db
+        .batch_execute(&computed(-1))
+        .await
+        .expect_err("every row breaks the CHECK");
+    refused_with(&error, &SqlState::CHECK_VIOLATION);
+    assert_eq!(derived_values(&db).await?, [(2, 10), (4, 20)]);
 
     drop(db);
     ctx.delete().await;

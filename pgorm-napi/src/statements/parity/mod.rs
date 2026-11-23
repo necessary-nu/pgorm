@@ -191,7 +191,7 @@ fn window_and_range_family_matches_its_golden_file() {
 // [spec:pgorm:req:bindings.schema-indexes/test]
 // [spec:pgorm:req:bindings.schema-types/test]
 // [spec:pgorm:req:bindings.schema-sequences/test]
-// [spec:pgorm:req:bindings.schema-views+2/test]
+// [spec:pgorm:req:bindings.schema-views+3/test]
 // [spec:pgorm:req:bindings.schema-schemas/test]
 // [spec:pgorm:req:bindings.schema-domains+2/test]
 #[test]

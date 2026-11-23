@@ -6,7 +6,7 @@
 //! nothing here can be riding `search_path`.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54329" cargo test --test varied_schema_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo test --test varied_schema_tests`
 
 #![allow(unused_imports, dead_code)]
 

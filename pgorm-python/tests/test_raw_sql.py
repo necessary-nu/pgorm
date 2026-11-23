@@ -43,7 +43,7 @@ class RawSQLTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             await self.pool.batch_execute(RawSQL("SELECT 1"))  # type: ignore[arg-type]
 
-    # [spec:pgorm:req:bindings.sql-check+2/test]
+    # [spec:pgorm:req:bindings.sql-check+3/test]
     def test_sql_is_held_to_the_grammar(self):
         text = "SELECT name FROM python_raw_items WHERE id = $1"
         self.assertIs(p.sql(text), text)

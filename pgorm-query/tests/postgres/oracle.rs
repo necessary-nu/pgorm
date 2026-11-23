@@ -73,7 +73,7 @@ pub fn parses(sql: &str) -> Result<(), String> {
 ///
 /// # Panics
 /// Panics when the PostgreSQL grammar rejects `sql`.
-// [spec:pgorm:req:sql.render.oracle+5]
+// [spec:pgorm:req:sql.render.oracle+6]
 pub fn assert_parses(sql: &str) {
     if let Err(report) = parses(sql) {
         panic!("{report}");

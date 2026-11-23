@@ -61,10 +61,6 @@ derive = ["pgorm-query-derive"]
 attr = ["pgorm-query-attr"]
 tests-cfg = []
 serde = ["dep:serde"]
-# Target PostgreSQL 19 instead of 18, the floor and the default, which no
-# feature names ([spec:pgorm:req:sql.target+3] in docs/spec/sql-ast.md). Additive:
-# it adds what only 19 accepts and leaves every 18 render as it is.
-pg-19 = []
 all-features = [
     "derive",
     "attr",

@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any
 from asyncio import CancelledError as CancelledError
 from ._schema import (
     DataType as DataType, ColumnDef as ColumnDef, DDL as DDL, EntitySchema as EntitySchema,
@@ -61,7 +61,6 @@ from ._pipeline_functions import (
 
 __version__: str
 __pgorm_version__: str
-POSTGRES_TARGET: Literal[18, 19]
 
 class PgormError(Exception):
     is_retryable: bool

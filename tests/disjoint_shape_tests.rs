@@ -7,7 +7,7 @@
 //! judged by its kind.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54329" cargo nextest run --test disjoint_shape_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test disjoint_shape_tests`
 
 pub mod common;
 pub use common::{TestContext, setup::*};
@@ -868,7 +868,7 @@ pub enum Gizmo {
     Plain,
 }
 
-// [spec:pgorm:sem:disjoint.schema+3/test]    a typed entity's own unique(..) key named as a name the disjoint schema adds is refused as its schema is written, naming both
+// [spec:pgorm:sem:disjoint.schema+4/test]    a typed entity's own unique(..) key named as a name the disjoint schema adds is refused as its schema is written, naming both
 #[test]
 fn typed_schema_named_keys_are_refused() {
     match pgorm::Schema::new().create_disjoint::<Gizmo>() {

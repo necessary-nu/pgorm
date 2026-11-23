@@ -152,7 +152,7 @@ discards the connection, and the pool lends another or opens one.
 import assert from "node:assert/strict";
 import { ConnectionError, type HookConnection, Pool } from "@necessary/pgorm";
 
-/** A hook refusing a server older than `minimum`, a `server_version_num` such as 180000. */
+/** A hook refusing a server older than `minimum`, a `server_version_num` such as 190000. */
 function requiring(minimum: number) {
   return async (db: HookConnection) => {
     const { version } = await db.one("SELECT current_setting('server_version_num')::int AS version");
@@ -160,7 +160,7 @@ function requiring(minimum: number) {
   };
 }
 
-await using checked = new Pool(url, { postCreate: requiring(180000) });
+await using checked = new Pool(url, { postCreate: requiring(190000) });
 assert.equal((await checked.one("SELECT 1 AS one")).one, 1);
 
 await using refusing = new Pool(url, { postCreate: requiring(990000) });
