@@ -596,7 +596,7 @@ fn the_binary_operator_vocabulary_is_complete() {
     }
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+6/test]    the null-safe comparisons join the IS family,
+// [spec:pgorm:req:sql.ast.expr.operators+7/test]    the null-safe comparisons join the IS family,
 // so they render bare under a logical operator rather than parenthesised
 #[test]
 fn null_safe_comparisons_bind_like_the_is_family() {
@@ -615,7 +615,7 @@ fn null_safe_comparisons_bind_like_the_is_family() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+6/test]    SYMMETRIC is part of the operator, so the
+// [spec:pgorm:req:sql.ast.expr.operators+7/test]    SYMMETRIC is part of the operator, so the
 // ternary's `AND` still unwraps and the bounds render bare
 #[test]
 fn symmetric_between_keeps_its_bounds_unparenthesised() {
@@ -637,7 +637,7 @@ fn symmetric_between_keeps_its_bounds_unparenthesised() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+6/test]    AT TIME ZONE takes an ordinary expression on
+// [spec:pgorm:req:sql.ast.expr.operators+7/test]    AT TIME ZONE takes an ordinary expression on
 // the right, so a bound zone name and a column both reach it
 #[test]
 fn at_time_zone_takes_any_zone_expression() {
@@ -676,7 +676,7 @@ fn string_len_and_the_convenience_constructors() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.column-def+13/test]    only the integer trio has a serial spelling
+// [spec:pgorm:req:sql.ddl.column-def+14/test]    only the integer trio has a serial spelling
 #[test]
 fn serial_spelling_covers_the_integer_trio() {
     assert_eq!(
@@ -691,7 +691,7 @@ fn serial_spelling_covers_the_integer_trio() {
     }
 }
 
-// [spec:pgorm:req:sql.ddl.column-def+13/test]    a type with no serial form renders itself
+// [spec:pgorm:req:sql.ddl.column-def+14/test]    a type with no serial form renders itself
 #[test]
 fn auto_increment_without_serial_form_renders_type() {
     assert_eq!(

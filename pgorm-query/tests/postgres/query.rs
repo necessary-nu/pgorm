@@ -1,7 +1,7 @@
 use super::*;
 use crate::oracle::{assert_eq, assert_query_eq, parsed_nodes};
 
-// [spec:pgorm:req:sql.ast+4/test]
+// [spec:pgorm:req:sql.ast+5/test]
 // [spec:pgorm:def:sql.ast.select+6/test]
 // [spec:pgorm:req:sql.render.ident-quoting+7/test]
 #[test]
@@ -1077,7 +1077,7 @@ fn select_60() {
     assert_eq!(values, Values(vec![3i32.into(), 5u64.into()]));
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+6/test]
+// [spec:pgorm:req:sql.ast.expr.operators+7/test]
 #[test]
 fn select_61() {
     assert_eq!(
@@ -1597,7 +1597,7 @@ fn insert_on_conflict_both_filters() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.returning+3/test]
+// [spec:pgorm:def:sql.ast.returning+4/test]
 #[test]
 #[allow(clippy::approx_constant)]
 // [spec:pgorm:req:sql.render.returning+4/test]
@@ -2165,7 +2165,7 @@ fn select_array_overlap_bin_oper() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+6/test]
+// [spec:pgorm:req:sql.ast.expr.operators+7/test]
 #[test]
 fn get_json_field_bin_oper() {
     assert_eq!(
@@ -2196,7 +2196,7 @@ fn cast_json_field_bin_oper() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+3/test]    a path of any depth is one `text[]`
+// [spec:pgorm:req:sql.ast.expr.json+4/test]    a path of any depth is one `text[]`
 // parameter, so the statement text does not vary with it
 #[test]
 fn json_path_operators_take_one_text_array() {
@@ -2224,7 +2224,7 @@ fn json_path_operators_take_one_text_array() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+3/test]    the existence family's three lexemes,
+// [spec:pgorm:req:sql.ast.expr.json+4/test]    the existence family's three lexemes,
 // and the single-key form's text operand
 #[test]
 fn json_key_existence_operators_render() {
@@ -2287,7 +2287,7 @@ fn json_existence_drops_parens_under_and() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+3/test]    an empty key list is not special-cased:
+// [spec:pgorm:req:sql.ast.expr.json+4/test]    an empty key list is not special-cased:
 // it is a typed empty array, and the statement text is the same at every cardinality
 #[test]
 fn empty_json_key_list_is_typed_array() {
@@ -2316,7 +2316,7 @@ fn empty_json_key_list_is_typed_array() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+6/test]    `@>`, `<@` and `||` are one
+// [spec:pgorm:req:sql.ast.expr.operators+7/test]    `@>`, `<@` and `||` are one
 // operator each across every type that has them, so the JSON family names no
 // duplicate: these are already the JSON containment and merge tests
 #[test]
@@ -3069,7 +3069,7 @@ fn a_with_clause_has_one_place_to_live() {
 // [spec:pgorm:sem:query.build.with.attach+1/test]    the prefix is legal PostgreSQL at every level a
 // select can occupy — standalone, FROM subquery, union arm, CTE body, LATERAL body — which is what
 // lets the clause ride along instead of collapsing the statement into a wrapper
-// [spec:pgorm:req:sql.render.oracle+5/test]
+// [spec:pgorm:req:sql.render.oracle+6/test]
 // [spec:pgorm:req:sql.render.select-order+7/test]
 #[test]
 fn carried_with_clause_renders_at_every_nesting_level() {

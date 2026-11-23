@@ -35,7 +35,7 @@ guide says what the items are for and how they fit together.
 | 20. [Metrics](self::metrics) | Instrument the pool, and observe PostgreSQL itself. |
 | 21. [Migrations](self::migrations) | Evolve the schema with pgorm-migration. |
 | 22. [Generating entities](self::codegen) | Generate entities from a schema with pgorm-codegen. |
-| 23. [PostgreSQL 18 and 19](self::postgres_releases) | Target PostgreSQL 18, or 19 with the `pg-19` feature. |
+| 23. [PostgreSQL 19](self::postgres_releases) | The one release pgorm targets, and its grammar. |
 | 24. [Python and JavaScript](self::bindings) | pgorm from Python and from JavaScript. |
 
 Porting an application from SeaORM? [Coming from

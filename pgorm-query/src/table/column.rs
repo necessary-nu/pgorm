@@ -4,7 +4,7 @@ use crate::{RangeType, SequenceOptions, expr::*, types::*};
 use std::sync::Arc;
 
 /// Specification of a table column
-// [spec:pgorm:req:sql.ddl.column-def+13]
+// [spec:pgorm:req:sql.ddl.column-def+14]
 #[derive(Debug, Clone)]
 pub struct ColumnDef {
     pub(crate) table: Option<TableName>,
@@ -12,7 +12,7 @@ pub struct ColumnDef {
     pub(crate) types: Option<ColumnType>,
     /// The collation written after the type, `COLLATE "name"`: one slot and
     /// not a spec, because PostgreSQL refuses a second `COLLATE` on a column.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub(crate) collation: Option<Collation>,
     pub(crate) spec: Vec<ColumnSpec>,
 }
@@ -138,7 +138,7 @@ pub enum ColumnType {
     /// renders the same DDL but says nothing of what the column holds, which
     /// is what an entity reads and writes by.
     // [spec:pgorm:def:sql.types.column-type+11]
-    // [spec:pgorm:req:sql.ddl.domain+3]
+    // [spec:pgorm:req:sql.ddl.domain+4]
     Domain {
         name: Name,
         schema: Option<Name>,
@@ -267,7 +267,7 @@ impl ColumnType {
     /// The `serial` spelling this type is replaced by when the column carries
     /// [`ColumnSpec::AutoIncrement`], or `None` when Postgres has no serial
     /// form for it.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn serial_spelling(&self) -> Option<&'static str> {
         match self {
             ColumnType::SmallInteger => Some("smallserial"),
@@ -284,12 +284,12 @@ impl ColumnType {
 pub enum ColumnSpec {
     Null,
     /// `[CONSTRAINT "name" ]NOT NULL[ NO INHERIT]`: the column's one not-null
-    /// constraint, whose name PostgreSQL 18 records in its catalog — derived
+    /// constraint, whose name PostgreSQL records in its catalog — derived
     /// when `name` is `None` — and which a child table inherits unless
     /// `no_inherit`. Set by [`ColumnDef::not_null`],
     /// [`ColumnDef::not_null_named`] and [`ColumnDef::not_null_no_inherit`],
     /// which share the one spec a column holds.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     NotNull {
         name: Option<Name>,
         no_inherit: bool,
@@ -298,12 +298,12 @@ pub enum ColumnSpec {
     AutoIncrement,
     /// `[CONSTRAINT "name" ]CHECK (<expr>)[ ENFORCED | NOT ENFORCED]`. It
     /// carries no deferrability: PostgreSQL never defers a check constraint.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     Check(Check),
     /// `GENERATED ALWAYS AS (<expr>) { STORED | VIRTUAL }`: a column computed
     /// from the others in its row, and which of PostgreSQL's two kinds it is,
     /// always written out.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     Generated {
         expr: SimpleExpr,
         kind: GeneratedKind,
@@ -311,7 +311,7 @@ pub enum ColumnSpec {
     /// `GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY` — PostgreSQL's
     /// standard-SQL replacement for the serial family — and the options of the
     /// sequence it owns, written in parentheses after it when there are any.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     Identity(IdentityGeneration, Option<SequenceOptions>),
     /// Verbatim SQL appended after the column's own clauses.
     RawSuffix(&'static str),
@@ -337,7 +337,7 @@ pub enum ColumnSpec {
 /// or the other, never both and never neither, so the choice is a closed pair
 /// rather than a `bool` that reads backwards at the call site
 /// (`[dec:pgorm:invalid-states-unrepresentable]`).
-// [spec:pgorm:req:sql.ddl.column-def+13]
+// [spec:pgorm:req:sql.ddl.column-def+14]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdentityGeneration {
     /// `GENERATED ALWAYS AS IDENTITY`.
@@ -350,7 +350,7 @@ impl IdentityGeneration {
     /// The keyword PostgreSQL spells this form with — `ALWAYS` or
     /// `BY DEFAULT`, the words `information_schema.columns.identity_generation`
     /// reports it under.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub const fn keyword(self) -> &'static str {
         match self {
             Self::Always => "ALWAYS",
@@ -437,7 +437,7 @@ impl ColumnDef {
     /// and cannot be overwritten by accident. `auto_increment` stays because it
     /// is what the entity derive's `auto_increment` attribute means today;
     /// prefer `identity` in new schemas.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn auto_increment(&mut self) -> &mut Self {
         self.spec.push(ColumnSpec::AutoIncrement);
         self
@@ -467,7 +467,7 @@ impl ColumnDef {
     ///
     /// The sequence's own options — `START WITH`, `INCREMENT BY`, `CACHE` and
     /// the rest — are [`identity_with`](Self::identity_with)'s.
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn identity(&mut self) -> &mut Self {
         self.spec
             .push(ColumnSpec::Identity(IdentityGeneration::Always, None));
@@ -498,7 +498,7 @@ impl ColumnDef {
     ///     r#"CREATE TABLE "glyph" ( "id" bigint GENERATED BY DEFAULT AS IDENTITY NOT NULL )"#,
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn identity_by_default(&mut self) -> &mut Self {
         self.spec
             .push(ColumnSpec::Identity(IdentityGeneration::ByDefault, None));
@@ -514,7 +514,7 @@ impl ColumnDef {
     /// Set column type as SQL's `char`, which PostgreSQL reads as `char(1)`.
     /// The blank-padded type with no length limit is
     /// `ColumnType::Char(None)`, spelled `bpchar`.
-    // [spec:pgorm:req:sql.ddl.column-types+8]
+    // [spec:pgorm:req:sql.ddl.column-types+9]
     pub fn char(&mut self) -> &mut Self {
         self.types = Some(ColumnType::Char(Some(1)));
         self
@@ -658,7 +658,7 @@ impl ColumnDef {
     /// Set column type as `bit(n)`, or with `None` as the bit type with no
     /// length limit, spelled `"bit"`. SQL's bare `bit` is `bit(1)`, so it is
     /// `bit(Some(1))`.
-    // [spec:pgorm:req:sql.ddl.column-types+8]
+    // [spec:pgorm:req:sql.ddl.column-types+9]
     pub fn bit(&mut self, length: Option<u32>) -> &mut Self {
         self.types = Some(ColumnType::Bit(length));
         self
@@ -798,7 +798,7 @@ impl ColumnDef {
     /// Hold the column's rows to a condition: `CHECK (<expr>)`.
     ///
     /// An expression is the unnamed, enforced constraint; a [`Check`] names it
-    /// or says it is `NOT ENFORCED` (`[spec:pgorm:req:sql.ddl.enforcement]`).
+    /// or says it is `NOT ENFORCED` (`[spec:pgorm:req:sql.ddl.enforcement+1]`).
     ///
     /// ```
     /// use pgorm_query::{tests_cfg::*, *};
@@ -823,7 +823,7 @@ impl ColumnDef {
     ///     .join(" "),
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub fn check<C>(&mut self, check: C) -> &mut Self
     where
         C: IntoCheck,

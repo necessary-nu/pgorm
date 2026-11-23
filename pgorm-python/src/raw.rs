@@ -26,12 +26,12 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-/// `text`, held to PostgreSQL 19's grammar in every build and returned
+/// `text`, held to PostgreSQL 19's grammar and returned
 /// unchanged, as Rust's `sql!` holds a literal while its crate compiles. A
 /// script is held to it statement by statement. What the grammar rejects
 /// raises `ConstructionError` with the parser's message and a caret where it
 /// stopped.
-// [spec:pgorm:req:bindings.sql-check+2]
+// [spec:pgorm:req:bindings.sql-check+3]
 #[pyfunction]
 fn sql<'py>(text: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let checked = text

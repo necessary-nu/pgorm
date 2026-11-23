@@ -1,5 +1,5 @@
 // [spec:pgorm:req:bindings.schema]
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 // [spec:pgorm:req:bindings.schema-schemas]
 // [spec:pgorm:req:bindings.schema-domains+2]
 pub(crate) fn operations() -> serde_json::Map<String, serde_json::Value> {

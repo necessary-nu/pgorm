@@ -70,8 +70,5 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     // [spec:pgorm:req:bindings.connections+3]    the channel pgorm-migration's runner notifies
     let channel = cx.string(pgorm::STATEMENT_CACHE_CHANNEL);
     cx.export_value("statementCacheChannel", channel)?;
-    // [spec:pgorm:req:bindings.postgres-target]    the release this build targets
-    let target = cx.number(pgorm::pgorm_query::POSTGRES_TARGET);
-    cx.export_value("postgresTarget", target)?;
     Ok(())
 }

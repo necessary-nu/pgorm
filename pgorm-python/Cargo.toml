@@ -20,9 +20,6 @@ crate-type = ["cdylib", "rlib"]
 default = ["standalone-module"]
 standalone-module = []
 extension-module = ["pyo3/extension-module"]
-# Target PostgreSQL 19 instead of 18 ([spec:pgorm:req:sql.target+3]); the
-# capability manifest's `features` then lists `pg-19`.
-pg-19 = ["pgorm/pg-19"]
 
 [dependencies]
 # Query fingerprints for the metrics layer ([spec:pgorm:req:bindings.metrics+2]):

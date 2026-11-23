@@ -44,13 +44,11 @@
 //!
 //! # PostgreSQL release
 //!
-//! A build targets PostgreSQL 18 unless it asks for 19 with the `pg-19`
-//! feature; there is no feature for 18 and no support for anything older. The
-//! feature only adds: what 19 alone accepts is built behind it, and nothing an
-//! 18 build has changes, so a crate elsewhere in the dependency graph turning
-//! it on cannot break this one's statements. Where the two releases' servers
-//! answer one statement differently, the documentation gives both answers.
-//! [`pgorm_query::POSTGRES_TARGET`] says which release a build targets.
+//! pgorm targets PostgreSQL 19, and nothing older is kept working: the
+//! documentation gives 19's answers, the test suite runs against a 19 server,
+//! and every parse pgorm makes (`sql!`, `prql!`, codegen's DDL reader, the
+//! paginator, metric fingerprints) uses 19.0's grammar. No feature names a
+//! release.
 //!
 //! # Renaming the dependency
 //!
@@ -176,7 +174,7 @@ pub use tokio_postgres::row::RowIndex;
 /// [`DecodeRaw::into_tuple`]: crate::DecodeRaw::into_tuple
 /// [`into_values`]: crate::DecodeRaw::into_values
 /// [`FromQueryResult::find_by_statement`]: crate::FromQueryResult::find_by_statement
-// [spec:pgorm:def:macros.sql+7]
+// [spec:pgorm:def:macros.sql+8]
 pub use pgorm_sql_macro::sql;
 
 /// Compile a PRQL string literal to PostgreSQL SQL at build time, expanding

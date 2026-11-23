@@ -39,10 +39,9 @@ pgorm needs Rust 1.89 or later. Its features are:
 | `with-uuid` | on | `uuid` columns as [`uuid::Uuid`](https://docs.rs/uuid) |
 | `postgres-array` | on | Array columns as `Vec<T>` |
 | `metrics-fingerprint` | off | Query fingerprints in the [metrics](crate::guide::metrics) layer |
-| `pg-19` | off | What only PostgreSQL 19 accepts ([PostgreSQL 18 and 19](crate::guide::postgres_releases)) |
 
-A build targets PostgreSQL 18 unless it turns on `pg-19`. Nothing older than
-18 is supported.
+pgorm targets PostgreSQL 19, and nothing older is supported
+([PostgreSQL 19](crate::guide::postgres_releases)).
 
 [jiff]: https://docs.rs/jiff
 

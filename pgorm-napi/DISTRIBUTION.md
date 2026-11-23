@@ -121,7 +121,7 @@ then import `pgorm-napi/lib/index.js` from the checkout.
 ## Build and verify
 
 `checks/package.js` builds, packs and proves the packages, as
-`pgorm-python/checks/distribution.py` does for the wheel. With a PostgreSQL 18
+`pgorm-python/checks/distribution.py` does for the wheel. With a PostgreSQL 19
 server in `PGORM_TEST_DSN` or `DATABASE_URL` (see the [README](README.md#tests)):
 
 ```sh
@@ -168,7 +168,7 @@ The [Node-API workflow](../.github/workflows/napi.yml) runs the same steps
 on every push to `main` that touches pgorm-napi, Rust or Cargo files, and
 weekly. Its `addon` jobs build on `macos-15` (arm64) and `ubuntu-24.04`
 (x86-64). Its `packages` job packs the full release set on Linux. Its
-`install` jobs install that one set on both platforms against PostgreSQL 18
+`install` jobs install that one set on both platforms against PostgreSQL 19
 and run the suite in Node.js 26 and Deno 2. The tarballs, the addons and each
 install's report are kept as workflow artifacts for 14 days.
 

@@ -1,16 +1,14 @@
-# PostgreSQL 18 and 19
+# PostgreSQL 19
 
-pgorm targets PostgreSQL 18 or later, and nothing older. A build targets one
-major release, 18 unless it asks for 19, and the release decides two things:
-which statements the builders can make, and which answers the documentation
-and the tests expect where the two releases' servers answer one statement
-differently.
+pgorm targets PostgreSQL 19, and nothing older. No feature names a release:
+every build makes the statements 19 accepts, the documentation gives 19's
+answers, and pgorm's own tests run against a 19 server. An application whose
+server runs an older release moves it to 19 before it moves to this pgorm.
 
-## The default: PostgreSQL 18
+## What pgorm uses
 
-A build with no feature named targets PostgreSQL 18. There is no feature to
-say so, and no build reaches back to 17. pgorm uses what 18 added wherever it
-fits. Among what this guide covers:
+pgorm uses what recent releases added wherever it fits. Among what this guide
+covers, from PostgreSQL 18:
 
 - *virtual generated columns*, computed when read rather than stored
   (`generated_virtual` in [Entities](crate::guide::entities));
@@ -58,63 +56,18 @@ assert_eq!(
 A temporal key over a plain column beside the range, such as `oven_id`
 here, needs the `btree_gist` extension in the database.
 
-## Asking for PostgreSQL 19
+## Coming from PostgreSQL 18
 
-The `pg-19` feature targets PostgreSQL 19:
-
-```toml
-[dependencies]
-pgorm = { git = "https://github.com/necessary-nu/pgorm", features = ["pg-19"] }
-```
-
-The feature only adds. What 19 alone accepts arrives behind it as new items,
-and nothing an 18 build has changes shape or meaning: a statement built the
-same way renders the same SQL under either target. That matters because cargo
-turns a feature on for every crate in a build once any one crate asks for it.
-A library elsewhere in the dependency graph that turns on `pg-19` cannot break
-this crate's statements.
-
-The open vocabularies, such as the kinds of column type, are
-`#[non_exhaustive]` enums, so a `match` over one already has an arm for what
-it does not know, and the variants 19 adds compile against it.
-
-A crate cannot read another crate's features through `cfg`, so pgorm says
-which release a build targets as a constant,
-[`pgorm_query::POSTGRES_TARGET`](crate::pgorm_query::POSTGRES_TARGET). A
-program that needs 19 can refuse to compile without it:
-
-```rust
-use pgorm::pgorm_query::POSTGRES_TARGET;
-
-#[cfg(not(feature = "pg-19"))]
-assert_eq!(POSTGRES_TARGET, 18);
-#[cfg(feature = "pg-19")]
-assert_eq!(POSTGRES_TARGET, 19);
-
-// In a program that relies on 19:
-// const _: () = assert!(POSTGRES_TARGET >= 19, "build pgorm with its pg-19 feature");
-```
-
-The feature passes through: pgorm forwards it to pgorm-query, and the Python
-and JavaScript bindings each forward it to pgorm and export the constant as
-`POSTGRES_TARGET`.
-
-## Where the two releases answer differently
-
-Some statements both releases accept, but answer differently. A builder value
-records only what the statement says, not what the server holds, so pgorm
-renders the statement the same way for both and documents both answers. The
-API documentation of each such item gives 18's answer and 19's. Three
-differences exist today:
+Some statements 18 and 19 both accept, but answer differently. A builder value
+records only what the statement says, not what the server holds, so the
+statement renders as it did, and the server's answer is 19's:
 
 - `ALTER CONSTRAINT .. ENFORCED` and `NOT ENFORCED` reach a `CHECK` constraint
-  from 19, and only a foreign key on 18;
-- `SET EXPRESSION` on a virtual generated column that a `CHECK` reads is
-  refused on 18 and accepted on 19;
-- `JSON_ARRAY` over a query of no rows is `NULL` on 18 and the empty array on
-  19.
-
-Code that runs against both decodes the last into an `Option`:
+  as they reach a foreign key, `ENFORCED` checking the rows already there;
+- `SET EXPRESSION` on a virtual generated column that a `CHECK` reads checks
+  the rows against the `CHECK`, where 18 refused it;
+- `JSON_ARRAY` over a query of no rows is the empty array, where 18 answered
+  `NULL`.
 
 ```rust
 use pgorm::entity::prelude::*;
@@ -133,33 +86,25 @@ let dear = Query::select()
     .to_owned();
 let (sql, values) = Query::select().expr(Func::json_array_query(dear)).build();
 
-let names: Option<Json> = (sql, values).into_tuple().one(&db).await?;
-#[cfg(not(feature = "pg-19"))]
-assert_eq!(names, None);
-#[cfg(feature = "pg-19")]
-assert_eq!(names, Some(serde_json::json!([])));
+let names: Json = (sql, values).into_tuple().one(&db).await?;
+assert_eq!(names, serde_json::json!([]));
 # drop(db);
 # scratch.finish().await;
 # Ok(())
 # }
 ```
 
-Each build is tested against the server it targets: the default build
-against PostgreSQL 18, and a `pg-19` build against 19.
-
 ## The grammar is PostgreSQL 19's
 
 Every SQL parse pgorm makes uses one parser, pgsql-syntax, a Rust port of
-PostgreSQL 19's own scanner and parser, in every build, whichever release it
-targets: [`sql!`](crate::sql) and [`prql!`](crate::prql), the files
-`sql_migration!` reads, their run-time forms
+PostgreSQL 19's own scanner and parser: [`sql!`](crate::sql) and
+[`prql!`](crate::prql), the files `sql_migration!` reads, their run-time forms
 [`sql_check::check_sql`](crate::sql_check::check_sql) and
 [`sql_check::compile_prql`](crate::sql_check::compile_prql)
 ([Raw SQL](crate::guide::raw_sql)), code generation's DDL reader
 ([Generating entities](crate::guide::codegen)), the paginator's reading of
 raw SQL, and query fingerprints in [Metrics](crate::guide::metrics). A check
-of text is a check against 19's grammar, so syntax only 19 parses passes it
-in a build that targets 18 too, and is an 18 server's to refuse when it runs:
+of text is a check against 19's grammar, so what 19 added passes it:
 
 ```rust
 use pgorm::sql_check::check_sql;
@@ -169,13 +114,10 @@ assert!(check_sql("REPACK cake").is_ok());
 assert!(check_sql("INSERT INTO cake (id) VALUES (1) ON CONFLICT (id) DO SELECT RETURNING *").is_ok());
 ```
 
-No builder makes syntax only 19 parses in an 18 build: what 19 alone accepts
-arrives behind `pg-19`.
-
-19's grammar also refuses a little that 18's parses. It makes `ignore` and
+19's grammar also refuses a little that 18's parsed. It makes `ignore` and
 `respect` keywords that a column label needs `AS` before, so a bare
-`SELECT 1 ignore`, which an 18 server runs, is refused in every build;
-`SELECT 1 AS ignore` parses under both. pgorm writes `AS` before every column
-label it renders, so no statement a builder makes is affected. The five
-keywords 19 adds, `ignore`, `lsn`, `repack`, `respect` and `wait`, are all
-unreserved, so pgorm quotes the same identifiers for either release.
+`SELECT 1 ignore`, which an 18 server ran, is refused; `SELECT 1 AS ignore`
+parses. pgorm writes `AS` before every column label it renders, so no
+statement a builder makes is affected. The five keywords 19 adds, `ignore`,
+`lsn`, `repack`, `respect` and `wait`, are all unreserved, so pgorm quotes the
+identifiers it quoted before.

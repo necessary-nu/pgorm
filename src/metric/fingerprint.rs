@@ -15,7 +15,7 @@ use std::fmt;
 /// [`Display`](fmt::Display) renders the fingerprint's canonical 16-character
 /// zero-padded hex form; [`value`](Self::value) is the same number as an
 /// integer, which is the cheaper key for aggregation.
-// [spec:pgorm:req:metric.fingerprint+4]
+// [spec:pgorm:req:metric.fingerprint+5]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QueryFingerprint(u64);
 
@@ -47,7 +47,7 @@ impl fmt::Display for QueryFingerprint {
 /// its text and nothing else (`conn.sql-text`) — and `None` only for the
 /// failed transaction verbs `record_query_error` reports (`"begin"`,
 /// `"commit"`, `"rollback"`), where there is no statement to name.
-// [spec:pgorm:req:metric.fingerprint+4]
+// [spec:pgorm:req:metric.fingerprint+5]
 #[derive(Clone, Copy, Debug)]
 pub struct QueryContext<'a> {
     operation: &'a str,
@@ -82,10 +82,9 @@ impl<'a> QueryContext<'a> {
     /// not distinguished: the `metrics-fingerprint` feature is off, so no
     /// statement is parsed for its identity; there is no statement to parse,
     /// as for a transaction verb; or PostgreSQL 19's grammar rejected the
-    /// text. That last case is not an error — raw SQL the server accepts may
-    /// still be text 19's grammar refuses, such as an 18 server's bare
-    /// `ignore` column label, and such a statement executes normally. Metrics
-    /// simply cannot name it.
+    /// text. That last case is not an error: the statement is reported as any
+    /// other is, the server's answer to it included. Metrics simply cannot
+    /// name it.
     ///
     /// Fingerprinting parses, so the answer is memoized process-wide by
     /// statement text — including the `None` of a rejected one — and repeated
@@ -111,7 +110,7 @@ impl fmt::Display for FingerprintSuffix {
 }
 
 /// The memo behind [`QueryContext::fingerprint`], parsing with pgsql-syntax.
-// [spec:pgorm:req:metric.fingerprint+4]    computation site and memoization
+// [spec:pgorm:req:metric.fingerprint+5]    computation site and memoization
 #[cfg(feature = "metrics-fingerprint")]
 mod memo {
     use super::QueryFingerprint;
@@ -146,7 +145,7 @@ mod memo {
             return *known;
         }
 
-        // The default options are PostgreSQL 18's query-ID rules: an alias
+        // The default options are PostgreSQL 19's query-ID rules: an alias
         // stands for the relation it names and a schema qualifier is not
         // part of the identity, so a fingerprint groups statements the way
         // the server's own `pg_stat_statements` does.
@@ -168,7 +167,7 @@ mod memo {
 }
 
 /// The stand-in for the memo when fingerprints are not asked for.
-// [spec:pgorm:req:metric.fingerprint+4]    the feature-off answer
+// [spec:pgorm:req:metric.fingerprint+5]    the feature-off answer
 #[cfg(not(feature = "metrics-fingerprint"))]
 mod memo {
     use super::QueryFingerprint;

@@ -361,7 +361,7 @@ built library (`bindings.codegen`).
 > holds: an application's import of a declared value the module does not make
 > type-checks against the declarations and fails only as it links.
 
-> [spec:pgorm:req:napi.runtimes+1]
+> [spec:pgorm:req:napi.runtimes+2]
 > The binding targets runtimes that carry `Temporal` as a global, which its
 > date and time values are: Node.js 26 or later, and Deno 2.9.5 or later, the
 > oldest release tested. Loading the module in a runtime without `Temporal`
@@ -376,7 +376,7 @@ built library (`bindings.codegen`).
 > behaviour `napi.exit` requires MUST be tested in fresh processes of
 > the runtime under test, each held to exiting by itself before a deadline. CI
 > MUST run the suite in both runtimes, Node.js 26 and Deno, against PostgreSQL
-> 18 on Linux and macOS.
+> 19 on Linux and macOS.
 
 ## Distribution
 
@@ -449,12 +449,12 @@ is the user-facing account of it.
 > documentation MUST NOT describe a platform as tested before the packaging
 > check has passed on it.
 
-> [spec:pgorm:req:napi.distribution]
+> [spec:pgorm:req:napi.distribution+1]
 > CI MUST build the release addon on each release platform's own runner, pack
 > the full set of packages once, and on each release platform install that set
 > from a registry serving only its tarballs into fresh projects — `npm install`
 > for Node.js, and `npm:` in a `nodeModulesDir: "auto"` project for Deno — then
-> run a smoke suite against PostgreSQL 18 in both runtimes: connecting, a bound
+> run a smoke suite against PostgreSQL 19 in both runtimes: connecting, a bound
 > query, a built statement, a model, a committed and a rolled-back
 > transaction, `Temporal`, `bigint` and `Decimal` round trips, and a process
 > exiting on its own. It MUST hold the loader to the refusals

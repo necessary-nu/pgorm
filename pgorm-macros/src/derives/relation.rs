@@ -70,7 +70,7 @@ struct VariantAttrs {
 }
 
 impl VariantAttrs {
-    // [spec:pgorm:syn:macros.derive.relation+7]
+    // [spec:pgorm:syn:macros.derive.relation+8]
     // [spec:pgorm:req:macros.derive.code-values+4]
     fn parse(variant: &syn::Variant) -> syn::Result<Self> {
         let mut attrs = Self::default();
@@ -162,7 +162,7 @@ fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::R
 
 /// The entity the relations belong to, from the container's `entity`, the one
 /// key the derive reads there.
-// [spec:pgorm:syn:macros.derive.relation+7]
+// [spec:pgorm:syn:macros.derive.relation+8]
 fn relation_entity(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Ident>> {
     let mut entity = None;
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
@@ -220,7 +220,7 @@ impl Relation {
     /// such an entity gets none, and `related = false` on either says
     /// nothing and is refused.
     // [spec:pgorm:sem:macros.derive.boilerplate]
-    // [spec:pgorm:syn:macros.derive.relation+7]
+    // [spec:pgorm:syn:macros.derive.relation+8]
     fn impl_related(&self) -> syn::Result<TokenStream> {
         let ident = &self.ident;
         let entity_ident = &self.entity_ident;
@@ -379,9 +379,9 @@ impl Relation {
     /// after a `from` / `to` pair, since PostgreSQL refuses a period on one
     /// side alone (42830) and a key the period is the only column of (42601);
     /// and a temporal foreign key takes no referential action but `NO
-    /// ACTION`, PostgreSQL 18 refusing the rest (0A000), so an action is a
+    /// ACTION`, PostgreSQL refusing the rest (0A000), so an action is a
     /// path ending in `NoAction` or refused.
-    // [spec:pgorm:syn:macros.derive.relation+7]
+    // [spec:pgorm:syn:macros.derive.relation+8]
     fn period(variant: &syn::Variant, attr: &VariantAttrs) -> syn::Result<TokenStream> {
         let (from, to) = match (&attr.from_period, &attr.to_period) {
             (Some(from), Some(to)) => (from, to),
@@ -415,7 +415,7 @@ impl Relation {
                 return Err(syn::Error::new_spanned(
                     action,
                     "a PERIOD foreign key takes no referential action but \
-                     `ForeignKeyAction::NoAction`; PostgreSQL 18 refuses the rest",
+                     `ForeignKeyAction::NoAction`; PostgreSQL refuses the rest",
                 ));
             }
         }
@@ -427,7 +427,7 @@ impl Relation {
     /// parameters typed as the names they are where it left them untyped; any
     /// other expression is the condition whatever the tables are called.
     // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:syn:macros.derive.relation+7]
+    // [spec:pgorm:syn:macros.derive.relation+8]
     fn on_condition(condition: &Expr) -> syn::Result<TokenStream> {
         let mut closure = match condition.clone() {
             Expr::Closure(closure) => closure,
@@ -503,7 +503,7 @@ impl Relation {
 }
 
 /// Method to derive a Relation
-// [spec:pgorm:syn:macros.derive.relation+7]
+// [spec:pgorm:syn:macros.derive.relation+8]
 pub fn expand_derive_relation(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 

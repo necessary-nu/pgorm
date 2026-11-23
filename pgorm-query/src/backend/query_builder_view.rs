@@ -70,7 +70,7 @@ impl QueryBuilder {
         self.prepare_relation_drop("VIEW", &drop.relations, sql);
     }
 
-    // [spec:pgorm:req:sql.ddl.materialized-view+1]
+    // [spec:pgorm:req:sql.ddl.materialized-view+2]
     pub(crate) fn prepare_materialized_view_create_statement(
         &self,
         create: &MaterializedViewCreateStatement,
@@ -88,7 +88,7 @@ impl QueryBuilder {
         }
     }
 
-    // [spec:pgorm:req:sql.ddl.materialized-view+1]
+    // [spec:pgorm:req:sql.ddl.materialized-view+2]
     pub(crate) fn prepare_materialized_view_refresh_statement(
         &self,
         refresh: &MaterializedViewRefreshStatement,
@@ -104,7 +104,7 @@ impl QueryBuilder {
         }
     }
 
-    // [spec:pgorm:req:sql.ddl.materialized-view+1]
+    // [spec:pgorm:req:sql.ddl.materialized-view+2]
     pub(crate) fn prepare_materialized_view_drop_statement(
         &self,
         drop: &MaterializedViewDropStatement,

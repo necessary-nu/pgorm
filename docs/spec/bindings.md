@@ -64,16 +64,6 @@ option.
 > time MUST NOT invoke rustc, Cargo, a packaging tool or a code-generation
 > build.
 
-> [spec:pgorm:req:bindings.postgres-target]
-> Each binding MUST carry pgorm's `pg-19` cargo feature, forwarding it to
-> pgorm (`pg-19 = ["pgorm/pg-19"]`) and to nothing else, so that a build of
-> the binding targets the PostgreSQL release a build of pgorm does
-> (`sql.target`): 18 by default, 19 with the feature. Each binding's module
-> MUST export `POSTGRES_TARGET`, that release as an integer, read from
-> `pgorm_query::POSTGRES_TARGET` and never computed again. Where the two
-> releases answer one statement differently, a binding's live tests hold the
-> answer of the release its build targets.
-
 > [spec:pgorm:req:bindings.surface+2]
 > The two bindings MUST offer the same public operations, each spelled by its
 > binding's naming rule. `docs/spec/bindings-surface.json` declares the shared
@@ -896,9 +886,9 @@ closed, and a transaction by the block or callback it was opened for ending.
 > nothing; a pool's on a connection of its own. A script is text, a `TypeError`
 > otherwise, and what the server refuses is its `DatabaseError`.
 
-> [spec:pgorm:req:bindings.sql-check+2]
-> `sql(text)` MUST hold `text` to PostgreSQL 19.0's grammar, in every build
-> (`sql.target`), through `pgorm::sql_check::check_sql` (`macros.runtime`), a
+> [spec:pgorm:req:bindings.sql-check+3]
+> `sql(text)` MUST hold `text` to PostgreSQL 19.0's grammar, the release
+> pgorm targets (`sql.target`), through `pgorm::sql_check::check_sql` (`macros.runtime`), a
 > script statement by statement, and return it unchanged: the run-time counterpart of Rust's
 > compile-time `sql!`, called where a module defines its statements. A
 > rejection is a `ConstructionError` whose message is the rejection's text:
@@ -3107,7 +3097,7 @@ placeholders belong to the stage that minted them.
 > Commenting on a table and on a column build its COMMENT ON, the text a
 > literal pgorm-query escapes.
 
-> [spec:pgorm:req:bindings.schema-views+2]
+> [spec:pgorm:req:bindings.schema-views+3]
 > Views, materialized views and tables created from a query MUST be built
 > through pgorm-query's builders for them (`sql.ddl.view`,
 > `sql.ddl.materialized-view`, `sql.ddl.create-table-as`), each named as a
@@ -3134,7 +3124,7 @@ placeholders belong to the stage that minted them.
 >   yet (`42P01`).
 > - A materialized view and a table created from a query take
 >   `if_not_exists`, a column list and WITH NO DATA. Neither has OR REPLACE,
->   which PostgreSQL 18 has for neither, and a view has no IF NOT EXISTS,
+>   which PostgreSQL 19 has for neither, and a view has no IF NOT EXISTS,
 >   which PostgreSQL does not have for one.
 > - Refreshing a materialized view takes at most one of CONCURRENTLY and
 >   WITH NO DATA: PostgreSQL refuses them together, pgorm-query holds them in

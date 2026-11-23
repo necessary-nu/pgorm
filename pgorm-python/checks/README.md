@@ -12,14 +12,14 @@ passed, so a failed rerun never leaves an old passing status behind.
 
 ## The database wrappers
 
-The live checks need a PostgreSQL 18 server with TLS. A wrapper provides a
+The live checks need a PostgreSQL 19 server with TLS. A wrapper provides a
 disposable one, runs the command given to it with `PGORM_TEST_DSN` and
 `PGORM_TEST_CA` set, and removes the server afterwards:
 
-- `tests/with_postgres.py` starts a Docker container (`postgres:18.6-bookworm`,
+- `tests/with_postgres.py` starts a Docker container (`postgres:19.0-bookworm`,
   pinned by digest) with a test CA of its own. It waits up to 180 seconds for
   the container, or `PGORM_TEST_READY_SECONDS`.
-- `tests/with_local_postgres.py` starts a cluster from the PostgreSQL 18
+- `tests/with_local_postgres.py` starts a cluster from the PostgreSQL 19
   binaries in `PGORM_TEST_PG_BIN`, for hosts without Docker, such as CI.
 
 An existing server can supply the two variables directly; it must allow the
@@ -32,10 +32,6 @@ uv pip install --python target/python-dev/bin/python 'maturin>=1.15,<2'
 target/python-dev/bin/python pgorm-python/tests/with_postgres.py \
   target/python-dev/bin/python pgorm-python/checks/acceptance.py
 ```
-
-A build for PostgreSQL 19 (`--features pg-19`) is tested against a 19 server
-supplied through `PGORM_TEST_DSN`, or through `with_local_postgres.py` with
-`PGORM_TEST_PG_BIN` naming 19's binaries; `with_postgres.py` provisions 18.
 
 ## The checks
 
@@ -78,16 +74,13 @@ here uploads to a package registry.
 ## CI and supported combinations
 
 The [Python workflow](../../.github/workflows/python.yml) runs the
-distribution check on macOS arm64 (the `macos-15` runner, PostgreSQL 18 from
-Homebrew) and Linux x86-64 (Ubuntu 24.04, `postgresql-18` from the PostgreSQL
-project's apt repository, since the Ubuntu archive stops at 16), with the
-latest CPython 3.14 patch release, and keeps each job's packages and evidence
-as review artifacts, failed jobs' partial evidence included. A third job runs
-`entities.py` and `guide.py` on Linux and keeps their wheels and reports. A
-fourth builds the wheel with `pg-19` and runs the installed suite on Linux
-against `postgresql-19` from the same apt repository; macOS has no 19 job,
-since Homebrew has no `postgresql@19`. The
-workflow runs on pushes to `main`, on pull requests that touch Rust, Cargo or
+distribution check on macOS arm64 (the `macos-15` runner, Homebrew's
+`postgresql@19`) and Linux x86-64 (Ubuntu 24.04, `postgresql-19` from the
+PostgreSQL project's apt repository, since the Ubuntu archive stops at 16),
+with the latest CPython 3.14 patch release, and keeps each job's packages and
+evidence as review artifacts, failed jobs' partial evidence included. A third
+job runs `entities.py` and `guide.py` on Linux and keeps their wheels and
+reports. The workflow runs on pushes to `main`, on pull requests that touch Rust, Cargo or
 `pgorm-python` files, and weekly, so a change elsewhere that breaks an
 application binding is caught.
 

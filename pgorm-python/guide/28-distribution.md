@@ -58,9 +58,8 @@ uv build pgorm-python --python .venv/bin/python --wheel --sdist --out-dir dist \
 ```
 
 A wheel built from the source distribution holds the same Python files and
-package metadata as one built from the checkout. The only build option is
-the `pg-19` feature, which [PostgreSQL 18 and 19](26-postgres-releases.md)
-covers. None of these commands publishes anything.
+package metadata as one built from the checkout. None of these commands
+publishes anything.
 
 The package is a Cargo workspace of its own, with its own lockfile. Building
 pgorm at the repository root, `cargo build --workspace`, never loads PyO3 or

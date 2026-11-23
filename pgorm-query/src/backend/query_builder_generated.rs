@@ -6,11 +6,11 @@ use super::*;
 impl QueryBuilder {
     /// Translate the generated column into SQL statement
     ///
-    /// The kind is written whichever it is: PostgreSQL 17 refuses a generated
-    /// column without `STORED`, and 18 reads one without either keyword as
-    /// `VIRTUAL`, so leaving it to the server would make the column's kind
-    /// depend on the release (`[spec:pgorm:req:sql.ddl.column-def+13]`).
-    // [spec:pgorm:req:sql.ddl.column-def+13]
+    /// The kind is written whichever it is, so the statement says it rather
+    /// than leaving it to a release's default: PostgreSQL 19 reads a generated
+    /// column without either keyword as `VIRTUAL`, where 17 refused one
+    /// (`[spec:pgorm:req:sql.ddl.column-def+14]`).
+    // [spec:pgorm:req:sql.ddl.column-def+14]
     pub(crate) fn prepare_generated_column(
         &self,
         gen_: &SimpleExpr,
@@ -24,7 +24,7 @@ impl QueryBuilder {
 
     /// `ALTER COLUMN "c" SET EXPRESSION AS (<expr>)`. The `AS` is not
     /// optional: `SET EXPRESSION (<expr>)` is a syntax error (`42601`).
-    // [spec:pgorm:req:sql.ddl.alter-table+15]
+    // [spec:pgorm:req:sql.ddl.alter-table+16]
     pub(crate) fn prepare_set_expression(
         &self,
         column: &Name,
@@ -39,7 +39,7 @@ impl QueryBuilder {
     }
 
     /// `ALTER COLUMN "c" DROP EXPRESSION[ IF EXISTS]`.
-    // [spec:pgorm:req:sql.ddl.alter-table+15]
+    // [spec:pgorm:req:sql.ddl.alter-table+16]
     pub(crate) fn prepare_drop_expression(
         &self,
         column: &Name,

@@ -7,7 +7,7 @@ use common::setup::{
 use pgorm_migration::migrator::MigrationStatus;
 use pgorm_migration::prelude::*;
 
-// DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329 cargo test -p pgorm-migration
+// DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test -p pgorm-migration
 
 /// A fresh database has nothing applied; `up` installs the tracking table and
 /// runs every pending migration in order.

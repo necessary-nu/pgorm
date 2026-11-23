@@ -649,7 +649,7 @@ known limitations.
 
 ## Relations
 
-> [spec:pgorm:syn:macros.derive.relation+7]
+> [spec:pgorm:syn:macros.derive.relation+8]
 > The `Relation` derive applies to enums only. Each variant requires exactly one of
 > `belongs_to = path`, `has_one = path` or `has_many = path`, the entity it reaches
 > written as a path (`belongs_to = super::cake::Entity`); none is the error "Missing
@@ -675,7 +675,7 @@ known limitations.
 > pairs: the two come together ("Missing attribute 'to_period'" / "'from_period'"),
 > after a `from` / `to` pair, since a period is matched after the columns compared for
 > equality, and beside no `on_update` / `on_delete` but a path ending in `NoAction`
-> (`ForeignKeyAction::NoAction`), PostgreSQL 18 refusing every other action on a
+> (`ForeignKeyAction::NoAction`), PostgreSQL 19 refusing every other action on a
 > temporal foreign key (`0A000`) — each refusal a compile error, the last spanned at the
 > action. `on_condition` is a closure of the two tables as the join binds them,
 > `|left, right| ..`, whose parameters are typed as the `Name`s they are where it leaves
@@ -904,7 +904,7 @@ known limitations.
 
 ## Compile-time SQL validation
 
-> [spec:pgorm:def:macros.sql+7]
+> [spec:pgorm:def:macros.sql+8]
 > `pgorm-sql-macro` is a proc-macro crate exporting two function-like macros for
 > callers: `sql!`, specified here, and `prql!` (`[spec:pgorm:def:macros.prql]`). A
 > third, hidden from its documentation, is the compile-time half of pgorm-migration's
@@ -915,9 +915,9 @@ known limitations.
 > literal's text is parsed by pgsql-syntax — a Rust port of the PostgreSQL server's own
 > parser, at the same revision the render oracle uses and for the same reason
 > (`[spec:pgorm:req:sql.render.oracle]`) — so a literal is held to PostgreSQL 19.0's
-> grammar in every build (`[spec:pgorm:req:sql.target]`): a statement 18 introduced, such
-> as a `VIRTUAL` generated column, compiles, and so does one only 19 parses, such as
-> `REPACK`. A literal the grammar
+> grammar, the release pgorm targets (`[spec:pgorm:req:sql.target]`): a statement 18
+> introduced, such as a `VIRTUAL` generated column, compiles, and so does one 19 added,
+> such as `REPACK`. A literal the grammar
 > accepts expands to itself, byte for byte, as a `&'static str` usable in const
 > position; there is no wrapper type, no runtime check and no allocation, so the macro
 > is invisible in the generated code.

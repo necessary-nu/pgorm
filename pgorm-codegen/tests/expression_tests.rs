@@ -47,7 +47,7 @@ fn expressions(table: &TableCreateStatement) -> Vec<String> {
     found
 }
 
-// [spec:pgorm:sem:codegen.ddl.tables+13/test]    a column's DEFAULT and generation expression,
+// [spec:pgorm:sem:codegen.ddl.tables+14/test]    a column's DEFAULT and generation expression,
 // stored or virtual, ride on the bridged statement
 // [spec:pgorm:sem:codegen.entity.expressions+3/test]    and reach the entity as the Rust that
 // builds the same expressions: the schema built from the generated entities carries each
@@ -114,7 +114,7 @@ fn a_generated_key_is_the_databases() {
     }
 }
 
-// [spec:pgorm:req:codegen.ddl.unsupported+22/test]    a construct outside the subset codegen
+// [spec:pgorm:req:codegen.ddl.unsupported+23/test]    a construct outside the subset codegen
 // reads is named with the expression it sits in, never approximated
 #[test]
 fn expressions_outside_the_subset_are_named() {
@@ -192,7 +192,7 @@ fn expressions_outside_the_subset_are_named() {
     }
 }
 
-// [spec:pgorm:sem:codegen.ddl.tables+13/test]    a column filled two ways, or a DEFAULT reading a
+// [spec:pgorm:sem:codegen.ddl.tables+14/test]    a column filled two ways, or a DEFAULT reading a
 // column, is refused as PostgreSQL refuses it (42601, 0A000)
 #[test]
 fn a_column_filled_twice_is_refused() {

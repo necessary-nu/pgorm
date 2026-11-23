@@ -246,7 +246,7 @@ where
 ///
 /// Every variant carries the server's message and the names it reported
 /// alongside it, in a [`ConstraintViolation`].
-// [spec:pgorm:sem:error.model.sql-class+4]
+// [spec:pgorm:sem:error.model.sql-class+5]
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 #[doc(alias = "SqlErr")]
@@ -280,7 +280,7 @@ pub enum SqlError {
 /// constraint; a domain's `CHECK` names its `schema`, the domain as
 /// `datatype`, and the `constraint`; a domain's `NOT NULL` names only the
 /// `schema` and `datatype`.
-// [spec:pgorm:sem:error.model.sql-class+4]
+// [spec:pgorm:sem:error.model.sql-class+5]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ConstraintViolation {
@@ -299,7 +299,7 @@ pub struct ConstraintViolation {
 }
 
 impl SqlError {
-    // [spec:pgorm:sem:error.model.sql-class+4]    SQLSTATE to variant
+    // [spec:pgorm:sem:error.model.sql-class+5]    SQLSTATE to variant
     fn classify(db_error: &tokio_postgres::error::DbError) -> Option<Self> {
         let variant = match *db_error.code() {
             SqlState::UNIQUE_VIOLATION => Self::UniqueConstraintViolation,
@@ -531,7 +531,7 @@ impl Error {
 
     /// Classify an [`Error`] as a [`SqlError`], returning `None` when the error is
     /// not a recognised constraint violation.
-    // [spec:pgorm:sem:error.model.sql-class+4]    classifier entry point
+    // [spec:pgorm:sem:error.model.sql-class+5]    classifier entry point
     #[doc(alias = "sql_err")]
     pub fn sql_error(&self) -> Option<SqlError> {
         match self {

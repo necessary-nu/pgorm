@@ -251,7 +251,7 @@ fn a_view_drop_names_one_or_more_views() {
     assert_eq!(sql, r#"DROP VIEW "a" CASCADE"#);
 }
 
-// [spec:pgorm:req:sql.ddl.materialized-view+1/test]    every clause of a materialized view,
+// [spec:pgorm:req:sql.ddl.materialized-view+2/test]    every clause of a materialized view,
 // read back as the CREATE TABLE AS the grammar holds it as
 #[test]
 fn a_materialized_view_is_created_empty_or_full() -> error::Result<()> {
@@ -296,7 +296,7 @@ fn a_materialized_view_is_created_empty_or_full() -> error::Result<()> {
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ddl.materialized-view+1/test]    CONCURRENTLY and WITH NO DATA are one
+// [spec:pgorm:req:sql.ddl.materialized-view+2/test]    CONCURRENTLY and WITH NO DATA are one
 // choice, the later winning, so the pair the server refuses (42601) and the grammar
 // accepts has no render
 #[test]
@@ -336,7 +336,7 @@ fn a_refresh_is_concurrent_or_empty_never_both() {
     crate::oracle::assert_parses(r#"REFRESH MATERIALIZED VIEW CONCURRENTLY "m" WITH NO DATA"#);
 }
 
-// [spec:pgorm:req:sql.ddl.materialized-view+1/test]    a materialized view drop is a drop of
+// [spec:pgorm:req:sql.ddl.materialized-view+2/test]    a materialized view drop is a drop of
 // its own kind
 #[test]
 fn a_materialized_view_drop_names_its_kind() {
@@ -450,7 +450,7 @@ fn a_view_refuses_a_body_the_grammar_refuses() {
     assert_rejected(&format!(r#"CREATE VIEW "v" AS {tied}"#));
 }
 
-// [spec:pgorm:req:sql.ddl.materialized-view+1/test]    a materialized view's constructor
+// [spec:pgorm:req:sql.ddl.materialized-view+2/test]    a materialized view's constructor
 // refuses the body a view's refuses
 #[test]
 fn a_materialized_view_refuses_a_refused_body() {

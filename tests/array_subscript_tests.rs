@@ -79,7 +79,7 @@ async fn text(db: &DatabaseConnection, expr: impl Into<SimpleExpr>) -> Result<St
 /// answer 20 here, and `a[3]` would be out of range.
 // [spec:pgorm:req:sql.ast.expr.subscript+2/test]    against a live server: indexes count from 1
 // [spec:pgorm:req:sql.render.subscript/test]
-// [spec:pgorm:req:sql.scope+23/test]
+// [spec:pgorm:req:sql.scope+24/test]
 async fn indexes_count_from_one(db: &DatabaseConnection) -> Result<(), Error> {
     assert_eq!(int(db, col("a").index(1)).await?, Some(10));
     assert_eq!(int(db, col("a").index(2)).await?, Some(20));

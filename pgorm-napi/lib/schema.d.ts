@@ -124,7 +124,7 @@ export declare class ColumnDef {
   /** `DEFAULT`: an expression, or a value written as an escaped literal. */
   default(value: Operand): ColumnDef;
   check(condition: Expr, options?: CheckOptions): ColumnDef;
-  /** The kind is always named: PostgreSQL 17 refuses a generated column without one, and 18 reads it as virtual. */
+  /** The kind is always named: PostgreSQL 19 reads a generated column without one as virtual, where 17 refused it. */
   generated(expression: Expr, kind: "stored" | "virtual"): ColumnDef;
   /** The form PostgreSQL recommends over the serial family; its sequence takes a standalone sequence's options. */
   identity(generation: "always" | "byDefault", options?: SequenceOptions): ColumnDef;
@@ -516,7 +516,7 @@ export declare function dropSchema(
 /** `ALTER SCHEMA ... RENAME TO`, which PostgreSQL gives no `IF EXISTS`. */
 export declare function renameSchema(name: string, newName: string): DDL;
 
-// [spec:pgorm:req:bindings.schema-views+2]
+// [spec:pgorm:req:bindings.schema-views+3]
 
 /**
  * The options a view takes, plain or recursive: each written only when set,

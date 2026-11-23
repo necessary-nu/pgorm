@@ -797,7 +797,7 @@ impl DisjointShape {
     /// base's onto the kind's table is (`42830`); a temporal base key is
     /// matched by its `UNIQUE` key over the key columns and the kind column,
     /// and is held.
-    // [spec:pgorm:sem:disjoint.schema+3]
+    // [spec:pgorm:sem:disjoint.schema+4]
     pub(crate) fn keyable(&self) -> Result<(), Error> {
         let base = &self.base;
         for column in base.key() {

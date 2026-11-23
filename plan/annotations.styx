@@ -6,7 +6,7 @@ sites (
         [spec:pgorm:req:generative.ci]
     )}
     {path .github/workflows/napi.yml, spec (
-        [spec:pgorm:req:napi.runtimes+1]
+        [spec:pgorm:req:napi.runtimes+2]
     )}
     {path .github/workflows/sqlmap-run.yml, spec (
         [spec:pgorm:req:security.sqlmap.ci+2]

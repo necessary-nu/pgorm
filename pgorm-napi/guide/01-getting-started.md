@@ -27,8 +27,8 @@ times cross into JavaScript as Temporal values: Node.js 26 or later, or Deno
 with glibc; on any other platform, build it from a checkout as
 [below](#building-from-a-checkout).
 
-A pool targets PostgreSQL 18 or later, as pgorm does ([PostgreSQL 18 and
-19](27-postgres-releases.md)).
+A pool targets PostgreSQL 19, as pgorm does
+([PostgreSQL 19](27-postgres-releases.md)).
 
 ## Installing
 

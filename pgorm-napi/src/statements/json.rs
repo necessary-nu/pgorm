@@ -263,8 +263,8 @@ fn json_value(cx: &mut FunctionContext) -> NeonResult<Node> {
         let Ok(scalar) = JsonValueType::try_from(column) else {
             return refuse(
                 cx,
-                "JSON_VALUE cannot return json or jsonb: PostgreSQL 18.6 returns NULL for every \
-                 later row once one is NULL (bug #19695); use jsonQuery",
+                "JSON_VALUE cannot return json or jsonb, which were left out for PostgreSQL 18's \
+                 bug #19695; use jsonQuery",
             );
         };
         json = json.returning(scalar);

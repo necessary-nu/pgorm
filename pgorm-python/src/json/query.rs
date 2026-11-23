@@ -48,8 +48,8 @@ pub(crate) fn json_value(
     if let Some(ty) = column_type(returning)? {
         let ty = JsonValueType::try_from(ty).map_err(|_| {
             ConstructionError::new_err(
-                "JSON_VALUE cannot return json or jsonb: PostgreSQL 18.6 returns NULL for \
-                 every later row once one is NULL (bug #19695); use json_query",
+                "JSON_VALUE cannot return json or jsonb, which were left out for PostgreSQL \
+                 18's bug #19695; use json_query",
             )
         })?;
         json = json.returning(ty);

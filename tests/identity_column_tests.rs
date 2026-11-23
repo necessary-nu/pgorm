@@ -47,7 +47,7 @@ async fn ddl(db: &DatabaseConnection, sql: String) -> Result<(), Error> {
 
 /// Both forms fill the column from their own sequence when the insert leaves it
 /// out, and the values are the sequence's, not the type's zero.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 async fn identity_generates_values_without_being_asked(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -125,7 +125,7 @@ async fn identity_generates_values_without_being_asked(
 }
 
 /// The whole point of `ALWAYS`: a statement cannot hand the column a value.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 async fn always_refuses_an_explicit_value(db: &DatabaseConnection) -> Result<(), Error> {
     let refused = db
         .execute("INSERT INTO id_always (id, label) VALUES (99, 'c')", &[])
@@ -159,7 +159,7 @@ async fn always_refuses_an_explicit_value(db: &DatabaseConnection) -> Result<(),
 
 /// The whole point of `BY DEFAULT`: the sequence fills in only where the
 /// statement stays silent.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 async fn by_default_accepts_an_explicit_value(db: &DatabaseConnection) -> Result<(), Error> {
     db.execute(
         "INSERT INTO id_by_default (id, label) VALUES (99, 'c')",
@@ -178,7 +178,7 @@ async fn by_default_accepts_an_explicit_value(db: &DatabaseConnection) -> Result
 /// The mutual exclusion the rule documents instead of typing: the grammar takes
 /// each of these, the server does not. Both renders are built by the ordinary
 /// fluent chain, so this is exactly what a caller who combined them would get.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 async fn identity_excludes_default_and_generated(db: &DatabaseConnection) -> Result<(), Error> {
     let with_default = Table::create(Name::runtime("id_and_default"))
         .col(
@@ -241,7 +241,7 @@ async fn identity_excludes_default_and_generated(db: &DatabaseConnection) -> Res
 
 /// `ALTER TABLE` reaches identity from both sides: a new column carries the
 /// clause, an existing one takes the `ADD GENERATED` action.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 async fn added_to_an_existing_column(db: &DatabaseConnection) -> Result<(), Error> {
     ddl(
         db,
@@ -284,7 +284,7 @@ async fn added_to_an_existing_column(db: &DatabaseConnection) -> Result<(), Erro
 /// clause but `OWNED BY` (`0A000`). `AS` is not among the options because the
 /// server refuses it there (`42601`): the column's type is what the sequence
 /// counts in.
-// [spec:pgorm:req:sql.ddl.column-def+13/test]
+// [spec:pgorm:req:sql.ddl.column-def+14/test]
 // [spec:pgorm:req:sql.ddl.sequence/test]
 async fn the_options_define_the_identity_sequence(db: &DatabaseConnection) -> Result<(), Error> {
     let refused_with = |error: Error, state: &SqlState| match error {

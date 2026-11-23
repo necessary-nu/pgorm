@@ -13145,6 +13145,13 @@ children (
                         kind @note
                         text "Home under the pg-19 feature (sql.target, 2026-10-07). DO SELECT is syntax only 19 parses, so it is built behind #[cfg(feature = \"pg-19\")] in pgorm-query, marked doc(cfg(feature = \"pg-19\")), and pgorm-python's conflict handling gains it behind pgorm-python's own pg-19, its capability entry carrying \"features\": [\"pg-19\"] and absent without it. It cannot be a plain ConflictAction::DoSelect variant under cfg: ConflictAction is an exhaustive public enum, and a variant that appears whenever any crate in the graph turns pg-19 on breaks every exhaustive match a dependent wrote, which is the additivity sql.target forbids. Two homes stay additive: a typed path of its own reached from the targeted arbiter's typestate (OnConflict::Targeted), which is also where the type can require the insert's RETURNING; or ConflictAction made #[non_exhaustive] first, in the default build, as a separate breaking change. The first fits the RETURNING requirement. Its live tests are #[cfg(feature = \"pg-19\")] and run with cargo nextest run --workspace --features pg-19 against pgorm-test-19 (port 54319); the rust-pg-19 check platform keeps them compiling. Still behind pg-query-19: the oracle parses with 18's grammar and refuses the render."
                     }
+
+                    {
+                        at 2026-11-23T18:27:29.267635Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "pg19-only (2026-11-23) removed the pg-19 feature: pgorm targets PostgreSQL 19 alone (sql.target+4). The notes above about building this behind cfg(feature = \"pg-19\"), doc(cfg(..)), a pg-19 capability entry and the rust-pg-19 platform no longer apply. It is ordinary surface now: a new item, or a variant of a #[non_exhaustive] enum. ConflictAction is still exhaustive, so its additivity point stands as a breaking-change question. Its live tests run in the one build against pgorm-test-19 (port 54319)."
+                    }
                 )
             }
 
@@ -13167,6 +13174,13 @@ children (
                         kind @note
                         text "Home under the pg-19 feature (sql.target, 2026-10-07). The typed home this note weighs — constructors for lag, lead, first_value, last_value and nth_value that carry a null treatment — is new items behind #[cfg(feature = \"pg-19\")], marked doc(cfg(feature = \"pg-19\")), and so additive by construction. The alternative is ruled out by more than the server's refusals now: a null-treatment field or variant added under cfg to FunctionCall or WindowFunction appears whenever any crate in the graph turns pg-19 on, and breaks a dependent's exhaustive match or struct literal. Python's expression and pipeline surfaces follow behind pgorm-python's own pg-19, their capability entries carrying \"features\": [\"pg-19\"]. Live tests are #[cfg(feature = \"pg-19\")] against pgorm-test-19; the rust-pg-19 check platform keeps them compiling. Still behind pg-query-19."
                     }
+
+                    {
+                        at 2026-11-23T18:27:29.505625Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "pg19-only (2026-11-23) removed the pg-19 feature: pgorm targets PostgreSQL 19 alone (sql.target+4). The notes above about a home under cfg(feature = \"pg-19\") no longer apply. This is ordinary surface in the one build, tested against pgorm-test-19 (port 54319)."
+                    }
                 )
             }
 
@@ -13180,6 +13194,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Filed by pg19-test-server's run on PostgreSQL 19.0 (2026-11-19). Checked live on 19.0 (pgorm-test-19, \"PostgreSQL 19.0 (Debian 19.0-1.pgdg12+1)\"): over the canary's seven rows ({\"k\": 1}, {\"k\": null}, {\"k\": 3}, {}, {\"k\": 5}, NULL, {\"k\": 7}), JSON_VALUE(doc, '$.k' RETURNING jsonb) and RETURNING json answer 1, NULL, 3, NULL, 5, NULL, 7, one answer per row, where 18.6 answers 1 and then NULL for every later row (bug #19695). The fix is upstream's \"Fix NULL result persistence in JSON_VALUE() RETURNING json/jsonb\", committed 2026-11-05 to master, REL_19_STABLE and REL_18_STABLE (the 18.7 release notes list it), so 19rc2, 19.0 and 18.7 carry it; RC1 did not (its run saw the bug). A second fix the same day, \"Fix ON EMPTY/ERROR result persistence in JSON_VALUE and related constructs\" (a NULL input could return the previous row's ON EMPTY / ON ERROR value), is in the same releases. The canary tests/sql_json_tests.rs json_value_returning_jsonb_after_a_null (renamed from json_value_returning_jsonb_sticks_at_null) now holds 18.6's sticking answer by default and 19's per-row answer under pg-19. What this node decides and builds: JsonValueType is #[non_exhaustive] (sql.surface), so Json and JsonBinary can come back as variants under pg-19 now, additively (sql.target), marked doc(cfg(feature = \"pg-19\")), with TryFrom<ColumnType> converting them under pg-19. For the default build the variants wait until the 18 server the suite runs on has the fix (pg18-point-release-18-7 on main moves it to 18.7), and even then 18's floor names no minor, so an 18.6 server would still answer wrongly; the operator chooses between leaving them pg-19-only and naming 18.7 as the floor. The bindings follow: pgorm-python's json/query.rs and pgorm-napi's statements/json.rs refuse a \"json\"/\"jsonb\" returning citing bug #19695 (pgorm-python/src/json/tests.rs and pgorm-napi/tests/json.test.ts assert the refusal), and the rule text in sql.ast.expr.sql-json, the rustdoc in pgorm-query/src/json_value_type.rs (its compile_fail example) and the canary all change with the variants."
+                    }
+
+                    {
+                        at 2026-11-23T18:27:29.741921Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "pg19-only (2026-11-23): 19 is now the floor and the only target, and pgorm-test-19 runs the official postgres:19.0-bookworm image, which carries the #19695 fix. tests/sql_json_tests.rs json_value_returning_jsonb_after_a_null now holds 19's per-row answer alone. sql.ast.expr.sql-json+3 and JsonValueType's rustdoc say the two variants were left out for 18's bug and \"can return\". Nothing gates restoring them now: no 18.7 floor question, and no feature."
                     }
                 )
             }
@@ -14465,9 +14486,6 @@ children (
                     {
                         id napi.guide-gaps.pg-19
                         title "pgorm-napi forwards pgorm's pg-19 feature and the module reports the PostgreSQL release its build targets, as pgorm's POSTGRES_TARGET and pgorm-python's forwarded feature and capabilities() do (guide 27-postgres-releases)"
-                        implements {
-                            javascript ([spec:pgorm:req:bindings.postgres-target])
-                        }
                         deps (guide.javascript napi-packaging)
                         log (
                             {
@@ -14482,6 +14500,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @decision
                                 text "Both bindings export the build's target as the shared constant POSTGRES_TARGET (bindings-surface.json modules.pgorm, rule bindings.postgres-target), read from pgorm_query::POSTGRES_TARGET, rather than JavaScript gaining a capabilities() manifest: Python keeps capabilities()[\"features\"] beside it. pgorm-napi carries pg-19 = [\"pgorm/pg-19\"], scripts/build.mjs passes --features through to cargo, and napi-native gains check-pg-19. sql.target bumped to +2 (both bindings forward; tests branch on POSTGRES_TARGET); tests/target_release_tests.rs CARRIERS includes pgorm-napi."
+                            }
+
+                            {
+                                at 2026-11-23T18:27:13.961576Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "pg19-only (2026-11-23) removed what this node delivered: pgorm targets PostgreSQL 19 alone, so the pg-19 feature, POSTGRES_TARGET and rule bindings.postgres-target are gone. Nothing outside tests and docs read the constant. The rule's implements claim was removed from this node with it."
                             }
                         )
                     }
@@ -21150,9 +21175,6 @@ children (
                     {
                         id guide.python-gaps.postgres-target
                         title "Python reports the PostgreSQL release a build targets as pgorm_query::POSTGRES_TARGET does, beside capabilities()[\"features\"] listing pg-19"
-                        implements {
-                            python ([spec:pgorm:req:bindings.postgres-target])
-                        }
                         deps (python.package)
                         log (
                             {
@@ -21160,6 +21182,13 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @note
                                 text "nplan_start refused this node: \"dep python.package is Todo\", though nplan_node shows python.package done (shipped 75171d85), and an nplan_sync did not change the answer. Worked in the pool-config lane's worktree (nplan/guide.python-gaps.pool-config) without a claim, per the lane brief."
+                            }
+
+                            {
+                                at 2026-11-23T18:27:14.255603Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "pg19-only (2026-11-23) removed what this node delivered: pgorm targets PostgreSQL 19 alone, so the pg-19 feature, POSTGRES_TARGET and rule bindings.postgres-target are gone. Nothing outside tests and docs read the constant. The rule's implements claim was removed from this node with it."
                             }
                         )
                     }

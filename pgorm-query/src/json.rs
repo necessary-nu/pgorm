@@ -42,7 +42,7 @@ pub use value_type::JsonValueType;
 /// [`ExprTrait::is_json`](crate::ExprTrait::is_json) — and converts into a
 /// [`SimpleExpr`]. The builders' fields are the crate's, so each variant holds
 /// only what its builder could set.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum SqlJson {
@@ -84,7 +84,7 @@ impl From<SqlJson> for SimpleExpr {
 /// `text` value then embeds as the JSON it spells rather than as a JSON
 /// string, and a `bytea` value is read as UTF-8 JSON — the only encoding
 /// PostgreSQL reads, so `ENCODING UTF8` is never written.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonInput {
     pub(crate) expr: SimpleExpr,
@@ -105,7 +105,7 @@ where
 
 /// Which JSON an `IS JSON` test accepts: any value, or only a scalar, an
 /// array or an object.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JsonKind {
     Value,
@@ -128,7 +128,7 @@ impl JsonKind {
 /// What an `IS JSON` predicate tests: a [`JsonKind`], and whether an object
 /// repeating a key fails it. A bare kind converts into the test that lets one
 /// through, PostgreSQL's default.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JsonTest {
     pub(crate) kind: JsonKind,

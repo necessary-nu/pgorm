@@ -64,7 +64,7 @@ pub async fn create_and_update(db: &DatabaseConnection) -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ddl.column-types+8/test]    each bit spelling creates the
+// [spec:pgorm:req:sql.ddl.column-types+9/test]    each bit spelling creates the
 // type `format_type` prints back, and the unlengthed one holds a bit string of
 // any length where SQL's bare `bit` holds one bit
 #[pgorm_macros::test]

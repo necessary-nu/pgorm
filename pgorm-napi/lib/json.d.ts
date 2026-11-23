@@ -142,7 +142,7 @@ export declare function jsonExists(
   options?: { readonly passing?: Passing; readonly onError?: JsonExistsBehavior },
 ): Expr;
 
-/** JSON_VALUE; it refuses to return `json` or `jsonb`, as PostgreSQL 18.6 mishandles them. */
+/** JSON_VALUE; it refuses to return `json` or `jsonb`, which were left out for PostgreSQL 18's bug #19695. */
 export declare function jsonValue(
   context: JsonOperand,
   path: string,

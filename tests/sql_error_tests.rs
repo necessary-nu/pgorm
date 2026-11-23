@@ -72,7 +72,7 @@ pub async fn test_error(db: &DatabaseConnection) {
     assert_eq!(invalid_error.sql_error(), None);
 }
 
-// [spec:pgorm:sem:error.model.sql-class+4/test]    23505 -> Unique, 23503 -> ForeignKey
+// [spec:pgorm:sem:error.model.sql-class+5/test]    23505 -> Unique, 23503 -> ForeignKey
 #[pgorm_macros::test]
 async fn sql_error_classification() {
     let ctx = TestContext::new("bakery_chain_sql_err_classification_tests").await;
@@ -259,7 +259,7 @@ async fn decode_refusal_names_the_column_and_reason() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:error.model.sql-class+4/test]    the payload is the server DbError's message and names
+// [spec:pgorm:sem:error.model.sql-class+5/test]    the payload is the server DbError's message and names
 #[pgorm_macros::test]
 async fn sql_error_payload_carries_server_message() {
     let ctx = TestContext::new("bakery_chain_sql_err_payload_tests").await;
@@ -336,7 +336,7 @@ async fn refusal(db: &DatabaseConnection, sql: &str) -> SqlError {
         .unwrap_or_else(|| panic!("a constraint violation, got {error:?}"))
 }
 
-// [spec:pgorm:sem:error.model.sql-class+4/test]    23514 and 23502, from a table and from a domain
+// [spec:pgorm:sem:error.model.sql-class+5/test]    23514 and 23502, from a table and from a domain
 #[pgorm_macros::test]
 async fn check_and_not_null_violations_carry_names() {
     let ctx = TestContext::new("sql_err_check_not_null_tests").await;
@@ -422,7 +422,7 @@ async fn check_and_not_null_violations_carry_names() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:error.model.sql-class+4/test]    23P01, from an EXCLUDE and a WITHOUT OVERLAPS key
+// [spec:pgorm:sem:error.model.sql-class+5/test]    23P01, from an EXCLUDE and a WITHOUT OVERLAPS key
 #[pgorm_macros::test]
 async fn exclusion_violations_carry_their_constraint() {
     let ctx = TestContext::new("sql_err_exclusion_tests").await;
@@ -476,7 +476,7 @@ async fn exclusion_violations_carry_their_constraint() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:error.model.sql-class+4/test]    every other error classifies as None
+// [spec:pgorm:sem:error.model.sql-class+5/test]    every other error classifies as None
 #[pgorm_macros::test]
 async fn sql_error_none_for_unclassified_errors() {
     let ctx = TestContext::new("bakery_chain_sql_err_none_tests").await;

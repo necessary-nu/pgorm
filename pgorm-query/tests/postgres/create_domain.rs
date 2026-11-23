@@ -55,7 +55,7 @@ fn quantity() -> ColumnType {
     }
 }
 
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a create names its domain and its base type and
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a create names its domain and its base type and
 // nothing else, the base spelled as a column's type is
 #[test]
 fn a_domain_needs_its_name_and_base() {
@@ -81,7 +81,7 @@ fn a_domain_needs_its_name_and_base() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.domain+3/test]    the clauses render in one order whatever order they
+// [spec:pgorm:req:sql.ddl.domain+4/test]    the clauses render in one order whatever order they
 // were given in — collation, default, nullability, then each check as added — and the
 // parser reads each as the constraint it is
 #[test]
@@ -114,7 +114,7 @@ fn a_create_renders_its_clauses_in_order() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a default and a nullability are one slot each, the
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a default and a nullability are one slot each, the
 // last call winning, so the two defaults and the NULL beside a NOT NULL PostgreSQL
 // refuses have no rendering
 #[test]
@@ -141,7 +141,7 @@ fn a_default_and_a_nullability_are_one_slot() {
     assert_eq!(sql, r#"CREATE DOMAIN "d" AS integer NOT NULL"#);
 }
 
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a create's default is an operand of the narrower
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a create's default is an operand of the narrower
 // expression the grammar reads there, an operator expression parenthesised and anything
 // else bare, while an alter's SET DEFAULT reads the full expression
 #[test]
@@ -181,7 +181,7 @@ fn a_create_default_is_always_an_operand() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.domain+3/test]    `Expr::domain_value` renders the keyword `VALUE`,
+// [spec:pgorm:req:sql.ddl.domain+4/test]    `Expr::domain_value` renders the keyword `VALUE`,
 // which the parser reads as the name a domain's check substitutes its value for
 #[test]
 fn domain_value_is_the_keyword() {
@@ -201,7 +201,7 @@ fn domain_value_is_the_keyword() {
     ));
 }
 
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a domain's name and every constraint name are quoted
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a domain's name and every constraint name are quoted
 // identifiers, their own quotes doubled and their case kept, wherever a statement writes
 // them
 #[test]
@@ -229,7 +229,7 @@ fn domain_names_are_quoted_identifiers() {
     assert_eq!(sql, r#"DROP DOMAIN "Qty ""x"".v2""#);
 }
 
-// [spec:pgorm:req:sql.ddl.domain+3/test]    each alter carries exactly one action, read back as
+// [spec:pgorm:req:sql.ddl.domain+4/test]    each alter carries exactly one action, read back as
 // the parser's subtype for it, a check's NOT VALID as its skipped validation and a
 // constraint drop's IF EXISTS and behavior as its own
 #[test]
@@ -344,7 +344,7 @@ fn an_alter_carries_one_action() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.domain+3/test]    a drop names one or more domains in order, with
+// [spec:pgorm:req:sql.ddl.domain+4/test]    a drop names one or more domains in order, with
 // IF EXISTS and a behavior, the last of cascade and restrict winning
 #[test]
 fn a_drop_names_domains_in_order() {
@@ -384,7 +384,7 @@ fn a_drop_names_domains_in_order() {
 // qualified by its schema, through the part policy every type name takes, alone, as an
 // array and as another domain's base; and two domain types are equal by name, schema
 // and base
-// [spec:pgorm:req:sql.ddl.column-types+8/test]
+// [spec:pgorm:req:sql.ddl.column-types+9/test]
 #[test]
 fn a_domain_column_renders_its_name() {
     let sql = Table::create(n("line"))

@@ -139,8 +139,8 @@ fn column_check(cx: &mut FunctionContext) -> NeonResult<Node> {
 }
 
 /// `ddlColumnGenerated(column, expression, kind)`: the kind is always named,
-/// PostgreSQL 17 refusing a generated column without one and 18 reading it as
-/// virtual.
+/// PostgreSQL 19 reading a generated column without one as virtual, where 17
+/// refused it.
 // [spec:pgorm:req:bindings.schema-tables]
 fn column_generated(cx: &mut FunctionContext) -> NeonResult<Node> {
     with(cx, |cx, column| {

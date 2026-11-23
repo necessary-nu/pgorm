@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-//! PostgreSQL's SQL/JSON against a live PostgreSQL 18 server.
+//! PostgreSQL's SQL/JSON against a live PostgreSQL 19 server.
 //!
 //! The render tests in pgorm-query hold each form to the parser's grammar.
 //! Only a server settles what a form returns: that a bound path selects what it
@@ -72,8 +72,8 @@ where
 /// A bound path selects what it names — including a key holding a quote,
 /// which an interpolated path would end — and a `PASSING` variable is the
 /// name as written, case and all.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the query functions over a live document
-// [spec:pgorm:req:sql.render.sql-json+1/test]    the path is bound, never part of the text
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the query functions over a live document
+// [spec:pgorm:req:sql.render.sql-json+2/test]    the path is bound, never part of the text
 #[pgorm_macros::test]
 async fn bound_paths_and_variables_select_what_they_name() -> Result<(), Error> {
     let ctx = TestContext::new("sql_json_bound_paths").await;
@@ -129,7 +129,7 @@ async fn bound_paths_and_variables_select_what_they_name() -> Result<(), Error> 
 
 /// Each behaviour answers as specified, and each function's default is what
 /// an absent clause gives.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the behaviours of the three query functions
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the behaviours of the three query functions
 #[pgorm_macros::test]
 async fn behaviours_answer_as_specified() -> Result<(), Error> {
     let ctx = TestContext::new("sql_json_behaviours").await;
@@ -260,7 +260,7 @@ async fn behaviours_answer_as_specified() -> Result<(), Error> {
 
 /// A `DEFAULT` is a literal even under the bound render — the server refuses
 /// a parameter there — and a hostile one stays a string.
-// [spec:pgorm:req:sql.render.sql-json+1/test]    the DEFAULT literal is escaped, and the server
+// [spec:pgorm:req:sql.render.sql-json+2/test]    the DEFAULT literal is escaped, and the server
 // accepts it where it refuses a parameter (42804)
 #[pgorm_macros::test]
 async fn a_default_is_a_literal_the_server_accepts() -> Result<(), Error> {
@@ -294,7 +294,7 @@ async fn a_default_is_a_literal_the_server_accepts() -> Result<(), Error> {
 
 /// A value builds the same JSON bound as inlined: a number is a number, a
 /// string a string, and a JSON document nests.
-// [spec:pgorm:req:sql.render.sql-json+1/test]    a value carries its own type in every SQL/JSON
+// [spec:pgorm:req:sql.render.sql-json+2/test]    a value carries its own type in every SQL/JSON
 // position, so both render paths build the same JSON
 #[pgorm_macros::test]
 async fn values_build_the_same_json_bound_and_inlined() -> Result<(), Error> {
@@ -347,7 +347,7 @@ async fn values_build_the_same_json_bound_and_inlined() -> Result<(), Error> {
 
 /// The constructors' clauses do what their names say, and the server refuses
 /// what the builder cannot see.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    ON NULL, UNIQUE KEYS, RETURNING and the
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    ON NULL, UNIQUE KEYS, RETURNING and the
 // query form, live
 #[pgorm_macros::test]
 async fn constructor_clauses_hold_live() -> Result<(), Error> {
@@ -419,20 +419,10 @@ async fn constructor_clauses_hold_live() -> Result<(), Error> {
     };
     let from_query: Json = both_paths(&db, series_array(3)).await?;
     assert_eq!(from_query, json!([3, 2, 1]));
-    // [spec:pgorm:req:sql.target+3/test]    a query of no rows: NULL on 18, the
-    // empty array on 19
+    // [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    a query of no rows is the
+    // empty array
     let from_no_rows: Option<Json> = both_paths(&db, series_array(0)).await?;
-    #[cfg(not(feature = "pg-19"))]
-    assert_eq!(
-        from_no_rows, None,
-        "PostgreSQL 18 answers a query of no rows with NULL, as JSON_ARRAYAGG does"
-    );
-    #[cfg(feature = "pg-19")]
-    assert_eq!(
-        from_no_rows,
-        Some(json!([])),
-        "PostgreSQL 19 answers a query of no rows with an empty array"
-    );
+    assert_eq!(from_no_rows, Some(json!([])));
 
     let parsed: Json = both_paths(&db, Func::json(r#"{"a": [1]}"#)).await?;
     assert_eq!(parsed, json!({"a": [1]}));
@@ -467,8 +457,8 @@ async fn constructor_clauses_hold_live() -> Result<(), Error> {
 
 /// `JSON_SERIALIZE` over a `jsonb` value writes the document, in both render
 /// paths, as it does over `json`, text and `bytea`, `FORMAT JSON` or not.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    JSON_SERIALIZE over every operand it takes
-// [spec:pgorm:req:sql.render.sql-json+1/test]    the operand read through JSON(..)
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    JSON_SERIALIZE over every operand it takes
+// [spec:pgorm:req:sql.render.sql-json+2/test]    the operand read through JSON(..)
 #[pgorm_macros::test]
 async fn json_serialize_writes_a_jsonb_document() -> Result<(), Error> {
     let ctx = TestContext::new("sql_json_serialize_jsonb").await;
@@ -526,11 +516,11 @@ async fn json_serialize_writes_a_jsonb_document() -> Result<(), Error> {
     Ok(())
 }
 
-/// PostgreSQL 18.6's own `JSON_SERIALIZE` over a `jsonb` operand returns bytes
+/// PostgreSQL's own `JSON_SERIALIZE` over a `jsonb` operand returns bytes
 /// of the binary header — `\x01`, a one-member object's member count — rather
 /// than the document. This is why the builder reads the operand through
 /// `JSON(..)`; when a release fixes it this fails, and the `JSON(..)` can go.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the 18.6 JSON_SERIALIZE defect the builder
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the JSON_SERIALIZE defect the builder
 // works around
 #[pgorm_macros::test]
 async fn bare_json_serialize_over_jsonb_is_broken() -> Result<(), Error> {
@@ -551,17 +541,12 @@ async fn bare_json_serialize_over_jsonb_is_broken() -> Result<(), Error> {
     Ok(())
 }
 
-/// PostgreSQL 18.6's `JSON_VALUE .. RETURNING jsonb` (and `json`) returns
+/// PostgreSQL 18's `JSON_VALUE .. RETURNING jsonb` (and `json`) returned
 /// `NULL` for every row after one whose answer was `NULL` (bug #19695), which
-/// is why [`JsonValueType`] has no JSON variant. 19.0 and 18.7 fix it, so under
-/// `pg-19` the two answer each row; the default build's 18.6 server still
-/// sticks, and when it moves to a release with the fix this fails, and the two
-/// variants can come back. `RETURNING integer`, which the type keeps, answers
-/// each row on both.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    JSON_VALUE's RETURNING leaves out the
-// types 18.6 returns wrongly
-// [spec:pgorm:req:sql.target+3/test]    18.6's sticking NULL by default, 19's
-// answer per row under pg-19
+/// is why [`JsonValueType`] has no JSON variant. 19.0 carries the fix, so each
+/// row is answered, as `RETURNING integer`, which the type keeps, answers it.
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    JSON_VALUE's RETURNING leaves out the
+// two types, which 19 answers per row
 #[pgorm_macros::test]
 async fn json_value_returning_jsonb_after_a_null() -> Result<(), Error> {
     let ctx = TestContext::new("sql_json_value_canary").await;
@@ -584,9 +569,6 @@ async fn json_value_returning_jsonb_after_a_null() -> Result<(), Error> {
         }
     };
     let every = |text: [Option<&str>; 7]| text.map(|t| t.map(str::to_owned)).to_vec();
-    #[cfg(not(feature = "pg-19"))]
-    let answers = every([Some("1"), None, None, None, None, None, None]);
-    #[cfg(feature = "pg-19")]
     let answers = every([Some("1"), None, Some("3"), None, Some("5"), None, Some("7")]);
     for ty in ["jsonb", "json"] {
         assert_eq!(
@@ -624,7 +606,7 @@ async fn json_value_returning_jsonb_after_a_null() -> Result<(), Error> {
 
 /// The aggregates order, filter and treat `NULL` as specified, answer `NULL`
 /// over no rows, and run as window functions.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    JSON_ARRAYAGG and JSON_OBJECTAGG, live
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    JSON_ARRAYAGG and JSON_OBJECTAGG, live
 // [spec:pgorm:def:sql.ast.window-statement+8/test]    a JSON aggregate under OVER
 #[pgorm_macros::test]
 async fn aggregates_order_filter_and_drop_nulls() -> Result<(), Error> {
@@ -704,7 +686,7 @@ async fn aggregates_order_filter_and_drop_nulls() -> Result<(), Error> {
 
 /// `IS JSON` tests each kind, and unique keys at any depth; `IS NOT JSON`
 /// negates it; a `NULL` operand is `NULL` either way.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    IS JSON over each kind, live
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    IS JSON over each kind, live
 #[pgorm_macros::test]
 async fn is_json_tests_each_kind() -> Result<(), Error> {
     let ctx = TestContext::new("sql_json_is_json").await;
@@ -761,9 +743,9 @@ async fn forced_plan(
 /// cast by an expression index on exactly that expression, which `JSON_VALUE`
 /// does not match. `JSON_VALUE` is served by an index on itself, with the
 /// path bound under a custom plan.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the index evidence behind keeping the
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the index evidence behind keeping the
 // operators
-// [spec:pgorm:req:sql.ast.expr.json+3/test]    the operators an index serves and SQL/JSON
+// [spec:pgorm:req:sql.ast.expr.json+4/test]    the operators an index serves and SQL/JSON
 // does not replace
 #[pgorm_macros::test]
 async fn an_index_serves_operators_not_sql_json() -> Result<(), Error> {
@@ -843,8 +825,8 @@ fn jsonb(document: Json) -> SimpleExpr {
 /// text and a boolean as `true`, where `JSON_VALUE` returns `NULL` for the one
 /// and `t` for the other; and a failed cast raises where `JSON_VALUE` follows
 /// `ON ERROR`.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2/test]    the semantic differences the rule records
-// [spec:pgorm:req:sql.ast.expr.json+3/test]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the semantic differences the rule records
+// [spec:pgorm:req:sql.ast.expr.json+4/test]
 #[pgorm_macros::test]
 async fn the_operators_and_sql_json_answer_differently() -> Result<(), Error> {
     let ctx = TestContext::new("sql_json_operator_semantics").await;

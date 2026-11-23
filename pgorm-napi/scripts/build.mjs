@@ -1,6 +1,6 @@
 // Build the addon and place it where lib/index.js loads it.
 //
-//   node scripts/build.mjs [--release] [--features pg-19]
+//   node scripts/build.mjs [--release]
 //
 // The crate is an rlib for the applications that link it, so the addon's
 // cdylib is asked of `cargo rustc`. Cargo names a cdylib for the platform
@@ -9,8 +9,7 @@
 // crate's `addon` profile, the release profile with whole-program LTO and the
 // symbol table stripped, which is what the platform packages ship. Builds go
 // to the repository's target directory, which the nplan checks share, unless
-// CARGO_TARGET_DIR says otherwise. `--features` passes the crate's features
-// on, `pg-19` the one there is, which targets PostgreSQL 19.
+// CARGO_TARGET_DIR says otherwise.
 // checks/package.js builds the platform packages' addon through
 // `buildLibrary`, and copies it nowhere in lib/.
 
@@ -25,10 +24,10 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 /**
  * Build the addon's cdylib and return the path Cargo wrote it to.
  *
- * @param {{ release?: boolean, features?: string[] }} [options]
+ * @param {{ release?: boolean }} [options]
  * @returns {string}
  */
-export function buildLibrary({ release = false, features = [] } = {}) {
+export function buildLibrary({ release = false } = {}) {
   const args = [
     "rustc",
     "--manifest-path",
@@ -40,7 +39,6 @@ export function buildLibrary({ release = false, features = [] } = {}) {
     "--message-format=json-render-diagnostics",
   ];
   if (release) args.push("--profile", "addon");
-  if (features.length > 0) args.push("--features", features.join(","));
   if (!process.env.CARGO_TARGET_DIR) {
     args.push("--target-dir", join(root, "..", "target"));
   }
@@ -72,9 +70,7 @@ export function buildLibrary({ release = false, features = [] } = {}) {
 }
 
 if (import.meta.url === new URL(process.argv[1] ?? "", "file:").href) {
-  const named = process.argv.indexOf("--features");
-  const features = named === -1 ? [] : (process.argv[named + 1] ?? "").split(",").filter(Boolean);
-  const library = buildLibrary({ release: process.argv.includes("--release"), features });
+  const library = buildLibrary({ release: process.argv.includes("--release") });
   // Replaced rather than overwritten: macOS kills a process that maps a signed
   // binary whose file changed in place, and a fresh inode sidesteps it.
   const destination = join(root, "lib", "pgorm_napi.node");

@@ -9,9 +9,8 @@
 //! than more macros inside it because the entity derives have no use for
 //! either the grammar check or the PRQL compiler.
 //!
-//! Both macros hold text to the release the build targets: PostgreSQL 18's
-//! grammar by default, which refuses what only 19 parses, and 19's under the
-//! `pg-19` feature, which pgorm's own `pg-19` turns on.
+//! Both macros hold text to PostgreSQL 19's grammar, the release pgorm
+//! targets.
 #![warn(missing_docs)]
 #![deny(
     clippy::expect_used,
@@ -38,11 +37,9 @@ use syn::{LitStr, parse_macro_input};
 ///
 /// The literal is parsed with PostgreSQL 19's grammar — pgsql-syntax, a Rust
 /// port of the server's own parser — while the crate that wrote it is
-/// compiled, and held to the release the build targets: without the `pg-19`
-/// feature, a construct only 19 parses (`REPACK`, `ON CONFLICT DO SELECT`,
-/// `IGNORE NULLS`) is refused by name. A literal the grammar accepts expands
-/// to itself, unchanged, as a `&'static str`; a literal the grammar rejects is
-/// a compile error on the literal carrying the parser's own message.
+/// compiled. A literal the grammar accepts expands to itself, unchanged, as a
+/// `&'static str`; a literal the grammar rejects is a compile error on the
+/// literal carrying the parser's own message.
 ///
 /// ```
 /// use pgorm_sql_macro::sql;
@@ -62,7 +59,7 @@ use syn::{LitStr, parse_macro_input};
 /// The check is syntax only. The parser carries no catalog, so a well-formed
 /// statement against tables and columns that do not exist passes happily — this
 /// rules out typos in SQL, not mistakes about the schema.
-// [spec:pgorm:def:macros.sql+7]
+// [spec:pgorm:def:macros.sql+8]
 // [spec:pgorm:req:macros.sql.reject+2]    non-literal input is `syn`'s own refusal
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
@@ -146,7 +143,7 @@ pub fn prql(input: TokenStream) -> TokenStream {
 /// expression, the name being the file stem and the text the file's with CRLF
 /// line endings read as LF, after holding that text to the grammar [`sql!`]
 /// uses. The path is resolved against `CARGO_MANIFEST_DIR`.
-// [spec:pgorm:def:macros.sql+7]    the hidden third macro
+// [spec:pgorm:def:macros.sql+8]    the hidden third macro
 // [spec:pgorm:def:migration.sql-file+1]
 // [spec:pgorm:req:migration.sql-file.const]
 #[doc(hidden)]

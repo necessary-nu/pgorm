@@ -58,7 +58,7 @@ use crate::{Asterisk, ColumnRef, IntoColumnRef, IntoName, Name, SimpleExpr};
 ///     .join(" ")
 /// );
 /// ```
-// [spec:pgorm:def:sql.ast.returning+3]
+// [spec:pgorm:def:sql.ast.returning+4]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReturningClause {
     pub(crate) old: Option<Name>,
@@ -67,7 +67,7 @@ pub struct ReturningClause {
 }
 
 /// What a RETURNING list returns.
-// [spec:pgorm:def:sql.ast.returning+3]
+// [spec:pgorm:def:sql.ast.returning+4]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum ReturningItems {
     All,
@@ -123,14 +123,14 @@ impl ReturningClause {
 ///
 /// Paired with a column, or with [`Asterisk`], it converts into a
 /// [`ColumnRef`] that renders the relation's keyword bare: `old."col"`,
-/// `new.*`. PostgreSQL 18 resolves these names in a RETURNING list only.
+/// `new.*`. PostgreSQL resolves these names in a RETURNING list only.
 /// Elsewhere, such as a `SET` value or a `WHERE` condition, `old` names no
 /// relation (`42P01`).
 ///
 /// A version the statement did not produce reads as NULL in every column.
 /// A plain `INSERT` has no old row, and neither does a row that `ON CONFLICT
 /// DO UPDATE` inserted rather than updated. A `DELETE` has no new row.
-// [spec:pgorm:def:sql.ast.returning+3]
+// [spec:pgorm:def:sql.ast.returning+4]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReturningRow {
     /// `old`: the row before the write.
@@ -151,7 +151,7 @@ impl ReturningRow {
     }
 }
 
-// [spec:pgorm:def:sql.ast.returning+3]
+// [spec:pgorm:def:sql.ast.returning+4]
 impl<T: 'static> IntoColumnRef for (ReturningRow, T)
 where
     T: IntoName,
@@ -161,7 +161,7 @@ where
     }
 }
 
-// [spec:pgorm:def:sql.ast.returning+3]
+// [spec:pgorm:def:sql.ast.returning+4]
 impl IntoColumnRef for (ReturningRow, Asterisk) {
     fn into_column_ref(self) -> ColumnRef {
         ColumnRef::RowAsterisk(self.0)
@@ -169,7 +169,7 @@ impl IntoColumnRef for (ReturningRow, Asterisk) {
 }
 
 /// Shorthand for constructing [`ReturningClause`]
-// [spec:pgorm:def:sql.ast.returning+3]
+// [spec:pgorm:def:sql.ast.returning+4]
 #[derive(Clone, Debug, Default)]
 pub struct Returning;
 

@@ -13,7 +13,7 @@ use crate::{
 /// What `JSON_TABLE` produces when its root path fails: `ON ERROR`, after
 /// the column list. Without a behaviour it produces no rows, as `Empty`
 /// says; PostgreSQL takes no other (`42601`).
-// [spec:pgorm:def:sql.ast.json-table+2]
+// [spec:pgorm:def:sql.ast.json-table+3]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum JsonTableBehavior {
@@ -28,7 +28,7 @@ pub enum JsonTableBehavior {
 /// [`Func::json_table`](crate::Func::json_table), which takes the first
 /// column so the list is never empty (`COLUMNS ()` is `42601`), and placed in
 /// a FROM list by [`alias`](Self::alias).
-// [spec:pgorm:def:sql.ast.json-table+2]
+// [spec:pgorm:def:sql.ast.json-table+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonTable {
     pub(crate) target: JsonPathTarget,
@@ -90,7 +90,7 @@ impl JsonTable {
 
 /// One column of a [`JsonTable`]: an ordinal, a value, a JSON fragment, an
 /// existence test, or a nested path with columns of its own.
-// [spec:pgorm:def:sql.ast.json-table+2]
+// [spec:pgorm:def:sql.ast.json-table+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonTableColumn(pub(crate) ColumnKind);
 
@@ -176,7 +176,7 @@ impl JsonTableColumn {
 
 /// A scalar column of a [`JsonTable`]. Built by
 /// [`JsonTableColumn::value`].
-// [spec:pgorm:def:sql.ast.json-table+2]
+// [spec:pgorm:def:sql.ast.json-table+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonValueColumn {
     pub(crate) name: Name,
@@ -218,7 +218,7 @@ impl From<JsonValueColumn> for JsonTableColumn {
 }
 
 /// A JSON column of a [`JsonTable`]. Built by [`JsonTableColumn::query`].
-// [spec:pgorm:def:sql.ast.json-table+2]
+// [spec:pgorm:def:sql.ast.json-table+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonQueryColumn {
     pub(crate) name: Name,
@@ -282,7 +282,7 @@ impl From<JsonQueryColumn> for JsonTableColumn {
 
 /// An existence column of a [`JsonTable`]. Built by
 /// [`JsonTableColumn::exists`].
-// [spec:pgorm:def:sql.ast.json-table+2]
+// [spec:pgorm:def:sql.ast.json-table+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonExistsColumn {
     pub(crate) name: Name,
@@ -317,7 +317,7 @@ impl From<JsonExistsColumn> for JsonTableColumn {
 
 /// A `NESTED PATH` of a [`JsonTable`], with its own columns. Built by
 /// [`JsonTableColumn::nested`].
-// [spec:pgorm:def:sql.ast.json-table+2]
+// [spec:pgorm:def:sql.ast.json-table+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonNestedColumns {
     pub(crate) path: String,

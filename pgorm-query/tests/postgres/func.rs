@@ -259,7 +259,7 @@ fn a_uuidv7_call_is_a_column_default() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+6/test]    every expression type
+// [spec:pgorm:req:sql.ast.expr.operators+7/test]    every expression type
 // has the operator vocabulary: a function call, a CASE, a GROUPING(..) and an
 // SQL/JSON builder compare and cast as they stand, and what an aggregate or a
 // cast returns is compared in turn

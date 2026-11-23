@@ -9,7 +9,7 @@
 //! and `limit` / `offset` counting rows rather than roots.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54329" cargo test --test graph_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo test --test graph_tests`
 
 #![allow(unused_imports, dead_code)]
 

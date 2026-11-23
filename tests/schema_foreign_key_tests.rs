@@ -11,7 +11,7 @@
 //! over an array of an enum with itself.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54329" cargo nextest run --test schema_foreign_key_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test schema_foreign_key_tests`
 
 pub mod common;
 pub use common::TestContext;

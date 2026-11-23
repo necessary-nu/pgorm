@@ -57,11 +57,11 @@ pub(crate) use window_clause::NamedWindow;
 pub use with::*;
 
 /// Shorthand for constructing any table query
-// [spec:pgorm:req:sql.ast+4]
+// [spec:pgorm:req:sql.ast+5]
 #[derive(Debug, Clone)]
 pub struct Query;
 
-// [spec:pgorm:req:sql.ast+4]
+// [spec:pgorm:req:sql.ast+5]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum SubQueryStatement {
@@ -75,7 +75,7 @@ pub enum SubQueryStatement {
 /// The wrapped statement's own rendering, its values inlined as each
 /// statement's `Display` writes them, so a dependent renders one without
 /// matching an enum it cannot match exhaustively.
-// [spec:pgorm:req:sql.ast+4]
+// [spec:pgorm:req:sql.ast+5]
 impl std::fmt::Display for SubQueryStatement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut sql = String::with_capacity(256);

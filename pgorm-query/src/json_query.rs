@@ -10,7 +10,7 @@ use crate::{ColumnType, IntoName, SimpleExpr, SqlJson, Value};
 /// A path that merely finds nothing is not an error — the answer is then
 /// `false` — so `JSON_EXISTS` has no `ON EMPTY`. Without a behaviour the
 /// server answers `false`.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum JsonExistsBehavior {
@@ -25,7 +25,7 @@ pub enum JsonExistsBehavior {
 /// fails (`ON ERROR`) — including when what it finds is not one scalar, or
 /// does not convert to the `RETURNING` type. Without a behaviour the server
 /// returns `NULL` in both cases.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum JsonValueBehavior {
@@ -43,7 +43,7 @@ pub enum JsonValueBehavior {
 /// What `JSON_QUERY` returns when its path finds nothing (`ON EMPTY`) or
 /// fails (`ON ERROR`): [`JsonValueBehavior`]'s three, or an empty array or
 /// object. Without a behaviour the server returns `NULL` in both cases.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum JsonQueryBehavior {
@@ -58,7 +58,7 @@ pub enum JsonQueryBehavior {
 
 /// `JSON_EXISTS(context, path ..)`: whether `path` finds anything in the
 /// context item. Built by [`Func::json_exists`](crate::Func::json_exists).
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonExists {
     pub(crate) target: JsonPathTarget,
@@ -97,7 +97,7 @@ impl From<JsonExists> for SimpleExpr {
 
 /// `JSON_VALUE(context, path ..)`: the one SQL scalar `path` finds. Built by
 /// [`Func::json_value`](crate::Func::json_value).
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonValue {
     pub(crate) target: JsonPathTarget,
@@ -120,7 +120,7 @@ impl JsonValue {
     /// Return the scalar as this type rather than as `text`. A scalar that
     /// does not convert is an error, so [`on_error`](Self::on_error) decides
     /// what it becomes. The type is never `json` or `jsonb`, which
-    /// PostgreSQL 18.6 returns wrongly ([`JsonValueType`]).
+    /// PostgreSQL 18 returned wrongly ([`JsonValueType`]).
     pub fn returning(mut self, ty: JsonValueType) -> Self {
         self.returning = Some(ty.into());
         self
@@ -150,7 +150,7 @@ impl From<JsonValue> for SimpleExpr {
 /// `JSON_QUERY(context, path ..)`: the JSON `path` finds, as `jsonb` unless
 /// another type is asked for. Built by
 /// [`Func::json_query`](crate::Func::json_query).
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonQuery {
     pub(crate) target: JsonPathTarget,

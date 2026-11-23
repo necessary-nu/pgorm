@@ -64,7 +64,7 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Query identity
 
-> [spec:pgorm:req:metric.fingerprint+4]
+> [spec:pgorm:req:metric.fingerprint+5]
 > `QueryContext` is what a query hook is told about the statement it reports
 > on: `operation()` — one of the seven `ConnectionTrait` method names,
 > `"copy_in"` / `"copy_out"` for a COPY (`metric.layer.copy`), or `"begin"` /
@@ -83,8 +83,8 @@ chooses to construct, so unused metrics cost nothing.
 > The fingerprint MUST follow PostgreSQL 19's query-ID rules, pgsql-syntax's
 > default, so that it groups statements the way the server's own query IDs
 > do: a schema qualifier is not part of a relation's identity, and an aliased
-> relation is identified by its alias rather than its name, as in 18. It is
-> computed over 19's tree in either build target, so a fingerprint is stable
+> relation is identified by its alias rather than its name. It is computed
+> over 19's tree, so a fingerprint is stable
 > across a parser upgrade only where the tree a statement parses to did not
 > change: with pgsql-syntax, the fingerprints of every statement with `ON
 > CONFLICT` (whose clause records a lock strength), of `FETCH` and `MOVE`

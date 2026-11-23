@@ -23,7 +23,7 @@ fn both() -> SimpleExpr {
     SimpleExpr::from(Expr::val(true)).and(Expr::val(false).into())
 }
 
-// [spec:pgorm:req:sql.ddl.column-def+13/test]    against a live server: an operator expression
+// [spec:pgorm:req:sql.ddl.column-def+14/test]    against a live server: an operator expression
 // is a column's DEFAULT in CREATE TABLE and ADD COLUMN, and SET DEFAULT takes one bare
 #[pgorm_macros::test]
 async fn operator_defaults_reach_the_server() -> Result<(), Error> {
@@ -89,7 +89,7 @@ fn state(error: &Error) -> Option<String> {
 /// text, and the column holds the new type with no default. A generated
 /// column takes no `USING` (`42611`), and dropping a default a column lacks
 /// changes nothing.
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    against a live server: ALTER COLUMN .. TYPE
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    against a live server: ALTER COLUMN .. TYPE
 // .. USING converts each row, refused where a default or a generated column stands in its way,
 // and DROP DEFAULT clears the way
 #[pgorm_macros::test]
@@ -185,7 +185,7 @@ fn next_name() -> pgorm::pgorm_query::TypeName {
 /// `USING` expression and the column holding the collation named; a
 /// collation on a type that takes none is refused (`42804`), and so is one the
 /// server does not have (`42704`).
-// [spec:pgorm:req:sql.ddl.alter-table+15/test]    against a live server: ALTER COLUMN .. TYPE
+// [spec:pgorm:req:sql.ddl.alter-table+16/test]    against a live server: ALTER COLUMN .. TYPE
 // .. COLLATE .. USING converts each row and gives the column the collation, refused on a type
 // without one and for a collation the server lacks
 #[pgorm_macros::test]

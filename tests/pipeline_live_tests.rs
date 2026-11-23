@@ -10,7 +10,7 @@
 //! decoded rows.
 //!
 //! Run the test locally:
-//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329 cargo test --test pipeline_live_tests
+//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test pipeline_live_tests
 
 pub mod common;
 

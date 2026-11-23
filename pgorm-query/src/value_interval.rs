@@ -88,7 +88,7 @@ impl Interval {
 /// passes through a fraction the server would have to round. The infinite
 /// triples have to be spelled as words: the server's input refuses to compute
 /// an infinity from finite fields.
-// [spec:pgorm:sem:sql.value.interval-text+1]
+// [spec:pgorm:sem:sql.value.interval-text+2]
 impl fmt::Display for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_infinity() {
@@ -251,7 +251,7 @@ mod tests {
         assert!(is_interval(&domain));
     }
 
-    // [spec:pgorm:sem:sql.value.interval-text+1/test]
+    // [spec:pgorm:sem:sql.value.interval-text+2/test]
     #[test]
     fn text_signs_every_nonzero_field() {
         let text =

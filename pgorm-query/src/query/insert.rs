@@ -123,7 +123,7 @@ impl InsertStatement {
     ///
     /// Without it, a value written into a `GENERATED ALWAYS AS IDENTITY`
     /// column is an error rather than an override
-    /// (`[spec:pgorm:req:sql.ddl.column-def+13]`), which is the point of
+    /// (`[spec:pgorm:req:sql.ddl.column-def+14]`), which is the point of
     /// declaring the column that way. `SystemValue` is the statement-scoped
     /// exemption PostgreSQL provides for the cases where a key is data being
     /// restored rather than a key being minted; `UserValue` is its inverse,

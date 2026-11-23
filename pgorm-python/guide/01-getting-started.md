@@ -40,10 +40,9 @@ Free-threaded Python and subinterpreters are not supported. The build needs a
 Rust toolchain, but a Python program that imports the package does not.
 
 The wheel holds the whole of pgorm compiled in, with no optional parts to
-choose. `pgorm.capabilities()` reports what the installed build has: its
-version, the PostgreSQL release it targets, and the operations it offers.
-[PostgreSQL 18 and 19](26-postgres-releases.md) covers the one build option,
-the `pg-19` feature, and [Packaging and distribution](28-distribution.md)
+choose, and targets PostgreSQL 19 ([PostgreSQL 19](26-postgres-releases.md)).
+`pgorm.capabilities()` reports what the installed build has: its version and
+the operations it offers. [Packaging and distribution](28-distribution.md)
 covers source distributions and the platforms a wheel is built for.
 
 ```python

@@ -7,14 +7,13 @@ use std::sync::Arc;
 /// scalar as: [`ColumnType`]'s vocabulary without `Json` and `JsonBinary`,
 /// each variant converting into the [`ColumnType`] of the same name.
 ///
-/// `json` and `jsonb` are left out because PostgreSQL 18.6 returns them
+/// `json` and `jsonb` were left out because PostgreSQL 18 returned them
 /// wrongly. Once one evaluation of a `JSON_VALUE .. RETURNING json` or
-/// `RETURNING jsonb` is `NULL` — a JSON `null`, a path that finds nothing or
+/// `RETURNING jsonb` was `NULL` — a JSON `null`, a path that finds nothing or
 /// fails, a `NULL` context item — every later evaluation of that expression
-/// in the statement is `NULL` too (PostgreSQL bug #19695): the executor
-/// leaves its result flagged null and skips the conversion. Every other type
-/// is converted by a step that resets the flag. PostgreSQL 18.7 and 19.0
-/// carry the fix. To read JSON out of a
+/// in the statement was `NULL` too (PostgreSQL bug #19695): the executor
+/// left its result flagged null and skipped the conversion. PostgreSQL 19.0
+/// carries the fix, as 18.7 does. To read JSON out of a
 /// document, [`Func::json_query`](crate::Func::json_query) returns what the
 /// path finds, and differs from such a `JSON_VALUE` only in returning a JSON
 /// `null` as itself and an object or array rather than failing.
@@ -45,7 +44,7 @@ use std::sync::Arc;
 ///
 /// [`Named`](Self::Named) is a catalogue name the crate does not interpret,
 /// so `json` or `jsonb` spelled that way is not refused and meets the defect.
-// [spec:pgorm:def:sql.ast.expr.sql-json+2]
+// [spec:pgorm:def:sql.ast.expr.sql-json+3]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum JsonValueType {

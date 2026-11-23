@@ -132,8 +132,8 @@ impl PyColumnDef {
         }))
     }
 
-    /// The kind is always named: PostgreSQL 17 refuses a generated column
-    /// without one, and 18 reads it as virtual.
+    /// The kind is always named: PostgreSQL 19 reads a generated column
+    /// without one as virtual, where 17 refused it.
     // [spec:pgorm:req:bindings.schema-tables]
     fn generated(&self, expression: &Bound<'_, PyAny>, kind: &str) -> PyResult<Self> {
         let kind = pick(

@@ -256,7 +256,7 @@ fn every_example_runs_and_asserts() {
 const CHAPTER_NAMES: &[(&str, &[&str])] = &[
     (
         "getting-started",
-        &["connect", "DatabasePool", "DatabaseConnection", "pg-19"],
+        &["connect", "DatabasePool", "DatabaseConnection"],
     ),
     (
         "entities",
@@ -356,7 +356,7 @@ const CHAPTER_NAMES: &[(&str, &[&str])] = &[
     ("metrics", &["InstrumentedPool", "MetricsCollector"]),
     ("migrations", &["MigratorTrait", "MigrationTrait"]),
     ("codegen", &["entities_from_sql"]),
-    ("postgres-releases", &["pg-19", "POSTGRES_TARGET"]),
+    ("postgres-releases", &["PostgreSQL 19", "check_sql"]),
     ("bindings", &["Python", "JavaScript"]),
 ];
 
@@ -376,7 +376,7 @@ fn braced_names(source: &str, opening: &str) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:req:guide.rust/test]    every derive, every connection method and each chapter's features are named
+// [spec:pgorm:req:guide.rust+1/test]    every derive, every connection method and each chapter's features are named
 #[test]
 fn guide_names_every_feature() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
