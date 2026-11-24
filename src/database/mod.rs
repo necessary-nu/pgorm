@@ -6,6 +6,8 @@ mod db_connection;
 mod lifecycle;
 mod listen;
 mod transaction;
+#[cfg(feature = "turso")]
+mod value_sql;
 
 pub use connection::*;
 pub use copy::{CopyInSink, CopyOutStream, CopyTrait};
@@ -15,6 +17,8 @@ pub use db_connection::*;
 pub use listen::{Listener, Notifications, connect_listener, notify};
 pub use transaction::{TransactionError, TransactionTrait};
 pub(crate) use transaction::{drive, rolled_back, sealed};
+#[cfg(feature = "turso")]
+pub(crate) use value_sql::ValueSql;
 
 /// What a [`Notifications`] stream yields: the channel, the payload, and the
 /// process id of the session that sent it.

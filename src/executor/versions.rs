@@ -108,6 +108,8 @@ async fn rows_of<C: ConnectionTrait>(
     db: &C,
 ) -> Result<Vec<QueryResult>, Error> {
     let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+    #[cfg(feature = "turso")]
+    let sql = &crate::database::ValueSql::new(sql, &values);
     let values = values
         .iter()
         .map(|x| x as _)

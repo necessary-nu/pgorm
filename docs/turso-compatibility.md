@@ -78,3 +78,33 @@ identity mismatch. Before a fresh prepare in autocommit mode, the driver
 synchronizes differing local/shared schema handles with a native `SELECT 1`.
 This uses the ordinary worker cancellation and cleanup path, runs only for
 that schema mismatch, and does not add a query or reparse on cache hits.
+
+## Parameters and execution
+
+Native parameters require explicit types through `prepare_typed` or the typed
+driver query methods. Raw SQL with arbitrary `dyn ToSql` parameters cannot use
+PostgreSQL's context inference. ORM-built queries retain supported `Value`
+variants until native preparation, including typed nulls, and use the existing
+connection-local cache keyed by SQL and ordered parameter types. PostgreSQL
+does not resolve these hints or allocate their type vector.
+
+ORM integer hints are INT2 for TinyInt/SmallInt, INT4 for Int, and INT8 for
+BigInt/Unsigned/BigUnsigned. Values outside the selected representation still
+fail the ordinary checked codec; a u64 above i64::MAX is refused. String/Char
+use TEXT, Bytes uses BYTEA, and Float/Double retain FLOAT4/FLOAT8 parameter
+types. Unsupported variants fail with the parameter position before execution.
+
+Prepared calls accept one command. `batch_execute` runs a trusted script and
+stops at failure; outside an explicit transaction, preceding completed
+statements may remain committed. It does not provide PostgreSQL's implicit
+script transaction. At the pinned revision, an empty script succeeds but a
+comment-only nonempty script produces the native syntax error, SQLSTATE 42601.
+`execute` reports completed command counts, including the returned row count
+for SELECT.
+
+The pool cache discards a known-invalid native handle before using it again.
+An invalidation delivered while polling a stream marks the shared statement,
+so its next cache lookup prepares afresh. The failed operation is not replayed
+automatically. Native SQLSTATE 0A000 is a server refusal, not evidence that
+PostgreSQL's cached-plan retry is safe. A conversion or cardinality error after
+stepping likewise does not prove that a write had no effects.

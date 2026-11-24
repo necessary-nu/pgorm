@@ -28,7 +28,7 @@ async fn prepared_count(db: &DatabaseConnection, sql: &str) -> Result<i64, Error
 }
 
 // [spec:pgorm:sem:conn.pool.statement-cache+4/test]    one Parse per connection, not per call
-// [spec:pgorm:def:conn.pool.conn-trait+10/test]    the text-carrying statement routes through the cache
+// [spec:pgorm:def:conn.pool.conn-trait+11/test]    the text-carrying statement routes through the cache
 #[pgorm_macros::test]
 async fn repeated_queries_reuse_one_prepared_statement() -> Result<(), Error> {
     let ctx = TestContext::new("reuse_one_prepared_stmtcache").await;
@@ -53,7 +53,7 @@ async fn repeated_queries_reuse_one_prepared_statement() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4/test]    autocommit: DDL that changes the result type is retried
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]    autocommit: DDL that changes the result type is retried
 #[pgorm_macros::test]
 async fn added_column_reprepares_the_cached_plan() -> Result<(), Error> {
     let ctx = TestContext::new("added_column_reprepares_stmtcache").await;
@@ -90,7 +90,7 @@ async fn added_column_reprepares_the_cached_plan() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4/test]    exactly one retry, then the error
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]    exactly one retry, then the error
 #[pgorm_macros::test]
 async fn a_second_stale_plan_error_surfaces() -> Result<(), Error> {
     let ctx = TestContext::new("second_stale_plan_stmtcache").await;
@@ -133,7 +133,7 @@ async fn a_second_stale_plan_error_surfaces() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+10/test]    a transaction routes through its connection's cache
+// [spec:pgorm:def:conn.pool.conn-trait+11/test]    a transaction routes through its connection's cache
 #[pgorm_macros::test]
 async fn transaction_shares_the_connection_cache() -> Result<(), Error> {
     let ctx = TestContext::new("txn_shares_cache_stmtcache").await;
@@ -162,7 +162,7 @@ async fn transaction_shares_the_connection_cache() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4/test]    ROLLBACK does not discard a Parse
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]    ROLLBACK does not discard a Parse
 #[pgorm_macros::test]
 async fn rolled_back_transaction_keeps_its_statements() -> Result<(), Error> {
     let ctx = TestContext::new("rolled_back_keeps_stmtcache").await;
@@ -192,7 +192,7 @@ async fn rolled_back_transaction_keeps_its_statements() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+10/test]    the simple-query path prepares nothing
+// [spec:pgorm:def:conn.pool.conn-trait+11/test]    the simple-query path prepares nothing
 #[pgorm_macros::test]
 async fn batch_execute_prepares_nothing() -> Result<(), Error> {
     let ctx = TestContext::new("batch_prepares_nothing_stmtcache").await;
@@ -224,7 +224,7 @@ fn sqlstate<T: std::fmt::Debug>(result: Result<T, Error>) -> SqlState {
     }
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4/test]    in a transaction: the original error, not the retry's
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]    in a transaction: the original error, not the retry's
 #[pgorm_macros::test]
 async fn a_tx_stale_plan_surfaces_the_original_error() -> Result<(), Error> {
     let ctx = TestContext::new("tx_stale_plan_stmtcache").await;
@@ -271,7 +271,7 @@ async fn a_tx_stale_plan_surfaces_the_original_error() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4/test]    a nested transaction fences the rejection
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]    a nested transaction fences the rejection
 #[pgorm_macros::test]
 async fn nested_tx_stale_plan_leaves_the_outer_alive() -> Result<(), Error> {
     let ctx = TestContext::new("nested_stale_plan_stmtcache").await;
@@ -324,7 +324,7 @@ async fn nested_tx_stale_plan_leaves_the_outer_alive() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4/test]    the iterator-parameter methods, in a transaction
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]    the iterator-parameter methods, in a transaction
 #[pgorm_macros::test]
 async fn iterator_path_stale_plan_inside_a_transaction() -> Result<(), Error> {
     let ctx = TestContext::new("tx_stale_iter_stmtcache").await;
@@ -367,7 +367,7 @@ async fn iterator_path_stale_plan_inside_a_transaction() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4/test]    autocommit control: the iterator path recovers one call later
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]    autocommit control: the iterator path recovers one call later
 #[pgorm_macros::test]
 async fn iterator_path_stale_plan_recovers_next_call() -> Result<(), Error> {
     let ctx = TestContext::new("iter_stale_next_call_stmtcache").await;

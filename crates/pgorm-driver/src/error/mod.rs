@@ -513,8 +513,13 @@ impl Error {
         Error::new(Kind::Encode, Some(Box::new(e)))
     }
 
+    /// Creates a parameter-encoding refusal, retaining its original cause.
+    ///
+    /// `idx` is zero-based. Callers can use this when a parameter's type is
+    /// unavailable before invoking ToSql, preserving ordinary bind-error handling.
+    // [spec:pgorm:req:turso.parameters]
     #[allow(clippy::wrong_self_convention)]
-    pub(crate) fn to_sql(e: Box<dyn error::Error + Sync + Send>, idx: usize) -> Error {
+    pub fn to_sql(e: Box<dyn error::Error + Sync + Send>, idx: usize) -> Error {
         Error::new(Kind::ToSql(idx), Some(e))
     }
 

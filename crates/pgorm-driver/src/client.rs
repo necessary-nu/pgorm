@@ -245,6 +245,9 @@ impl Client {
     ///
     /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
     /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
+    ///
+    /// Experimental native Turso requires an explicit type for every parameter;
+    /// its compiler does not provide PostgreSQL parameter inference.
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -574,7 +577,8 @@ impl Client {
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
     ///
-    /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    /// The count follows the command result: `SELECT` reports the number of
+    /// returned rows, while commands without a row count report zero.
     pub async fn execute<T>(
         &self,
         statement: &T,
@@ -595,7 +599,8 @@ impl Client {
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
     ///
-    /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    /// The count follows the command result: `SELECT` reports the number of
+    /// returned rows, while commands without a row count report zero.
     pub async fn execute_typed(
         &self,
         statement: &str,

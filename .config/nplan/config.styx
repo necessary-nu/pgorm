@@ -337,19 +337,28 @@ platforms (
     }
     {
         platform "rust-turso"
-        files (Cargo.toml Cargo.lock crates/pgorm-driver/Cargo.toml crates/pgorm-driver/src/**/*.rs crates/pgorm-driver/tests/native*.rs pgorm-pool/Cargo.toml pgorm-bindings/Cargo.toml pgorm-python/Cargo.toml pgorm-napi/Cargo.toml tests/turso_feature_tests.rs)
+        files (Cargo.toml Cargo.lock crates/pgorm-driver/Cargo.toml crates/pgorm-driver/src/**/*.rs crates/pgorm-driver/tests/native*.rs src/**/*.rs pgorm-pool/Cargo.toml pgorm-pool/src/**/*.rs pgorm-bindings/Cargo.toml pgorm-python/Cargo.toml pgorm-napi/Cargo.toml tests/turso*.rs)
         checks {
             minimal {
                 cmd "cargo check -p pgorm-driver --lib --no-default-features --features turso"
             }
+            orm-minimal {
+                cmd "cargo check -p pgorm --lib --no-default-features --features turso"
+            }
             clippy {
                 cmd "cargo clippy -p pgorm-driver --features turso --lib --tests -- -D warnings"
+            }
+            orm-clippy {
+                cmd "cargo clippy -p pgorm --features turso --lib --test turso_execution_tests -- -D warnings"
             }
             lifecycle {
                 cmd "cargo test -p pgorm-driver --features turso --lib --tests"
             }
             features {
                 cmd "cargo test -p pgorm --test turso_feature_tests"
+            }
+            execution {
+                cmd "cargo test -p pgorm --features turso --test turso_execution_tests"
             }
         }
     }

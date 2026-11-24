@@ -20,6 +20,7 @@ pub(super) struct Entry {
     // Retain the exact compiled program described to the public Statement.
     // Keeping the Arc also prevents pointer reuse from hiding a reprepare.
     described_program: Arc<turso_core::PreparedProgram>,
+    described_schema_version: u32,
 }
 
 impl Entry {
@@ -34,7 +35,14 @@ impl Entry {
         // Another connection can publish a newer schema while this worker is
         // idle. Respect the native transaction snapshot when refreshing it.
         connection.inner().maybe_update_schema();
+        // Same-connection DDL can advance the cookie without bumping the
+        // prepare-context generation. Catch it before a write can reach the
+        // engine's SchemaUpdated/reprepare path inside step.
+        let schema_version = connection
+            .inner()
+            .with_schema(turso_core::MAIN_DB_ID, |schema| schema.schema_version);
         if !self.metadata_is_current()
+            || self.described_schema_version != schema_version
             || !self
                 .described_program
                 .is_compatible_with(connection.inner())
@@ -70,6 +78,8 @@ pub(super) struct Store {
     next_id: u64,
 }
 impl Store {
+    // [spec:pgorm:req:turso.parameters] explicit native types are established before client codecs run
+    // [spec:pgorm:sem:turso.execution] native parsing enforces one command and retained handles avoid reparsing
     pub(super) fn prepare(
         &mut self,
         connection: &PgConnection,
@@ -95,6 +105,9 @@ impl Store {
         let parameter_codecs = codecs::parameter_codecs(&types)?;
         let (columns, result_codecs) = describe::describe_columns(&statement, &types)?;
         let described_program = Arc::clone(statement.get_program().prepared());
+        let described_schema_version = connection
+            .inner()
+            .with_schema(turso_core::MAIN_DB_ID, |schema| schema.schema_version);
         let id = self.next_id.checked_add(1).ok_or_else(|| {
             Error::turso_worker(std::io::Error::other("native statement ID space exhausted"))
         })?;
@@ -105,6 +118,7 @@ impl Store {
                 statement,
                 result_codecs,
                 described_program,
+                described_schema_version,
             },
         );
         Ok((
@@ -121,6 +135,7 @@ impl Store {
         ))
     }
 
+    // [spec:pgorm:sem:turso.execution] reject stale context before binding or stepping a cached handle
     pub(super) fn get(&mut self, id: u64, connection: &PgConnection) -> Result<&mut Entry, Error> {
         let entry = self.entries.get_mut(&id).ok_or_else(|| {
             Error::turso_worker(std::io::Error::other(

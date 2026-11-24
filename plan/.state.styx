@@ -4070,6 +4070,15 @@ impl_evidence (
         {impl_name main, rule turso.rows}
         {impl_name main, rule turso.values}
     )}
+    {id turso.execution, covered_rules (
+        turso.execution
+        turso.parameters
+        turso.streaming
+    ), covered_claims (
+        {impl_name main, rule turso.execution}
+        {impl_name main, rule turso.parameters}
+        {impl_name main, rule turso.streaming}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

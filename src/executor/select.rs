@@ -887,8 +887,12 @@ where
             .into_iter()
             .map(ValueHolder)
             .collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = &crate::database::ValueSql::new(&self.stmt, &values);
+        #[cfg(not(feature = "turso"))]
+        let stmt = &self.stmt;
         let values = values.iter().map(|x| x as _).collect::<Vec<_>>();
-        let row = db.query_opt(&self.stmt, &values).await?;
+        let row = db.query_opt(stmt, &values).await?;
         match row {
             Some(row) => Ok(S::from_raw_query_result(QueryResult { row })?),
             None => Err(Error::RecordNotFound),
@@ -924,8 +928,12 @@ where
             .into_iter()
             .map(ValueHolder)
             .collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = &crate::database::ValueSql::new(&self.stmt, &values);
+        #[cfg(not(feature = "turso"))]
+        let stmt = &self.stmt;
         let values = values.iter().map(|x| x as _).collect::<Vec<_>>();
-        let row = db.query_opt(&self.stmt, &values).await?;
+        let row = db.query_opt(stmt, &values).await?;
         match row {
             Some(row) => Ok(Some(S::from_raw_query_result(QueryResult { row })?)),
             None => Ok(None),
@@ -962,8 +970,12 @@ where
             .into_iter()
             .map(ValueHolder)
             .collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = &crate::database::ValueSql::new(&self.stmt, &values);
+        #[cfg(not(feature = "turso"))]
+        let stmt = &self.stmt;
         let values = values.iter().map(|x| x as _).collect::<Vec<_>>();
-        let rows = db.query_all(&self.stmt, &values).await?;
+        let rows = db.query_all(stmt, &values).await?;
         // tracing::warn!("Got rows!");
         let mut models = Vec::new();
         for row in rows.into_iter() {
@@ -990,8 +1002,12 @@ where
             .into_iter()
             .map(ValueHolder)
             .collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = &crate::database::ValueSql::new(&self.stmt, &values);
+        #[cfg(not(feature = "turso"))]
+        let stmt = &self.stmt;
         let rows = db
-            .query_raw(&self.stmt, values.iter().map(|x| x as &(dyn ToSql + Sync)))
+            .query_raw(stmt, values.iter().map(|x| x as &(dyn ToSql + Sync)))
             .await?;
         Ok(Box::pin(rows.map(|row| match row {
             Ok(row) => S::from_raw_query_result(QueryResult { row }),

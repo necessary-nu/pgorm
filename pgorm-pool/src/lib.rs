@@ -497,13 +497,55 @@ impl StatementCache {
         removed
     }
 
+    /// Removes the native statement at this key only if it is invalidated.
+    ///
+    /// A concurrent caller may have replaced the invalidated handle before
+    /// its error was received. That fresh entry remains cached.
+    // [spec:pgorm:req:conn.pool.statement-cache.invalidate+5]
+    #[cfg(feature = "turso")]
+    pub fn remove_invalidated(&self, query: &str, types: &[Type]) {
+        let key = StatementCacheKey {
+            query: Cow::Borrowed(query),
+            types: Cow::Borrowed(types),
+        };
+        drop(self.discard_invalidated(&key));
+    }
+
     /// Returns a [`Statement`] from this [`StatementCache`].
     fn get(&self, query: &str, types: &[Type]) -> Option<Statement> {
         let key = StatementCacheKey {
             query: Cow::Borrowed(query),
             types: Cow::Borrowed(types),
         };
-        self.map.read().unwrap().get(&key).map(ToOwned::to_owned)
+        let statement = self.map.read().unwrap().get(&key).map(ToOwned::to_owned);
+        #[cfg(feature = "turso")]
+        if statement.as_ref().is_some_and(Statement::is_invalidated) {
+            return self.discard_invalidated(&key);
+        }
+        statement
+    }
+
+    /// A stream can discover invalidation after its creation returned. Remove
+    /// that handle on the next lookup, without replaying its operation.
+    // [spec:pgorm:req:conn.pool.statement-cache.invalidate+5]
+    #[cfg(feature = "turso")]
+    fn discard_invalidated(&self, key: &StatementCacheKey<'_>) -> Option<Statement> {
+        let key = StatementCacheKey {
+            query: Cow::Owned(key.query.as_ref().to_owned()),
+            types: Cow::Owned(key.types.as_ref().to_owned()),
+        };
+        let (evicted, current) = {
+            let mut map = self.map.write().unwrap();
+            if map.get(&key).is_some_and(Statement::is_invalidated) {
+                let evicted = map.remove(&key);
+                let _ = self.size.fetch_sub(1, Ordering::Relaxed);
+                (evicted, None)
+            } else {
+                (None, map.get(&key).cloned())
+            }
+        };
+        drop(evicted);
+        current
     }
 
     /// Inserts a [`Statement`] into this [`StatementCache`], evicting an

@@ -302,7 +302,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > through `connect_with`, the general entry point those three delegate to, which
 > takes the whole `ManagerConfig`.
 
-> [spec:pgorm:req:conn.pool.statement-cache.invalidate+4]
+> [spec:pgorm:req:conn.pool.statement-cache.invalidate+5]
 > Reusing a prepared statement admits one failure that preparing afresh does
 > not: PostgreSQL raises SQLSTATE `0A000` — *cached plan must not change result
 > type* — when a statement's plan is revalidated and the result it would now
@@ -318,7 +318,8 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > not: a statement parsed over the extended protocol is not undone by
 > `ROLLBACK`, and the cached entry keeps working.
 >
-> When a statement resolved through the cache fails with `0A000`, pgorm MUST
+> On PostgreSQL, when a statement resolved through the cache fails with
+> `0A000`, pgorm MUST
 > evict that key. Whether it then retries depends on whether a transaction is
 > open, because `0A000` is an error and an error aborts an open transaction.
 >
@@ -387,6 +388,16 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > which is not retried. `connect` and its two sibling shorthands recycle with
 > `Fast` (`conn.pool`), so they cannot reach it; a caller who passes such a
 > method to `connect_with` should pair it with `StatementCacheSize::Disabled`.
+>
+> Native Turso uses the driver's distinct `is_statement_invalidated()`
+> classification. A native invalidation MUST evict the exact SQL and ordered
+> parameter-type key, then return the original error without retrying. The
+> error may arrive while a returned `RowStream` is polled; in that case the
+> shared prepared handle MUST be marked invalid and removed before its next
+> cache use, without changing the public stream type. The invalidation may
+> have been detected after execution began, so it does not
+> prove absence of effects. A native SQLSTATE `0A000` alone MUST NOT trigger
+> PostgreSQL's cached-plan retry or eviction policy.
 
 > [spec:pgorm:req:conn.pool.statement-cache.clear+2]
 > `DatabasePool::clear_statement_caches()` MUST drop every pooled
@@ -520,12 +531,15 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## Statement execution surface
 
-> [spec:pgorm:def:conn.sql-text+3]
+> [spec:pgorm:def:conn.sql-text+4]
 > `SqlText` answers `fn sql_text(&self) -> &str` for a statement, and is what
 > `ConnectionTrait` means by one. It MUST be sealed against implementations
-> outside pgorm, and MUST be implemented for exactly `str` and `String` — a
-> statement is its SQL text, in whichever of the two spellings the caller holds
-> it, and there is deliberately no third form.
+> outside pgorm. Its public statement forms MUST remain `str` and `String`.
+> With the experimental `turso` feature, an internal wrapper MAY retain SQL
+> and borrowed ORM values until native parameter types are resolved under
+> `turso.parameters`. The wrapper MUST expose the same SQL text, MUST NOT hold
+> a prepared handle, and MUST NOT require PostgreSQL to resolve native hints or
+> allocate their type vector.
 >
 > What the seal excludes is pgorm-driver's prepared `Statement`.
 > `ToStatement`, which bounds pgorm-driver's own statement surface, admits
@@ -541,7 +555,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > parameter types and result columns but not the text it was prepared from, so
 > it is exactly the statement pgorm can neither cache nor fingerprint.
 >
-> Because a statement is nothing but text, `sql_text` is total — no `Option`,
+> Because every statement retains its text, `sql_text` is total — no `Option`,
 > and no absent case for its readers to carry. There are two:
 > `conn.pool.conn-trait` keys the statement cache on it, and
 > `metric.fingerprint` identifies the query it reports on by it.
@@ -570,11 +584,11 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > error it returns. A `DatabaseRef` holds one (`conn.database-ref`), which is
 > how the bindings run a hook's statements (`bindings.pool-hooks`).
 
-> [spec:pgorm:def:conn.pool.conn-trait+10]
+> [spec:pgorm:def:conn.pool.conn-trait+11]
 > `ConnectionTrait` is the uniform statement-execution surface over
 > connections and transactions. It defines seven async methods. Six are
-> generic over `T: ?Sized + SqlText + Sync` — the statement is SQL text and
-> nothing else (`conn.sql-text`), which is why `ToStatement` is named nowhere
+> generic over `T: ?Sized + SqlText + Sync` — the statement retains SQL text
+> (`conn.sql-text`), which is why `ToStatement` is named nowhere
 > in this trait and a `Statement` prepared on some other connection does not
 > typecheck — with parameter binding
 > (no string interpolation): `execute(stmt, params) -> u64` (affected-row
@@ -592,21 +606,26 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > inserted on a miss. There is no second route, because there is no statement
 > without text to take one. What the cache returns is prepared on, and used
 > only on, the connection the call is running on, so no prepared statement
-> crosses connections at all. A rejected cached plan is evicted under
-> `conn.pool.statement-cache.invalidate`, and retried there only outside a
-> transaction: inside one the rejection has already aborted the transaction, so
-> the original error is what the caller gets.
+> crosses connections at all. PostgreSQL retains context inference and its
+> existing empty-type cache key. Native ORM execution resolves retained value
+> hints only on the native path and uses SQL plus the ordered parameter types
+> as its key (`turso.parameters`). A rejected cached plan is handled under
+> `conn.pool.statement-cache.invalidate`: PostgreSQL retries only outside a
+> transaction; native invalidation is evicted and returned without retry.
 >
 > The seventh, `batch_execute(sql: &str) -> ()`, is neither generic nor
-> parameterized: it sends `sql` through the simple-query protocol, so the
-> string MAY hold several `;`-separated statements, and it returns no rows.
+> parameterized: on PostgreSQL it sends `sql` through the simple-query
+> protocol; on native Turso the embedded parser and execution API run the
+> script. The string MAY hold several `;`-separated statements and returns no rows.
 > It is the only method that accepts a multi-statement string — the other six
-> go through the extended protocol, where a prepared statement carries exactly
-> one command and PostgreSQL rejects a second with *cannot insert multiple
+> prepare exactly one command. PostgreSQL uses the extended protocol and
+> rejects a second with *cannot insert multiple
 > commands into a prepared statement*. Execution stops at the first statement
-> that fails. Nothing is prepared, so the statement cache
-> (`conn.pool.statement-cache`) is bypassed by construction rather than by
-> policy. It exists for DDL, migration, and fixture surfaces, where a script
+> that fails. The script bypasses the statement cache
+> (`conn.pool.statement-cache`). PostgreSQL retains its implicit script
+> transaction; native partial effects follow `turso.execution` and MUST NOT
+> be advertised as PostgreSQL script atomicity. It exists for DDL, migration,
+> and fixture surfaces, where a script
 > is the unit of work; since values can reach it only by interpolation, `sql`
 > must be built from trusted input.
 >

@@ -19,6 +19,13 @@ impl InnerClient {
 }
 
 impl Client {
+    /// Whether this client executes against an embedded Turso database.
+    ///
+    /// This records connection construction and remains true after closing.
+    pub fn is_turso(&self) -> bool {
+        self.inner.native().is_some()
+    }
+
     pub(crate) fn from_turso(client: Arc<native::Client>) -> Client {
         Client {
             inner: Arc::new(InnerClient {

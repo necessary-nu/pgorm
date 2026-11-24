@@ -22305,6 +22305,34 @@ children (
                         kind @note
                         text "The parameters rule includes public typed-query execution and lazy ORM cache hints, so its delivery is tracked here after the codec foundation. turso.types supplies and tests value conversion, native result metadata and common Row storage; this node wires preparation/execution and the ORM hint carrier into those components. This avoids claiming public typed-query support while the lifecycle-only Client still refuses queries."
                     }
+
+                    {
+                        at 2026-11-24T17:02:22.014284Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T17:02:22.52702Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the operator-directed Turso subtree after bf820720 completes its types dependency; the global unrelated guide task is outside the requested work. Retain native-only Value type hints through a sealed internal SQL wrapper and resolve them lazily through the existing typed cache. Preserve PostgreSQL inference/empty-type cache keys and SQLSTATE 0A000 recovery unchanged. Native invalidation evicts its exact typed key and returns the error without automatic retry, since post-step invalidation can have effects. Expand existing wire-only spec prose narrowly to describe the native case."
+                    }
+
+                    {
+                        at 2026-11-24T17:07:03.666103Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Narrowly revised conn.sql-text to v4 (internal borrowed native hint wrapper; public str/String forms unchanged), conn.pool.conn-trait to v11 (native typed cache and script route) and conn.pool.statement-cache.invalidate to v5 (native marker, no automatic replay). Reviewed the existing PostgreSQL test sites in statement_cache_tests, execute_unprepared_tests and metric_tests: their assertions still verify unchanged PostgreSQL behavior and are repinned. Native late stream invalidation marks the shared prepared handle for lazy removal before next cache use, preserving RowStream's public type."
+                    }
+
+                    {
+                        at 2026-11-24T17:20:43.305773Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Native ORM integration passes all nine tests, including model CRUD, count, pagination/keyset/streaming, typed scalar nulls, unsigned range refusal, exact typed-cache reuse and invalidation without replay. The real PostgreSQL regression run with --features turso passes 46 tests across bind_type_tests, execute_unprepared_tests, metric_tests and statement_cache_tests. New native public execution tests and library tests pass (14 + 35). Added persistent nplan checks for native ORM integration, native ORM Clippy and the minimal native ORM feature build."
+                    }
                 )
             }
 

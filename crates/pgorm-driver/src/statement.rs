@@ -3,12 +3,15 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::Type;
 use postgres_protocol::message::frontend;
+#[cfg(feature = "turso")]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Weak};
 
 #[cfg(feature = "turso")]
 struct NativeStatement {
     id: u64,
     parameter_codecs: Arc<[crate::native::codecs::ScalarCodec]>,
+    invalidated: AtomicBool,
 }
 
 struct StatementInner {
@@ -93,15 +96,20 @@ impl Statement {
             native: Some(NativeStatement {
                 id: prepared.id,
                 parameter_codecs: prepared.parameter_codecs,
+                invalidated: AtomicBool::new(false),
             }),
         }))
     }
 
     #[cfg(feature = "turso")]
+    // [spec:pgorm:sem:turso.execution] ownership and known invalidation are checked before parameter encoding
     pub(crate) fn native_id(&self, actor: &crate::native::Client) -> Result<u64, crate::Error> {
         let native = self.0.native.as_ref().ok_or_else(|| {
             crate::Error::turso_unsupported("a statement prepared on a PostgreSQL connection")
         })?;
+        if native.invalidated.load(Ordering::Acquire) {
+            return Err(crate::Error::turso_statement_invalidated());
+        }
         let owner = self.0.client.upgrade().ok_or_else(crate::Error::closed)?;
         if !owner
             .native()
@@ -115,6 +123,27 @@ impl Statement {
             return Err(crate::Error::closed());
         }
         Ok(native.id)
+    }
+
+    /// Whether the native engine has invalidated this prepared statement.
+    ///
+    /// An invalidated statement must be prepared again. An error reported
+    /// after native execution does not establish that the operation had no
+    /// effects, so callers should not blindly retry it. PostgreSQL statements
+    /// always return `false` here.
+    #[cfg(feature = "turso")]
+    pub fn is_invalidated(&self) -> bool {
+        self.0
+            .native
+            .as_ref()
+            .is_some_and(|native| native.invalidated.load(Ordering::Acquire))
+    }
+
+    #[cfg(feature = "turso")]
+    pub(crate) fn mark_invalidated(&self) {
+        if let Some(native) = &self.0.native {
+            native.invalidated.store(true, Ordering::Release);
+        }
     }
 
     #[cfg(feature = "turso")]

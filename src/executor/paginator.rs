@@ -119,6 +119,8 @@ where
         self.refusal()?;
         let (stmt, values) = page_statement(&self.query, self.page_size, page)?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = crate::database::ValueSql::new(&stmt, &values);
         let values = values
             .iter()
             .map(|x| x as _)
@@ -152,6 +154,8 @@ where
         self.refusal()?;
         let (stmt, values) = count_statement(&self.query)?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = crate::database::ValueSql::new(&stmt, &values);
         let values = values
             .iter()
             .map(|x| x as _)

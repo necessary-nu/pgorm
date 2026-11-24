@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+#[cfg(feature = "turso")]
+use super::connection::private::Sealed;
 use super::{
     copy::refuse_copy_statement,
     drive, rolled_back,
@@ -14,24 +16,49 @@ use pgorm_driver::{
 };
 use pgorm_pool::{Object, Pool, Transaction};
 
+// [spec:pgorm:req:turso.parameters] native types are resolved once and retained as the cache key
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5] native invalidation never replays the operation
+#[cfg(feature = "turso")]
+macro_rules! cached_native {
+    ($owner:expr, $statement:expr, $sql:expr, |$prepared:ident| $call:expr) => {
+        if $owner.is_turso() {
+            let types = Sealed::native_parameter_types($statement)?;
+            let cached = $owner.prepare_typed_cached($sql, &types).await?;
+            let outcome = {
+                let $prepared = &cached;
+                $call
+            };
+            if let Err(error) = &outcome
+                && error.is_statement_invalidated()
+            {
+                $owner.statement_cache.remove_invalidated($sql, &types);
+            }
+            // Native invalidation may be detected after an engine step. An
+            // eviction does not establish that replaying a write is safe.
+            return Ok(outcome?);
+        }
+    };
+}
+
 /// Run a statement against the connection's statement cache, re-preparing it
 /// and running it again once if PostgreSQL rejects the cached plan.
 ///
 /// `$owner` is the pooled client holding the cache. Every statement carries its
 /// SQL text (`conn.sql-text`), so every one is resolved through the cache and
-/// the same text is parsed once per connection rather than once per call; there
-/// is no second path.
+/// each SQL/type key is parsed once per connection rather than once per call.
 ///
 /// `$call` is expanded twice, once per attempt, so it must be replayable: only
 /// the methods whose parameters are a reusable `&[&dyn ToSql]` slice can use
 /// this macro, and only outside a transaction — see [`cached_evict`] for why an
 /// open transaction takes the other one.
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4]    evict, re-prepare, retry once
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5]    evict, re-prepare, retry once
 macro_rules! cached_retry {
     ($owner:expr, $statement:expr, |$prepared:ident| $call:expr) => {{
         let owner = $owner;
         let sql = $statement.sql_text();
         refuse_copy_statement(sql)?;
+        #[cfg(feature = "turso")]
+        cached_native!(owner, $statement, sql, |$prepared| $call);
         let cached = owner.prepare_cached(sql).await?;
         let outcome = {
             let $prepared = &cached;
@@ -66,12 +93,14 @@ macro_rules! cached_retry {
 /// caller's actionable error with a consequence of pgorm's own retry. Recovery
 /// inside a transaction belongs to whoever owns the transaction's boundary: the
 /// eviction guarantees their next attempt prepares afresh.
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4]    evict without a retry
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5]    evict without a retry
 macro_rules! cached_evict {
     ($owner:expr, $statement:expr, |$prepared:ident| $call:expr) => {{
         let owner = $owner;
         let sql = $statement.sql_text();
         refuse_copy_statement(sql)?;
+        #[cfg(feature = "turso")]
+        cached_native!(owner, $statement, sql, |$prepared| $call);
         let cached = owner.prepare_cached(sql).await?;
         let outcome = {
             let $prepared = &cached;
@@ -98,7 +127,7 @@ macro_rules! cached_evict {
 /// same way: outside a transaction it is retried once and fails identically, at
 /// the cost of one round trip on a call that was already failing, and inside
 /// one it costs an eviction that makes the next call parse the text again.
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+4]    the SQLSTATE that means "re-prepare"
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5]    the SQLSTATE that means "re-prepare"
 fn is_stale_cached_plan(error: &pgorm_driver::Error) -> bool {
     error.code() == Some(&SqlState::FEATURE_NOT_SUPPORTED)
 }
@@ -538,7 +567,7 @@ impl<'a> HookConnection<'a> {
 }
 
 // [spec:pgorm:def:conn.pool.hook-connection+1]    the cache-routing impl
-// [spec:pgorm:def:conn.pool.conn-trait+10]
+// [spec:pgorm:def:conn.pool.conn-trait+11]
 #[async_trait::async_trait]
 impl ConnectionTrait for HookConnection<'_> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
@@ -624,7 +653,7 @@ impl ConnectionTrait for HookConnection<'_> {
     }
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+10]    cache-routing impls
+// [spec:pgorm:def:conn.pool.conn-trait+11]    cache-routing impls
 #[async_trait::async_trait]
 impl ConnectionTrait for DatabaseConnection {
     // #[instrument(level = "trace")]

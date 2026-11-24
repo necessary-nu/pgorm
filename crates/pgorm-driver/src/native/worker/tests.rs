@@ -185,6 +185,7 @@ async fn pending_native_completion_is_aborted_on_cancel() {
 const MANY_ROWS: &str = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<100000) SELECT x::bigint FROM n";
 
 // [spec:pgorm:req:turso.rows/test] bounded production and row ownership work through the common stream
+// [spec:pgorm:sem:turso.streaming/test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn prepared_stream_backpressure_and_drop() {
     let (actor, task) = actor().await;
@@ -215,6 +216,7 @@ async fn prepared_stream_backpressure_and_drop() {
 }
 
 // [spec:pgorm:req:turso.rows/test] a failed producer cannot turn a partial stream into EOF
+// [spec:pgorm:sem:turso.streaming/test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn prepared_stream_reports_worker_loss() {
     use futures_util::TryStreamExt;
@@ -272,7 +274,12 @@ async fn stale_schema_refusal(other_connection: bool) {
         .await
         .unwrap();
     let read = client.prepare("SELECT id FROM changed").await.unwrap();
+    assert!(!read.is_invalidated());
     let write = client
+        .prepare_typed("INSERT INTO changed VALUES($1) RETURNING id", &[Type::INT4])
+        .await
+        .unwrap();
+    let execute = client
         .prepare_typed("INSERT INTO changed VALUES($1) RETURNING id", &[Type::INT4])
         .await
         .unwrap();
@@ -285,13 +292,23 @@ async fn stale_schema_refusal(other_connection: bool) {
     } else {
         client.batch_execute(ddl).await.unwrap();
     }
-    let error = client.query(&read, &[]).await.unwrap_err();
+    let before_write = actor.control.produced_rows.load(Ordering::Acquire);
+    // Try writes before any SELECT can make the engine adopt/reprepare its
+    // schema. Neither execute nor query may reach a native RETURNING row.
+    let error = client.execute(&execute, &[&2_i32]).await.unwrap_err();
     assert!(error.is_statement_invalidated(), "{error}");
-    assert!(error.code().is_none());
+    assert!(execute.is_invalidated());
     let error = client.query(&write, &[&1_i32]).await.unwrap_err();
     assert!(error.is_statement_invalidated(), "{error}");
-    let error = client.execute(&write, &[&2_i32]).await.unwrap_err();
+    assert!(write.is_invalidated());
+    assert_eq!(
+        actor.control.produced_rows.load(Ordering::Acquire),
+        before_write
+    );
+    let error = client.query(&read, &[]).await.unwrap_err();
     assert!(error.is_statement_invalidated(), "{error}");
+    assert!(read.is_invalidated());
+    assert!(error.code().is_none());
     let row = client
         .query_one("SELECT count(*) FROM changed", &[])
         .await
@@ -365,6 +382,7 @@ async fn racing_reprepare_cannot_expose_old_metadata() {
         use futures_util::TryStreamExt;
         let error = rows.try_next().await.unwrap_err();
         assert!(error.is_statement_invalidated(), "{error}");
+        assert!(statement.is_invalidated());
         assert!(rows.try_next().await.unwrap().is_none());
         client.check_connection().await.unwrap();
         // Reset cannot make the now-reprepared native handle match the
@@ -381,4 +399,49 @@ async fn racing_reprepare_cannot_expose_old_metadata() {
         drop(client);
         finish(actor, task).await;
     }
+}
+
+// [spec:pgorm:sem:turso.execution/test] preserve a native error while invalidating metadata replaced in that step
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn failed_reprepared_write_invalidates_handle() {
+    use futures_util::TryStreamExt;
+
+    let database = super::super::Database::open(Path::new(":memory:"))
+        .await
+        .unwrap();
+    let (actor, lifetime) = database.connect().await.unwrap();
+    let task = tokio::spawn(lifetime);
+    let client = crate::Client::from_turso(Arc::clone(&actor));
+    client
+        .batch_execute("CREATE TABLE changed(id integer PRIMARY KEY)")
+        .await
+        .unwrap();
+    let statement = client
+        .prepare("INSERT INTO changed VALUES(1) RETURNING id")
+        .await
+        .unwrap();
+    let (gate, entered, resume) = gate();
+    *actor.control.before_step.lock().unwrap() = Some(gate);
+    let mut rows = Box::pin(
+        client
+            .query_raw(&statement, std::iter::empty::<&i32>())
+            .await
+            .unwrap(),
+    );
+    entered.await.unwrap();
+    let (other, lifetime) = database.connect().await.unwrap();
+    let other_task = tokio::spawn(lifetime);
+    other
+        .batch_execute("DROP TABLE changed; CREATE TABLE changed(id bigint PRIMARY KEY); INSERT INTO changed VALUES(1)")
+        .await
+        .unwrap();
+    resume.send(()).unwrap();
+    let error = rows.try_next().await.unwrap_err();
+    assert_eq!(error.code().unwrap().code(), "23505");
+    assert!(statement.is_invalidated());
+    client.check_connection().await.unwrap();
+    drop(rows);
+    finish(other, other_task).await;
+    drop(client);
+    finish(actor, task).await;
 }

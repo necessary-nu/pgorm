@@ -32,6 +32,7 @@ fn bind(entry: &mut Entry, params: Vec<Value>) -> Result<(), Error> {
     Ok(())
 }
 
+// [spec:pgorm:sem:turso.execution] one execution path counts completion and establishes cleanup
 fn run(
     connection: &PgConnection,
     entry: &mut Entry,
@@ -96,6 +97,7 @@ fn run(
     Ok(affected.expect("successful execution has an affected-row count"))
 }
 
+// [spec:pgorm:sem:turso.execution] discarded RETURNING values are not materialized as driver Rows
 pub(super) fn execute(
     connection: &PgConnection,
     entry: &mut Entry,
@@ -215,6 +217,14 @@ pub(super) fn query(entry: &mut Entry, request: Request, context: Context<'_>) -
     let fatal = result.as_ref().err().is_some_and(|failure| failure.fatal);
     if fatal {
         control.quarantine();
+    }
+    if !entry.metadata_is_current()
+        || result
+            .as_ref()
+            .err()
+            .is_some_and(|failure| failure.error.is_statement_invalidated())
+    {
+        statement.mark_invalidated();
     }
     output.finish(result.map_err(|failure| failure.error));
     fatal

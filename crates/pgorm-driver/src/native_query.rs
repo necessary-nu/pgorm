@@ -22,6 +22,7 @@ where
     client.with_buf(|buffer| codecs::encode_params(statement.params(), codecs, params, buffer))
 }
 
+// [spec:pgorm:sem:turso.execution]
 pub(crate) async fn query<P, I>(
     client: &InnerClient,
     actor: &native::Client,
@@ -38,6 +39,7 @@ where
     Ok(RowStream::from_native(statement, rows))
 }
 
+// [spec:pgorm:sem:turso.execution]
 pub(crate) async fn execute<P, I>(
     client: &InnerClient,
     actor: &native::Client,
@@ -53,6 +55,7 @@ where
     actor.execute_prepared(statement, values).await
 }
 
+// [spec:pgorm:req:turso.parameters]
 pub(crate) async fn query_typed<P, I>(
     client: &Arc<InnerClient>,
     actor: &native::Client,
@@ -69,6 +72,7 @@ where
     Ok(RowStream::from_native(statement, rows))
 }
 
+// [spec:pgorm:req:turso.parameters]
 pub(crate) async fn execute_typed<P, I>(
     client: &Arc<InnerClient>,
     actor: &native::Client,

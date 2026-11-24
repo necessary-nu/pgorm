@@ -530,15 +530,36 @@ fn run_worker(input: WorkerInput) -> Result<(), Error> {
                 fatal
             }
             Command::Execute {
-                id, params, reply, ..
+                id,
+                params,
+                reply,
+                _statement: statement,
+                ..
             } => {
                 let result = match store.get(id, &connection) {
-                    Ok(entry) => query::execute(&connection, entry, params, &operation, &control),
+                    Ok(entry) => {
+                        let result =
+                            query::execute(&connection, entry, params, &operation, &control);
+                        // A native failure remains the primary error even if
+                        // step reprepared first; the public handle is still
+                        // stale and must leave the cache before another use.
+                        if !entry.metadata_is_current() {
+                            statement.mark_invalidated();
+                        }
+                        result
+                    }
                     Err(error) => Err(Failure::recoverable(error)),
                 };
                 let fatal = result.as_ref().err().is_some_and(|error| error.fatal);
                 if fatal {
                     control.quarantine();
+                }
+                if result
+                    .as_ref()
+                    .err()
+                    .is_some_and(|failure| failure.error.is_statement_invalidated())
+                {
+                    statement.mark_invalidated();
                 }
                 let _ = reply.send(result.map_err(|failure| failure.error));
                 fatal
@@ -568,6 +589,9 @@ fn run_worker(input: WorkerInput) -> Result<(), Error> {
                     },
                 ),
                 Err(error) => {
+                    if error.is_statement_invalidated() {
+                        statement.mark_invalidated();
+                    }
                     let _ = ready.send(Err(error));
                     output.finish(Err(Error::closed()));
                     false
@@ -664,6 +688,7 @@ pub(super) fn finish_statement(
 }
 
 // [spec:pgorm:sem:turso.lifecycle] one worker drives the complete native operation
+// [spec:pgorm:sem:turso.execution] native script parsing stops on the first failure without claiming implicit atomicity
 fn execute_script(
     connection: &PgConnection,
     sql: &str,

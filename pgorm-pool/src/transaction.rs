@@ -51,6 +51,12 @@ pub struct Transaction<'a> {
 }
 
 impl Transaction<'_> {
+    /// Whether this transaction belongs to an embedded Turso connection.
+    #[cfg(feature = "turso")]
+    pub fn is_turso(&self) -> bool {
+        self.txn.client().is_turso()
+    }
+
     /// Like [`pgorm_driver::Transaction::prepare()`], but uses an existing
     /// [`Statement`] from the [`StatementCache`] if possible.
     pub async fn prepare_cached(&self, query: &str) -> Result<Statement, Error> {

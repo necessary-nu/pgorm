@@ -53,6 +53,7 @@ pub(super) fn channel(guard: RequestGuard) -> (Rows, Output) {
 }
 
 // [spec:pgorm:req:turso.rows] rows own ordinary binary storage, independent of subsequent native steps
+// [spec:pgorm:sem:turso.streaming] bounded batches retain explicit success/error completion and drop cancellation
 impl Stream for Rows {
     type Item = Result<Row, Error>;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

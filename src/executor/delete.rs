@@ -44,6 +44,8 @@ where
 {
     let (stmt, values) = query.build();
     let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+    #[cfg(feature = "turso")]
+    let stmt = crate::database::ValueSql::new(&stmt, &values);
     let values = values
         .iter()
         .map(|x| x as _)

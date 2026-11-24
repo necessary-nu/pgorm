@@ -401,6 +401,7 @@ async fn malformed_and_text_codecs_fail_before_execution() {
 
 // [spec:pgorm:req:turso.values/test]
 // [spec:pgorm:req:turso.errors/test]
+// [spec:pgorm:req:turso.parameters/test]
 #[tokio::test]
 async fn type_and_arity_refusals_preserve_the_transaction() {
     let (client, task) = connect().await;
