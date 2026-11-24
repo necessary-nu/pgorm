@@ -5,15 +5,32 @@ use crate::types::Type;
 use postgres_protocol::message::frontend;
 use std::sync::{Arc, Weak};
 
+#[cfg(feature = "turso")]
+struct NativeStatement {
+    id: u64,
+    parameter_codecs: Arc<[crate::native::codecs::ScalarCodec]>,
+}
+
 struct StatementInner {
     client: Weak<InnerClient>,
     name: String,
     params: Vec<Type>,
     columns: Vec<Column>,
+    #[cfg(feature = "turso")]
+    native: Option<NativeStatement>,
 }
 
 impl Drop for StatementInner {
     fn drop(&mut self) {
+        #[cfg(feature = "turso")]
+        if let Some(native) = &self.native {
+            if let Some(client) = self.client.upgrade() {
+                if let Some(actor) = client.native() {
+                    actor.close_statement(native.id);
+                }
+            }
+            return;
+        }
         if self.name.is_empty() {
             // Unnamed statements don't need to be closed
             return;
@@ -47,6 +64,8 @@ impl Statement {
             name,
             params,
             columns,
+            #[cfg(feature = "turso")]
+            native: None,
         }))
     }
 
@@ -56,7 +75,54 @@ impl Statement {
             name: String::new(),
             params,
             columns,
+            #[cfg(feature = "turso")]
+            native: None,
         }))
+    }
+
+    #[cfg(feature = "turso")]
+    pub(crate) fn from_native(
+        client: &Arc<InnerClient>,
+        prepared: crate::native::Prepared,
+    ) -> Self {
+        Self(Arc::new(StatementInner {
+            client: Arc::downgrade(client),
+            name: String::new(),
+            params: prepared.params,
+            columns: prepared.columns,
+            native: Some(NativeStatement {
+                id: prepared.id,
+                parameter_codecs: prepared.parameter_codecs,
+            }),
+        }))
+    }
+
+    #[cfg(feature = "turso")]
+    pub(crate) fn native_id(&self, actor: &crate::native::Client) -> Result<u64, crate::Error> {
+        let native = self.0.native.as_ref().ok_or_else(|| {
+            crate::Error::turso_unsupported("a statement prepared on a PostgreSQL connection")
+        })?;
+        let owner = self.0.client.upgrade().ok_or_else(crate::Error::closed)?;
+        if !owner
+            .native()
+            .is_some_and(|creator| std::ptr::eq(creator.as_ref(), actor))
+        {
+            return Err(crate::Error::turso_unsupported(
+                "a statement from another native connection",
+            ));
+        }
+        if actor.is_closed() {
+            return Err(crate::Error::closed());
+        }
+        Ok(native.id)
+    }
+
+    #[cfg(feature = "turso")]
+    pub(crate) fn native_codecs(&self) -> Option<&[crate::native::codecs::ScalarCodec]> {
+        self.0
+            .native
+            .as_ref()
+            .map(|native| native.parameter_codecs.as_ref())
     }
 
     pub(crate) fn name(&self) -> &str {

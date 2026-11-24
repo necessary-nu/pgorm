@@ -180,6 +180,8 @@ mod maybe_tls_stream;
 mod native;
 #[cfg(feature = "turso")]
 mod native_client;
+#[cfg(feature = "turso")]
+mod native_query;
 mod portal;
 mod prepare;
 mod query;

@@ -1,3 +1,8 @@
+use super::{
+    commands::Command,
+    query, rows,
+    statement_store::{Prepared, Store},
+};
 use crate::Error;
 use std::{
     fmt,
@@ -12,7 +17,7 @@ use std::{
 };
 use tokio::{
     runtime::Handle,
-    sync::{mpsc, oneshot, watch},
+    sync::{Notify, mpsc, oneshot, watch},
     task::JoinHandle,
 };
 use turso_core::types::{IOCompletions, IOResult};
@@ -50,15 +55,16 @@ impl Wake for Signal {
     }
 }
 
-struct Operation {
+pub(super) struct Operation {
     id: u64,
     cancelled: AtomicBool,
+    pub(super) cancelled_notify: Notify,
 }
 struct Active {
     operation: Arc<Operation>,
     connection: PgConnection,
 }
-struct Control {
+pub(super) struct Control {
     stopping: Arc<AtomicBool>,
     closed: AtomicBool,
     shutdown: watch::Sender<bool>,
@@ -73,6 +79,8 @@ struct Control {
     fail_next_cleanup: AtomicBool,
     #[cfg(test)]
     panic_next_step: AtomicBool,
+    #[cfg(test)]
+    produced_rows: AtomicU64,
 }
 impl Control {
     fn cancel(&self, operation: Option<&Operation>) {
@@ -80,11 +88,13 @@ impl Control {
         // has not yet marked its first root statement active.
         if let Some(operation) = operation {
             operation.cancelled.store(true, Ordering::Release);
+            operation.cancelled_notify.notify_one();
         }
         let active = self.active.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(active) = active.as_ref() {
             if operation.is_none_or(|op| op.id == active.operation.id) {
                 active.operation.cancelled.store(true, Ordering::Release);
+                active.operation.cancelled_notify.notify_one();
                 active.connection.inner().interrupt();
             }
         }
@@ -92,14 +102,18 @@ impl Control {
         self.signal.notify();
     }
 
-    fn shutdown(&self) {
+    pub(super) fn quarantine(&self) {
         self.closed.store(true, Ordering::Release);
+    }
+
+    fn shutdown(&self) {
+        self.quarantine();
         self.stopping.store(true, Ordering::Release);
         self.shutdown.send_replace(true);
         self.cancel(None);
     }
 
-    fn cancelled(&self, operation: &Operation) -> bool {
+    pub(super) fn cancelled(&self, operation: &Operation) -> bool {
         self.stopping.load(Ordering::Acquire) || operation.cancelled.load(Ordering::Acquire)
     }
 }
@@ -119,10 +133,18 @@ impl Drop for WorkerGuard {
     }
 }
 
-struct RequestGuard {
+pub(super) struct RequestGuard {
     operation: Arc<Operation>,
     control: Arc<Control>,
     complete: bool,
+}
+impl RequestGuard {
+    pub(super) fn complete(&mut self) {
+        self.complete = true;
+    }
+    pub(super) fn worker_lost(&self) {
+        self.control.shutdown();
+    }
 }
 impl Drop for RequestGuard {
     fn drop(&mut self) {
@@ -132,15 +154,10 @@ impl Drop for RequestGuard {
     }
 }
 
-struct Command {
-    sql: String,
-    operation: Arc<Operation>,
-    reply: oneshot::Sender<Result<(), Error>>,
-}
-
 // [spec:pgorm:sem:turso.lifecycle]
 pub(crate) struct Client {
     sender: mpsc::Sender<Command>,
+    close_sender: mpsc::UnboundedSender<u64>,
     control: Arc<Control>,
 }
 impl fmt::Debug for Client {
@@ -150,57 +167,158 @@ impl fmt::Debug for Client {
             .finish()
     }
 }
+impl Drop for Client {
+    fn drop(&mut self) {
+        self.control.shutdown();
+    }
+}
 impl Client {
-    pub(crate) async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+    fn request_guard(&self) -> Result<RequestGuard, Error> {
         if self.is_closed() {
             return Err(Error::closed());
         }
-        let operation = Arc::new(Operation {
-            id: self.control.next_id.fetch_add(1, Ordering::Relaxed),
-            cancelled: AtomicBool::new(false),
-        });
-        let mut guard = RequestGuard {
-            operation: Arc::clone(&operation),
+        Ok(RequestGuard {
+            operation: Arc::new(Operation {
+                id: self.control.next_id.fetch_add(1, Ordering::Relaxed),
+                cancelled: AtomicBool::new(false),
+                cancelled_notify: Notify::new(),
+            }),
             control: Arc::clone(&self.control),
             complete: false,
-        };
-        let (reply, response) = oneshot::channel();
-        let command = Command {
-            sql: sql.to_owned(),
-            operation,
-            reply,
-        };
-        let mut shutdown = self.control.shutdown.subscribe();
+        })
+    }
+    async fn submit(
+        &self,
+        command: Command,
+        shutdown: &mut watch::Receiver<bool>,
+    ) -> Result<(), Error> {
         if *shutdown.borrow() {
             return Err(Error::closed());
         }
         tokio::select! {
             biased;
-            _ = shutdown.changed() => return Err(Error::closed()),
-            result = self.sender.send(command) => result.map_err(|_| Error::closed())?,
+            _ = shutdown.changed() => Err(Error::closed()),
+            result = self.sender.send(command) => result.map_err(|_| Error::closed()),
         }
-        // A dropped sender is never successful completion: this also covers
-        // worker panic and requests discarded during connection shutdown.
-        let outcome = tokio::select! {
+    }
+    async fn response<T>(
+        &self,
+        response: oneshot::Receiver<Result<T, Error>>,
+        shutdown: &mut watch::Receiver<bool>,
+    ) -> Result<T, Error> {
+        tokio::select! {
             biased;
             _ = shutdown.changed() => Err(Error::closed()),
-            result = response => result.unwrap_or_else(|_| Err(Error::closed())),
-        };
-        guard.complete = true;
+            result = response => match result {
+                Ok(result) => result,
+                Err(_) => { self.control.shutdown(); Err(Error::closed()) }
+            },
+        }
+    }
+    pub(crate) async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+        let mut guard = self.request_guard()?;
+        let (reply, response) = oneshot::channel();
+        let mut shutdown = self.control.shutdown.subscribe();
+        self.submit(
+            Command::Batch {
+                sql: sql.to_owned(),
+                operation: Arc::clone(&guard.operation),
+                reply,
+            },
+            &mut shutdown,
+        )
+        .await?;
+        let outcome = self.response(response, &mut shutdown).await;
+        guard.complete();
         outcome
     }
-
+    pub(crate) async fn prepare(
+        &self,
+        sql: &str,
+        types: &[crate::types::Type],
+    ) -> Result<Prepared, Error> {
+        let mut guard = self.request_guard()?;
+        let (reply, response) = oneshot::channel();
+        let mut shutdown = self.control.shutdown.subscribe();
+        self.submit(
+            Command::Prepare {
+                sql: sql.to_owned(),
+                types: types.to_vec(),
+                operation: Arc::clone(&guard.operation),
+                reply,
+            },
+            &mut shutdown,
+        )
+        .await?;
+        let result = self.response(response, &mut shutdown).await;
+        guard.complete();
+        let (prepared, lease) = result?;
+        lease.disarm();
+        Ok(prepared)
+    }
+    pub(crate) fn close_statement(&self, id: u64) {
+        let _ = self.close_sender.send(id);
+    }
+    pub(crate) async fn query_prepared(
+        &self,
+        statement: crate::Statement,
+        params: Vec<turso_core::Value>,
+    ) -> Result<rows::Rows, Error> {
+        let id = statement.native_id(self)?;
+        let guard = self.request_guard()?;
+        let operation = Arc::clone(&guard.operation);
+        let (rows, output) = rows::channel(guard);
+        let (ready, response) = oneshot::channel();
+        let mut shutdown = self.control.shutdown.subscribe();
+        self.submit(
+            Command::Query {
+                id,
+                statement,
+                params,
+                operation,
+                ready,
+                output,
+            },
+            &mut shutdown,
+        )
+        .await?;
+        self.response(response, &mut shutdown).await?;
+        Ok(rows)
+    }
+    pub(crate) async fn execute_prepared(
+        &self,
+        statement: crate::Statement,
+        params: Vec<turso_core::Value>,
+    ) -> Result<u64, Error> {
+        let id = statement.native_id(self)?;
+        let mut guard = self.request_guard()?;
+        let (reply, response) = oneshot::channel();
+        let mut shutdown = self.control.shutdown.subscribe();
+        self.submit(
+            Command::Execute {
+                id,
+                params,
+                operation: Arc::clone(&guard.operation),
+                reply,
+                _statement: statement,
+            },
+            &mut shutdown,
+        )
+        .await?;
+        let outcome = self.response(response, &mut shutdown).await;
+        guard.complete();
+        outcome
+    }
     pub(crate) async fn check_connection(&self) -> Result<(), Error> {
         self.batch_execute("SELECT 1").await
     }
-
     pub(crate) fn is_closed(&self) -> bool {
         self.control.closed.load(Ordering::Acquire) || self.sender.is_closed()
     }
-
     pub(crate) fn shutdown(&self) {
         self.control.shutdown();
     }
+    #[cfg(any(feature = "runtime", test))]
     pub(crate) fn cancel(&self) {
         self.control.cancel(None);
     }
@@ -233,6 +351,8 @@ pub(crate) async fn connect(
     database: Arc<turso_core::Database>,
 ) -> Result<(Arc<Client>, Connection), Error> {
     let (sender, receiver) = mpsc::channel(COMMAND_CAPACITY);
+    let (close_sender, close_receiver) = mpsc::unbounded_channel();
+    let prepared_close = close_sender.clone();
     let (shutdown, shutdown_receiver) = watch::channel(false);
     let control = Arc::new(Control {
         stopping: Arc::new(AtomicBool::new(false)),
@@ -249,9 +369,12 @@ pub(crate) async fn connect(
         fail_next_cleanup: AtomicBool::new(false),
         #[cfg(test)]
         panic_next_step: AtomicBool::new(false),
+        #[cfg(test)]
+        produced_rows: AtomicU64::new(0),
     });
     let client = Arc::new(Client {
         sender,
+        close_sender,
         control: Arc::clone(&control),
     });
     let shutdown_guard = ShutdownGuard(Arc::clone(&control));
@@ -259,14 +382,16 @@ pub(crate) async fn connect(
     let runtime = Handle::current();
     let supervisor_guard = ShutdownGuard(Arc::clone(&control));
     let worker = tokio::task::spawn_blocking(move || {
-        run_worker(
+        run_worker(WorkerInput {
             database,
-            receiver,
-            shutdown_receiver,
-            ready_sender,
+            commands: receiver,
+            closing: close_receiver,
+            close_sender: prepared_close,
+            shutdown: shutdown_receiver,
+            ready: ready_sender,
             control,
             runtime,
-        )
+        })
     });
     // A caller may retain an unpolled Connection across runtime destruction.
     // The runtime must therefore own a guard too; aborting the blocking task
@@ -283,17 +408,17 @@ pub(crate) async fn connect(
     Ok((client, connection))
 }
 
-fn cancelled() -> Error {
+pub(super) fn cancelled() -> Error {
     Error::turso(turso_core::LimboError::Interrupt.into())
 }
 
 /// Cleanup failure quarantines a connection independently of error wording.
-struct Failure {
-    error: Error,
-    fatal: bool,
+pub(super) struct Failure {
+    pub(super) error: Error,
+    pub(super) fatal: bool,
 }
 impl Failure {
-    fn recoverable(error: Error) -> Self {
+    pub(super) fn recoverable(error: Error) -> Self {
         Self {
             error,
             fatal: false,
@@ -301,14 +426,28 @@ impl Failure {
     }
 }
 
-fn run_worker(
+struct WorkerInput {
     database: Arc<turso_core::Database>,
-    mut commands: mpsc::Receiver<Command>,
-    mut shutdown: watch::Receiver<bool>,
+    commands: mpsc::Receiver<Command>,
+    closing: mpsc::UnboundedReceiver<u64>,
+    close_sender: mpsc::UnboundedSender<u64>,
+    shutdown: watch::Receiver<bool>,
     ready: oneshot::Sender<Result<(), Error>>,
     control: Arc<Control>,
     runtime: Handle,
-) -> Result<(), Error> {
+}
+
+fn run_worker(input: WorkerInput) -> Result<(), Error> {
+    let WorkerInput {
+        database,
+        mut commands,
+        mut closing,
+        close_sender,
+        mut shutdown,
+        ready,
+        control,
+        runtime,
+    } = input;
     let _guard = WorkerGuard(Arc::clone(&control));
     if control.stopping.load(Ordering::Acquire) {
         let _ = ready.send(Err(Error::closed()));
@@ -324,42 +463,204 @@ fn run_worker(
     if ready.send(Ok(())).is_err() {
         control.shutdown();
     }
+    let mut store = Store::default();
+    let mut close_failure = None;
+    enum Event {
+        Command(Command),
+        Close(u64),
+    }
     loop {
         if control.stopping.load(Ordering::Acquire) {
             break;
         }
-        let command = runtime.block_on(async {
+        let event = runtime.block_on(async {
             tokio::select! {
                 biased;
                 _ = shutdown.changed() => None,
-                command = commands.recv() => command,
+                id = closing.recv() => id.map(Event::Close),
+                command = commands.recv() => command.map(Event::Command),
             }
         });
-        let Some(command) = command else {
-            break;
+        let command = match event {
+            None => break,
+            Some(Event::Close(id)) => {
+                if let Err(error) = store.close(id) {
+                    control.quarantine();
+                    close_failure = Some(error);
+                    break;
+                }
+                continue;
+            }
+            Some(Event::Command(command)) => command,
         };
+        let operation = Arc::clone(command.operation());
         *control.active.lock().unwrap_or_else(|e| e.into_inner()) = Some(Active {
-            operation: Arc::clone(&command.operation),
+            operation: Arc::clone(&operation),
             connection: connection.clone(),
         });
-        let result = execute_script(&connection, &command.sql, &command.operation, &control);
+        let fatal = match command {
+            Command::Batch { sql, reply, .. } => {
+                let result = execute_script(&connection, &sql, &operation, &control);
+                let fatal = result.as_ref().err().is_some_and(|error| error.fatal);
+                if fatal {
+                    control.quarantine();
+                }
+                let _ = reply.send(result.map_err(|failure| failure.error));
+                fatal
+            }
+            Command::Prepare {
+                sql, types, reply, ..
+            } => {
+                let result = if control.cancelled(&operation) {
+                    Err(Failure::recoverable(cancelled()))
+                } else {
+                    synchronize_preparation(&connection, &database, &operation, &control).and_then(
+                        |()| {
+                            store
+                                .prepare(&connection, &sql, types, &close_sender)
+                                .map_err(Failure::recoverable)
+                        },
+                    )
+                };
+                let fatal = result.as_ref().err().is_some_and(|error| error.fatal);
+                if fatal {
+                    control.quarantine();
+                }
+                let _ = reply.send(result.map_err(|failure| failure.error));
+                fatal
+            }
+            Command::Execute {
+                id, params, reply, ..
+            } => {
+                let result = match store.get(id, &connection) {
+                    Ok(entry) => query::execute(&connection, entry, params, &operation, &control),
+                    Err(error) => Err(Failure::recoverable(error)),
+                };
+                let fatal = result.as_ref().err().is_some_and(|error| error.fatal);
+                if fatal {
+                    control.quarantine();
+                }
+                let _ = reply.send(result.map_err(|failure| failure.error));
+                fatal
+            }
+            Command::Query {
+                id,
+                statement,
+                params,
+                ready,
+                output,
+                ..
+            } => match store.get(id, &connection) {
+                Ok(entry) => query::query(
+                    entry,
+                    query::Request {
+                        statement,
+                        params,
+                        ready,
+                        output,
+                    },
+                    query::Context {
+                        connection: &connection,
+                        operation: &operation,
+                        control: &control,
+                        shutdown: &mut shutdown,
+                        runtime: &runtime,
+                    },
+                ),
+                Err(error) => {
+                    let _ = ready.send(Err(error));
+                    output.finish(Err(Error::closed()));
+                    false
+                }
+            },
+        };
         connection.inner().set_progress_handler(0, None);
         *control.active.lock().unwrap_or_else(|e| e.into_inner()) = None;
-        let fatal = result.as_ref().err().is_some_and(|error| error.fatal);
         if fatal {
-            control.closed.store(true, Ordering::Release);
-        }
-        let _ = command.reply.send(result.map_err(|failure| failure.error));
-        if fatal {
+            control.quarantine();
             break;
         }
     }
     commands.close();
     while let Ok(command) = commands.try_recv() {
-        let _ = command.reply.send(Err(Error::closed()));
+        command.close();
     }
     connection.inner().set_progress_handler(0, None);
-    connection.close().map_err(Error::turso)
+    let statements = store.close_all();
+    let connection = connection.close().map_err(Error::turso);
+    for result in [statements, connection] {
+        if let Err(error) = result {
+            close_failure = Some(match close_failure {
+                None => error,
+                Some(primary) => Error::turso_cleanup(primary, error),
+            });
+        }
+    }
+    match close_failure {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+fn synchronize_preparation(
+    connection: &PgConnection,
+    database: &turso_core::Database,
+    operation: &Arc<Operation>,
+    control: &Control,
+) -> Result<(), Failure> {
+    // Pinned engine adf3b41's maybe_update_schema COW-clones the shared schema
+    // while resolving MVCC roots, then its next identity check treats that
+    // clone as another schema change. Native reprepare adopts the shared Arc
+    // directly. One harmless read lets that path settle before describing new
+    // user SQL. This is cold preparation only, never cached execution; leave
+    // active transaction snapshots alone and do not retry concurrent DDL.
+    if connection.inner().get_auto_commit()
+        && !Arc::ptr_eq(
+            &connection.inner().current_schema(),
+            &database.clone_schema(),
+        )
+    {
+        execute_script(connection, "SELECT 1", operation, control)?;
+    }
+    Ok(())
+}
+
+pub(super) fn install_progress(
+    connection: &PgConnection,
+    operation: &Arc<Operation>,
+    control: &Control,
+) {
+    let cancellation = Arc::clone(operation);
+    let stopping = Arc::clone(&control.stopping);
+    connection.inner().set_progress_handler(
+        PROGRESS_INTERVAL,
+        Some(Box::new(move || {
+            cancellation.cancelled.load(Ordering::Acquire) || stopping.load(Ordering::Acquire)
+        })),
+    );
+}
+
+pub(super) fn finish_statement(
+    connection: &PgConnection,
+    statement: &mut Statement,
+    operation: &Operation,
+    control: &Control,
+    outcome: Result<(), Error>,
+) -> Result<(), Failure> {
+    connection.inner().set_progress_handler(0, None);
+    let cleanup = cleanup_statement(statement, operation, control, outcome.is_err());
+    if outcome.is_err() {
+        connection.abort_transaction_block_on_error();
+    }
+    match (outcome, cleanup) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(error), Ok(())) => Err(Failure::recoverable(error)),
+        (Ok(()), Err(error)) => Err(Failure { error, fatal: true }),
+        (Err(primary), Err(cleanup)) => Err(Failure {
+            error: Error::turso_cleanup(primary, cleanup),
+            fatal: true,
+        }),
+    }
 }
 
 // [spec:pgorm:sem:turso.lifecycle] one worker drives the complete native operation
@@ -369,16 +670,7 @@ fn execute_script(
     operation: &Arc<Operation>,
     control: &Control,
 ) -> Result<(), Failure> {
-    let cancellation = Arc::clone(operation);
-    let stopping = Arc::clone(&control.stopping);
-    // Connection::interrupt ignores idle roots. This latch is also checked by
-    // the VM after startup, closing the cancel-before-first-step race.
-    connection.inner().set_progress_handler(
-        PROGRESS_INTERVAL,
-        Some(Box::new(move || {
-            cancellation.cancelled.load(Ordering::Acquire) || stopping.load(Ordering::Acquire)
-        })),
-    );
+    install_progress(connection, operation, control);
     // Native parsing supplies script boundaries. Native scripts are sequential:
     // this does not manufacture PostgreSQL's implicit script transaction.
     for statement in connection.query_runner(sql.as_bytes()) {
@@ -396,42 +688,27 @@ fn execute_script(
                 statement.parameters_count(),
             )));
         }
-        let outcome = step_statement(connection, &mut statement, operation, control);
-        // Cancellation must not interrupt mandatory rollback/reset.
-        connection.inner().set_progress_handler(0, None);
-        let cleanup = cleanup_statement(&mut statement, operation, control, outcome.is_err());
-        if outcome.is_err() {
-            connection.abort_transaction_block_on_error();
-        }
-        match (outcome, cleanup) {
-            (Ok(()), Ok(())) => {}
-            (Err(error), Ok(())) => return Err(Failure::recoverable(error)),
-            (Ok(()), Err(error)) => return Err(Failure { error, fatal: true }),
-            (Err(primary), Err(cleanup)) => {
-                return Err(Failure {
-                    error: Error::turso_cleanup(primary, cleanup),
-                    fatal: true,
-                });
-            }
-        }
-        let cancellation = Arc::clone(operation);
-        let stopping = Arc::clone(&control.stopping);
-        connection.inner().set_progress_handler(
-            PROGRESS_INTERVAL,
-            Some(Box::new(move || {
-                cancellation.cancelled.load(Ordering::Acquire) || stopping.load(Ordering::Acquire)
-            })),
-        );
+        let outcome = step_statement(&mut statement, operation, control);
+        finish_statement(connection, &mut statement, operation, control, outcome)?;
+        install_progress(connection, operation, control);
     }
     Ok(())
 }
 
 fn step_statement(
-    _connection: &PgConnection,
     statement: &mut Statement,
     operation: &Operation,
     control: &Control,
 ) -> Result<(), Error> {
+    while next_row(statement, operation, control)? {}
+    Ok(())
+}
+
+pub(super) fn next_row(
+    statement: &mut Statement,
+    operation: &Operation,
+    control: &Control,
+) -> Result<bool, Error> {
     loop {
         if control.cancelled(operation) {
             return Err(cancelled());
@@ -445,14 +722,16 @@ fn step_statement(
             panic!("injected native worker failure");
         }
         match statement.step().map_err(Error::turso)? {
-            StepResult::Row =>
-            {
+            StepResult::Row => {
+                #[cfg(test)]
+                control.produced_rows.fetch_add(1, Ordering::Relaxed);
                 #[cfg(test)]
                 if let Some(gate) = control.after_row.lock().unwrap().take() {
                     gate.pause();
                 }
+                return Ok(true);
             }
-            StepResult::Done => return Ok(()),
+            StepResult::Done => return Ok(false),
             StepResult::Interrupt => return Err(cancelled()),
             StepResult::Busy => return Err(Error::turso(turso_core::LimboError::Busy.into())),
             StepResult::Sleep { duration } => {
@@ -621,188 +900,4 @@ impl StepGate {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::Path;
-
-    const LONG: &str = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<100000000) SELECT sum(x) FROM n";
-
-    async fn actor() -> (Arc<Client>, JoinHandle<Result<(), Error>>) {
-        let database = super::super::Database::open(Path::new(":memory:"))
-            .await
-            .unwrap();
-        let (client, connection) = database.connect().await.unwrap();
-        (client, tokio::spawn(connection))
-    }
-
-    fn gate() -> (StepGate, oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
-        let (entered, ready) = oneshot::channel();
-        let (resume, paused) = std::sync::mpsc::channel();
-        (
-            StepGate {
-                entered,
-                resume: paused,
-            },
-            ready,
-            resume,
-        )
-    }
-
-    async fn finish(client: Arc<Client>, task: JoinHandle<Result<(), Error>>) {
-        drop(client);
-        tokio::time::timeout(Duration::from_secs(3), task)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
-    }
-
-    // [spec:pgorm:sem:turso.lifecycle/test] cancellation between check and first VM step is latched
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn cancellation_before_first_native_step_is_not_lost() {
-        let (client, task) = actor().await;
-        let (gate, entered, resume) = gate();
-        *client.control.before_step.lock().unwrap() = Some(gate);
-        let op_client = Arc::clone(&client);
-        let operation = tokio::spawn(async move { op_client.batch_execute(LONG).await });
-        entered.await.unwrap();
-        // Connection::interrupt ignores this idle native root; only the
-        // progress-handler latch can cancel the impending CPU-heavy step.
-        client.cancel();
-        resume.send(()).unwrap();
-        let error = tokio::time::timeout(Duration::from_secs(3), operation)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap_err();
-        assert_eq!(error.code().unwrap().code(), "57014");
-        client.check_connection().await.unwrap();
-        finish(client, task).await;
-    }
-
-    // [spec:pgorm:sem:turso.lifecycle/test] interrupted RETURNING must terminate before reset can commit
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn cancelled_returning_does_not_commit_during_reset() {
-        let (client, task) = actor().await;
-        client
-            .batch_execute("CREATE TABLE writes(id integer PRIMARY KEY)")
-            .await
-            .unwrap();
-        let (gate, entered, resume) = gate();
-        *client.control.after_row.lock().unwrap() = Some(gate);
-        let op_client = Arc::clone(&client);
-        let operation = tokio::spawn(async move {
-            op_client
-                .batch_execute("INSERT INTO writes VALUES(1) RETURNING id")
-                .await
-        });
-        entered.await.unwrap();
-        client.cancel();
-        resume.send(()).unwrap();
-        assert_eq!(
-            operation.await.unwrap().unwrap_err().code().unwrap().code(),
-            "57014"
-        );
-        // A commit hidden in reset would cause a duplicate-key violation.
-        client
-            .batch_execute("INSERT INTO writes VALUES(1)")
-            .await
-            .unwrap();
-        finish(client, task).await;
-    }
-
-    // [spec:pgorm:sem:turso.lifecycle/test] cleanup failure preserves primary cause and forbids reuse
-    #[tokio::test]
-    async fn cleanup_failure_quarantines_and_keeps_primary_error() {
-        let (client, task) = actor().await;
-        client
-            .batch_execute(
-                "CREATE TABLE writes(id integer PRIMARY KEY); INSERT INTO writes VALUES(1)",
-            )
-            .await
-            .unwrap();
-        client
-            .control
-            .fail_next_cleanup
-            .store(true, Ordering::Release);
-        let error = client
-            .batch_execute("INSERT INTO writes VALUES(1)")
-            .await
-            .unwrap_err();
-        assert_eq!(error.code().unwrap().code(), "23505");
-        assert!(client.is_closed());
-        assert!(client.check_connection().await.unwrap_err().is_closed());
-        finish(client, task).await;
-    }
-
-    // [spec:pgorm:sem:turso.lifecycle/test] unexpected worker termination never becomes successful completion
-    #[tokio::test]
-    async fn worker_panic_fails_active_request() {
-        let (client, task) = actor().await;
-        client
-            .control
-            .panic_next_step
-            .store(true, Ordering::Release);
-        assert!(client.check_connection().await.unwrap_err().is_closed());
-        assert!(client.is_closed());
-        drop(client);
-        assert!(task.await.unwrap().is_err());
-    }
-
-    // [spec:pgorm:sem:turso.lifecycle/test] a stale request drop cannot cancel another operation
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn stale_cancellation_does_not_affect_current_operation() {
-        let (client, task) = actor().await;
-        let (gate, entered, resume) = gate();
-        *client.control.before_step.lock().unwrap() = Some(gate);
-        let op_client = Arc::clone(&client);
-        let operation = tokio::spawn(async move { op_client.check_connection().await });
-        entered.await.unwrap();
-        let stale = Operation {
-            id: u64::MAX,
-            cancelled: AtomicBool::new(false),
-        };
-        client.control.cancel(Some(&stale));
-        resume.send(()).unwrap();
-        operation.await.unwrap().unwrap();
-        finish(client, task).await;
-    }
-
-    // [spec:pgorm:sem:turso.lifecycle/test] pending native engine waits observe cancellation
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn pending_native_completion_is_aborted_on_cancel() {
-        let database = super::super::Database::open(Path::new(":memory:"))
-            .await
-            .unwrap();
-        let native = PgConnection::connect(&database.inner).unwrap();
-        let statement = native.prepare("SELECT 1").unwrap();
-        let (client, lifetime) = database.connect().await.unwrap();
-        let task = tokio::spawn(lifetime);
-        let operation = Arc::new(Operation {
-            id: u64::MAX,
-            cancelled: AtomicBool::new(false),
-        });
-        let completion = turso_core::Completion::new_wait();
-        let pending = completion.clone();
-        let operation_wait = Arc::clone(&operation);
-        let control_wait = Arc::clone(&client.control);
-        let waiting = tokio::task::spawn_blocking(move || {
-            wait_completion(
-                &statement,
-                IOCompletions(pending),
-                &operation_wait,
-                &control_wait,
-            )
-        });
-        client.control.cancel(Some(&operation));
-        let error = tokio::time::timeout(Duration::from_secs(3), waiting)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap_err();
-        assert_eq!(error.code().unwrap().code(), "57014");
-        assert!(completion.finished());
-        native.close().unwrap();
-        finish(client, task).await;
-    }
-}
+mod tests;

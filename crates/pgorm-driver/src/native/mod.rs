@@ -6,7 +6,15 @@
 use crate::Error;
 use std::{fmt, path::Path, sync::Arc};
 
+pub(crate) mod codecs;
+mod commands;
+pub(crate) mod describe;
+mod query;
+mod rows;
+mod statement_store;
 mod worker;
+pub(crate) use rows::Rows;
+pub(crate) use statement_store::Prepared;
 pub(crate) use worker::{Client, Connection};
 
 // [spec:pgorm:sem:turso.lifecycle]

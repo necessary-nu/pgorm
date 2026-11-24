@@ -5,6 +5,8 @@ use crate::simple_query::SimpleColumn;
 use crate::statement::Column;
 use crate::types::{FromSql, Type, WrongType};
 use crate::{Error, Statement};
+#[cfg(feature = "turso")]
+use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
 use std::fmt;
@@ -97,7 +99,10 @@ where
 #[derive(Clone)]
 pub struct Row {
     statement: Statement,
+    #[cfg(not(feature = "turso"))]
     body: DataRowBody,
+    #[cfg(feature = "turso")]
+    body: Bytes,
     ranges: Vec<Option<Range<usize>>>,
 }
 
@@ -112,6 +117,8 @@ impl fmt::Debug for Row {
 impl Row {
     pub(crate) fn new(statement: Statement, body: DataRowBody) -> Result<Row, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
+        #[cfg(feature = "turso")]
+        let body = body.buffer_bytes().clone();
         let row = Row {
             statement,
             body,
@@ -127,6 +134,22 @@ impl Row {
             )));
         }
         Ok(row)
+    }
+
+    // [spec:pgorm:req:turso.rows] one owned byte representation serves every FromSql read
+    #[cfg(feature = "turso")]
+    pub(crate) fn from_native(
+        statement: Statement,
+        body: Bytes,
+        ranges: Vec<Option<Range<usize>>>,
+    ) -> Row {
+        debug_assert_eq!(ranges.len(), statement.columns().len());
+        debug_assert!(ranges.iter().flatten().all(|range| range.end <= body.len()));
+        Row {
+            statement,
+            body,
+            ranges,
+        }
     }
 
     /// Returns information about the columns of data in the row.
@@ -195,13 +218,27 @@ impl Row {
 
     /// Returns the raw size of the row in bytes.
     pub fn raw_size_bytes(&self) -> usize {
-        self.body.buffer_bytes().len()
+        #[cfg(feature = "turso")]
+        {
+            self.body.len()
+        }
+        #[cfg(not(feature = "turso"))]
+        {
+            self.body.buffer_bytes().len()
+        }
     }
 
     /// Get the raw bytes for the column at the given index.
     fn col_buffer(&self, idx: usize) -> Option<&[u8]> {
         let range = self.ranges[idx].to_owned()?;
-        Some(&self.body.buffer()[range])
+        #[cfg(feature = "turso")]
+        {
+            Some(&self.body[range])
+        }
+        #[cfg(not(feature = "turso"))]
+        {
+            Some(&self.body.buffer()[range])
+        }
     }
 }
 

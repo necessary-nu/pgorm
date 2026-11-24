@@ -39,23 +39,10 @@ fn unsupported<T>(result: Result<T, Error>, operation: &str) {
 
 // [spec:pgorm:sem:turso.lifecycle/test]
 #[tokio::test]
-async fn unsupported_queries_never_reach_pg_encoding() {
+async fn simple_query_refusal_has_no_side_effects() {
     let database = TursoDatabase::open(":memory:").await.unwrap();
     let (client, connection) = database.connect().await.unwrap();
     let task = tokio::spawn(connection);
-    let params: &[&(dyn ToSql + Sync)] = &[&MustNotEncode];
-    let typed: &[(&(dyn ToSql + Sync), Type)] = &[(&MustNotEncode, Type::INT4)];
-    unsupported(client.prepare("invalid SQL").await, "prepare_typed");
-    unsupported(client.query("SELECT $1", params).await, "query_raw");
-    unsupported(
-        client.query_typed("SELECT $1", typed).await,
-        "query_typed_raw",
-    );
-    unsupported(client.execute("SELECT $1", params).await, "execute_raw");
-    unsupported(
-        client.execute_typed("SELECT $1", typed).await,
-        "execute_typed",
-    );
     unsupported(
         client
             .simple_query("CREATE TABLE refused(id integer)")

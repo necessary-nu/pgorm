@@ -378,6 +378,8 @@ enum Kind {
     #[cfg(feature = "turso")]
     TursoUnsupported(&'static str),
     #[cfg(feature = "turso")]
+    TursoStatementInvalidated,
+    #[cfg(feature = "turso")]
     TursoCleanup,
 }
 
@@ -428,6 +430,10 @@ impl fmt::Display for Error {
             Kind::TursoUnsupported(operation) => {
                 write!(fmt, "native Turso does not support {operation}")
             }
+            #[cfg(feature = "turso")]
+            Kind::TursoStatementInvalidated => fmt.write_str(
+                "native statement metadata was invalidated; prepare the statement again",
+            ),
             #[cfg(feature = "turso")]
             Kind::TursoCleanup => fmt.write_str("native operation failed and cleanup also failed"),
         }

@@ -40,6 +40,10 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    #[cfg(feature = "turso")]
+    if let Some(actor) = client.native() {
+        return crate::native_query::query(client, actor, statement, params).await;
+    }
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
         debug!(
@@ -54,7 +58,10 @@ where
     let responses = start(client, buf).await?;
     Ok(RowStream {
         statement,
+        #[cfg(not(feature = "turso"))]
         responses,
+        #[cfg(feature = "turso")]
+        responses: RowResponses::Postgres(responses),
         rows_affected: None,
     })
 }
@@ -68,6 +75,10 @@ where
     P: BorrowToSql,
     I: IntoIterator<Item = (P, Type)>,
 {
+    #[cfg(feature = "turso")]
+    if let Some(actor) = client.native() {
+        return crate::native_query::query_typed(client, actor, query, params).await;
+    }
     let buf = {
         let params = params.into_iter().collect::<Vec<_>>();
         let param_oids = params.iter().map(|(_, t)| t.oid()).collect::<Vec<_>>();
@@ -91,7 +102,10 @@ where
             Message::NoData => {
                 return Ok(RowStream {
                     statement: Statement::unnamed(vec![], vec![]),
+                    #[cfg(not(feature = "turso"))]
                     responses,
+                    #[cfg(feature = "turso")]
+                    responses: RowResponses::Postgres(responses),
                     rows_affected: None,
                 });
             }
@@ -111,7 +125,10 @@ where
                 }
                 return Ok(RowStream {
                     statement: Statement::unnamed(vec![], columns),
+                    #[cfg(not(feature = "turso"))]
                     responses,
+                    #[cfg(feature = "turso")]
+                    responses: RowResponses::Postgres(responses),
                     rows_affected: None,
                 });
             }
@@ -129,6 +146,10 @@ where
     P: BorrowToSql,
     I: IntoIterator<Item = (P, Type)>,
 {
+    #[cfg(feature = "turso")]
+    if let Some(actor) = client.native() {
+        return crate::native_query::execute_typed(client, actor, query, params).await;
+    }
     let buf = {
         let params = params.into_iter().collect::<Vec<_>>();
         let param_oids = params.iter().map(|(_, t)| t.oid()).collect::<Vec<_>>();
@@ -187,7 +208,10 @@ pub async fn query_portal(
 
     Ok(RowStream {
         statement: portal.statement().clone(),
+        #[cfg(not(feature = "turso"))]
         responses,
+        #[cfg(feature = "turso")]
+        responses: RowResponses::Postgres(responses),
         rows_affected: None,
     })
 }
@@ -215,6 +239,10 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    #[cfg(feature = "turso")]
+    if let Some(actor) = client.native() {
+        return crate::native_query::execute(client, actor, statement, params).await;
+    }
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
         debug!(
@@ -278,6 +306,12 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    #[cfg(feature = "turso")]
+    if statement.native_codecs().is_some() {
+        return Err(Error::turso_unsupported(
+            "a native statement on a PostgreSQL connection",
+        ));
+    }
     let params = params.into_iter();
     if params.len() != statement.params().len() {
         return Err(Error::parameters(params.len(), statement.params().len()));
@@ -331,12 +365,21 @@ where
     }
 }
 
+#[cfg(feature = "turso")]
+enum RowResponses {
+    Postgres(Responses),
+    Native(crate::native::Rows),
+}
+
+#[cfg(not(feature = "turso"))]
+type RowResponses = Responses;
+
 pin_project! {
     /// A stream of table rows.
     #[project(!Unpin)]
     pub struct RowStream {
         statement: Statement,
-        responses: Responses,
+        responses: RowResponses,
         rows_affected: Option<u64>,
     }
 }
@@ -346,8 +389,21 @@ impl Stream for RowStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
+        #[cfg(feature = "turso")]
+        let responses = match this.responses {
+            RowResponses::Postgres(responses) => responses,
+            RowResponses::Native(rows) => {
+                let result = Pin::new(&mut *rows).poll_next(cx);
+                if matches!(result, Poll::Ready(None)) {
+                    *this.rows_affected = rows.rows_affected();
+                }
+                return result;
+            }
+        };
+        #[cfg(not(feature = "turso"))]
+        let responses = this.responses;
         loop {
-            match ready!(this.responses.poll_next(cx)?) {
+            match ready!(responses.poll_next(cx)?) {
                 Message::DataRow(body) => {
                     return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)));
                 }
@@ -363,6 +419,15 @@ impl Stream for RowStream {
 }
 
 impl RowStream {
+    #[cfg(feature = "turso")]
+    pub(crate) fn from_native(statement: Statement, rows: crate::native::Rows) -> Self {
+        Self {
+            statement,
+            responses: RowResponses::Native(rows),
+            rows_affected: None,
+        }
+    }
+
     /// Returns the number of rows affected by the query.
     ///
     /// This function will return `None` until the stream has been exhausted.

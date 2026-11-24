@@ -4061,6 +4061,15 @@ impl_evidence (
         {impl_name main, rule turso.feature}
         {impl_name main, rule turso.lifecycle}
     )}
+    {id turso.types, covered_rules (
+        turso.errors
+        turso.rows
+        turso.values
+    ), covered_claims (
+        {impl_name main, rule turso.errors}
+        {impl_name main, rule turso.rows}
+        {impl_name main, rule turso.values}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

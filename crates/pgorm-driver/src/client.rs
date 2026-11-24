@@ -38,6 +38,9 @@ use std::task::{Context, Poll, ready};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+#[cfg(feature = "turso")]
+mod turso;
+
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
     cur: BackendMessages,
@@ -96,17 +99,6 @@ pub struct InnerClient {
 }
 
 impl InnerClient {
-    #[cfg(feature = "turso")]
-    pub(crate) fn require_postgres(&self, operation: &'static str) -> Result<(), Error> {
-        match &self.sender {
-            crate::native_client::Backend::Postgres(_) => Ok(()),
-            crate::native_client::Backend::Turso(client) if client.is_closed() => {
-                Err(Error::closed())
-            }
-            crate::native_client::Backend::Turso(_) => Err(Error::turso_unsupported(operation)),
-        }
-    }
-
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
         #[cfg(feature = "turso")]
         let request_sender = self.sender.postgres()?;
@@ -232,23 +224,6 @@ impl Client {
         }
     }
 
-    #[cfg(feature = "turso")]
-    pub(crate) fn from_turso(client: Arc<crate::native::Client>) -> Client {
-        Client {
-            inner: Arc::new(InnerClient {
-                sender: crate::native_client::Backend::Turso(client),
-                cached_typeinfo: Default::default(),
-                buffer: Default::default(),
-            }),
-            #[cfg(feature = "runtime")]
-            socket_config: None,
-            ssl_mode: SslMode::Disable,
-            ssl_negotiation: SslNegotiation::Postgres,
-            process_id: 0,
-            secret_key: 0,
-        }
-    }
-
     pub(crate) fn inner(&self) -> &Arc<InnerClient> {
         &self.inner
     }
@@ -275,8 +250,6 @@ impl Client {
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error> {
-        #[cfg(feature = "turso")]
-        self.inner.require_postgres("prepare_typed")?;
         prepare::prepare(&self.inner, query, parameter_types).await
     }
 
@@ -463,8 +436,6 @@ impl Client {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
-        #[cfg(feature = "turso")]
-        self.inner.require_postgres("query_raw")?;
         let statement = statement.__convert().into_statement(&self.inner).await?;
         query::query(&self.inner, statement, params).await
     }
@@ -591,8 +562,6 @@ impl Client {
         P: BorrowToSql,
         I: IntoIterator<Item = (P, Type)>,
     {
-        #[cfg(feature = "turso")]
-        self.inner.require_postgres("query_typed_raw")?;
         query::query_typed(&self.inner, query, params).await
     }
 
@@ -632,8 +601,6 @@ impl Client {
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<u64, Error> {
-        #[cfg(feature = "turso")]
-        self.inner.require_postgres("execute_typed")?;
         query::execute_typed(
             &self.inner,
             statement,
@@ -659,8 +626,6 @@ impl Client {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
-        #[cfg(feature = "turso")]
-        self.inner.require_postgres("execute_raw")?;
         let statement = statement.__convert().into_statement(&self.inner).await?;
         query::execute(self.inner(), statement, params).await
     }

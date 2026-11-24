@@ -22246,6 +22246,41 @@ children (
                         kind @decision
                         text "Include the basic prepared-query worker plumbing needed to exercise codecs and common Rows through the public driver. A codec module with no production callers would not establish usable conversion behavior and would require temporary dead-code allowances. This item supplies integrated scalar round-trips; turso.execution then delivers the full execution/stream contract, parameter-typing/ORM cache hints, and broader command, ownership and cancellation verification. Preserve bounded streaming and lifecycle cleanup in the basic path from the outset."
                     }
+
+                    {
+                        at 2026-11-24T16:15:23.466364Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T16:15:23.997383Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Continuing the operator's explicit Turso implementation request after lifecycle delivery 764968fb. Its declared prerequisites are complete. The global next command also shows an unrelated Python guide item in an earlier pass; this task remains scoped to the requested Turso work without changing that item's priority or dependencies. Untracked scope-security work remains outside this delivery."
+                    }
+
+                    {
+                        at 2026-11-24T16:38:48.849627Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Integrated native driver tests pass for scalar values, metadata, custom codecs, row storage and lifecycle. Review found that the native engine can automatically reprepare cached statements after a schema/context change while the public Statement retains its original metadata; adding a pre-step compatibility check before delivering this item so invalidated metadata cannot silently escape."
+                    }
+
+                    {
+                        at 2026-11-24T16:46:18.263601Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The shared-driver PostgreSQL regression run with --features turso passed all 26 tests across driver_types_tests, error_model_tests, statement_cache_tests and stream_tests. The required check sweep passes workspace check/clippy, formatting and feature configurations. A new cross-connection schema-invalidation regression exposed a fresh-prepare context issue; fixing that before delivery rather than weakening the guard."
+                    }
+
+                    {
+                        at 2026-11-24T16:58:15.663371Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Final native suite passes all 56 tests (34 unit, 9 lifecycle, 11 scalar integration, 2 unsupported-operation); all ten scoped nplan platform checks pass. Pre-step context checking and retained prepared-program identity prevent stale metadata, including a deterministic reprepare race. A native COW schema-identity bug at the exact pin is stabilized only before fresh autocommit preparation with differing local/shared schema handles; cached execution gains no synchronization query or reparse. The 26 real PostgreSQL feature-on regressions also pass."
+                    }
                 )
             }
 

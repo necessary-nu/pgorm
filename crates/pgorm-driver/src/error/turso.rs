@@ -4,6 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 
 impl DbError {
+    // [spec:pgorm:req:turso.errors]
     fn turso(cause: turso_pg::Error) -> Self {
         Self {
             // The native API reports failures without a severity diagnostic.
@@ -99,6 +100,25 @@ impl StdError for TursoCleanupError {
 }
 
 impl Error {
+    /// Whether a native statement's prepared metadata is no longer valid.
+    ///
+    /// Discard the cached statement before another call. This error can be
+    /// detected after an engine step and does not establish that the operation
+    /// had no effects; it is not permission to retry automatically.
+    pub fn is_statement_invalidated(&self) -> bool {
+        if let Some(cleanup) = self
+            .source()
+            .and_then(|cause| cause.downcast_ref::<TursoCleanupError>())
+        {
+            return cleanup.primary().is_statement_invalidated();
+        }
+        self.0.kind == Kind::TursoStatementInvalidated
+    }
+
+    pub(crate) fn turso_statement_invalidated() -> Self {
+        Self::new(Kind::TursoStatementInvalidated, None)
+    }
+
     pub(crate) fn turso(cause: turso_pg::Error) -> Self {
         Self::new(Kind::Db, Some(Box::new(DbError::turso(cause))))
     }
@@ -112,6 +132,13 @@ impl Error {
 
     pub(crate) fn turso_unsupported(operation: &'static str) -> Self {
         Self::new(Kind::TursoUnsupported(operation), None)
+    }
+
+    pub(crate) fn turso_unsupported_with<E>(operation: &'static str, cause: E) -> Self
+    where
+        E: StdError + Send + Sync + 'static,
+    {
+        Self::new(Kind::TursoUnsupported(operation), Some(Box::new(cause)))
     }
 
     pub(crate) fn turso_cleanup(primary: Error, cleanup: Error) -> Self {
@@ -141,6 +168,7 @@ mod tests {
     }
 
     #[test]
+    // [spec:pgorm:req:turso.errors/test]
     fn native_diagnostics_and_original_cause_are_preserved() {
         // An unknown SQLSTATE must survive too; do not classify from message text.
         let error = Error::turso(dialect_error("ZP123", "native message"));
@@ -171,6 +199,7 @@ mod tests {
     }
 
     #[test]
+    // [spec:pgorm:req:turso.errors/test]
     fn native_constraint_fields_are_retained() {
         let mut violation = ConstraintViolation::new(ConstraintKind::NotNull, "missing".to_owned());
         violation.table_name = Some("widgets".to_owned());
@@ -212,6 +241,7 @@ mod tests {
     }
 
     #[test]
+    // [spec:pgorm:req:turso.errors/test]
     fn worker_and_unsupported_errors_have_no_sqlstate() {
         let error = Error::turso_worker(io::Error::other("worker stopped"));
         assert!(error.as_db_error().is_none());
@@ -225,6 +255,7 @@ mod tests {
     }
 
     #[test]
+    // [spec:pgorm:req:turso.errors/test]
     fn cleanup_keeps_both_causes_and_primary_database_code() {
         let primary = Error::turso(dialect_error("23505", "duplicate key"));
         let cleanup = Error::turso(dialect_error("58030", "cleanup I/O failed"));
@@ -257,5 +288,21 @@ mod tests {
         assert!(error.as_db_error().is_none());
         assert!(error.code().is_none());
         assert!(error.is_closed());
+    }
+
+    // [spec:pgorm:req:turso.errors/test]
+    #[test]
+    fn invalidated_metadata_has_no_fabricated_sqlstate() {
+        let invalidated = Error::turso_statement_invalidated();
+        assert!(invalidated.is_statement_invalidated());
+        assert!(invalidated.code().is_none());
+        assert!(invalidated.as_db_error().is_none());
+        assert!(!invalidated.is_closed());
+        let cleanup = Error::turso_cleanup(invalidated, Error::closed());
+        assert!(cleanup.is_statement_invalidated());
+        assert!(cleanup.is_closed());
+        assert!(
+            !Error::turso(dialect_error("0A000", "unsupported feature")).is_statement_invalidated()
+        );
     }
 }
