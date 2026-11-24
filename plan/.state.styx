@@ -1852,6 +1852,7 @@ assertions (
     {id pg19-only, kind @complete, author "brendan@necessary.nu", at 2026-11-23T19:01:40.682007Z}
     {id scopes.security-regressions, kind @doing, author "brendan@necessary.nu", at 2026-11-24T09:41:46.543776Z}
     {id turso.performance-baseline, kind @complete, author "brendan@necessary.nu", at 2026-11-24T14:40:05.916004Z}
+    {id turso.spec, kind @complete, author "brendan@necessary.nu", at 2026-11-24T15:31:35.020061Z}
 )
 
 impl_evidence (

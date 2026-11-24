@@ -22118,12 +22118,34 @@ children (
                 title "Specify the experimental native backend contract, supported surface, feature isolation and performance criteria"
                 kind @docs
                 deps (decide.turso turso.performance-baseline)
+                sealed true
                 log (
                     {
                         at 2026-11-24T14:06:26.043174Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Define the native-backend rules under docs/spec before implementation and attach each defined rule to the corresponding WBS leaf. Read the pinned native engine API and establish its database/connection ownership, value and metadata representations, threading/execution constraints, cancellation behavior and error information. Specify the common public driver contract, supported-type policy including custom ToSql/FromSql implementations, statement ownership, partial execution, transactions, streaming, connection reuse and explicit unsupported outcomes. Distinguish engine limitations from limitations of its pgwire frontend and from unfinished pgorm integration; do not copy the old frontend limitation list as current facts. Preserve PostgreSQL's contracts, revising any spec wording that assumes every driver uses network request queues without weakening the PostgreSQL guarantees. Define optional feature propagation and the Rust/Python/JavaScript connection and packaging surface. Establish benchmark method and acceptance criteria from turso.performance-baseline rather than inventing unmeasured performance claims. Scope initial support explicitly so experimental delivery does not wait for complete PostgreSQL compatibility."
+                    }
+
+                    {
+                        at 2026-11-24T14:41:37.287182Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T14:41:41.293212Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Native source/probes at exact upstream revision adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa establish a practical initial subset: explicit driver parameter types or lazy native-only hints retained from pgorm Values, shared ToSql/FromSql binary codecs, BOOL/INT2/INT4/INT8/text/bytes and finite floating parameters with canonical FLOAT8 native REAL results. Native parameters expose count/name but no inferred PostgreSQL type vector. Public compiled expressions supply COUNT/boolean/BLOB result normalization without another SQL parser or Turso fork; genuinely lost type widths remain documented mismatches, and unresolved results fail explicitly. Current native API provides structured SQLSTATE errors, savepoints, cleanup and cross-thread interruption. Portable native IO can block, so a dedicated connection worker with bounded row/byte batches and cancellation-aware channel waits is required; no per-row task spawning. Runtime-destruction and retained-unpolled-stream shutdown were verified in a standalone prototype. Preserve PostgreSQL inference/cache behavior without allocating native hint vectors. The measured baseline 5ce33554 records variance; performance acceptance requires matched repeated measurements and correction of avoidable regressions, not an invented percentage. Existing broad wire-only rule wording will be narrowly revised with the implementation that adds the native case, preserving PostgreSQL behavior. Spec defines 17 new rules and maps them to the implementing WBS leaves; it does not claim implementation coverage."
+                    }
+
+                    {
+                        at 2026-11-24T15:31:35.020061Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -22168,6 +22190,9 @@ children (
             {
                 id turso.native
                 title "Add the optional native Turso engine and database lifecycle inside pgorm-driver"
+                implements {
+                    main ([spec:pgorm:req:turso.feature] [spec:pgorm:sem:turso.lifecycle])
+                }
                 deps (driver-vendor turso.spec turso.performance-baseline)
                 log (
                     {
@@ -22182,6 +22207,14 @@ children (
             {
                 id turso.types
                 title "Map native parameters, rows, metadata and errors into the existing driver types"
+                implements {
+                    main (
+                        [spec:pgorm:req:turso.parameters]
+                        [spec:pgorm:req:turso.values]
+                        [spec:pgorm:req:turso.rows]
+                        [spec:pgorm:req:turso.errors]
+                    )
+                }
                 deps (turso.native)
                 log (
                     {
@@ -22196,6 +22229,9 @@ children (
             {
                 id turso.execution
                 title "Execute native prepared and raw queries through Client, Statement and RowStream"
+                implements {
+                    main ([spec:pgorm:sem:turso.execution] [spec:pgorm:sem:turso.streaming])
+                }
                 deps (turso.types)
                 log (
                     {
@@ -22210,6 +22246,9 @@ children (
             {
                 id turso.transactions
                 title "Preserve transaction, cancellation and connection-reuse semantics on native execution"
+                implements {
+                    main ([spec:pgorm:sem:turso.transactions] [spec:pgorm:sem:turso.cleanup])
+                }
                 deps (turso.execution)
                 log (
                     {
@@ -22224,6 +22263,9 @@ children (
             {
                 id turso.connect
                 title "Expose connect_turso through the existing pgorm-pool and DatabasePool"
+                implements {
+                    main ([spec:pgorm:req:turso.pool])
+                }
                 deps (turso.transactions)
                 log (
                     {
@@ -22238,6 +22280,9 @@ children (
             {
                 id turso.capabilities
                 title "Report native backend capabilities and unsupported operations accurately"
+                implements {
+                    main ([spec:pgorm:req:turso.capabilities])
+                }
                 deps (turso.connect)
                 log (
                     {
@@ -22253,6 +22298,9 @@ children (
                 id turso.tests
                 title "Run an isolated-file native compatibility suite alongside real PostgreSQL"
                 kind @test
+                implements {
+                    main ([spec:pgorm:req:turso.compatibility])
+                }
                 deps (turso.connect turso.capabilities)
                 log (
                     {
@@ -22268,6 +22316,9 @@ children (
                 id turso.performance
                 title "Measure native driver overhead and guard the existing PostgreSQL execution path"
                 kind @perf
+                implements {
+                    main ([spec:pgorm:req:turso.performance])
+                }
                 deps (turso.performance-baseline turso.connect turso.capabilities)
                 log (
                     {
@@ -22282,6 +22333,9 @@ children (
             {
                 id turso.python
                 title "Expose experimental native Turso connections through the existing Python binding"
+                implements {
+                    python ([spec:pgorm:req:turso.python])
+                }
                 deps (turso.connect turso.capabilities)
                 log (
                     {
@@ -22296,6 +22350,9 @@ children (
             {
                 id turso.javascript
                 title "Expose experimental native Turso connections through the existing JavaScript binding"
+                implements {
+                    javascript ([spec:pgorm:req:turso.javascript])
+                }
                 deps (turso.connect turso.capabilities)
                 log (
                     {
@@ -22311,6 +22368,9 @@ children (
                 id turso.docs
                 title "Document experimental native Turso setup, compatibility, performance and upgrade procedure"
                 kind @docs
+                implements {
+                    main ([spec:pgorm:req:turso.documentation])
+                }
                 deps (
                     turso.tests
                     turso.performance
