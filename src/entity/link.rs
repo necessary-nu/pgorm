@@ -89,11 +89,12 @@ pub trait Linked {
     ///
     /// The chain is walked backwards from `ToEntity`, so each hop is joined in
     /// the reverse of the direction its [`RelationDef`] was written in — which
-    /// is [`QuerySelect::join_as_rev`], the crate's one reverse edge. Walking
-    /// is therefore only a matter of binding the two ends of each hop: the
-    /// joined side takes this hop's alias, and the far side is re-pointed at
-    /// the alias the previous hop bound it under, the innermost hop's far side
-    /// being the target table the statement already selects from.
+    /// is [`QuerySelect::join_as_rev`](crate::QuerySelect::join_as_rev), the
+    /// crate's one reverse edge. Walking is therefore only a matter of binding
+    /// the two ends of each hop: the joined side takes this hop's alias, and
+    /// the far side is re-pointed at the alias the previous hop bound it
+    /// under, the innermost hop's far side being the target table the
+    /// statement already selects from.
     ///
     /// Because the ON clause is then the ordinary one every other join in the
     /// crate emits, a hop honours everything its relation declares — its
