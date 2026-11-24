@@ -85,7 +85,10 @@ struct CachedTypeInfo {
 }
 
 pub struct InnerClient {
+    #[cfg(not(feature = "turso"))]
     sender: mpsc::UnboundedSender<Request>,
+    #[cfg(feature = "turso")]
+    sender: crate::native_client::Backend,
     cached_typeinfo: Mutex<CachedTypeInfo>,
 
     /// A buffer to use when writing out postgres commands.
@@ -93,10 +96,25 @@ pub struct InnerClient {
 }
 
 impl InnerClient {
+    #[cfg(feature = "turso")]
+    pub(crate) fn require_postgres(&self, operation: &'static str) -> Result<(), Error> {
+        match &self.sender {
+            crate::native_client::Backend::Postgres(_) => Ok(()),
+            crate::native_client::Backend::Turso(client) if client.is_closed() => {
+                Err(Error::closed())
+            }
+            crate::native_client::Backend::Turso(_) => Err(Error::turso_unsupported(operation)),
+        }
+    }
+
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
+        #[cfg(feature = "turso")]
+        let request_sender = self.sender.postgres()?;
+        #[cfg(not(feature = "turso"))]
+        let request_sender = &self.sender;
         let (sender, receiver) = mpsc::channel(1);
         let request = Request { messages, sender };
-        self.sender
+        request_sender
             .unbounded_send(request)
             .map_err(|_| Error::closed())?;
 
@@ -198,7 +216,10 @@ impl Client {
     ) -> Client {
         Client {
             inner: Arc::new(InnerClient {
+                #[cfg(not(feature = "turso"))]
                 sender,
+                #[cfg(feature = "turso")]
+                sender: crate::native_client::Backend::Postgres(sender),
                 cached_typeinfo: Default::default(),
                 buffer: Default::default(),
             }),
@@ -208,6 +229,23 @@ impl Client {
             ssl_negotiation,
             process_id,
             secret_key,
+        }
+    }
+
+    #[cfg(feature = "turso")]
+    pub(crate) fn from_turso(client: Arc<crate::native::Client>) -> Client {
+        Client {
+            inner: Arc::new(InnerClient {
+                sender: crate::native_client::Backend::Turso(client),
+                cached_typeinfo: Default::default(),
+                buffer: Default::default(),
+            }),
+            #[cfg(feature = "runtime")]
+            socket_config: None,
+            ssl_mode: SslMode::Disable,
+            ssl_negotiation: SslNegotiation::Postgres,
+            process_id: 0,
+            secret_key: 0,
         }
     }
 
@@ -237,6 +275,8 @@ impl Client {
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error> {
+        #[cfg(feature = "turso")]
+        self.inner.require_postgres("prepare_typed")?;
         prepare::prepare(&self.inner, query, parameter_types).await
     }
 
@@ -423,6 +463,8 @@ impl Client {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
+        #[cfg(feature = "turso")]
+        self.inner.require_postgres("query_raw")?;
         let statement = statement.__convert().into_statement(&self.inner).await?;
         query::query(&self.inner, statement, params).await
     }
@@ -549,6 +591,8 @@ impl Client {
         P: BorrowToSql,
         I: IntoIterator<Item = (P, Type)>,
     {
+        #[cfg(feature = "turso")]
+        self.inner.require_postgres("query_typed_raw")?;
         query::query_typed(&self.inner, query, params).await
     }
 
@@ -588,6 +632,8 @@ impl Client {
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<u64, Error> {
+        #[cfg(feature = "turso")]
+        self.inner.require_postgres("execute_typed")?;
         query::execute_typed(
             &self.inner,
             statement,
@@ -613,6 +659,8 @@ impl Client {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
+        #[cfg(feature = "turso")]
+        self.inner.require_postgres("execute_raw")?;
         let statement = statement.__convert().into_statement(&self.inner).await?;
         query::execute(self.inner(), statement, params).await
     }
@@ -626,6 +674,8 @@ impl Client {
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
     {
+        #[cfg(feature = "turso")]
+        self.inner.require_postgres("COPY FROM STDIN")?;
         let statement = statement.__convert().into_statement(&self.inner).await?;
         copy_in::copy_in(self.inner(), statement).await
     }
@@ -637,6 +687,8 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
+        #[cfg(feature = "turso")]
+        self.inner.require_postgres("COPY TO STDOUT")?;
         let statement = statement.__convert().into_statement(&self.inner).await?;
         copy_out::copy_out(self.inner(), statement).await
     }
@@ -672,6 +724,8 @@ impl Client {
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub async fn simple_query_raw(&self, query: &str) -> Result<SimpleQueryStream, Error> {
+        #[cfg(feature = "turso")]
+        self.inner.require_postgres("simple_query_raw")?;
         simple_query::simple_query(self.inner(), query).await
     }
 
@@ -686,11 +740,19 @@ impl Client {
     /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
     /// them to this method!
     pub async fn batch_execute(&self, query: &str) -> Result<(), Error> {
+        #[cfg(feature = "turso")]
+        if let Some(client) = self.inner.sender.native() {
+            return client.batch_execute(query).await;
+        }
         simple_query::batch_execute(self.inner(), query).await
     }
 
     /// Check that the connection is alive and wait for the confirmation.
     pub async fn check_connection(&self) -> Result<(), Error> {
+        #[cfg(feature = "turso")]
+        if let Some(client) = self.inner.sender.native() {
+            return client.check_connection().await;
+        }
         // sync is a very quick message to test the connection health.
         query::sync(self.inner()).await
     }
@@ -714,6 +776,8 @@ impl Client {
     /// connection associated with this client.
     pub fn cancel_token(&self) -> CancelToken {
         CancelToken {
+            #[cfg(feature = "turso")]
+            native: self.inner.sender.native().map(Arc::downgrade),
             #[cfg(feature = "runtime")]
             socket_config: self.socket_config.clone(),
             ssl_mode: self.ssl_mode,
@@ -767,6 +831,12 @@ impl Client {
 
     #[doc(hidden)]
     pub fn __private_api_rollback(&self, name: Option<&str>) {
+        #[cfg(feature = "turso")]
+        if let Some(client) = self.inner.sender.native() {
+            // Disposal cannot leave an abandoned transaction available for reuse.
+            client.shutdown();
+            return;
+        }
         let buf = self.inner().with_buf(|buf| {
             if let Some(name) = name {
                 frontend::query(&format!("ROLLBACK TO {}", name), buf).unwrap();

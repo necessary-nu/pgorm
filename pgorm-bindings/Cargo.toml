@@ -8,6 +8,10 @@ description = "What pgorm's Python and JavaScript bindings share beyond pgorm it
 license = "MIT OR Apache-2.0"
 publish = false
 
+[features]
+default = []
+turso = ["pgorm/turso", "pgorm-driver/turso"]
+
 # pgorm-python and pgorm-napi each depend on this crate by path, from
 # workspaces of their own ([spec:pgorm:req:bindings.optional]), so what both
 # need is written once here and both call it. Nothing here names Python or

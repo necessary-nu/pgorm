@@ -105,6 +105,7 @@
 //! | ------- | ----------- | ------------------ | ------- |
 //! | `runtime` | Enable convenience API for the connection process based on the `tokio` crate. | [tokio](https://crates.io/crates/tokio) 1.0 with the features `net` and `time` | yes |
 //! | `array-impls` | Enables `ToSql` and `FromSql` trait impls for arrays | - | no |
+//! | `turso` | Experimental in-process Turso database support | Pinned native Turso engine | no |
 //! | `with-bit-vec-0_6` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.6 | no |
 //! | `with-bit-vec-0_7` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.7 | no |
 //! | `with-bit-vec-0_8` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.8 | no |
@@ -146,6 +147,8 @@ pub use crate::tls::NoTls;
 pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
 pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
+#[cfg(feature = "turso")]
+pub use crate::turso::{TursoConnection, TursoDatabase};
 use crate::types::ToSql;
 pub use fallible_iterator;
 use std::sync::Arc;
@@ -173,6 +176,10 @@ mod generic_client;
 #[cfg(not(target_arch = "wasm32"))]
 mod keepalive;
 mod maybe_tls_stream;
+#[cfg(feature = "turso")]
+mod native;
+#[cfg(feature = "turso")]
+mod native_client;
 mod portal;
 mod prepare;
 mod query;
@@ -185,6 +192,8 @@ pub mod tls;
 mod to_statement;
 mod transaction;
 mod transaction_builder;
+#[cfg(feature = "turso")]
+mod turso;
 pub mod types;
 
 /// A convenience function which parses a connection string and connects to the database.

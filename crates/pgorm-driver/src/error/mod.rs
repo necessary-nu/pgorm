@@ -11,6 +11,11 @@ pub use self::sqlstate::*;
 #[allow(clippy::unreadable_literal)]
 mod sqlstate;
 
+#[cfg(feature = "turso")]
+mod turso;
+#[cfg(feature = "turso")]
+pub use self::turso::TursoCleanupError;
+
 /// The severity of a Postgres error or notice.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Severity {
@@ -65,7 +70,8 @@ impl Severity {
 }
 
 /// A Postgres error or notice.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
+#[cfg_attr(not(feature = "turso"), derive(PartialEq, Eq))]
 pub struct DbError {
     severity: String,
     parsed_severity: Option<Severity>,
@@ -83,6 +89,8 @@ pub struct DbError {
     file: Option<String>,
     line: Option<u32>,
     routine: Option<String>,
+    #[cfg(feature = "turso")]
+    native_cause: Option<std::sync::Arc<turso_pg::Error>>,
 }
 
 impl DbError {
@@ -193,6 +201,8 @@ impl DbError {
             file,
             line,
             routine,
+            #[cfg(feature = "turso")]
+            native_cause: None,
         })
     }
 
@@ -321,7 +331,12 @@ impl fmt::Display for DbError {
     }
 }
 
-impl error::Error for DbError {}
+impl error::Error for DbError {
+    #[cfg(feature = "turso")]
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        self.native_cause.as_deref().map(|cause| cause as _)
+    }
+}
 
 /// Represents the position of an error in a query.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -358,6 +373,12 @@ enum Kind {
     #[cfg(feature = "runtime")]
     Connect,
     Timeout,
+    #[cfg(feature = "turso")]
+    TursoWorker,
+    #[cfg(feature = "turso")]
+    TursoUnsupported(&'static str),
+    #[cfg(feature = "turso")]
+    TursoCleanup,
 }
 
 struct ErrorInner {
@@ -401,6 +422,14 @@ impl fmt::Display for Error {
             #[cfg(feature = "runtime")]
             Kind::Connect => fmt.write_str("error connecting to server"),
             Kind::Timeout => fmt.write_str("timeout waiting for server"),
+            #[cfg(feature = "turso")]
+            Kind::TursoWorker => fmt.write_str("native Turso worker failed"),
+            #[cfg(feature = "turso")]
+            Kind::TursoUnsupported(operation) => {
+                write!(fmt, "native Turso does not support {operation}")
+            }
+            #[cfg(feature = "turso")]
+            Kind::TursoCleanup => fmt.write_str("native operation failed and cleanup also failed"),
         }
     }
 }
@@ -419,13 +448,27 @@ impl Error {
 
     /// Returns the source of this error if it was a `DbError`.
     ///
-    /// This is a simple convenience method.
+    /// With the experimental native Turso backend, a combined operation and
+    /// cleanup failure returns the primary
+    /// operation's database error.
     pub fn as_db_error(&self) -> Option<&DbError> {
-        self.source().and_then(|e| e.downcast_ref::<DbError>())
+        let source = self.source()?;
+        #[cfg(feature = "turso")]
+        if let Some(cleanup) = source.downcast_ref::<TursoCleanupError>() {
+            return cleanup.primary().as_db_error();
+        }
+        source.downcast_ref::<DbError>()
     }
 
     /// Determines if the error was associated with closed connection.
     pub fn is_closed(&self) -> bool {
+        #[cfg(feature = "turso")]
+        if let Some(cleanup) = self
+            .source()
+            .and_then(|cause| cause.downcast_ref::<TursoCleanupError>())
+        {
+            return cleanup.primary().is_closed() || cleanup.cleanup().is_closed();
+        }
         self.0.kind == Kind::Closed
     }
 

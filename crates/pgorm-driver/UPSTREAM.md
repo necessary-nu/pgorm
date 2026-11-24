@@ -23,3 +23,13 @@ fixture on port 5433. Its setup files are in `tests/upstream/`. Run it with
 `cargo test -p pgorm-driver --features upstream-tests --test upstream`
 after provisioning that fixture. pgorm's existing integration suite exercises
 the driver with its normal test database.
+
+The optional experimental `turso` feature adds native execution inside this
+driver. Its engine dependencies are unmodified upstream sources from
+https://github.com/tursodatabase/turso at
+`adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa` (`0.9.0-pre.6`): `turso_pg` in
+`postgres/frontend` and `turso_core` in `core`. Both dependencies name the same
+revision directly so detached workspaces resolve the same engine. The native
+worker, lifecycle integration and error conversion are pgorm changes; no
+engine patch or pgwire transport is involved. The compatibility contract is
+in `docs/spec/turso.md` at the repository root.

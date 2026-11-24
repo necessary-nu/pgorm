@@ -157,6 +157,8 @@ pgorm-guide-support = { path = "pgorm-guide-support" }
 pgorm-codegen = { path = "pgorm-codegen" }
 
 [features]
+# Experimental native execution in the existing driver and pool.
+turso = ["pgorm-driver/turso", "pgorm-pool/turso"]
 default = [
     "macros",
     "with-json",

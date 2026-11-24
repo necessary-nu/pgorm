@@ -27,9 +27,10 @@
 //! dependency removes the class: nothing has to be repeated, so nothing can be
 //! forgotten. pgsql-rs is held here by the same checks, because a detached
 //! workspace resolving another revision would parse with a grammar every pgorm
-//! test does not; and pg_query, libpg_query's binding, is held out of every
-//! manifest and lockfile, so no build links the C parser and its grammar
-//! beside it.
+//! test does not. pg_query, libpg_query's binding, is excluded from direct
+//! dependencies and ordinary PostgreSQL builds. The optional native Turso
+//! engine uses its own pinned turso_pg_parser, whose transitive pg_query
+//! dependency is confined to that engine.
 //!
 //! These tests hold the invariant from both ends, for each fork. The root
 //! declares the fork at a full commit, every other declaration names the same
@@ -41,7 +42,8 @@
 //! suite (`security/generative/tests/test_compile_lockfile.py`), because they
 //! exist only while the campaign runs.
 //!
-//! No database: every check reads version-controlled files.
+//! No database or compilation: these checks inspect files and Cargo's resolved
+//! dependency graph.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -136,9 +138,8 @@ const PGSQL_RS: Fork = Fork {
 
 const FORKS: [&Fork; 2] = [&PRQLC, &PGSQL_RS];
 
-/// libpg_query's Rust binding, which builds the C parser. Nothing in the
-/// checkout may declare or resolve it.
-const RETIRED: &str = "pg_query";
+/// libpg_query's Rust binding, confined to the optional engine's parser.
+const PG_QUERY: &str = "pg_query";
 
 fn repository_root() -> PathBuf {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -627,16 +628,16 @@ fn discovery_finds_the_crates_a_list_missed() {
     }
 }
 
-/// A manifest naming pg_query, or a lockfile resolving it, would link
-/// libpg_query's C parser and its grammar beside the one every check here
-/// pins.
+/// pgorm's SQL parsing stays on the pinned Rust parser. The optional embedded
+/// engine has its own parser: only its pinned turso_pg_parser may pull in
+/// pg_query, and no crate in this checkout may depend on pg_query directly.
 #[test]
-fn no_manifest_or_lockfile_names_pg_query() {
+fn pg_query_belongs_only_to_pinned_native_parser() {
     let checkout = Checkout::read();
     let mut found = Vec::new();
     for (path, manifest) in &checkout.manifests {
         for dependency in declared_dependencies(manifest) {
-            if dependency.crate_name == RETIRED {
+            if dependency.crate_name == PG_QUERY {
                 found.push(format!(
                     "{} declares {} in [{}]",
                     checkout.relative(path),
@@ -646,17 +647,117 @@ fn no_manifest_or_lockfile_names_pg_query() {
             }
         }
     }
+    let native = &checkout.manifests[&checkout.root.join("crates/pgorm-driver/Cargo.toml")]["dependencies"]
+        ["turso_pg"];
+    let expected_source = locked_source(
+        native["git"].as_str().unwrap(),
+        native["rev"].as_str().unwrap(),
+    );
     for (path, lock) in &checkout.lockfiles {
-        let packages = lock.get("package").and_then(Value::as_array);
-        for package in packages.into_iter().flatten() {
-            if let Some(name) = package.get("name").and_then(Value::as_str)
-                && name == RETIRED
-            {
-                found.push(format!("{} resolves {name}", checkout.relative(path)));
+        let Some(packages) = lock.get("package").and_then(Value::as_array) else {
+            continue;
+        };
+        let parsers: Vec<_> = packages
+            .iter()
+            .filter(|package| package.get("name").and_then(Value::as_str) == Some(PG_QUERY))
+            .collect();
+        if parsers.is_empty() {
+            continue;
+        }
+        let at = checkout.relative(path);
+        assert_eq!(parsers.len(), 1, "{at} resolves multiple pg_query versions");
+        assert_eq!(
+            parsers[0].get("source").and_then(Value::as_str),
+            Some("registry+https://github.com/rust-lang/crates.io-index"),
+            "{at} overrides the native engine's pg_query dependency",
+        );
+        let parents: Vec<_> = packages
+            .iter()
+            .filter(|package| {
+                package
+                    .get("dependencies")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .any(|edge| edge.split_whitespace().next() == Some(PG_QUERY))
+            })
+            .collect();
+        assert!(!parents.is_empty(), "{at} has an unowned pg_query package");
+        for parent in parents {
+            let name = parent.get("name").and_then(Value::as_str);
+            let source = parent.get("source").and_then(Value::as_str);
+            if name != Some("turso_pg_parser") || source != Some(expected_source.as_str()) {
+                found.push(format!(
+                    "{at}: {name:?} from {source:?} depends on pg_query"
+                ));
             }
         }
     }
-    assert!(found.is_empty(), "pg_query is retired: {found:?}");
+    assert!(
+        found.is_empty(),
+        "pg_query belongs only to the optional pinned native engine: {found:?}"
+    );
+}
+
+// [spec:pgorm:req:turso.feature/test]
+#[test]
+fn ordinary_postgres_graphs_exclude_the_native_parser() {
+    let root = repository_root();
+    for (manifest, minimal) in [
+        ("Cargo.toml", false),
+        ("Cargo.toml", true),
+        ("pgorm-python/Cargo.toml", false),
+        ("pgorm-napi/Cargo.toml", false),
+    ] {
+        let manifest = root.join(manifest);
+        let package = parse(&manifest)["package"]["name"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let mut command = std::process::Command::new(env!("CARGO"));
+        command
+            .current_dir(&root)
+            .args(["tree", "--offline", "--locked", "--manifest-path"])
+            .arg(&manifest)
+            .args([
+                "--package",
+                &package,
+                "--edges",
+                "normal,build",
+                "--prefix",
+                "none",
+                "--format",
+                "{p}",
+            ]);
+        if minimal {
+            command.arg("--no-default-features");
+        }
+        let output = command
+            .output()
+            .expect("Cargo describes the resolved graph");
+        assert!(
+            output.status.success(),
+            "{} minimal={minimal}: {}",
+            manifest.display(),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let graph = String::from_utf8(output.stdout).unwrap();
+        let names: BTreeSet<_> = graph
+            .lines()
+            .filter_map(|line| line.split_whitespace().next())
+            .collect();
+        assert!(
+            names.contains("pgsql-syntax"),
+            "{package} must retain the Rust PostgreSQL parser"
+        );
+        for native in [PG_QUERY, "turso_pg_parser", "turso_pg", "turso_core"] {
+            assert!(
+                !names.contains(native),
+                "{package} minimal={minimal} includes {native}"
+            );
+        }
+    }
 }
 
 // [spec:pgorm:req:conn.driver-source/test]

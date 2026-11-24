@@ -24,6 +24,7 @@ name = "pgorm_napi"
 # The addon's own module. An application that registers its entities
 # disables it and exports a module of its own that calls `install`.
 default = ["standalone-module"]
+turso = ["pgorm/turso", "pgorm-bindings/turso", "pgorm-driver/turso"]
 standalone-module = []
 
 [dependencies]

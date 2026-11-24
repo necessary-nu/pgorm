@@ -15,6 +15,7 @@ all-features = true
 
 [features]
 default = []
+turso = ["pgorm-driver/turso"]
 
 [dependencies]
 async-trait.workspace = true # = "0.1.80"

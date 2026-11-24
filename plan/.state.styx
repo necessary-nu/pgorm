@@ -4054,6 +4054,13 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule conn.driver-source}
     )}
+    {id turso.native, covered_rules (
+        turso.feature
+        turso.lifecycle
+    ), covered_claims (
+        {impl_name main, rule turso.feature}
+        {impl_name main, rule turso.lifecycle}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

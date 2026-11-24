@@ -232,6 +232,8 @@ impl<'a> Transaction<'a> {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
+        #[cfg(feature = "turso")]
+        self.client.inner().require_postgres("portals")?;
         let statement = statement
             .__convert()
             .into_statement(self.client.inner())
@@ -258,6 +260,8 @@ impl<'a> Transaction<'a> {
         portal: &Portal,
         max_rows: i32,
     ) -> Result<RowStream, Error> {
+        #[cfg(feature = "turso")]
+        self.client.inner().require_postgres("portals")?;
         query::query_portal(self.client.inner(), portal, max_rows).await
     }
 

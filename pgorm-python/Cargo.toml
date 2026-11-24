@@ -18,6 +18,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["standalone-module"]
+turso = ["pgorm/turso", "pgorm-bindings/turso", "pgorm-driver/turso"]
 standalone-module = []
 extension-module = ["pyo3/extension-module"]
 

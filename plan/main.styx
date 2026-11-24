@@ -22201,19 +22201,35 @@ children (
                         kind @note
                         text "Select and record an exact upstream revision for the native embedded API and wire its dependency behind turso through direct dependencies that also resolve correctly in detached workspaces. Implement in-process file/in-memory database opening, shared database ownership, per-client connection ownership, close and reopen behavior, and the execution mechanism the native API actually requires. Inspect Send/Sync and blocking behavior rather than assuming tokio compatibility or spawning work per row. Keep native engine code and backend dispatch inside pgorm-driver. Build with the feature off without compiling or linking Turso; preserve the existing PostgreSQL path. Acceptance includes file persistence/reopen, isolated in-memory ownership, opening/closing failure cleanup, feature-off dependency checks, and targeted lifecycle tests."
                     }
+
+                    {
+                        at 2026-11-24T15:32:43.778285Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T16:03:01.161649Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Native lifecycle uses one shared database handle and a distinct blocking worker per Client, with runtime-owned shutdown supervision, operation-scoped cancellation and terminal-state cleanup before reuse. Public query methods remain explicitly unsupported until the following codec/execution items. Focused tests cover memory sharing/isolation, file reopen, startup failure, cancellation before first VM step and during RETURNING, cleanup failure, worker panic, and runtime destruction with a retained unpolled Connection. Feature and lock tests preserve one codec identity and keep the engine off by default."
+                    }
+
+                    {
+                        at 2026-11-24T16:07:54.070288Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The pinned native engine's turso_pg_parser has a transitive pg_query dependency. This is Turso's own frontend parser, not an ORM-side SQL inference/parser layer. Existing fork-pin tests must permit only that pinned native dependency edge while continuing to forbid pg_query as a direct pgorm dependency and in the feature-off graph. PostgreSQL parsing and fingerprinting remain on the existing pinned pgsql-syntax fork."
+                    }
                 )
             }
 
             {
                 id turso.types
-                title "Map native parameters, rows, metadata and errors into the existing driver types"
+                title "Integrate native scalar codecs and result metadata through shared driver queries"
                 implements {
-                    main (
-                        [spec:pgorm:req:turso.parameters]
-                        [spec:pgorm:req:turso.values]
-                        [spec:pgorm:req:turso.rows]
-                        [spec:pgorm:req:turso.errors]
-                    )
+                    main ([spec:pgorm:req:turso.values] [spec:pgorm:req:turso.rows] [spec:pgorm:req:turso.errors])
                 }
                 deps (turso.native)
                 log (
@@ -22223,6 +22239,13 @@ children (
                         kind @note
                         text "Implement the conversion between the native engine and shared postgres-types plus pgorm-driver's existing Row, column metadata and Error representations. Existing consumers continue to use ToSql/FromSql; adding required ToSqlText/FromSqlText bounds is outside the approved design. Handle nulls, exact numeric and temporal values, arrays and the remaining supported types according to an explicit matrix, with correct names/types and parameter arity. Retain available error causes and structured SQLSTATE information; never invent SQLSTATE fidelity or collapse known error distinctions into success. Custom codecs and user-defined types must work where the engine exposes the required representation, or fail explicitly where unsupported. Avoid text or JSON as a universal intermediate representation; reuse buffers and account for necessary conversions. Verify round trips, null/type mismatches, bounds, precision, error classification and unsupported cases against the existing PostgreSQL codec contract."
                     }
+
+                    {
+                        at 2026-11-24T16:08:13.888585Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Include the basic prepared-query worker plumbing needed to exercise codecs and common Rows through the public driver. A codec module with no production callers would not establish usable conversion behavior and would require temporary dead-code allowances. This item supplies integrated scalar round-trips; turso.execution then delivers the full execution/stream contract, parameter-typing/ORM cache hints, and broader command, ownership and cancellation verification. Preserve bounded streaming and lifecycle cleanup in the basic path from the outset."
+                    }
                 )
             }
 
@@ -22230,7 +22253,7 @@ children (
                 id turso.execution
                 title "Execute native prepared and raw queries through Client, Statement and RowStream"
                 implements {
-                    main ([spec:pgorm:sem:turso.execution] [spec:pgorm:sem:turso.streaming])
+                    main ([spec:pgorm:sem:turso.execution] [spec:pgorm:sem:turso.streaming] [spec:pgorm:req:turso.parameters])
                 }
                 deps (turso.types)
                 log (
@@ -22239,6 +22262,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Implement the native paths for preparation/typed preparation, parameterized queries, execute/count results, query_one/query_opt, streaming and batch execution behind the existing driver API. Parameter metadata and result types come from native execution/description or explicitly supplied types, not a pgwire Parse/Bind workaround or speculative SQL-text inference. Statements remain bound to the right connection/backend and stale or foreign handles fail predictably. Stream incrementally with bounded buffering, normal poll/backpressure behavior and correct early-drop cleanup; do not materialize every result to manufacture RowStream. Preserve PostgreSQL batching/pipelining behavior and avoid adding per-cell backend dispatch. Tests cover prepare/reuse, typed/untyped binds, empty/multiple results, errors mid-execution, metadata and partial stream consumption. Missing native operations must be identified for turso.capabilities rather than reported as successful."
+                    }
+
+                    {
+                        at 2026-11-24T16:01:25.847375Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The parameters rule includes public typed-query execution and lazy ORM cache hints, so its delivery is tracked here after the codec foundation. turso.types supplies and tests value conversion, native result metadata and common Row storage; this node wires preparation/execution and the ORM hint carrier into those components. This avoids claiming public typed-query support while the lifecycle-only Client still refuses queries."
                     }
                 )
             }
@@ -22343,6 +22373,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Add the Python file/in-memory connection entry point and optional native build feature using the same pgorm pool, models, codecs, transactions and errors. Do not create a parallel binding backend. Preserve Python async/threading, cancellation, lifetime and connection-close behavior. Specify and test feature availability and package behavior when Turso is absent, enabled or opening fails. Verify an installed-package smoke path, parameterized reads/writes, shared in-memory pooling, persistence, transactions, streaming and unsupported-operation errors. Update type stubs, binding lockfiles, notices and distribution contents for the pinned dependency. Ordinary Rust and Python builds remain free of an implicit Turso dependency."
+                    }
+
+                    {
+                        at 2026-11-24T16:03:01.753961Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "When implementing native binding packaging, generate dependency notices for the actual Turso-enabled graph as well as the default graph. An unfinished optional-notices patch was set aside at /tmp/pgorm-driver-import/turso-notices-followup.patch; all-features metadata also pulls additional packages such as antithesis_sdk whose license evidence must be inspected. No notice-generator behavior change is included in the lifecycle foundation."
                     }
                 )
             }

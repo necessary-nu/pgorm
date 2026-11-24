@@ -9,6 +9,8 @@ use tokio::io::{AsyncRead, AsyncWrite};
 /// connection.
 #[derive(Clone)]
 pub struct CancelToken {
+    #[cfg(feature = "turso")]
+    pub(crate) native: Option<std::sync::Weak<crate::native::Client>>,
     #[cfg(feature = "runtime")]
     pub(crate) socket_config: Option<SocketConfig>,
     pub(crate) ssl_mode: SslMode,
@@ -35,6 +37,15 @@ impl CancelToken {
     where
         T: MakeTlsConnect<Socket>,
     {
+        #[cfg(feature = "turso")]
+        if let Some(client) = &self.native {
+            let client = client.upgrade().ok_or_else(Error::closed)?;
+            if client.is_closed() {
+                return Err(Error::closed());
+            }
+            client.cancel();
+            return Ok(());
+        }
         cancel_query::cancel_query(
             self.socket_config.clone(),
             self.ssl_mode,
@@ -53,6 +64,12 @@ impl CancelToken {
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
+        #[cfg(feature = "turso")]
+        if self.native.is_some() {
+            return Err(Error::turso_unsupported(
+                "cancellation through a network stream",
+            ));
+        }
         cancel_query_raw::cancel_query_raw(
             stream,
             self.ssl_mode,
