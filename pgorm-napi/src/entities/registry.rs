@@ -4,8 +4,8 @@
 //! only use the ones compiled in.
 
 use pgorm::{
-    Disjoint, EntityTrait, GraphItem, GraphRow, IntoActiveModel, OneOf, SelectGraph, SelectorTrait,
-    pipeline::SourceList,
+    Disjoint, EntityTrait, GraphItem, GraphRow, IntoActiveModel, NoContext, OneOf, ScopedIn,
+    SelectGraph, SelectorTrait, pipeline::SourceList,
 };
 use pgorm_bindings::{
     Failure,
@@ -55,7 +55,7 @@ impl Registry {
     // [spec:pgorm:req:napi.application+2]
     pub fn entity<E>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -70,7 +70,7 @@ impl Registry {
     // [spec:pgorm:req:bindings.entities+6]
     pub fn entity_in<E>(&mut self, name: &str, entity: E) -> Result<&mut Self, RegistrationError>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -89,7 +89,7 @@ impl Registry {
         build: Build,
     ) -> Result<&mut Self, RegistrationError>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
         S: GraphSlots<E>,
         GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
         GraphItem<E, S>: Send + 'static,

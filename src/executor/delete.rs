@@ -32,6 +32,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         exec_delete(self.query, db).await
     }
 }

@@ -22,6 +22,7 @@ pub struct ColumnDef {
     pub(crate) indexed: bool,
     pub(crate) default: Option<ColumnDefault>,
     pub(crate) comment: Option<String>,
+    pub(crate) immutable: bool,
 }
 
 macro_rules! bind_oper {
@@ -1120,7 +1121,7 @@ mod tests {
 
         fn assert_it<E, A>(active_model: A)
         where
-            E: EntityTrait,
+            E: EntityTrait + crate::ScopedIn<crate::NoContext>,
             A: ActiveModelTrait<Entity = E>,
         {
             assert_eq!(
@@ -1210,7 +1211,7 @@ mod tests {
 
         fn assert_it<E, A>(active_model: A)
         where
-            E: EntityTrait,
+            E: EntityTrait + crate::ScopedIn<crate::NoContext>,
             A: ActiveModelTrait<Entity = E>,
         {
             assert_eq!(
@@ -1428,7 +1429,7 @@ mod tests {
 
         fn assert_it<E, A>(active_model: A)
         where
-            E: EntityTrait,
+            E: EntityTrait + crate::ScopedIn<crate::NoContext>,
             A: ActiveModelTrait<Entity = E>,
         {
             assert_eq!(

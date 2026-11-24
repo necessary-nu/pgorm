@@ -21878,6 +21878,22 @@ children (
             {
                 id scopes.rust
                 title "A scoped entity's statements start from a context holding its scopes, and every other way to build one is a compile error naming the entity and its scopes"
+                implements {
+                    main (
+                        [spec:pgorm:def:scope.declare]
+                        [spec:pgorm:def:scope.context]
+                        [spec:pgorm:def:scope.every]
+                        [spec:pgorm:req:scope.compile]
+                        [spec:pgorm:sem:scope.read]
+                        [spec:pgorm:sem:scope.join]
+                        [spec:pgorm:sem:scope.insert]
+                        [spec:pgorm:sem:scope.write]
+                        [spec:pgorm:req:scope.immutable]
+                        [spec:pgorm:req:scope.refusals]
+                        [spec:pgorm:def:scope.written]
+                        [spec:pgorm:req:scope.raw]
+                    )
+                }
             }
 
             {

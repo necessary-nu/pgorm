@@ -19,12 +19,12 @@ use pgorm_query::{
 };
 
 use super::graph::source_prefix;
-use super::helper::join_condition;
+use super::join::join_condition;
 use crate::entity::KindedBy;
 use crate::executor::BoundaryCast;
 use crate::{
     ColumnPairs, Cursor, Disjoint, DisjointColumn, DisjointShape, DisjointTable, Error, Iterable,
-    KindModel, QueryFilter, QueryOrder, QueryTrait, RelationDef, RelationType, Select,
+    KindModel, QueryFilter, QueryOrder, QueryTrait, RelationDef, RelationType, ScopeError, Select,
     SelectUndecoded, result_column_name,
 };
 
@@ -76,6 +76,9 @@ use crate::{
 pub struct SelectDisjoint<D: Disjoint> {
     pub(crate) query: SelectStatement,
     pub(crate) shape: DisjointShape,
+    /// What the base's read was refused with for its scopes, held until the
+    /// read would run.
+    pub(crate) refused: Option<ScopeError>,
     marker: PhantomData<fn() -> D>,
 }
 
@@ -92,6 +95,7 @@ impl<D: Disjoint> Clone for SelectDisjoint<D> {
         Self {
             query: self.query.clone(),
             shape: self.shape.clone(),
+            refused: self.refused.clone(),
             marker: PhantomData,
         }
     }
@@ -117,6 +121,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
         Self {
             query,
             shape,
+            refused: select.refused,
             marker: PhantomData,
         }
     }
@@ -415,6 +420,8 @@ impl DisjointShape {
         for (base, kind, compared) in pairs {
             columns.push_compared(Name::clone(&base.name), Name::clone(&kind.name), compared);
         }
+        // A kind's row is keyed by its base row's key, so the base's scopes,
+        // which the read holds its rows to, hold the kind row too.
         Some(RelationDef {
             rel_type: RelationType::HasOne,
             from_tbl: FromItem::from(self.base.table.clone()),
@@ -428,6 +435,8 @@ impl DisjointShape {
             enforcement: None,
             deferrability: None,
             condition_type: ConditionType::All,
+            from_scopes: None,
+            to_scopes: None,
         })
     }
 

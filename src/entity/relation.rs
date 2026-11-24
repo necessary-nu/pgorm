@@ -1,4 +1,8 @@
-use crate::{ColumnPairs, EntityTrait, Iterable, QuerySelect, Select, unpack_table_name};
+use crate::query::join::join_related_rev;
+use crate::{
+    ColumnPairs, EntityTrait, Iterable, NoContext, ScopeContext, ScopedIn, Scopes, Select,
+    unpack_table_name,
+};
 use core::marker::PhantomData;
 use pgorm_query::{
     Condition, ConditionType, Deferrability, Enforcement, ForeignKeyCreateStatement, FromItem,
@@ -41,8 +45,37 @@ where
     }
 
     /// Find related Entities
-    fn find_related() -> Select<R> {
-        Select::<R>::new().join_join_rev(JoinType::InnerJoin, Self::to(), Self::via())
+    fn find_related() -> Select<R>
+    where
+        Self: ScopedIn<NoContext>,
+        R: ScopedIn<NoContext>,
+    {
+        join_related_rev(
+            Select::<R>::new(),
+            None,
+            JoinType::InnerJoin,
+            Self::to(),
+            Self::via(),
+        )
+    }
+
+    /// [`find_related`](Related::find_related) under the context `cx`: the
+    /// related rows' scopes in the `WHERE`, and the joined tables' in their
+    /// `ON`s, so both ends are `cx`'s.
+    // [spec:pgorm:sem:scope.join]
+    fn find_related_for<Cx>(cx: &Cx) -> Select<R>
+    where
+        Cx: ScopeContext,
+        Self: ScopedIn<Cx>,
+        R: ScopedIn<Cx>,
+    {
+        join_related_rev(
+            Select::<R>::scoped(&R::default(), cx),
+            Some(cx),
+            JoinType::InnerJoin,
+            Self::to(),
+            Self::via(),
+        )
     }
 }
 
@@ -78,6 +111,15 @@ pub struct RelationDef {
     pub deferrability: Option<Deferrability>,
     /// Condition type of join on expression
     pub condition_type: ConditionType,
+    /// The scopes of the table the relation points from, which a join
+    /// reversing it into a statement is held to: what the `Relation` derive
+    /// records of an entity, and `None` for a table no scope holds.
+    // [spec:pgorm:sem:scope.join]
+    pub from_scopes: Option<Scopes>,
+    /// The scopes of the table the relation points at, which a join adding
+    /// it to a statement is held to.
+    // [spec:pgorm:sem:scope.join]
+    pub to_scopes: Option<Scopes>,
 }
 
 impl std::fmt::Debug for RelationDef {
@@ -94,6 +136,8 @@ impl std::fmt::Debug for RelationDef {
         d.field("fk_name", &self.fk_name)
             .field("enforcement", &self.enforcement)
             .field("deferrability", &self.deferrability)
+            .field("from_scopes", &self.from_scopes)
+            .field("to_scopes", &self.to_scopes)
             .finish()
     }
 }
@@ -194,6 +238,8 @@ impl RelationDef {
             enforcement: None,
             deferrability: None,
             condition_type: ConditionType::All,
+            from_scopes: None,
+            to_scopes: None,
         }
     }
 
@@ -223,6 +269,8 @@ impl RelationDef {
             enforcement: self.enforcement,
             deferrability: self.deferrability,
             condition_type: self.condition_type,
+            from_scopes: self.to_scopes,
+            to_scopes: self.from_scopes,
         }
     }
 
@@ -528,6 +576,8 @@ where
             enforcement: b.enforcement,
             deferrability: b.deferrability,
             condition_type: b.condition_type,
+            from_scopes: E::scopes(),
+            to_scopes: R::scopes(),
         }
     }
 }
@@ -613,6 +663,8 @@ pub(crate) fn foreign_key_of(relation: &RelationDef) -> ForeignKeyCreateStatemen
 ///     enforcement: None,
 ///     deferrability: None,
 ///     condition_type: ConditionType::All,
+///     from_scopes: None,
+///     to_scopes: None,
 /// };
 ///
 /// let alter_table = Table::alter(TableName::Table(alias("foo").into_name()))

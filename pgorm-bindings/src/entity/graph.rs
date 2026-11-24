@@ -16,6 +16,7 @@ use pgorm::{
     QueryOrder, QueryTrait, Req, SelectGraph, SelectorTrait, Slot, SlotAt, Slots, graph_cursor,
     graph_cursor_key, graph_cursor_on, grouped_read,
 };
+use pgorm::{NoContext, ScopedIn};
 use serde_json::Value as Json;
 
 use super::{
@@ -79,7 +80,7 @@ pub trait RegisteredSlot: Slot<Out: Send> {
     /// slot, which Rust's `all_grouped` is not on.
     fn grouped<E>(graph: SelectGraph<E, (Self,)>, bindings: &GraphBindings) -> Option<GroupedRead>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
         Self: Sized + Send + Sync + 'static;
@@ -87,7 +88,7 @@ pub trait RegisteredSlot: Slot<Out: Send> {
 
 impl<F> RegisteredSlot for Req<F>
 where
-    F: EntityTrait + Send + Sync + 'static,
+    F: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     F::Model: IntoActiveModel<F::ActiveModel> + Sync + 'static,
     F::ActiveModel: Send + Sync + 'static,
 {
@@ -104,7 +105,7 @@ where
 
     fn grouped<E>(_: SelectGraph<E, (Self,)>, _: &GraphBindings) -> Option<GroupedRead>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -114,7 +115,7 @@ where
 
 impl<F> RegisteredSlot for Opt<F>
 where
-    F: EntityTrait + Send + Sync + 'static,
+    F: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     F::Model: IntoActiveModel<F::ActiveModel> + Sync + 'static,
     F::ActiveModel: Send + Sync + 'static,
 {
@@ -131,7 +132,7 @@ where
 
     fn grouped<E>(graph: SelectGraph<E, (Self,)>, bindings: &GraphBindings) -> Option<GroupedRead>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -166,7 +167,7 @@ where
 /// The root's model of a graph row.
 fn root<E>(value: E::Model, bindings: &GraphBindings) -> Option<Model>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -179,7 +180,7 @@ where
 // [spec:pgorm:req:bindings.entity-graphs+4]
 impl<E> GraphSlots<E> for ()
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -220,7 +221,7 @@ macro_rules! slots {
         // [spec:pgorm:req:bindings.entity-graphs+4]
         impl<E, $($slot),+> GraphSlots<E> for ($($slot,)+)
         where
-            E: EntityTrait + Send + Sync + 'static,
+            E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
             E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
             E::ActiveModel: Send + Sync + 'static,
             $($slot: RegisteredSlot + fmt::Debug + Send + Sync + 'static,)+
@@ -304,7 +305,7 @@ fn decoder<E, S>(
     bindings: &GraphBindings,
 ) -> impl Fn(GraphItem<E, S>) -> Row + Send + Sync + 'static
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     S: GraphSlots<E>,
     GraphRow<E, S>: SelectorTrait,
 {
@@ -335,7 +336,7 @@ fn root_keyset<E, S>(
     bindings: &GraphBindings,
 ) -> Result<Arc<Keyset>, Failure>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     S: GraphSlots<E>,
     GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
     GraphItem<E, S>: Send,
@@ -357,7 +358,7 @@ fn slot_keyset<const I: usize, E, S>(
     bindings: &GraphBindings,
 ) -> Result<Arc<Keyset>, Failure>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     S: GraphSlots<E> + SlotAt<I>,
     GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
     GraphItem<E, S>: Send,
@@ -378,10 +379,10 @@ where
 // [spec:pgorm:req:bindings.entity-graphs+4]
 fn grouped_by<E, F>(graph: SelectGraph<E, (Opt<F>,)>, bindings: &GraphBindings) -> Grouped
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
-    F: EntityTrait + Send + Sync + 'static,
+    F: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     F::Model: IntoActiveModel<F::ActiveModel> + Sync + 'static,
     F::ActiveModel: Send + Sync + 'static,
 {
@@ -577,7 +578,7 @@ impl<E: EntityTrait, S, Build> fmt::Debug for GraphFactory<E, S, Build> {
 
 impl<E, S, Build> GraphBackend for GraphFactory<E, S, Build>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     S: GraphSlots<E>,
     GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
     GraphItem<E, S>: Send + 'static,
@@ -615,7 +616,7 @@ impl<E: EntityTrait, S> fmt::Debug for GraphRead<E, S> {
 // [spec:pgorm:req:bindings.entity-graphs+4]
 impl<E, S> GraphQueryBackend for GraphRead<E, S>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     S: GraphSlots<E>,
     GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
     GraphItem<E, S>: Send + 'static,

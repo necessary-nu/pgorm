@@ -825,5 +825,482 @@ program and handed out as a `&'static str`.
 An entity in a schema fixed when it is written says `schema_name = ".."`
 beside `table_name` instead.
 
+## Scopes
+
+Some tables are read only under a condition the application supplies: a
+company's notes by its members, a user's messages by that user. Forgetting
+the condition once lets a statement read another company's rows. A *scope*
+holds the statements of such a table to it: every statement on a scoped
+entity is built from a *context* holding its scopes, and every way to build
+one without such a context is a compile error that names the entity and the
+scopes it needs. pgorm writes the condition; holding the rows to it in the
+database, with row-level security or otherwise, stays the application's.
+
+This section's examples use a small domain beside the bakery: companies, the
+notes their users write, and the messages users send each other.
+
+### Declaring scopes
+
+A scope is a type of the application's own, usually the newtype its column
+holds. [`#[derive(Scope)]`](derive@crate::Scope) makes it one, beside
+`ValueType`. An entity marks each column that holds a scope with
+`#[pgorm(scope)]`, and the column's type is the scope; a column's type alone
+never makes it a scope column:
+
+```rust
+pub mod note {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueType, Scope)]
+    pub struct CompanyId(pub i64);
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueType, Scope)]
+    pub struct UserId(pub i64);
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "note")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i64,
+        #[pgorm(scope)]
+        pub company_id: CompanyId,
+        #[pgorm(scope)]
+        pub author_id: UserId,
+        pub body: String,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+# fn main() {
+use pgorm::entity::prelude::*;
+use pgorm::EntityScopes;
+
+let declared = note::Entity::scopes().map(|scopes| scopes.names());
+assert_eq!(declared, Some(&["CompanyId", "UserId"][..]));
+assert!(note::Column::AuthorId.def().is_immutable());
+# }
+```
+
+The entity's [`EntityScopes`](crate::EntityScopes) lists them, and each
+scope column's definition is [`immutable`](crate::ColumnDef::immutable): a
+row cannot leave its scope, so an update never changes one. A scope column is
+never `NULL`, so a field `Option` or `nullable` is refused
+where `scope` is written. A primary key can be a scope column too: the
+`company` entity's `id` is a `CompanyId`, so a member reads their own
+company's row and no other.
+
+### Contexts
+
+A *context* is what a statement on a scoped entity is built under. One scope
+value is a context holding itself, and
+[`#[derive(ScopeContext)]`](derive@crate::ScopeContext) makes a struct of
+scopes one, holding each of its fields. A field of
+[`Every<S>`](crate::Every) holds every value of `S`: a context lifts that
+scope on purpose, and the statement gets no condition for it. A member is
+signed in to one company as one user, and a company's administrator sees
+every one of its users:
+
+```rust
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::notes::{CompanyId, UserId, company, note};
+
+#[derive(Clone, Copy, Debug, ScopeContext)]
+pub struct Member {
+    pub company: CompanyId,
+    pub user: UserId,
+}
+
+#[derive(Clone, Copy, Debug, ScopeContext)]
+pub struct CompanyAdmin {
+    pub company: CompanyId,
+    pub users: Every<UserId>,
+}
+
+# fn main() {
+let ada = Member { company: CompanyId(1), user: UserId(10) };
+let admin = CompanyAdmin { company: CompanyId(1), users: Every::new() };
+assert_eq!(
+    note::Entity::find_for(&ada).build().0,
+    [
+        r#"SELECT "note"."id", "note"."company_id", "note"."author_id", "note"."body""#,
+        r#"FROM "note" WHERE "note"."company_id" = $1 AND "note"."author_id" = $2"#,
+    ]
+    .join(" ")
+);
+assert_eq!(
+    note::Entity::find_for(&admin).build().0,
+    [
+        r#"SELECT "note"."id", "note"."company_id", "note"."author_id", "note"."body""#,
+        r#"FROM "note" WHERE "note"."company_id" = $1"#,
+    ]
+    .join(" ")
+);
+// A scope value alone is a context, and the company's key is its scope.
+assert_eq!(
+    company::Entity::find_for(&CompanyId(1)).build().0,
+    r#"SELECT "company"."id", "company"."name" FROM "company" WHERE "company"."id" = $1"#
+);
+# }
+```
+
+A context holds each scope once, as one value or as every value; a struct
+holding one twice is refused by the derive.
+
+### Every statement takes its context first
+
+Each statement constructor has a form ending in `_for` that takes the
+context first, as the `_in` forms take an entity value first:
+[`find_for`](crate::EntityTrait::find_for),
+[`find_by_id_for`](crate::EntityTrait::find_by_id_for),
+[`graph_for`](crate::EntityTrait::graph_for),
+[`delete_by_id_for`](crate::EntityTrait::delete_by_id_for),
+[`Insert::one_for`](crate::Insert::one_for) and
+[`many_for`](crate::Insert::many_for) (and `add_for`, `add_many_for`, and
+`TryInsert`'s), [`Update::one_for`](crate::Update::one_for) and
+[`many_for`](crate::Update::many_for),
+[`Delete::one_for`](crate::Delete::one_for) and
+[`many_for`](crate::Delete::many_for), an active model's
+[`insert_for`](crate::ActiveModelTrait::insert_for),
+[`update_for`](crate::ActiveModelTrait::update_for) and
+[`delete_for`](crate::ActiveModelTrait::delete_for), a model's
+[`find_related_for`](crate::ModelTrait::find_related_for),
+[`find_linked_for`](crate::ModelTrait::find_linked_for) and
+[`delete_for`](crate::ModelTrait::delete_for), a disjoint enum's
+[`find_for`](crate::Disjoint::find_for) and its writes, a one-of
+reference's [`load_for`](crate::OneOf::load_for), and
+[`Pipeline::from_for`](crate::pipeline::Pipeline::from_for). An unscoped
+entity takes any context, and its forms taking none are the ones it always
+had.
+
+The forms taking no context are those of the context
+[`NoContext`](crate::NoContext), which holds nothing, so for a scoped entity
+they do not compile, and neither does a `_for` form given a context missing
+one of its scopes:
+
+```rust,compile_fail
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::notes::note;
+
+let _ = note::Entity::find();
+```
+
+The error is the entity's own, the derive having written it: "`note::Entity`
+is scoped by `CompanyId` and `UserId`, which `NoContext` does not hold". The
+same message names any other context that falls short, such as
+`find_for(&CompanyId(1))`. A loader is given a statement rather than an
+entity: hand it a `find_for` read, since the entity alone is every row and
+does not compile for a scoped one.
+
+### Reading and joining
+
+A read ANDs each scope its context holds the value of into the `WHERE`, so
+Ada reads her own notes and the administrator reads the company's:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::notes("entities_scoped_reads").await;
+# let db = scratch.pool.get().await?;
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::notes::{CompanyAdmin, CompanyId, Member, UserId, company, message, note};
+
+let ada = Member { company: CompanyId(1), user: UserId(10) };
+let admin = CompanyAdmin { company: CompanyId(1), users: Every::new() };
+
+let hers = note::Entity::find_for(&ada).all(&db).await?;
+assert_eq!(hers.iter().map(|note| note.body.as_str()).collect::<Vec<_>>(), ["Ada's plan"]);
+
+let theirs = note::Entity::find_for(&admin)
+    .order_by_asc(note::Column::Id)
+    .all(&db)
+    .await?;
+assert_eq!(theirs.len(), 2, "Ada's and Bo's notes, and not Globex's");
+
+// Cy's note belongs to Globex, so Ada finds no note of its key.
+assert!(matches!(
+    note::Entity::find_by_id_for(&ada, 3).one(&db).await,
+    Err(Error::RecordNotFound)
+));
+
+// A graph keeps its context, and each slot's scopes go in its join's `ON`.
+let acme: Vec<(company::Model, Option<note::Model>)> = company::Entity::graph_for(&ada)
+    .join_maybe::<note::Entity>(company::Relation::Note.def())
+    .all(&db)
+    .await?;
+assert_eq!(acme.len(), 1);
+assert_eq!(acme[0].1.as_ref().map(|note| note.author_id), Some(UserId(10)));
+# let _ = message::Entity;
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+A graph's slot is typed, so a slot of an entity the graph's context does not
+hold the scopes of is the same compile error. A join taking a
+[`RelationDef`](crate::RelationDef) is not typed by its target, so the
+`Relation` derive records the target's scopes in the relation. Joined with
+its context, through [`join_for`](crate::QuerySelect::join_for) (or
+`join_rev_for`, `join_as_for` and `join_as_rev_for`), a scoped table's
+scopes are ANDed into the join's `ON`; joined by a form taking no context,
+the statement is refused with
+[`ScopeError::Unscoped`](crate::ScopeError::Unscoped) when it would run, and
+nothing is sent:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::notes("entities_scoped_joins").await;
+# let db = scratch.pool.get().await?;
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::notes::{CompanyId, Member, UserId, company};
+
+let ada = Member { company: CompanyId(1), user: UserId(10) };
+
+let joined = company::Entity::find_for(&ada)
+    .join_for(&ada, JoinType::InnerJoin, company::Relation::Note.def())
+    .all(&db)
+    .await?;
+assert_eq!(joined.len(), 1);
+
+let unscoped = company::Entity::find_for(&ada)
+    .join(JoinType::InnerJoin, company::Relation::Note.def())
+    .all(&db)
+    .await;
+assert!(matches!(
+    unscoped,
+    Err(Error::Scope(ScopeError::Unscoped { table, .. })) if table == "note"
+));
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+### Writing
+
+An insert under a context fills each scope column the row leaves unset with
+the value the context holds, and refuses a row setting one to another value
+with [`ScopeError::Conflict`](crate::ScopeError::Conflict). Under `Every` of
+a scope the insert fills nothing: the row sets the column itself, and a row
+that does not is refused with [`ScopeError::Unset`](crate::ScopeError::Unset).
+
+An update or a delete by key carries the scopes beside the key, so a key of
+a row outside them matches nothing: `Update::one_for` reports
+[`Error::RecordNotFound`](crate::Error::RecordNotFound) and a delete counts
+`0`. A bulk update or delete is filtered by the scopes. A scope column is
+written when its row is inserted and never changed after, since a row cannot
+leave its scope: an update setting one, `Update::one`, `Update::many`'s
+`set` and `col_expr`, and an upsert's `ON CONFLICT .. DO UPDATE SET` naming
+one, is refused with
+[`Error::ImmutableColumn`](crate::Error::ImmutableColumn) before anything is
+sent.
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::notes("entities_scoped_writes").await;
+# let db = scratch.pool.get().await?;
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::notes::{CompanyAdmin, CompanyId, Member, UserId, note};
+
+let ada = Member { company: CompanyId(1), user: UserId(10) };
+let admin = CompanyAdmin { company: CompanyId(1), users: Every::new() };
+
+let written = Insert::one_for(
+    &ada,
+    note::ActiveModel {
+        body: set("Ada's second plan"),
+        ..Default::default()
+    },
+)
+.exec_returning_model(&db)
+.await?;
+assert_eq!((written.company_id, written.author_id), (CompanyId(1), UserId(10)));
+
+let elsewhere = Insert::one_for(
+    &ada,
+    note::ActiveModel {
+        company_id: set(CompanyId(2)),
+        body: set("for Globex"),
+        ..Default::default()
+    },
+)
+.exec(&db)
+.await;
+assert!(matches!(elsewhere, Err(Error::Scope(ScopeError::Conflict { .. }))));
+
+// Bo's note is the company's, so the administrator edits it and Ada cannot.
+let edit = note::ActiveModel {
+    id: set(2),
+    body: set("Bo's draft, reviewed"),
+    ..Default::default()
+};
+assert!(matches!(
+    Update::one_for(&ada, edit.clone())?.exec_returning_model(&db).await,
+    Err(Error::RecordNotFound)
+));
+assert_eq!(
+    Update::one_for(&admin, edit)?.exec_returning_model(&db).await?.body,
+    "Bo's draft, reviewed"
+);
+
+// Handing Bo's note to Ada would move it out of Bo's scope.
+let handed = Update::one_for(
+    &admin,
+    note::ActiveModel {
+        id: set(2),
+        author_id: set(UserId(10)),
+        ..Default::default()
+    },
+);
+assert!(matches!(handed, Err(Error::ImmutableColumn { column, .. }) if column == "author_id"));
+
+assert_eq!(note::Entity::delete_by_id_for(&ada, 2).exec(&db).await?, 0);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+### Scopes written by hand
+
+A scope whose condition is not one column equal to its value is declared on
+the entity, `#[pgorm(scope(UserId))]`, and written as the scope type's
+[`ScopeOn`](crate::ScopeOn) the entity: the condition its value puts on a
+row read under a given name, the table's own or a join's alias, and what an
+insert under it does to a row. A message is its sender's and its
+recipient's to read, and is sent by the user writing it:
+
+```rust
+pub mod message {
+    use pgorm::entity::prelude::*;
+    use pgorm_guide_support::notes::UserId;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "message", scope(Recipient))]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i64,
+        pub sender_id: UserId,
+        pub recipient_id: UserId,
+        pub body: String,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+
+    /// The user reading their mail.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Scope)]
+    pub struct Recipient(pub UserId);
+
+    impl ScopeOn<Entity> for Recipient {
+        fn condition(&self, table: Name) -> Condition {
+            Condition::any()
+                .add(Expr::col((table.clone(), Column::SenderId)).eq(self.0))
+                .add(Expr::col((table, Column::RecipientId)).eq(self.0))
+        }
+
+        fn insert(&self, row: &mut ActiveModel) -> Result<(), ScopeError> {
+            match &row.sender_id {
+                ActiveValue::NotSet => {
+                    row.sender_id = set(self.0);
+                    Ok(())
+                }
+                ActiveValue::Set(sender) | ActiveValue::Unchanged(sender) if *sender == self.0 => {
+                    Ok(())
+                }
+                _ => Err(ScopeError::Refused("a message is sent by the user writing it".to_owned())),
+            }
+        }
+    }
+}
+
+# fn main() {
+use pgorm::entity::prelude::*;
+use message::Recipient;
+use pgorm_guide_support::notes::UserId;
+
+assert_eq!(
+    message::Entity::find_for(&Recipient(UserId(10))).build().0,
+    [
+        r#"SELECT "message"."id", "message"."sender_id", "message"."recipient_id", "message"."body""#,
+        r#"FROM "message" WHERE "message"."sender_id" = $1 OR "message"."recipient_id" = $2"#,
+    ]
+    .join(" ")
+);
+assert_eq!(
+    Insert::one_for(
+        &Recipient(UserId(10)),
+        message::ActiveModel {
+            recipient_id: set(UserId(11)),
+            body: set("lunch?"),
+            ..Default::default()
+        },
+    )
+    .as_query()
+    .to_string(),
+    r#"INSERT INTO "message" ("sender_id", "recipient_id", "body") VALUES (10, 11, 'lunch?')"#
+);
+# }
+```
+
+Its condition is pgorm-query's, which a pipeline cannot read, so
+`Pipeline::from_for` over such an entity is refused with
+[`ScopeError::Unpiped`](crate::ScopeError::Unpiped) under a context holding
+a value of the scope. A hand-written scope's columns are the condition's
+business; pgorm marks immutable only the columns `#[pgorm(scope)]` marks.
+
+An entity whose names are computed at run time is read under its `Default`
+names by the `_for` forms. Its `_in` forms take no context, so for a scoped
+entity they are compile errors as its plain forms are, and there is no form
+taking both an entity value and a context.
+
+### Raw SQL
+
+[`sql!`](crate::sql), [`prql!`](crate::prql), the methods taking SQL text,
+and the pgorm-query builders used directly build statements pgorm does not
+read, so they are outside scopes. A project that wants every statement on a
+scoped table to go through a context can say so to clippy, banning the
+macros and the text-taking methods in its `clippy.toml` and allowing a case
+where it is meant:
+
+```toml
+disallowed-macros = [
+    { path = "pgorm::sql", reason = "raw SQL is outside scopes; build the statement with a `_for` form" },
+    { path = "pgorm::prql", reason = "raw PRQL is outside scopes; build the statement with a `_for` form" },
+]
+disallowed-methods = [
+    { path = "pgorm::ConnectionTrait::execute", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::ConnectionTrait::execute_raw", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::ConnectionTrait::query_one", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::ConnectionTrait::query_opt", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::ConnectionTrait::query_all", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::ConnectionTrait::query_raw", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::ConnectionTrait::batch_execute", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::SelectorRaw::from_statement", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::SelectorRaw::into_tuple", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::SelectorRaw::with_columns", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::Select::from_raw_sql", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::FromQueryResult::find_by_statement", reason = "raw SQL is outside scopes" },
+]
+```
+
+The paths are the ones a crate depending on pgorm writes; a macro imported
+by `use pgorm::sql;` is caught under its own name too. A case meant to read
+across scopes, such as a report over every company, says so where it is
+written, with `#[expect]`, which also warns once the case no longer needs
+it, or `#[allow]`:
+
+```rust
+# fn main() {
+#[expect(clippy::disallowed_macros, reason = "the monthly report reads every company")]
+let report = pgorm::sql!("SELECT company_id, count(*) FROM note GROUP BY company_id");
+assert!(report.starts_with("SELECT company_id"));
+# }
+```
+
 [jiff]: https://docs.rs/jiff
 [rust_decimal]: https://docs.rs/rust_decimal

@@ -22,6 +22,7 @@ impl ColumnTypeTrait for ColumnType {
             indexed: false,
             default: None,
             comment: None,
+            immutable: false,
         }
     }
 
@@ -428,6 +429,23 @@ impl ColumnDef {
     {
         self.default = Some(ColumnDefault::Generated(expr.into(), kind));
         self
+    }
+
+    /// Mark the column immutable: written when its row is inserted and
+    /// never changed after, so an update setting it is refused as
+    /// [`Error::ImmutableColumn`](crate::Error::ImmutableColumn) before
+    /// anything is sent, and an upsert's `DO UPDATE SET` naming it is too.
+    /// Every scope column is one, since a row cannot leave its scope.
+    // [spec:pgorm:req:scope.immutable]
+    pub fn immutable(mut self) -> Self {
+        self.immutable = true;
+        self
+    }
+
+    /// Whether the column is immutable: see [`immutable`](Self::immutable).
+    // [spec:pgorm:req:scope.immutable]
+    pub fn is_immutable(&self) -> bool {
+        self.immutable
     }
 
     /// Get [ColumnType] as reference

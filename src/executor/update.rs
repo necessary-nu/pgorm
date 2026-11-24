@@ -32,6 +32,7 @@ where
         <A::Entity as EntityTrait>::Model: IntoActiveModel<A>,
         C: ConnectionTrait,
     {
+        self.refusal()?;
         type Entity<A> = <A as ActiveModelTrait>::Entity;
         type Model<A> = <Entity<A> as EntityTrait>::Model;
         type Column<A> = <Entity<A> as EntityTrait>::Column;
@@ -77,6 +78,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         if self.query.get_values().is_empty() {
             return Err(Error::NothingToSet);
         }
@@ -103,6 +105,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         if self.query.get_values().is_empty() {
             return Err(Error::NothingToSet);
         }
@@ -138,7 +141,7 @@ where
         .cloned()
         .ok_or(Error::PrimaryKeyNotSet)?;
 
-    <A::Entity as EntityTrait>::find_in(entity)
+    crate::Select::<A::Entity>::read(&entity)
         .filter(condition)
         .one(db)
         .await

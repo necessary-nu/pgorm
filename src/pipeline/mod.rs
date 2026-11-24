@@ -174,6 +174,7 @@ mod error;
 mod expr;
 mod funcs;
 mod naming;
+mod scoped;
 mod sets;
 mod sources;
 mod terminal;
@@ -189,6 +190,8 @@ pub use funcs::{
     null, rank, rank_dense, row_number, stddev, sum,
 };
 pub use pgorm_query::{AliasName, alias};
+#[doc(hidden)]
+pub use scoped::ScopeFilters;
 pub use sources::{Named, named_runtime};
 pub use sources::{SelectableSource, SelectedSources, SourceList};
 pub use window::{Over, by, over, sort_by};

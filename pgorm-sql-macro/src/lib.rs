@@ -59,14 +59,23 @@ use syn::{LitStr, parse_macro_input};
 /// The check is syntax only. The parser carries no catalog, so a well-formed
 /// statement against tables and columns that do not exist passes happily — this
 /// rules out typos in SQL, not mistakes about the schema.
+///
+/// The literal it expands to is spanned at the invocation, so it reads as the
+/// macro's expansion, and a lint judging where an expression came from, such
+/// as clippy's `disallowed_macros`, sees `sql!` there.
 // [spec:pgorm:def:macros.sql+8]
 // [spec:pgorm:req:macros.sql.reject+2]    non-literal input is `syn`'s own refusal
+// [spec:pgorm:req:scope.raw]
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
     let literal = parse_macro_input!(input as LitStr);
 
     match sql::validate(&literal) {
-        Ok(()) => quote!(#literal).into(),
+        Ok(()) => {
+            let mut expanded = literal;
+            expanded.set_span(proc_macro2::Span::call_site());
+            quote!(#expanded).into()
+        }
         Err(error) => error.to_compile_error().into(),
     }
 }

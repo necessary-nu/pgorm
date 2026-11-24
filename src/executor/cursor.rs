@@ -5,8 +5,8 @@ use crate::entity::{compared_enum, compared_value};
 use crate::query::graph::{Tiebreak, Tiebreaks, qualified_pk_tiebreaks};
 use crate::{
     ColumnTrait, ConnectionTrait, EntityTrait, Error, FromQueryResult, IntoBoundary, IntoKey, Key,
-    KeyOf, PartialModelTrait, QueryOrder, QuerySelect, Select, SelectGraph, SelectModel,
-    SelectProjected, SelectorTrait, Slot, SlotAt, Slots, error::query_err,
+    KeyOf, PartialModelTrait, QueryOrder, QuerySelect, ScopeError, Select, SelectGraph,
+    SelectModel, SelectProjected, SelectorTrait, Slot, SlotAt, Slots, Unsliced, error::query_err,
 };
 use pgorm_query::{
     Condition, Expr, ExprTrait, IntoName, IntoValueTuple, Name, Order, SelectStatement, SimpleExpr,
@@ -135,10 +135,19 @@ pub struct Cursor<S, K = ValueTuple> {
     after: Option<ValueTuple>,
     sort_asc: bool,
     is_result_reversed: bool,
+    /// What a table the statement's context does not cover was refused with,
+    /// held until the cursor would run.
+    refused: Option<ScopeError>,
     phantom: PhantomData<(S, K)>,
 }
 
 impl<S, K> Cursor<S, K> {
+    /// The cursor holding `refused` until it would run.
+    pub(crate) fn holding(mut self, refused: Option<ScopeError>) -> Self {
+        self.refused = refused;
+        self
+    }
+
     /// Create a new cursor
     pub fn new<C>(query: SelectStatement, table: Name, order_columns: C) -> Self
     where
@@ -154,6 +163,7 @@ impl<S, K> Cursor<S, K> {
             before: None,
             sort_asc: true,
             is_result_reversed: false,
+            refused: None,
             phantom: PhantomData,
             secondary_order_by: Default::default(),
         }
@@ -395,7 +405,11 @@ impl<S, K> Cursor<S, K> {
     /// previous execution's clauses still on it.
     // [spec:pgorm:sem:exec.cursor.order+4]
     // [spec:pgorm:req:exec.tie-limit+1]
+    // [spec:pgorm:req:scope.refusals]
     fn compose(&mut self) -> Result<SelectStatement, Error> {
+        if let Some(refused) = &self.refused {
+            return Err(Error::Scope(refused.clone()));
+        }
         refuse_tie_limit(&self.query, "cursor")?;
         let mut query = self.query.clone();
         self.apply_limit(&mut query);
@@ -440,6 +454,7 @@ impl<S, K> Cursor<S, K> {
             before: self.before,
             sort_asc: self.sort_asc,
             is_result_reversed: self.is_result_reversed,
+            refused: self.refused,
             phantom: PhantomData,
             secondary_order_by: self.secondary_order_by,
         }
@@ -573,6 +588,10 @@ impl<S, K> QuerySelect for Cursor<S, K> {
     fn into_projected(self) -> Self::Projected {
         self
     }
+
+    fn refuse(&mut self, refusal: ScopeError) {
+        self.refused.get_or_insert(refusal);
+    }
 }
 
 impl<S, K> QueryOrder for Cursor<S, K> {
@@ -639,6 +658,7 @@ where
     {
         Cursor::new(self.query, Name::new(E::default()), order_columns)
             .with_boundary_casts::<E::Column>()
+            .holding(self.refused)
     }
 }
 
@@ -651,7 +671,7 @@ fn pk_tiebreaks<T: EntityTrait>() -> Tiebreaks {
 /// A graph's rows are decoded by [`GraphRow`], so that is what its cursor
 /// selects.
 // [spec:pgorm:sem:query.graph.cursor+4]
-impl<E, S> CursorTrait for SelectGraph<E, S>
+impl<E, S, Cx> CursorTrait for SelectGraph<E, S, Unsliced, Cx>
 where
     E: EntityTrait,
     GraphRow<E, S>: SelectorTrait + Send + Sync,
@@ -661,7 +681,7 @@ where
 
 // [spec:pgorm:sem:query.graph.cursor+4]
 // [spec:pgorm:sem:query.graph.slice]
-impl<E, S> SelectGraph<E, S>
+impl<E, S, Cx> SelectGraph<E, S, Unsliced, Cx>
 where
     E: EntityTrait,
     S: Slots,
@@ -720,8 +740,9 @@ where
         let mut tiebreaks = qualified_pk_tiebreaks::<E>(&table);
         tiebreaks.extend(S::tiebreaks(self.slot_qualifiers(), 0));
 
-        let mut cursor =
-            Cursor::new(self.query, table, order_columns).with_boundary_casts::<E::Column>();
+        let mut cursor = Cursor::new(self.query, table, order_columns)
+            .with_boundary_casts::<E::Column>()
+            .holding(self.refused);
         cursor.set_graph_tiebreaks(tiebreaks);
         cursor
     }
@@ -784,7 +805,8 @@ where
         tiebreaks.extend(S::tiebreaks(self.slot_qualifiers(), I));
 
         let mut cursor = Cursor::new(self.query, table, order_columns)
-            .with_boundary_casts::<<<<S as SlotAt<I>>::Slot as Slot>::Entity as EntityTrait>::Column>();
+            .with_boundary_casts::<<<<S as SlotAt<I>>::Slot as Slot>::Entity as EntityTrait>::Column>()
+            .holding(self.refused);
         cursor.set_graph_tiebreaks(tiebreaks);
         cursor
     }
@@ -805,6 +827,7 @@ where
     {
         Cursor::new(self.query, Name::new(E::default()), order_columns)
             .with_boundary_casts::<E::Column>()
+            .holding(self.refused)
     }
 }
 

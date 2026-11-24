@@ -3992,6 +3992,33 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
+    {id scopes.rust, covered_rules (
+        scope.compile
+        scope.context
+        scope.declare
+        scope.every
+        scope.immutable
+        scope.insert
+        scope.join
+        scope.raw
+        scope.read
+        scope.refusals
+        scope.write
+        scope.written
+    ), covered_claims (
+        {impl_name main, rule scope.compile}
+        {impl_name main, rule scope.context}
+        {impl_name main, rule scope.declare}
+        {impl_name main, rule scope.every}
+        {impl_name main, rule scope.immutable}
+        {impl_name main, rule scope.insert}
+        {impl_name main, rule scope.join}
+        {impl_name main, rule scope.raw}
+        {impl_name main, rule scope.read}
+        {impl_name main, rule scope.refusals}
+        {impl_name main, rule scope.write}
+        {impl_name main, rule scope.written}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

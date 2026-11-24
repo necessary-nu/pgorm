@@ -11,12 +11,13 @@ known limitations.
 
 ## The macro suite
 
-> [spec:pgorm:def:macros.derive+7]
+> [spec:pgorm:def:macros.derive+8]
 > The `pgorm-macros` crate exposes the ORM's derive macros, all gated behind the crate's
 > `derive` feature: `Entity`, `EntityTrait`, `Model`, `Column`, `Relation`,
 > `ActiveEnum`, `Disjoint`, `IntoActiveModel`, `PartialModel`, `FromQueryResult`,
-> `ValueType`, `JsonValueType`, `CreatedRange`, `MigrationName`, `SqlName` and
-> `StaticName`, named as `macros.derive.names` says, plus the
+> `ValueType`, `JsonValueType`, `CreatedRange`, `Scope`, `ScopeContext`,
+> `MigrationName`, `SqlName` and `StaticName`, named as `macros.derive.names` says,
+> plus the
 > `#[pgorm_macros::test]` attribute macro.
 > There is no iteration derive: the derives that need their enums iterable write it
 > (`macros.derive.enum-iter`). Every entity-side derive reads its configuration from
@@ -73,7 +74,7 @@ known limitations.
 > `EntityName` on it, and puts the entity-trait derive on it beside a
 > composite derive given no `table_name`.
 
-> [spec:pgorm:req:macros.derive.names+2]
+> [spec:pgorm:req:macros.derive.names+3]
 > Every derive MUST be named for what it makes or implements, as Rust's own
 > derives and serde's are, with no `Derive` prefix; a derive and a trait
 > live in different namespaces, so the two can share a name. The derives
@@ -85,6 +86,8 @@ known limitations.
 > (a reference to one of several entities,
 > `[spec:pgorm:def:disjoint.one-of]`), `IntoActiveModel`, `PartialModel`, `FromQueryResult`, `ValueType`,
 > `JsonValueType` (a value stored as a JSON column), `CreatedRange`,
+> `Scope` and `ScopeContext` (a scope and a context holding scopes,
+> `[spec:pgorm:def:scope.declare]` and `[spec:pgorm:def:scope.context]`),
 > `MigrationName` (in pgorm-migration), and
 > pgorm-query's `SqlName` and `StaticName`, reachable from pgorm with no
 > dependency on pgorm-query. The `Derive`-prefixed names, and

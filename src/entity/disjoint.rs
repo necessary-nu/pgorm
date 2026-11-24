@@ -1,7 +1,8 @@
+use crate::entity::{immutable_unset, scope_condition};
 use crate::{
-    ActiveEnum, ColumnDef, DisjointShape, DisjointValues, EntityName, EntityTrait, Error,
-    FromQueryResult, IntoPrimaryKey, Iterable, ModelTrait, PrimaryKeyTrait, SelectDisjoint,
-    WriteDisjoint,
+    ActiveEnum, ColumnDef, DisjointShape, DisjointValues, EntityName, EntityScopes, EntityTrait,
+    Error, FromQueryResult, IntoPrimaryKey, Iterable, ModelTrait, NoContext, PrimaryKeyTrait,
+    ScopeContext, ScopedIn, SelectDisjoint, WriteDisjoint,
 };
 use pgorm_query::IntoValueTuple;
 use std::{fmt::Debug, hash::Hash};
@@ -67,8 +68,23 @@ pub trait Disjoint: Sized + Send {
     /// The read takes what a [`Select`](crate::Select) of the base takes; see
     /// [`SelectDisjoint`].
     // [spec:pgorm:sem:disjoint.read+2]
-    fn find() -> SelectDisjoint<Self> {
+    fn find() -> SelectDisjoint<Self>
+    where
+        Self::Base: ScopedIn<NoContext>,
+    {
         SelectDisjoint::of(Self::Base::find())
+    }
+
+    /// [`find`](Self::find) under the context `cx`: the base's scopes in the
+    /// `WHERE`, which hold each kind's row, keyed by its base row, too.
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:scope.read]
+    fn find_for<Cx>(cx: &Cx) -> SelectDisjoint<Self>
+    where
+        Cx: ScopeContext,
+        Self::Base: ScopedIn<Cx>,
+    {
+        SelectDisjoint::of(Self::Base::find_for(cx))
     }
 
     /// [`find`](Self::find) narrowed to the base row of one key, composite
@@ -78,8 +94,22 @@ pub trait Disjoint: Sized + Send {
     fn find_by_id<T>(key: T) -> SelectDisjoint<Self>
     where
         T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        Self::Base: ScopedIn<NoContext>,
     {
         SelectDisjoint::of(Self::Base::find_by_id(key))
+    }
+
+    /// [`find_by_id`](Self::find_by_id) under the context `cx`, as
+    /// [`find_for`](Self::find_for) reads it.
+    // [spec:pgorm:sem:disjoint.read+2]
+    // [spec:pgorm:sem:scope.read]
+    fn find_by_id_for<Cx, T>(cx: &Cx, key: T) -> SelectDisjoint<Self>
+    where
+        Cx: ScopeContext,
+        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        Self::Base: ScopedIn<Cx>,
+    {
+        SelectDisjoint::of(Self::Base::find_by_id_for(cx, key))
     }
 
     /// Insert a value: the base row from `base`, its kind column holding
@@ -122,12 +152,48 @@ pub trait Disjoint: Sized + Send {
     ) -> Result<WriteDisjoint<Self>, Error>
     where
         Self: KindedDisjoint,
+        Self::Base: ScopedIn<NoContext>,
     {
+        Self::insert_under(&NoContext, base, kind)
+    }
+
+    /// [`insert`](Self::insert) under the context `cx`: the base row's scope
+    /// columns, and those of a scoped kind's row, filled and checked as
+    /// [`Insert::one_for`](crate::Insert::one_for) fills and checks a row,
+    /// a refusal returned before anything is sent.
+    // [spec:pgorm:sem:disjoint.write+2]
+    // [spec:pgorm:sem:scope.insert]
+    fn insert_for<Cx>(
+        cx: &Cx,
+        base: <Self::Base as EntityTrait>::ActiveModel,
+        kind: <Self as KindedDisjoint>::ActiveModel,
+    ) -> Result<WriteDisjoint<Self>, Error>
+    where
+        Self: KindedDisjoint,
+        Cx: ScopeContext,
+        Self::Base: ScopedIn<Cx>,
+    {
+        Self::insert_under(cx, base, kind)
+    }
+
+    #[doc(hidden)]
+    fn insert_under(
+        cx: &dyn ScopeContext,
+        mut base: <Self::Base as EntityTrait>::ActiveModel,
+        kind: <Self as KindedDisjoint>::ActiveModel,
+    ) -> Result<WriteDisjoint<Self>, Error>
+    where
+        Self: KindedDisjoint,
+    {
+        Self::Base::fill_scopes(cx, &mut base)?;
         let shape = DisjointShape::of::<Self>();
         shape.check()?;
         let written = kind.kind().to_value();
         let base = DisjointValues::of_active(&base)?;
-        let row = kind.visit(KindValues)?;
+        let row = kind.visit(KindValues {
+            cx,
+            write: KindWrite::Insert,
+        })?;
         shape
             .insert(&base, &written, row.as_ref())
             .map(WriteDisjoint::of)
@@ -155,14 +221,51 @@ pub trait Disjoint: Sized + Send {
     ) -> Result<WriteDisjoint<Self>, Error>
     where
         Self: KindedDisjoint,
+        Self::Base: ScopedIn<NoContext>,
     {
+        Self::update_under(&NoContext, base, kind)
+    }
+
+    /// [`update`](Self::update) under the context `cx`: the base row found by
+    /// its key and kind and `cx`'s scopes side by side, so a row outside them
+    /// is [`Error::RecordNotFound`]. A scope column is immutable, so either
+    /// row setting one is refused as [`Error::ImmutableColumn`].
+    // [spec:pgorm:sem:disjoint.write+2]
+    // [spec:pgorm:sem:scope.write]
+    fn update_for<Cx>(
+        cx: &Cx,
+        base: <Self::Base as EntityTrait>::ActiveModel,
+        kind: <Self as KindedDisjoint>::ActiveModel,
+    ) -> Result<WriteDisjoint<Self>, Error>
+    where
+        Self: KindedDisjoint,
+        Cx: ScopeContext,
+        Self::Base: ScopedIn<Cx>,
+    {
+        Self::update_under(cx, base, kind)
+    }
+
+    #[doc(hidden)]
+    fn update_under(
+        cx: &dyn ScopeContext,
+        base: <Self::Base as EntityTrait>::ActiveModel,
+        kind: <Self as KindedDisjoint>::ActiveModel,
+    ) -> Result<WriteDisjoint<Self>, Error>
+    where
+        Self: KindedDisjoint,
+    {
+        immutable_unset::<Self::Base>(&base)?;
         let shape = DisjointShape::of::<Self>();
         shape.check()?;
+        let scope = scope_condition::<Self::Base>(cx)?;
         let current = kind.kind().to_value();
         let base = DisjointValues::of_active(&base)?;
-        let row = kind.visit(KindValues)?;
+        let row = kind.visit(KindValues {
+            cx,
+            write: KindWrite::Update,
+        })?;
         shape
-            .update(&base, &current, row.as_ref())
+            .update_under(&base, &current, row.as_ref(), scope)
             .map(WriteDisjoint::of)
     }
 
@@ -185,19 +288,56 @@ pub trait Disjoint: Sized + Send {
     ) -> Result<WriteDisjoint<Self>, Error>
     where
         Self: KindedDisjoint,
+        Self::Base: ScopedIn<NoContext>,
+        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+    {
+        Self::change_kind_under(&NoContext, key, kind)
+    }
+
+    /// [`change_kind`](Self::change_kind) under the context `cx`: the base
+    /// row found by its key and `cx`'s scopes side by side, and a scoped new
+    /// kind's row filled from `cx`.
+    // [spec:pgorm:sem:disjoint.write+2]
+    // [spec:pgorm:sem:scope.write]
+    fn change_kind_for<Cx, T>(
+        cx: &Cx,
+        key: T,
+        kind: <Self as KindedDisjoint>::ActiveModel,
+    ) -> Result<WriteDisjoint<Self>, Error>
+    where
+        Self: KindedDisjoint,
+        Cx: ScopeContext,
+        Self::Base: ScopedIn<Cx>,
+        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+    {
+        Self::change_kind_under(cx, key, kind)
+    }
+
+    #[doc(hidden)]
+    fn change_kind_under<T>(
+        cx: &dyn ScopeContext,
+        key: T,
+        kind: <Self as KindedDisjoint>::ActiveModel,
+    ) -> Result<WriteDisjoint<Self>, Error>
+    where
+        Self: KindedDisjoint,
         T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
     {
         let shape = DisjointShape::of::<Self>();
         shape.check()?;
+        let scope = scope_condition::<Self::Base>(cx)?;
         let new = kind.kind().to_value();
         let key = key
             .into_primary_key()
             .into_value_tuple()
             .into_iter()
             .collect();
-        let row = kind.visit(KindValues)?;
+        let row = kind.visit(KindValues {
+            cx,
+            write: KindWrite::Insert,
+        })?;
         shape
-            .change_kind(key, &new, row.as_ref())
+            .change_kind_under(key, &new, row.as_ref(), scope)
             .map(WriteDisjoint::of)
     }
 }
@@ -251,17 +391,33 @@ pub trait KindedDisjoint: Disjoint<Kind: ActiveEnum<Value = String>> {
 }
 
 /// What a `<Enum>ActiveModel`'s kind row is given: its kind entity's
-/// `ActiveModel`'s values, or none for a kind without a table.
-struct KindValues;
+/// `ActiveModel`'s values, its scope columns filled from `cx` for an insert
+/// and refused set for an update, or none for a kind without a table.
+struct KindValues<'a> {
+    cx: &'a dyn ScopeContext,
+    write: KindWrite,
+}
 
-impl<D: Disjoint> ActiveKindVisitor<D> for KindValues {
+/// Which write a kind row is given to.
+#[derive(Clone, Copy)]
+enum KindWrite {
+    Insert,
+    Update,
+}
+
+impl<D: Disjoint> ActiveKindVisitor<D> for KindValues<'_> {
     type Output = Result<Option<DisjointValues>, Error>;
 
+    // [spec:pgorm:sem:scope.insert]
     fn table<M: KindModel<D>>(
         self,
         _: D::Kind,
-        active: <M::Entity as EntityTrait>::ActiveModel,
+        mut active: <M::Entity as EntityTrait>::ActiveModel,
     ) -> Self::Output {
+        match self.write {
+            KindWrite::Insert => M::Entity::fill_scopes(self.cx, &mut active)?,
+            KindWrite::Update => immutable_unset::<M::Entity>(&active)?,
+        }
         DisjointValues::of_active(&active).map(Some)
     }
 

@@ -7,9 +7,9 @@ use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{Expr, Name, SelectStatement, SimpleExpr, Value, Values};
 use pgorm::{
     ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
-    EntityTrait, Error, FromQueryResult, IntoActiveModel, Iterable, ModelTrait, QueryFilter,
-    QueryOrder, QuerySelect, QueryTrait, RelationDef, RelationTrait, SelectModel, SelectorTrait,
-    StaticName, Update, Upserted,
+    EntityTrait, Error, FromQueryResult, IntoActiveModel, Iterable, ModelTrait, NoContext,
+    QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationDef, RelationTrait, ScopedIn,
+    SelectModel, SelectorTrait, StaticName, Update, Upserted,
 };
 
 use super::{
@@ -42,7 +42,7 @@ pub struct EntityAdapter<E> {
 /// type-erased handle.
 pub fn model_of<E>(value: E::Model, info: &Arc<EntityInfo>) -> Model
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -56,7 +56,7 @@ where
 /// registration made it.
 fn concrete<E>(active: &Active) -> Result<E::ActiveModel, Error>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -78,7 +78,7 @@ impl<E: EntityTrait> fmt::Debug for RegisteredColumn<E> {
 }
 
 // [spec:pgorm:req:bindings.pipeline-sources+3]
-impl<E: EntityTrait + Send + Sync> PipelineColumn for RegisteredColumn<E> {
+impl<E: EntityTrait + ScopedIn<NoContext> + Send + Sync> PipelineColumn for RegisteredColumn<E> {
     fn lower<'brand>(&self, qualifier: Name) -> pgorm::pipeline::Expr<'brand> {
         pgorm::pipeline::named_runtime(E::default(), qualifier).col(self.0)
     }
@@ -87,7 +87,7 @@ impl<E: EntityTrait + Send + Sync> PipelineColumn for RegisteredColumn<E> {
 // [spec:pgorm:req:bindings.entities+6]
 impl<E> EntityBackend for EntityAdapter<E>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -243,7 +243,7 @@ where
 
 impl<E> EntityAdapter<E>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -330,7 +330,7 @@ pub(crate) struct SelectAdapter<E: EntityTrait> {
 // [spec:pgorm:req:bindings.entity-reads+4]
 impl<E> SelectBackend for SelectAdapter<E>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -433,7 +433,7 @@ where
 
 impl<E> SelectAdapter<E>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -454,7 +454,7 @@ struct ModelAdapter<E: EntityTrait> {
 // [spec:pgorm:req:bindings.entity-writes+1]
 impl<E> ModelBackend for ModelAdapter<E>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -490,7 +490,7 @@ struct ActiveAdapter<E: EntityTrait> {
 
 impl<E> ActiveAdapter<E>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -513,7 +513,7 @@ where
 // [spec:pgorm:req:bindings.entity-writes+1]
 impl<E> ActiveBackend for ActiveAdapter<E>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {

@@ -851,3 +851,13 @@ assert c.select("name").where(c.col("price") > Decimal("4.00")).inspect().sql ==
 A registered entity's names are the Rust entity's: one whose schema is
 computed decides it in Rust, as the [Rust guide](../../docs/guide/02-entities.md)
 shows.
+
+## Scopes
+
+A Rust entity can declare scopes, conditions such as `company_id = $me` that
+every statement on its table is held to and that no statement can be built
+without, as the [Rust guide's Scopes](../../docs/guide/02-entities.md#scopes)
+section shows. The Python binding has no scopes yet: a model declares none,
+and a Rust entity that declares one cannot be registered, since a
+registration's statements take no context, so its registration does not
+compile.

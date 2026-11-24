@@ -1,6 +1,6 @@
 use crate::{
     ConnectionTrait, EntityTrait, FromQueryResult, PartialModelTrait, QueryResult, QueryTrait,
-    Select, SelectProjected, SqlText, TryGetableMany, error::*,
+    ScopeError, Select, SelectProjected, SqlText, TryGetableMany, error::*,
 };
 use futures::{Stream, StreamExt};
 use pgorm_query::{SelectStatement, Values};
@@ -84,6 +84,9 @@ where
 {
     pub(crate) query: SelectStatement,
     pub(crate) selector: S,
+    /// What a table the statement's context does not cover was refused with,
+    /// held until it would run.
+    pub(crate) refused: Option<ScopeError>,
 }
 
 /// Performs a raw `SELECT` operation on a model
@@ -196,6 +199,7 @@ where
         Selector {
             query: self.query,
             selector: SelectModel { model: PhantomData },
+            refused: self.refused,
         }
     }
 
@@ -351,7 +355,7 @@ where
         T: TryGetableMany,
         C: strum::IntoEnumIterator + pgorm_query::SqlName,
     {
-        Selector::<SelectGetableValue<T, C>>::with_columns(self.query)
+        Selector::<SelectGetableValue<T, C>>::with_columns(self.query).holding(self.refused)
     }
 
     /// Decode selected columns into a value or tuple by ordinal position.
@@ -399,7 +403,7 @@ where
     where
         T: TryGetableMany,
     {
-        Selector::<SelectGetableTuple<T>>::into_tuple(self.query)
+        Selector::<SelectGetableTuple<T>>::into_tuple(self.query).holding(self.refused)
     }
 
     /// Get one Model from the SELECT query
@@ -490,6 +494,7 @@ where
         Selector {
             query: self.query,
             selector: SelectModel { model: PhantomData },
+            refused: self.refused,
         }
     }
 
@@ -500,7 +505,7 @@ where
         T: TryGetableMany,
         C: strum::IntoEnumIterator + pgorm_query::SqlName,
     {
-        Selector::<SelectGetableValue<T, C>>::with_columns(self.query)
+        Selector::<SelectGetableValue<T, C>>::with_columns(self.query).holding(self.refused)
     }
 
     /// Decode the custom projection into a value or tuple by ordinal
@@ -509,7 +514,7 @@ where
     where
         T: TryGetableMany,
     {
-        Selector::<SelectGetableTuple<T>>::into_tuple(self.query)
+        Selector::<SelectGetableTuple<T>>::into_tuple(self.query).holding(self.refused)
     }
 
     /// Replace the projection with the one the partial model declares.
@@ -589,6 +594,7 @@ where
         Selector {
             query,
             selector: SelectModel { model: PhantomData },
+            refused: None,
         }
     }
 }
@@ -604,6 +610,7 @@ where
         Selector {
             query,
             selector: SelectGetableTuple { model: PhantomData },
+            refused: None,
         }
     }
 }
@@ -623,6 +630,7 @@ where
                 columns: PhantomData,
                 model: PhantomData,
             },
+            refused: None,
         }
     }
 }
@@ -631,7 +639,17 @@ impl<S> Selector<S>
 where
     S: SelectorTrait,
 {
+    /// The selector holding `refused` until it would run.
+    pub(crate) fn holding(mut self, refused: Option<ScopeError>) -> Self {
+        self.refused = refused;
+        self
+    }
+
+    // [spec:pgorm:req:scope.refusals]
     fn into_selector_raw(self) -> Result<SelectorRaw<S>, Error> {
+        if let Some(refused) = self.refused {
+            return Err(Error::Scope(refused));
+        }
         ensure_select_list(&self.query)?;
         let (stmt, values) = self.query.build();
 

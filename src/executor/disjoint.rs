@@ -378,6 +378,7 @@ impl<D: Disjoint> SelectDisjoint<D> {
         Ok(Selector {
             query: self.query,
             selector: DisjointRow(PhantomData),
+            refused: self.refused,
         })
     }
 
@@ -471,7 +472,8 @@ impl<D: Disjoint> SelectDisjoint<D> {
             Name::clone(shape.base().name()),
             order_columns,
         )
-        .with_casts_by(|column| shape.boundary_cast(column)))
+        .with_casts_by(|column| shape.boundary_cast(column))
+        .holding(selector.refused))
     }
 }
 

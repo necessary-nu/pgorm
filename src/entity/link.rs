@@ -1,5 +1,6 @@
-use crate::{EntityTrait, QuerySelect, Related, RelationDef, Select};
-use pgorm_query::{JoinType, SqlName};
+use crate::query::join::{Joined, join_side};
+use crate::{EntityTrait, NoContext, Related, RelationDef, ScopeContext, ScopedIn, Select};
+use pgorm_query::{IntoName, JoinType, SqlName};
 use std::{
     fmt::{self, Debug},
     marker::PhantomData,
@@ -98,16 +99,48 @@ pub trait Linked {
     /// crate emits, a hop honours everything its relation declares — its
     /// `condition_type` and its `on_condition`, the closure receiving the two
     /// aliases in the roles the relation was written with.
-    fn find_linked(&self) -> Select<Self::ToEntity> {
-        let mut select = Select::new();
-        for (i, mut rel) in self.link().into_iter().rev().enumerate() {
-            if i > 0 {
-                rel.to_tbl = rel.to_tbl.alias(LinkedAlias::hop(i - 1));
-            }
-            select = select.join_as_rev(JoinType::InnerJoin, rel, LinkedAlias::hop(i));
-        }
-        select
+    ///
+    /// A hop into a scoped table is refused with
+    /// [`ScopeError::Unscoped`](crate::ScopeError::Unscoped) when the
+    /// statement would run; [`find_linked_for`](Linked::find_linked_for)
+    /// scopes each hop.
+    fn find_linked(&self) -> Select<Self::ToEntity>
+    where
+        Self::ToEntity: ScopedIn<NoContext>,
+    {
+        walk(Select::new(), None, self.link())
     }
+
+    /// [`find_linked`](Linked::find_linked) under the context `cx`: the linked
+    /// rows' scopes in the `WHERE`, and each hop's table's under its alias in
+    /// that hop's `ON`.
+    // [spec:pgorm:sem:scope.join]
+    fn find_linked_for<Cx>(&self, cx: &Cx) -> Select<Self::ToEntity>
+    where
+        Cx: ScopeContext,
+        Self::ToEntity: ScopedIn<Cx>,
+    {
+        let select = Select::scoped(&Self::ToEntity::default(), cx);
+        walk(select, Some(cx), self.link())
+    }
+}
+
+/// `select` joined to each relation of a link, walked backwards from its
+/// target, each hop under the alias its position gives it and scoped by `cx`.
+// [spec:pgorm:req:entity.relation.linked+4]
+fn walk<E: EntityTrait>(
+    mut select: Select<E>,
+    cx: Option<&dyn ScopeContext>,
+    link: Vec<RelationDef>,
+) -> Select<E> {
+    for (i, mut rel) in link.into_iter().rev().enumerate() {
+        if i > 0 {
+            rel.to_tbl = rel.to_tbl.alias(LinkedAlias::hop(i - 1));
+        }
+        rel.from_tbl = rel.from_tbl.alias(LinkedAlias::hop(i).into_name());
+        select = join_side(select, cx, JoinType::InnerJoin, rel, Joined::From);
+    }
+    select
 }
 
 /// The [`Linked`] chain a [`Related`] implementation already describes.
@@ -203,7 +236,7 @@ where
 mod tests {
     use super::*;
     use crate::tests_cfg::{cake, cake_filling, entity_linked, filling};
-    use crate::{QueryTrait, RelationTrait};
+    use crate::{QuerySelect, QueryTrait, RelationTrait};
     use pgorm_query::{ConditionType, Expr, ExprTrait, IntoCondition};
     use pretty_assertions::assert_eq;
 

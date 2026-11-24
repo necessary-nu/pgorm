@@ -1,13 +1,14 @@
+use super::join::{Joined, join_side};
 use crate::entity::{compared_column, compared_value};
 use crate::executor::result_name::bounded_identifier;
 use crate::{
-    ColumnPairs, ColumnTrait, EntityTrait, IntoKey, IntoSimpleExpr, Iterable, ModelTrait,
-    PrimaryKeyToColumn, QueryTrait, RelationDef, RelationTrait,
+    ColumnTrait, EntityTrait, IntoKey, IntoSimpleExpr, Iterable, ModelTrait, PrimaryKeyToColumn,
+    QueryTrait, RelationDef, RelationTrait, ScopeContext, ScopeError,
 };
 use pgorm_query::{
-    AnyWithClause, ConditionType, Expr, ExprTrait, FromItem, FunctionCall, GroupingElement,
-    IntoCondition, IntoName, LockBehavior, LockType, NullOrdering, SelectExpr, SelectStatement,
-    SimpleExpr, TypeName, UnionType, WindowDefinition,
+    AnyWithClause, Expr, ExprTrait, FromItem, FunctionCall, GroupingElement, IntoCondition,
+    IntoName, LockBehavior, LockType, NullOrdering, SelectExpr, SelectStatement, SimpleExpr,
+    UnionType, WindowDefinition,
 };
 pub use pgorm_query::{Condition, ConditionalStatement, JoinType, Name, Order, OrderedStatement};
 
@@ -35,6 +36,12 @@ pub trait QuerySelect: Sized {
 
     /// Add the select SQL statement
     fn query(&mut self) -> &mut SelectStatement;
+
+    /// Hold `refusal` until the statement would run, which it then fails
+    /// with: what a join into a scoped table its context does not cover
+    /// records. The first refusal held is the one reported.
+    #[doc(hidden)]
+    fn refuse(&mut self, refusal: ScopeError);
 
     /// Move to [`QuerySelect::Projected`] once a projection expression has
     /// been written into the statement.
@@ -398,63 +405,92 @@ pub trait QuerySelect: Sized {
         self
     }
 
-    #[doc(hidden)]
-    fn join_join(mut self, join: JoinType, rel: RelationDef, via: Option<RelationDef>) -> Self {
-        if let Some(via) = via {
-            self = self.join(join, via)
-        }
-        self.join(join, rel)
-    }
-
-    #[doc(hidden)]
-    fn join_join_rev(mut self, join: JoinType, rel: RelationDef, via: Option<RelationDef>) -> Self {
-        self = self.join_rev(join, rel);
-        if let Some(via) = via {
-            self = self.join_rev(join, via)
-        }
-        self
-    }
-
     /// Join via [`RelationDef`].
-    fn join(mut self, join: JoinType, rel: RelationDef) -> Self {
-        self.query()
-            .join(join, rel.to_tbl.clone(), join_condition(rel));
-        self
+    ///
+    /// A relation into a scoped table is joined with its context through
+    /// [`join_for`](Self::join_for); joined here, the statement is refused
+    /// with [`ScopeError::Unscoped`] when it would run, and nothing is sent.
+    // [spec:pgorm:sem:scope.join]
+    fn join(self, join: JoinType, rel: RelationDef) -> Self {
+        join_side(self, None, join, rel, Joined::To)
+    }
+
+    /// [`join`](Self::join) under the context `cx`: where the joined table is
+    /// scoped, its scopes under `cx` are ANDed into the `ON`, and a context
+    /// that does not hold them is refused with [`ScopeError::NotHeld`] when
+    /// the statement would run.
+    // [spec:pgorm:sem:scope.join]
+    fn join_for<Cx>(self, cx: &Cx, join: JoinType, rel: RelationDef) -> Self
+    where
+        Cx: ScopeContext,
+    {
+        join_side(self, Some(cx), join, rel, Joined::To)
     }
 
     /// Join via [`RelationDef`] but in reverse direction.
     /// Assume when there exist a relation A to B.
     /// You can reverse join B from A.
-    fn join_rev(mut self, join: JoinType, rel: RelationDef) -> Self {
-        self.query()
-            .join(join, rel.from_tbl.clone(), join_condition(rel));
-        self
+    // [spec:pgorm:sem:scope.join]
+    fn join_rev(self, join: JoinType, rel: RelationDef) -> Self {
+        join_side(self, None, join, rel, Joined::From)
+    }
+
+    /// [`join_rev`](Self::join_rev) under the context `cx`, as
+    /// [`join_for`](Self::join_for) scopes it.
+    // [spec:pgorm:sem:scope.join]
+    fn join_rev_for<Cx>(self, cx: &Cx, join: JoinType, rel: RelationDef) -> Self
+    where
+        Cx: ScopeContext,
+    {
+        join_side(self, Some(cx), join, rel, Joined::From)
     }
 
     /// Join via [`RelationDef`] with table alias.
-    fn join_as<I>(mut self, join: JoinType, mut rel: RelationDef, alias: I) -> Self
+    // [spec:pgorm:sem:scope.join]
+    fn join_as<I>(self, join: JoinType, mut rel: RelationDef, alias: I) -> Self
     where
         I: IntoName,
     {
-        let alias = alias.into_name();
-        rel.to_tbl = rel.to_tbl.alias(Name::clone(&alias));
-        self.query()
-            .join(join, rel.to_tbl.clone(), join_condition(rel));
-        self
+        rel.to_tbl = rel.to_tbl.alias(alias.into_name());
+        join_side(self, None, join, rel, Joined::To)
+    }
+
+    /// [`join_as`](Self::join_as) under the context `cx`, as
+    /// [`join_for`](Self::join_for) scopes it, the scopes qualified by the
+    /// alias.
+    // [spec:pgorm:sem:scope.join]
+    fn join_as_for<Cx, I>(self, cx: &Cx, join: JoinType, mut rel: RelationDef, alias: I) -> Self
+    where
+        Cx: ScopeContext,
+        I: IntoName,
+    {
+        rel.to_tbl = rel.to_tbl.alias(alias.into_name());
+        join_side(self, Some(cx), join, rel, Joined::To)
     }
 
     /// Join via [`RelationDef`] with table alias but in reverse direction.
     /// Assume when there exist a relation A to B.
     /// You can reverse join B from A.
-    fn join_as_rev<I>(mut self, join: JoinType, mut rel: RelationDef, alias: I) -> Self
+    // [spec:pgorm:sem:scope.join]
+    fn join_as_rev<I>(self, join: JoinType, mut rel: RelationDef, alias: I) -> Self
     where
         I: IntoName,
     {
-        let alias = alias.into_name();
-        rel.from_tbl = rel.from_tbl.alias(Name::clone(&alias));
-        self.query()
-            .join(join, rel.from_tbl.clone(), join_condition(rel));
-        self
+        rel.from_tbl = rel.from_tbl.alias(alias.into_name());
+        join_side(self, None, join, rel, Joined::From)
+    }
+
+    /// [`join_as_rev`](Self::join_as_rev) under the context `cx`, as
+    /// [`join_for`](Self::join_for) scopes it, the scopes qualified by the
+    /// alias.
+    // [spec:pgorm:sem:scope.join]
+    fn join_as_rev_for<Cx, I>(self, cx: &Cx, join: JoinType, mut rel: RelationDef, alias: I) -> Self
+    where
+        Cx: ScopeContext,
+        I: IntoName,
+    {
+        rel.from_tbl = rel.from_tbl.alias(alias.into_name());
+        join_side(self, Some(cx), join, rel, Joined::From)
     }
 
     /// `LEFT JOIN` the entity a relation points at.
@@ -1111,63 +1147,6 @@ pub trait QueryFilter: Sized {
             self = self.filter(expr);
         }
         self
-    }
-}
-
-// [spec:pgorm:sem:query.build.join+5]
-pub(crate) fn join_condition(mut rel: RelationDef) -> Condition {
-    // Use table alias (if any) to construct the join condition
-    let from_tbl = Name::clone(rel.from_tbl.qualifier());
-    let to_tbl = Name::clone(rel.to_tbl.qualifier());
-    let mut condition = match rel.condition_type {
-        ConditionType::All => Condition::all(),
-        ConditionType::Any => Condition::any(),
-    };
-
-    condition = condition.add(join_tbl_on_condition(
-        Name::clone(&from_tbl),
-        Name::clone(&to_tbl),
-        rel.columns,
-    ));
-    if let Some(f) = rel.on_condition.take() {
-        condition = condition.add(f(from_tbl, to_tbl));
-    }
-
-    condition
-}
-
-// [spec:pgorm:sem:query.build.join+5]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> Condition {
-    let mut cond = Condition::all();
-    for ((owner_key, foreign_key), compared) in columns.compared_pairs() {
-        let from = compared_side(
-            Expr::col((Name::clone(&from_tbl), Name::clone(owner_key))),
-            &compared.from,
-        );
-        let to = compared_side(
-            Expr::col((Name::clone(&to_tbl), Name::clone(foreign_key))),
-            &compared.to,
-        );
-        cond = cond.add(from.eq(to));
-    }
-    // A temporal relation's periods meet where they overlap: a row is joined
-    // to every row whose period shares a moment with its own.
-    if let Some((from_period, to_period)) = columns.period().cloned() {
-        cond =
-            cond.add(Expr::col((from_tbl, from_period)).overlaps(Expr::col((to_tbl, to_period))));
-    }
-    cond
-}
-
-/// One side of a join pair as the equality compares it: cast to the enum when
-/// its column's domain is over one, which is the only way PostgreSQL compares
-/// such a column with anything.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
-    match enum_type {
-        Some(enum_type) => Expr::expr(column.cast_as_type(enum_type.clone())),
-        None => column,
     }
 }
 

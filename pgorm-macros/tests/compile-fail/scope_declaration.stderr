@@ -1,0 +1,35 @@
+error: a scope column holds its scope's value in every row; declare the field without `Option` or `nullable`
+  --> tests/compile-fail/scope_declaration.rs:15:17
+   |
+15 |         #[pgorm(scope)]
+   |                 ^^^^^
+
+error: a column holds one scope; `scope` is given twice
+  --> tests/compile-fail/scope_declaration.rs:29:24
+   |
+29 |         #[pgorm(scope, scope)]
+   |                        ^^^^^
+
+error: `scope(..)` names one scope or more, each a type the program implements `ScopeOn<Entity>` for: `scope(UserId)`
+  --> tests/compile-fail/scope_declaration.rs:38:47
+   |
+38 |     #[pgorm(table_name = "no_scopes_written", scope())]
+   |                                               ^^^^^^^
+
+error: this context already holds `UserId`; a context holds each scope once, as one value of it or as every value of it
+  --> tests/compile-fail/scope_declaration.rs:48:17
+   |
+48 |     pub reader: Every<UserId>,
+   |                 ^^^^^
+
+error: a scope context names its scopes' types; it has no generic parameters
+  --> tests/compile-fail/scope_declaration.rs:52:20
+   |
+52 | pub struct Generic<T> {
+   |                    ^
+
+error: a scope context is a struct of scopes, each field a scope or an `Every` of one
+  --> tests/compile-fail/scope_declaration.rs:57:10
+   |
+57 | pub enum NotAStruct {
+   |          ^^^^^^^^^^

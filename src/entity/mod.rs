@@ -43,6 +43,8 @@ mod column_casts;
 mod created_range;
 mod disjoint;
 mod disjoint_shape;
+mod immutable;
+mod into_active;
 mod key;
 mod link;
 mod model;
@@ -53,6 +55,7 @@ mod partial_model;
 pub mod prelude;
 mod primary_key;
 mod relation;
+mod scope;
 mod table_shape;
 
 pub use active_enum::*;
@@ -62,6 +65,8 @@ pub use column::*;
 pub use created_range::*;
 pub use disjoint::*;
 pub use disjoint_shape::*;
+pub(crate) use immutable::*;
+pub use into_active::*;
 pub use key::*;
 pub use link::*;
 pub use model::*;
@@ -71,6 +76,7 @@ pub use partial_model::*;
 // pub use prelude::*;
 pub use primary_key::*;
 pub use relation::*;
+pub use scope::*;
 pub use table_shape::*;
 
 /// The derives of the `SqlName` and `StaticName` traits `base_entity`'s glob
@@ -79,7 +85,7 @@ pub use table_shape::*;
 /// cannot resolve; an explicit import shadows a glob's in the macro namespace
 /// alone, so these name the traits while pgorm-macros' derives, expanding to
 /// `pgorm::pgorm_query::..`, are the derives.
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 // [spec:pgorm:sem:macros.derive.iden+3]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{SqlName, StaticName};

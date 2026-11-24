@@ -38,6 +38,9 @@ impl Pipeline {
     // [spec:pgorm:req:pipeline.errors+5]
     // [spec:pgorm:req:pipeline.params+5]
     pub fn into_sql(mut self) -> Result<(String, Values), PipelineError> {
+        if let Some(refused) = self.refused.take() {
+            return Err(PipelineError::Scope(refused));
+        }
         self.screen(true)?;
         let Some(columns) = self.read.take() else {
             return self.compile();

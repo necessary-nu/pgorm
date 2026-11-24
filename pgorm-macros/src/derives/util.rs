@@ -65,7 +65,7 @@ pub(crate) fn skip_known_key(meta: &ParseNestedMeta<'_>, known: &[&str]) -> syn:
 /// saying the program implements `ActiveModelBehavior`. Every other derive
 /// refuses them with where they belong.
 // [spec:pgorm:sem:macros.derive.entity+7]
-pub(crate) const COMPOSITE_KEYS: [&str; 7] = [
+pub(crate) const COMPOSITE_KEYS: [&str; 8] = [
     "table_name",
     "schema_name",
     "comment",
@@ -73,6 +73,7 @@ pub(crate) const COMPOSITE_KEYS: [&str; 7] = [
     "rename_all",
     "hooks",
     "unique",
+    "scope",
 ];
 
 /// The field keys `PartialModel` reads that the `FromQueryResult` it writes
@@ -86,7 +87,7 @@ pub(crate) const PROJECTION_FIELD_KEYS: [&str; 2] = ["from_col", "from_expr"];
 /// and validates this vocabulary itself, so those two step over every key in
 /// it they do not read.
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
-pub(crate) const MODEL_FIELD_KEYS: [&str; 22] = [
+pub(crate) const MODEL_FIELD_KEYS: [&str; 23] = [
     "auto_increment",
     "column_name",
     "column_type",
@@ -102,6 +103,7 @@ pub(crate) const MODEL_FIELD_KEYS: [&str; 22] = [
     "nullable",
     "primary_key",
     "save_array_with",
+    "scope",
     "save_as",
     "save_with",
     "select_as",

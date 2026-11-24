@@ -1,6 +1,7 @@
 use crate::{
-    ConnectionTrait, Delete, EntityTrait, Insert, Iterable, PrimaryKeyArity, PrimaryKeyToColumn,
-    PrimaryKeyTrait, Update, Value, error::*,
+    ConnectionTrait, Delete, EntityTrait, Insert, IntoActiveModel, IntoActiveValue, Iterable,
+    NoContext, PrimaryKeyArity, PrimaryKeyToColumn, PrimaryKeyTrait, ScopeContext, ScopedIn,
+    Update, Value, error::*,
 };
 use async_trait::async_trait;
 use pgorm_query::{Nullable, ValueTuple};
@@ -262,9 +263,32 @@ pub trait ActiveModelTrait: Clone + Debug {
     where
         <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<NoContext>,
         C: ConnectionTrait,
     {
         self.insert_in(Self::Entity::default(), db).await
+    }
+
+    /// [`insert`](ActiveModelTrait::insert) under the context `cx`, hooks and
+    /// all, as [`Insert::one_for`] writes it: the row's scope columns filled
+    /// from `cx`, after `before_save` has had the row.
+    // [spec:pgorm:req:entity.active-model.persistence+3]
+    // [spec:pgorm:sem:scope.insert]
+    async fn insert_for<'a, Cx, C>(
+        self,
+        cx: &'a Cx,
+        db: &'a C,
+    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    where
+        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = Self>,
+        Cx: ScopeContext + Sync,
+        C: ConnectionTrait,
+    {
+        let am = ActiveModelBehavior::before_save(self, db, true).await?;
+        let model = Insert::one_for(cx, am).exec_returning_model(db).await?;
+        Self::after_save(model, db, true).await
     }
 
     /// [`insert`](ActiveModelTrait::insert) into the table `entity` names,
@@ -280,6 +304,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     where
         <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<NoContext>,
         C: ConnectionTrait,
     {
         let am = ActiveModelBehavior::before_save(self, db, true).await?;
@@ -322,9 +347,34 @@ pub trait ActiveModelTrait: Clone + Debug {
     where
         <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<NoContext>,
         C: ConnectionTrait,
     {
         self.update_in(Self::Entity::default(), db).await
+    }
+
+    /// [`update`](ActiveModelTrait::update) under the context `cx`, hooks and
+    /// all, as [`Update::one_for`] writes it: a row outside `cx`'s scopes is
+    /// [`Error::RecordNotFound`], and a scope column set is
+    /// [`Error::ImmutableColumn`].
+    // [spec:pgorm:req:entity.active-model.persistence+3]
+    // [spec:pgorm:sem:scope.write]
+    async fn update_for<'a, Cx, C>(
+        self,
+        cx: &'a Cx,
+        db: &'a C,
+    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    where
+        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<Cx>,
+        Cx: ScopeContext + Sync,
+        C: ConnectionTrait,
+    {
+        let am = ActiveModelBehavior::before_save(self, db, false).await?;
+        let model: <Self::Entity as EntityTrait>::Model =
+            Update::one_for(cx, am)?.exec_returning_model(db).await?;
+        Self::after_save(model, db, false).await
     }
 
     /// [`update`](ActiveModelTrait::update) of a row of the table `entity`
@@ -339,6 +389,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     where
         <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<NoContext>,
         C: ConnectionTrait,
     {
         let am = ActiveModelBehavior::before_save(self, db, false).await?;
@@ -377,9 +428,29 @@ pub trait ActiveModelTrait: Clone + Debug {
     async fn delete<'a, C>(self, db: &'a C) -> Result<u64, Error>
     where
         Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<NoContext>,
         C: ConnectionTrait,
     {
         self.delete_in(Self::Entity::default(), db).await
+    }
+
+    /// [`delete`](ActiveModelTrait::delete) under the context `cx`, hooks and
+    /// all, as [`Delete::one_for`] deletes it: a row outside `cx`'s scopes is
+    /// not deleted, and the count is `0`.
+    // [spec:pgorm:req:entity.active-model.hooks+1]
+    // [spec:pgorm:sem:scope.write]
+    async fn delete_for<'a, Cx, C>(self, cx: &'a Cx, db: &'a C) -> Result<u64, Error>
+    where
+        Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<Cx>,
+        Cx: ScopeContext + Sync,
+        C: ConnectionTrait,
+    {
+        let am = ActiveModelBehavior::before_delete(self, db).await?;
+        let am_clone = am.clone();
+        let delete_res = Delete::one_for(cx, am)?.exec(db).await?;
+        ActiveModelBehavior::after_delete(am_clone, db).await?;
+        Ok(delete_res)
     }
 
     /// [`delete`](ActiveModelTrait::delete) from the table `entity` names,
@@ -388,6 +459,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     async fn delete_in<'a, C>(self, entity: Self::Entity, db: &'a C) -> Result<u64, Error>
     where
         Self: ActiveModelBehavior + 'a,
+        Self::Entity: ScopedIn<NoContext>,
         C: ConnectionTrait,
     {
         let am = ActiveModelBehavior::before_delete(self, db).await?;
@@ -610,59 +682,6 @@ pub trait ActiveModelBehavior: ActiveModelTrait {
         C: ConnectionTrait,
     {
         Ok(self)
-    }
-}
-
-/// A Trait for any type that can be converted into an ActiveModel
-// [spec:pgorm:req:entity.active-model.into+3]
-pub trait IntoActiveModel<A>
-where
-    A: ActiveModelTrait,
-{
-    /// Method to call to perform the conversion
-    fn into_active_model(self) -> A;
-}
-
-impl<A> IntoActiveModel<A> for A
-where
-    A: ActiveModelTrait,
-{
-    fn into_active_model(self) -> A {
-        self
-    }
-}
-
-/// Any type that can be converted into an [ActiveValue]
-// [spec:pgorm:req:entity.active-model.into+3]
-pub trait IntoActiveValue<V>
-where
-    V: Into<Value>,
-{
-    /// Method to perform the conversion
-    fn into_active_value(self) -> ActiveValue<V>;
-}
-
-impl<V> IntoActiveValue<Option<V>> for Option<V>
-where
-    V: IntoActiveValue<V> + Into<Value> + Nullable,
-{
-    fn into_active_value(self) -> ActiveValue<Option<V>> {
-        match self {
-            Some(value) => ActiveValue::Set(Some(value)),
-            None => NotSet,
-        }
-    }
-}
-
-impl<V> IntoActiveValue<Option<V>> for Option<Option<V>>
-where
-    V: IntoActiveValue<V> + Into<Value> + Nullable,
-{
-    fn into_active_value(self) -> ActiveValue<Option<V>> {
-        match self {
-            Some(value) => ActiveValue::Set(value),
-            None => NotSet,
-        }
     }
 }
 
