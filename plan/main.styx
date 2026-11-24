@@ -21901,4 +21901,37 @@ children (
             }
         )
     }
+
+    {
+        id immutable
+        title "A column marked immutable is written once at insert and no statement pgorm builds can change it"
+        kind @feat
+        children (
+            {
+                id immutable.rust
+                title "#[pgorm(immutable)] refuses an update, bulk update or upsert that would change the column, and scope columns are immutable through the same rule"
+                deps (scopes.rust)
+            }
+
+            {
+                id immutable.python
+                title "A Python model's Column(immutable=True) refuses the statements that would change it, as Rust's does"
+                deps (immutable.rust)
+            }
+
+            {
+                id immutable.napi
+                title "A JavaScript model's immutable column refuses the statements that would change it, as Rust's does"
+                deps (immutable.rust)
+            }
+        )
+        log (
+            {
+                at 2026-11-24T00:45:36.479959Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-24, agreed with the operator: #[pgorm(immutable)] marks a column written once at insert (created_at, created_by, external ids, ledger amounts). Update::one (already a Result) refuses an ActiveModel with the column Set, as do save() and the scoped _for forms; Update::many's col_expr on it is refused; upserts leave it out of ON CONFLICT .. DO UPDATE SET, refusing it when named explicitly. All refusals are typed errors before anything is sent (statement-build time: an ActiveModel serves insert and update alike and col_expr takes a run-time column, so compile time would need separate insert/update model types, not in scope). No trigger is generated: database enforcement is the application's. Scope columns are immutable by definition, so scopes.rust's \"a row cannot leave its scope\" refusal becomes this rule, written once. #[pgorm(redact)] was discussed the same day and deferred: masking needs a Redacted<T> type that stays masked once the value leaves the model, not only an attribute."
+            }
+        )
+    }
 )
