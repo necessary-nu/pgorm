@@ -21869,4 +21869,36 @@ children (
             }
         )
     }
+
+    {
+        id scopes
+        title "A scoped table's statements cannot be built without the scopes it declares, such as company_id and user_id"
+        kind @feat
+        children (
+            {
+                id scopes.rust
+                title "A scoped entity's statements start from a context holding its scopes, and every other way to build one is a compile error naming the entity and its scopes"
+            }
+
+            {
+                id scopes.python
+                title "A Python model's scoped columns hold its statements to a Scopes context, refused when the statement is built without one"
+                deps (scopes.rust)
+            }
+
+            {
+                id scopes.napi
+                title "A JavaScript model's scoped columns hold its statements to a scopes context, checked by TypeScript and refused at build time"
+                deps (scopes.rust)
+            }
+        )
+        log (
+            {
+                at 2026-11-24T00:34:53.49387Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-24, agreed with the operator: tenant isolation is enforced outside pgorm (RLS is not pgorm's job), and pgorm's part is a type-safe way to never forget a required predicate, generalised from tenant_id to application-defined scopes (CompanyId, UserId, …). A scope is the application's type (#[derive(Scope)] on a newtype that is also the column's ValueType); an entity marks its scope columns #[pgorm(scope)], or declares scope(T) with a hand-written ScopeOn<Entity> condition and insert hook (a message readable by sender OR recipient). A context (#[derive(ScopeContext)] struct, or one scope value alone) provides scopes; Every<S> lifts one on purpose. Every statement constructor has a form taking the context first (mirroring the _in forms); the plain forms of a scoped entity are compile errors whose text the derive writes per entity (\"`note::Entity` is scoped by `CompanyId` and `UserId`, which `NoContext` does not hold\") via a generated per-entity trait with #[diagnostic::on_unimplemented] and a #[diagnostic::do_not_recommend] blanket impl, probed on stable. Reads AND the scope, joins put each slot's scopes in its ON, inserts fill scope columns (refusing a conflicting value), updates/deletes by key carry the scope, a scope column cannot be changed. Raw SQL is outside: document clippy's disallowed-macros (sql!, prql!) and disallowed-methods (raw-text entry points), allowed case by case with #[allow(clippy::disallowed_macros)]. No default-applied scopes (soft delete) in this round."
+            }
+        )
+    }
 )
