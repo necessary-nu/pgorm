@@ -266,6 +266,14 @@ const CHAPTER_NAMES: &[(&str, &[&str])] = &[
             "has_many",
             "ActiveModelBehavior",
             "hooks",
+            "Scope",
+            "ScopeContext",
+            "Every",
+            "find_for",
+            "join_for",
+            "Insert::one_for",
+            "ScopeOn",
+            "disallowed-macros",
         ],
     ),
     (
@@ -374,6 +382,44 @@ fn braced_names(source: &str, opening: &str) -> Vec<String> {
         .filter(|name| !name.is_empty())
         .map(str::to_owned)
         .collect()
+}
+
+// [spec:pgorm:req:scope.raw/test]    the clippy configuration the guide gives bans both raw-SQL macros and every
+// method taking SQL text, each by its path from pgorm's root
+#[test]
+fn clippy_configuration_bans_every_raw_text_entry() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let entities = read_chapter(
+        &chapters()
+            .into_iter()
+            .find(|chapter| chapter.id == "entities")
+            .expect("the entities chapter is listed"),
+    );
+    let connection = std::fs::read_to_string(root.join("src/database/connection.rs"))
+        .expect("src/database/connection.rs is readable");
+    let methods = connection.lines().filter_map(|line| {
+        let rest = line.trim().strip_prefix("async fn ")?;
+        let method: String = rest
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        Some(format!("pgorm::ConnectionTrait::{method}"))
+    });
+    let others = [
+        "pgorm::sql",
+        "pgorm::prql",
+        "pgorm::SelectorRaw::from_statement",
+        "pgorm::SelectorRaw::into_tuple",
+        "pgorm::SelectorRaw::with_columns",
+        "pgorm::Select::from_raw_sql",
+        "pgorm::FromQueryResult::find_by_statement",
+    ];
+    for path in methods.chain(others.map(str::to_owned)) {
+        assert!(
+            entities.contains(&format!("path = \"{path}\"")),
+            "the guide's clippy configuration does not ban `{path}`"
+        );
+    }
 }
 
 // [spec:pgorm:req:guide.rust+1/test]    every derive, every connection method and each chapter's features are named

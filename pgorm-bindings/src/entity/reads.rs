@@ -9,6 +9,7 @@ use pgorm::{
     EntityTrait, ErasedCursor, ErasedPages, Error, IntoActiveModel, PagedRead, QueryResult,
     pgorm_query::Name, select_cursor,
 };
+use pgorm::{NoContext, ScopedIn};
 
 use super::{
     EntityInfo, Model,
@@ -64,7 +65,7 @@ pub struct Keyset {
 /// paginator.
 pub(super) fn pages<E>(select: &SelectAdapter<E>) -> Arc<Pages>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -85,7 +86,7 @@ pub(super) fn cursor<E>(
     columns: &[String],
 ) -> Result<Arc<Keyset>, Failure>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {

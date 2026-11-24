@@ -1,0 +1,91 @@
+error[E0277]: `note::Entity` is scoped by `CompanyId` and `UserId`, which `CompanyId` does not hold
+  --> tests/compile-fail/scope_unheld.rs:41:19
+   |
+41 |     built_under::<note::Entity, _>(&CompanyId(7));
+   |                   ^^^^^^^^^^^^ `note::Entity` needs a context holding `CompanyId` and `UserId`
+   |
+help: the trait `NoteScopes<note::Entity>` is not implemented for `CompanyId`
+  --> tests/compile-fail/scope_unheld.rs:5:1
+   |
+ 5 | pub struct CompanyId(pub i64);
+   | ^^^^^^^^^^^^^^^^^^^^
+   = note: a statement on `note::Entity` starts from a `_for` form, given a context holding its scopes first: `note::Entity::find_for(&cx)`, `Insert::one_for(&cx, row)`, `Update::one_for(&cx, row)`
+help: the trait `ScopedIn<Cx>` is conditionally implemented for `note::Entity`
+  --> tests/compile-fail/scope_unheld.rs:19:39
+   |
+19 |     #[derive(Clone, Debug, PartialEq, Entity)]
+   |                                       ^^^^^^ unsatisfied requirement introduced here: `CompanyId: NoteScopes<note::Entity>`
+note: required for `note::Entity` to implement `ScopedIn<CompanyId>`
+  --> tests/compile-fail/scope_unheld.rs:19:39
+   |
+19 |     #[derive(Clone, Debug, PartialEq, Entity)]
+   |                                       ^^^^^^ type parameter would need to implement `ScopedIn<CompanyId>`
+   = help: consider manually implementing `ScopedIn<CompanyId>` to avoid undesired bounds caused by "imperfect derives"
+   = note: to learn more, visit <https://github.com/rust-lang/rust/issues/26925>
+note: required by a bound in `built_under`
+  --> tests/compile-fail/scope_unheld.rs:35:19
+   |
+35 | fn built_under<E: ScopedIn<Cx>, Cx: ScopeContext>(_: &Cx) {}
+   |                   ^^^^^^^^^^^^ required by this bound in `built_under`
+   = note: this error originates in the derive macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `note::Entity` is scoped by `CompanyId` and `UserId`, which `Visitor` does not hold
+  --> tests/compile-fail/scope_unheld.rs:42:19
+   |
+42 |     built_under::<note::Entity, _>(&Visitor {
+   |                   ^^^^^^^^^^^^ `note::Entity` needs a context holding `CompanyId` and `UserId`
+   |
+help: the trait `NoteScopes<note::Entity>` is not implemented for `Visitor`
+  --> tests/compile-fail/scope_unheld.rs:11:1
+   |
+11 | pub struct Visitor {
+   | ^^^^^^^^^^^^^^^^^^
+   = note: a statement on `note::Entity` starts from a `_for` form, given a context holding its scopes first: `note::Entity::find_for(&cx)`, `Insert::one_for(&cx, row)`, `Update::one_for(&cx, row)`
+help: the trait `ScopedIn<Cx>` is conditionally implemented for `note::Entity`
+  --> tests/compile-fail/scope_unheld.rs:19:39
+   |
+19 |     #[derive(Clone, Debug, PartialEq, Entity)]
+   |                                       ^^^^^^ unsatisfied requirement introduced here: `Visitor: NoteScopes<note::Entity>`
+note: required for `note::Entity` to implement `ScopedIn<Visitor>`
+  --> tests/compile-fail/scope_unheld.rs:19:39
+   |
+19 |     #[derive(Clone, Debug, PartialEq, Entity)]
+   |                                       ^^^^^^ type parameter would need to implement `ScopedIn<Visitor>`
+   = help: consider manually implementing `ScopedIn<Visitor>` to avoid undesired bounds caused by "imperfect derives"
+   = note: to learn more, visit <https://github.com/rust-lang/rust/issues/26925>
+note: required by a bound in `built_under`
+  --> tests/compile-fail/scope_unheld.rs:35:19
+   |
+35 | fn built_under<E: ScopedIn<Cx>, Cx: ScopeContext>(_: &Cx) {}
+   |                   ^^^^^^^^^^^^ required by this bound in `built_under`
+   = note: this error originates in the derive macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `note::Entity` is scoped by `CompanyId` and `UserId`, which `NoContext` does not hold
+  --> tests/compile-fail/scope_unheld.rs:45:19
+   |
+45 |     built_plain::<note::Entity>();
+   |                   ^^^^^^^^^^^^ `note::Entity` needs a context holding `CompanyId` and `UserId`
+   |
+   = help: the trait `NoteScopes<note::Entity>` is not implemented for `NoContext`
+   = note: a statement on `note::Entity` starts from a `_for` form, given a context holding its scopes first: `note::Entity::find_for(&cx)`, `Insert::one_for(&cx, row)`, `Update::one_for(&cx, row)`
+help: the trait `ScopedIn<Cx>` is conditionally implemented for `note::Entity`
+  --> tests/compile-fail/scope_unheld.rs:19:39
+   |
+19 |     #[derive(Clone, Debug, PartialEq, Entity)]
+   |                                       ^^^^^^
+   |                                       |
+   |                                       unsatisfied requirement introduced here: `NoContext: NoteScopes<note::Entity>`
+   |                                       unsatisfied requirement introduced here: `NoContext: NoteScopes<note::Entity>`
+note: required for `note::Entity` to implement `ScopedIn<NoContext>`
+  --> tests/compile-fail/scope_unheld.rs:19:39
+   |
+19 |     #[derive(Clone, Debug, PartialEq, Entity)]
+   |                                       ^^^^^^ type parameter would need to implement `ScopedIn<NoContext>`
+   = help: consider manually implementing `ScopedIn<NoContext>` to avoid undesired bounds caused by "imperfect derives"
+   = note: to learn more, visit <https://github.com/rust-lang/rust/issues/26925>
+note: required by a bound in `built_plain`
+  --> tests/compile-fail/scope_unheld.rs:38:19
+   |
+38 | fn built_plain<E: ScopedIn<NoContext>>() {}
+   |                   ^^^^^^^^^^^^^^^^^^^ required by this bound in `built_plain`
+   = note: this error originates in the derive macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)

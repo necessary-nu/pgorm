@@ -11,6 +11,7 @@ use pgorm::{
     pgorm_query::{Name, Values},
     pipeline::{self as pl, PipelineError, SourceList},
 };
+use pgorm::{NoContext, ScopedIn};
 use serde_json::Value as Json;
 
 use super::{EntityInfo, Read, Registry, model_of, object, reads::Row};
@@ -46,7 +47,7 @@ pub trait SourceTypes: sealed::Sealed + Send + Sync + 'static {
 
 fn decoded<E>(value: Option<E::Model>, bindings: &SourceBindings, at: usize) -> Option<super::Model>
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -58,7 +59,7 @@ impl<E> sealed::Sealed for (E,) {}
 
 impl<E> SourceTypes for (E,)
 where
-    E: EntityTrait + Send + Sync + 'static,
+    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -89,7 +90,7 @@ macro_rules! sources {
 
         impl<$($entity),+> SourceTypes for ($($entity,)+)
         where $(
-            $entity: EntityTrait + Send + Sync + 'static,
+            $entity: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
             $entity::Model: IntoActiveModel<$entity::ActiveModel> + Sync + 'static,
             $entity::ActiveModel: Send + Sync + 'static,
         )+ {

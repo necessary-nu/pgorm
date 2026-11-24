@@ -420,6 +420,8 @@ mod tests {
             enforcement: Some(Enforcement::NotEnforced),
             deferrability: None,
             condition_type: ConditionType::All,
+            from_scopes: None,
+            to_scopes: None,
         }
     }
 

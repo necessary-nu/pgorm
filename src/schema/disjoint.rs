@@ -483,6 +483,8 @@ fn deferrable_key(
         enforcement: None,
         deferrability: Some(Deferrability::DeferrableInitiallyImmediate),
         condition_type: ConditionType::All,
+        from_scopes: None,
+        to_scopes: None,
     }
 }
 

@@ -31,6 +31,7 @@ pub mod bakery;
 pub mod cake;
 pub mod cake_baker;
 pub mod customer;
+pub mod notes;
 pub mod order;
 pub mod order_line;
 
@@ -64,6 +65,29 @@ impl Scratch {
             .await
             .expect("the bakery's tables are created");
         seed(&db).await.expect("the bakery's rows are inserted");
+        drop(db);
+        scratch
+    }
+
+    /// A database holding the scopes chapter's tables and rows, those of
+    /// [`notes`].
+    ///
+    /// # Panics
+    ///
+    /// When `DATABASE_URL` is unset or the server refuses the schema.
+    pub async fn notes(label: &str) -> Self {
+        let scratch = Self::empty(label).await;
+        let db = scratch
+            .pool
+            .get()
+            .await
+            .expect("the scratch database accepts a connection");
+        notes::create_schema(&db)
+            .await
+            .expect("the notes' tables are created");
+        notes::seed(&db)
+            .await
+            .expect("the notes' rows are inserted");
         drop(db);
         scratch
     }

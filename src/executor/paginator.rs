@@ -1,6 +1,6 @@
 use crate::{
-    ConnectionTrait, EntityTrait, FromQueryResult, Select, SelectModel, Selector, SelectorRaw,
-    SelectorTrait, error::*,
+    ConnectionTrait, EntityTrait, FromQueryResult, ScopeError, Select, SelectModel, Selector,
+    SelectorRaw, SelectorTrait, error::*,
 };
 use async_stream::stream;
 use futures::Stream;
@@ -38,6 +38,9 @@ where
     pub(crate) page_size: NonZeroU64,
     pub(crate) db: &'db C,
     pub(crate) selector: PhantomData<S>,
+    /// What a table the statement's context does not cover was refused with,
+    /// which every page and count fails with.
+    pub(crate) refused: Option<ScopeError>,
 }
 
 /// Define a structure containing the numbers of items and pages of a Paginator
@@ -113,6 +116,7 @@ where
     /// Fetch a specific page; page index starts from zero
     // [spec:pgorm:sem:exec.paginator.fetch+3]
     pub async fn fetch_page(&self, page: u64) -> Result<Vec<S::Item>, Error> {
+        self.refusal()?;
         let (stmt, values) = page_statement(&self.query, self.page_size, page)?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
         let values = values
@@ -128,6 +132,14 @@ where
         Ok(buffer)
     }
 
+    // [spec:pgorm:req:scope.refusals]
+    fn refusal(&self) -> Result<(), Error> {
+        match &self.refused {
+            Some(refused) => Err(Error::Scope(refused.clone())),
+            None => Ok(()),
+        }
+    }
+
     /// Fetch the current page
     // [spec:pgorm:sem:exec.paginator.fetch+3]
     pub async fn fetch(&self) -> Result<Vec<S::Item>, Error> {
@@ -137,6 +149,7 @@ where
     /// Get the total number of items
     // [spec:pgorm:sem:exec.paginator.count]
     pub async fn num_items(&self) -> Result<u64, Error> {
+        self.refusal()?;
         let (stmt, values) = count_statement(&self.query)?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
         let values = values
@@ -323,6 +336,7 @@ where
             page_size,
             db,
             selector: PhantomData,
+            refused: self.refused,
         }
     }
 }
@@ -378,6 +392,7 @@ where
             page_size,
             db,
             selector: PhantomData,
+            refused: None,
         })
     }
 

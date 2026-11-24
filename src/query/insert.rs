@@ -1,7 +1,7 @@
 use crate::entity::entity_table;
 use crate::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, IntoActiveModel, Iterable,
-    QueryTrait, RuntimeError, StaticName,
+    NoContext, QueryTrait, RuntimeError, ScopeContext, ScopeError, ScopedIn, StaticName,
 };
 use core::marker::PhantomData;
 use pgorm_query::{Expr, InsertStatement, OnConflict, SimpleExpr};
@@ -161,6 +161,10 @@ where
 {
     pub(crate) query: InsertStatement,
     columns: InsertColumns,
+    /// What a model whose row its context's scopes do not hold was refused
+    /// with, held until the statement would run; that model's row was not
+    /// taken.
+    refused: Option<ScopeError>,
     pub(crate) model: PhantomData<A>,
     rows: PhantomData<R>,
 }
@@ -212,8 +216,43 @@ where
     pub fn one<M>(m: M) -> Self
     where
         M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<NoContext>,
     {
         Self::new().push(m)
+    }
+
+    /// [`one`](Insert::one) under the context `cx`: each scope column the
+    /// row leaves unset takes the value `cx` holds, and a row setting one to
+    /// another value is refused with [`ScopeError::Conflict`] when the
+    /// statement would run, nothing sent. Under an [`Every`](crate::Every)
+    /// of a scope the row sets its column itself.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, tests_cfg::scoped::{note, CompanyId, Member, UserId}};
+    ///
+    /// let member = Member { company: CompanyId(7), user: UserId(3) };
+    /// assert_eq!(
+    ///     Insert::one_for(
+    ///         &member,
+    ///         note::ActiveModel {
+    ///             body: set("hello"),
+    ///             ..Default::default()
+    ///         },
+    ///     )
+    ///     .as_query()
+    ///     .to_string(),
+    ///     r#"INSERT INTO "note" ("company_id", "author_id", "body") VALUES (7, 3, 'hello')"#,
+    /// );
+    /// ```
+    // [spec:pgorm:sem:query.build.insert+6]
+    // [spec:pgorm:sem:scope.insert]
+    pub fn one_for<Cx, M>(cx: &Cx, m: M) -> Self
+    where
+        Cx: ScopeContext,
+        M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+    {
+        Self::new().push_under(cx, m)
     }
 
     /// [`one`](Insert::one) into the table `entity` names: the instance's
@@ -241,6 +280,7 @@ where
     pub fn one_in<M>(entity: A::Entity, m: M) -> Self
     where
         M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<NoContext>,
     {
         Self::new_in(entity).push(m)
     }
@@ -277,8 +317,23 @@ where
     where
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<NoContext>,
     {
         Self::new().add_many(models)
+    }
+
+    /// [`many`](Insert::many) under the context `cx`, each row filled and
+    /// checked as [`one_for`](Insert::one_for) fills and checks one.
+    // [spec:pgorm:sem:query.build.insert+6]
+    // [spec:pgorm:sem:scope.insert]
+    pub fn many_for<Cx, M, I>(cx: &Cx, models: I) -> Self
+    where
+        Cx: ScopeContext,
+        M: IntoActiveModel<A>,
+        I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+    {
+        Self::new().add_many_for(cx, models)
     }
 
     /// [`many`](Insert::many) into the table `entity` names, as
@@ -288,6 +343,7 @@ where
     where
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<NoContext>,
     {
         Self::new_in(entity).add_many(models)
     }
@@ -311,6 +367,7 @@ where
                 .or_default_values()
                 .to_owned(),
             columns: InsertColumns::Unset,
+            refused: None,
             model: PhantomData,
             rows: PhantomData,
         }
@@ -321,9 +378,23 @@ where
         Insert {
             query: self.query,
             columns: self.columns,
+            refused: self.refused,
             model: PhantomData,
             rows: PhantomData,
         }
+    }
+
+    /// What every execution path asks before sending anything: a model
+    /// refused for its scopes, and an `ON CONFLICT .. DO UPDATE SET` that
+    /// would change a column its definition marks immutable, which a row
+    /// cannot leave by conflicting either.
+    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.immutable]
+    pub(crate) fn refusal(&self) -> Result<(), Error> {
+        if let Some(refused) = &self.refused {
+            return Err(Error::Scope(refused.clone()));
+        }
+        crate::entity::immutable_on_conflict::<A::Entity>(self.query.get_on_conflict())
     }
 
     /// Whether the statement carries no column at all: either no model was
@@ -376,8 +447,39 @@ where
     pub fn add<M>(self, m: M) -> Insert<A, ManyRows>
     where
         M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<NoContext>,
     {
         self.push(m).into_rows()
+    }
+
+    /// [`add`](Self::add) under the context `cx`, the row filled and checked
+    /// as [`one_for`](Insert::one_for) fills and checks one.
+    // [spec:pgorm:sem:scope.insert]
+    pub fn add_for<Cx, M>(self, cx: &Cx, m: M) -> Insert<A, ManyRows>
+    where
+        Cx: ScopeContext,
+        M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+    {
+        self.push_under(cx, m).into_rows()
+    }
+
+    /// [`push`](Self::push) of a model whose scope columns `cx` fills, or
+    /// whose refusal is held and its row left out.
+    // [spec:pgorm:sem:scope.insert]
+    fn push_under<M>(mut self, cx: &dyn ScopeContext, m: M) -> Self
+    where
+        M: IntoActiveModel<A>,
+        A::Entity: EntityTrait<ActiveModel = A>,
+    {
+        let mut am = m.into_active_model();
+        match <A::Entity as crate::EntityScopes>::fill_scopes(cx, &mut am) {
+            Ok(()) => self.push(am),
+            Err(refusal) => {
+                self.refused.get_or_insert(refusal);
+                self
+            }
+        }
     }
 
     /// Record one model's columns and values, keeping the row count the
@@ -425,10 +527,28 @@ where
     where
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<NoContext>,
     {
         let mut batch = self.into_rows::<ManyRows>();
         for model in models.into_iter() {
             batch = batch.push(model);
+        }
+        batch
+    }
+
+    /// [`add_many`](Self::add_many) under the context `cx`, each row filled
+    /// and checked as [`one_for`](Insert::one_for) fills and checks one.
+    // [spec:pgorm:sem:scope.insert]
+    pub fn add_many_for<Cx, M, I>(self, cx: &Cx, models: I) -> Insert<A, ManyRows>
+    where
+        Cx: ScopeContext,
+        M: IntoActiveModel<A>,
+        I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+    {
+        let mut batch = self.into_rows::<ManyRows>();
+        for model in models.into_iter() {
+            batch = batch.push_under(cx, model);
         }
         batch
     }
@@ -584,14 +704,26 @@ where
     pub fn one<M>(m: M) -> Self
     where
         M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<NoContext>,
     {
         Self::from_insert(Insert::one(m))
+    }
+
+    // [spec:pgorm:sem:scope.insert]
+    pub fn one_for<Cx, M>(cx: &Cx, m: M) -> Self
+    where
+        Cx: ScopeContext,
+        M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+    {
+        Self::from_insert(Insert::one_for(cx, m))
     }
 
     // [spec:pgorm:sem:query.build.insert+6]
     pub fn one_in<M>(entity: A::Entity, m: M) -> Self
     where
         M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<NoContext>,
     {
         Self::from_insert(Insert::one_in(entity, m))
     }
@@ -606,8 +738,20 @@ where
     where
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<NoContext>,
     {
         Self::from_insert(Insert::many(models))
+    }
+
+    // [spec:pgorm:sem:scope.insert]
+    pub fn many_for<Cx, M, I>(cx: &Cx, models: I) -> Self
+    where
+        Cx: ScopeContext,
+        M: IntoActiveModel<A>,
+        I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+    {
+        Self::from_insert(Insert::many_for(cx, models))
     }
 
     // [spec:pgorm:sem:query.build.insert+6]
@@ -615,6 +759,7 @@ where
     where
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<NoContext>,
     {
         Self::from_insert(Insert::many_in(entity, models))
     }
@@ -629,16 +774,39 @@ where
     pub fn add<M>(self, m: M) -> TryInsert<A, ManyRows>
     where
         M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<NoContext>,
     {
         TryInsert::from_insert(self.insert_struct.add(m))
+    }
+
+    // [spec:pgorm:sem:scope.insert]
+    pub fn add_for<Cx, M>(self, cx: &Cx, m: M) -> TryInsert<A, ManyRows>
+    where
+        Cx: ScopeContext,
+        M: IntoActiveModel<A>,
+        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+    {
+        TryInsert::from_insert(self.insert_struct.add_for(cx, m))
     }
 
     pub fn add_many<M, I>(self, models: I) -> TryInsert<A, ManyRows>
     where
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<NoContext>,
     {
         TryInsert::from_insert(self.insert_struct.add_many(models))
+    }
+
+    // [spec:pgorm:sem:scope.insert]
+    pub fn add_many_for<Cx, M, I>(self, cx: &Cx, models: I) -> TryInsert<A, ManyRows>
+    where
+        Cx: ScopeContext,
+        M: IntoActiveModel<A>,
+        I: IntoIterator<Item = M>,
+        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+    {
+        TryInsert::from_insert(self.insert_struct.add_many_for(cx, models))
     }
 
     pub fn on_conflict<T>(mut self, on_conflict: T) -> Self
@@ -661,6 +829,11 @@ where
     // [spec:pgorm:req:query.build.insert.uniform-columns+4]
     pub fn ensure_uniform_columns(&self) -> Result<(), Error> {
         self.insert_struct.ensure_uniform_columns()
+    }
+
+    /// See [`Insert::refusal`].
+    pub(crate) fn refusal(&self) -> Result<(), Error> {
+        self.insert_struct.refusal()
     }
 }
 

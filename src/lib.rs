@@ -115,13 +115,14 @@ pub use schema::*;
 /// trait live in different namespaces, and one `use` brings both.
 /// `SqlName` and `StaticName` arrive through that glob too, `entity` pairing
 /// the traits with pgorm-macros' derives.
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 // [spec:pgorm:def:disjoint.declare+5]
 // [spec:pgorm:def:disjoint.one-of+4]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{
     ActiveEnum, Column, CreatedRange, Disjoint, Entity, EntityTrait, FromQueryResult,
-    IntoActiveModel, JsonValueType, Model, OneOf, PartialModel, Relation, ValueType,
+    IntoActiveModel, JsonValueType, Model, OneOf, PartialModel, Relation, Scope, ScopeContext,
+    ValueType,
 };
 #[cfg(feature = "macros")]
 pub use tokio_postgres::row::RowIndex;

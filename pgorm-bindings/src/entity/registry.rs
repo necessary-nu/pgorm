@@ -13,6 +13,7 @@ use pgorm::{
     EntityTrait, GraphItem, GraphRow, IntoActiveModel, SelectGraph, SelectorTrait,
     pipeline::SourceList,
 };
+use pgorm::{NoContext, ScopedIn};
 
 use super::{
     EntityAdapter, EntityBackend, EntityInfo,
@@ -74,7 +75,7 @@ impl Registry {
     // [spec:pgorm:req:bindings.entities+6]
     pub fn entity_in<E>(&mut self, name: &str, entity: E) -> Result<(), Failure>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -107,7 +108,7 @@ impl Registry {
     // [spec:pgorm:req:bindings.entity-graphs+4]
     pub fn graph<E, S, Build>(&mut self, name: &str, build: Build) -> Result<(), Failure>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
         S: GraphSlots<E>,
         GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
         GraphItem<E, S>: Send + 'static,

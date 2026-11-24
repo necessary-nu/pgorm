@@ -41,11 +41,12 @@ pub use crate::{
     ActiveValue::{NotSet, Set, Unchanged},
     AliasName, ColumnDef, ColumnTrait, ColumnType, ColumnTypeTrait, Condition, ConnectionTrait,
     CreatedRange, CursorTrait, DatabaseConnection, DatabasePool, DatabaseTransaction, DecodeRaw,
-    DecodeSelect, Delete, Disjoint, EntityName, EntityTrait, FromQueryResult, Insert,
-    IntoActiveModel, IntoActiveValue, Iterable, JoinType, Linked, LoaderTrait, ModelTrait, OneOf,
-    PaginatorTrait, PrimaryKeyArity, PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter, QueryOrder,
-    QueryResult, QuerySelect, QueryTrait, Related, RelatedLink, RelationDef, RelationTrait, Select,
-    SqlName, StaticName, TransactionTrait, TryInsert, TryIntoModel, Update, Value, alias,
+    DecodeSelect, Delete, Disjoint, EntityName, EntityTrait, Every, FromQueryResult, Insert,
+    IntoActiveModel, IntoActiveValue, Iterable, JoinType, Linked, LoaderTrait, ModelTrait,
+    NoContext, OneOf, PaginatorTrait, PrimaryKeyArity, PrimaryKeyToColumn, PrimaryKeyTrait,
+    QueryFilter, QueryOrder, QueryResult, QuerySelect, QueryTrait, Related, RelatedLink,
+    RelationDef, RelationTrait, Scope, ScopeContext, ScopeError, ScopeOn, Select, SqlName,
+    StaticName, TransactionTrait, TryInsert, TryIntoModel, Update, Value, alias,
     error::*,
     pgorm_query::{
         ArrayType, ConditionType, Deferrability, Enforcement, Expr, ExprTrait, ForeignKeyAction,
@@ -57,9 +58,10 @@ pub use std::sync::Arc;
 
 /// The derives with no trait of their name above. The rest — `ActiveEnum`,
 /// `CreatedRange`, `Disjoint`, `EntityTrait`, `FromQueryResult`,
-/// `IntoActiveModel`, `OneOf`, `SqlName` and `StaticName` — arrive with the
-/// trait they implement, one import bringing both.
-// [spec:pgorm:req:macros.derive.names+2]
+/// `IntoActiveModel`, `OneOf`, `Scope`, `ScopeContext`, `SqlName` and
+/// `StaticName` — arrive with the trait they implement, one import bringing
+/// both.
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "macros")]
 pub use crate::{Column, Entity, JsonValueType, Model, PartialModel, Relation, ValueType};
 

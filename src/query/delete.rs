@@ -1,7 +1,8 @@
 use crate::entity::entity_table;
+use crate::entity::scope_condition;
 use crate::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, IntoActiveModel, Iterable,
-    PrimaryKeyToColumn, QueryFilter, QueryTrait,
+    NoContext, PrimaryKeyToColumn, QueryFilter, QueryTrait, ScopeContext, ScopeError, ScopedIn,
 };
 use core::marker::PhantomData;
 use pgorm_query::{DeleteStatement, IntoFromItem};
@@ -28,6 +29,9 @@ where
 {
     pub(crate) query: DeleteStatement,
     pub(crate) entity: PhantomData<E>,
+    /// What a context that does not hold a scope of `E` was refused with,
+    /// held until the statement would run.
+    pub(crate) refused: Option<ScopeError>,
 }
 
 // [spec:pgorm:sem:query.build.delete+4]
@@ -83,11 +87,30 @@ impl Delete {
     /// ```
     pub fn one<E, A, M>(model: M) -> Result<DeleteOne<A>, Error>
     where
-        E: EntityTrait,
+        E: EntityTrait + ScopedIn<NoContext>,
         A: ActiveModelTrait<Entity = E>,
         M: IntoActiveModel<A>,
     {
         Self::one_in(E::default(), model)
+    }
+
+    /// [`one`](Delete::one) under the context `cx`: the row is found by its
+    /// key and `cx`'s scopes side by side, so a key of a row outside them
+    /// deletes nothing.
+    // [spec:pgorm:sem:query.build.delete+4]
+    // [spec:pgorm:sem:scope.write]
+    pub fn one_for<Cx, E, A, M>(cx: &Cx, model: M) -> Result<DeleteOne<A>, Error>
+    where
+        Cx: ScopeContext,
+        E: EntityTrait + ScopedIn<Cx>,
+        A: ActiveModelTrait<Entity = E>,
+        M: IntoActiveModel<A>,
+    {
+        let mut one = Self::one_unscoped(E::default(), model)?;
+        if let Some(condition) = scope_condition::<E>(cx)? {
+            one.query.cond_where(condition);
+        }
+        Ok(one)
     }
 
     /// [`one`](Delete::one) from the table `entity` names: the instance's
@@ -114,6 +137,18 @@ impl Delete {
     /// ```
     // [spec:pgorm:sem:query.build.delete+4]
     pub fn one_in<E, A, M>(entity: E, model: M) -> Result<DeleteOne<A>, Error>
+    where
+        E: EntityTrait + ScopedIn<NoContext>,
+        A: ActiveModelTrait<Entity = E>,
+        M: IntoActiveModel<A>,
+    {
+        Self::one_unscoped(entity, model)
+    }
+
+    /// The delete of `model`'s row of the table `entity` names, by its key
+    /// alone.
+    // [spec:pgorm:sem:query.build.delete+4]
+    fn one_unscoped<E, A, M>(entity: E, model: M) -> Result<DeleteOne<A>, Error>
     where
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E>,
@@ -144,13 +179,41 @@ impl Delete {
     #[doc(alias = "delete_many")]
     pub fn many<E>(entity: E) -> DeleteMany<E>
     where
+        E: EntityTrait + ScopedIn<NoContext>,
+    {
+        Self::many_unscoped(&entity)
+    }
+
+    /// [`many`](Delete::many) under the context `cx`: `cx`'s scopes are
+    /// ANDed into the `WHERE`, so only rows they hold are deleted.
+    // [spec:pgorm:sem:query.build.delete+4]
+    // [spec:pgorm:sem:scope.write]
+    pub fn many_for<Cx, E>(cx: &Cx, entity: E) -> DeleteMany<E>
+    where
+        Cx: ScopeContext,
+        E: EntityTrait + ScopedIn<Cx>,
+    {
+        let mut many = Self::many_unscoped(&entity);
+        match scope_condition::<E>(cx) {
+            Ok(Some(condition)) => {
+                many.query.cond_where(condition);
+            }
+            Ok(None) => {}
+            Err(refusal) => many.refused = Some(refusal),
+        }
+        many
+    }
+
+    fn many_unscoped<E>(entity: &E) -> DeleteMany<E>
+    where
         E: EntityTrait,
     {
         DeleteMany {
             query: DeleteStatement::new()
-                .from_table(entity_table(&entity))
+                .from_table(entity_table(entity))
                 .to_owned(),
             entity: PhantomData,
+            refused: None,
         }
     }
 }
@@ -239,6 +302,16 @@ impl<E> DeleteMany<E>
 where
     E: EntityTrait,
 {
+    /// What every execution path asks before sending anything: a context
+    /// refused for its scopes.
+    // [spec:pgorm:req:scope.refusals]
+    pub(crate) fn refusal(&self) -> Result<(), Error> {
+        match &self.refused {
+            Some(refused) => Err(Error::Scope(refused.clone())),
+            None => Ok(()),
+        }
+    }
+
     /// Add a relation to the statement's `USING` clause, so the `QueryFilter`
     /// predicates can read another table's columns.
     ///

@@ -1,7 +1,7 @@
 use crate::{
     ActiveModelBehavior, ActiveModelTrait, ConnectionTrait, EntityTrait, Error, ExpectedColumn,
-    IntoActiveModel, Linked, QueryFilter, QueryResult, Related, Select, SelectModel, SelectorRaw,
-    SqlText,
+    IntoActiveModel, Linked, NoContext, QueryFilter, QueryResult, Related, ScopeContext, ScopedIn,
+    Select, SelectModel, SelectorRaw, SqlText,
 };
 use async_trait::async_trait;
 pub use pgorm_query::Value;
@@ -25,10 +25,22 @@ pub trait ModelTrait: Clone + Send + Debug {
     /// Find related Models
     fn find_related<R>(&self, _: R) -> Select<R>
     where
-        R: EntityTrait,
-        Self::Entity: Related<R>,
+        R: EntityTrait + ScopedIn<NoContext>,
+        Self::Entity: Related<R> + ScopedIn<NoContext>,
     {
         <Self::Entity as Related<R>>::find_related().belongs_to(self)
+    }
+
+    /// [`find_related`](ModelTrait::find_related) under the context `cx`, as
+    /// [`Related::find_related_for`] reads it.
+    // [spec:pgorm:sem:scope.join]
+    fn find_related_for<Cx, R>(&self, cx: &Cx, _: R) -> Select<R>
+    where
+        Cx: ScopeContext,
+        R: EntityTrait + ScopedIn<Cx>,
+        Self::Entity: Related<R> + ScopedIn<Cx>,
+    {
+        <Self::Entity as Related<R>>::find_related_for(cx).belongs_to(self)
     }
 
     /// Find linked Models
@@ -36,9 +48,24 @@ pub trait ModelTrait: Clone + Send + Debug {
     fn find_linked<L>(&self, l: L) -> Select<L::ToEntity>
     where
         L: Linked<FromEntity = Self::Entity>,
+        L::ToEntity: ScopedIn<NoContext>,
     {
         let tbl_alias = l.last_hop_alias();
         l.find_linked().belongs_to_tbl_alias(self, tbl_alias)
+    }
+
+    /// [`find_linked`](ModelTrait::find_linked) under the context `cx`, as
+    /// [`Linked::find_linked_for`] reads it.
+    // [spec:pgorm:req:entity.relation.linked+4]
+    // [spec:pgorm:sem:scope.join]
+    fn find_linked_for<Cx, L>(&self, cx: &Cx, l: L) -> Select<L::ToEntity>
+    where
+        Cx: ScopeContext,
+        L: Linked<FromEntity = Self::Entity>,
+        L::ToEntity: ScopedIn<Cx>,
+    {
+        let tbl_alias = l.last_hop_alias();
+        l.find_linked_for(cx).belongs_to_tbl_alias(self, tbl_alias)
     }
 
     /// Convert this model into its entity's `ActiveModel`.
@@ -72,10 +99,25 @@ pub trait ModelTrait: Clone + Send + Debug {
     async fn delete<'a, A, C>(self, db: &'a C) -> Result<u64, Error>
     where
         Self: IntoActiveModel<A>,
+        Self::Entity: ScopedIn<NoContext>,
         C: ConnectionTrait,
         A: ActiveModelTrait<Entity = Self::Entity> + ActiveModelBehavior + Send + 'a,
     {
         self.into_active_model().delete(db).await
+    }
+
+    /// [`delete`](ModelTrait::delete) under the context `cx`, as
+    /// [`ActiveModelTrait::delete_for`] deletes it.
+    // [spec:pgorm:sem:scope.write]
+    async fn delete_for<'a, Cx, A, C>(self, cx: &'a Cx, db: &'a C) -> Result<u64, Error>
+    where
+        Self: IntoActiveModel<A>,
+        Self::Entity: ScopedIn<Cx>,
+        Cx: ScopeContext + Sync,
+        C: ConnectionTrait,
+        A: ActiveModelTrait<Entity = Self::Entity> + ActiveModelBehavior + Send + 'a,
+    {
+        self.into_active_model().delete_for(cx, db).await
     }
 }
 

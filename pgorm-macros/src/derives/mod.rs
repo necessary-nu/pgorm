@@ -16,6 +16,7 @@ mod one_of;
 mod partial_model;
 mod primary_key;
 mod relation;
+mod scope;
 mod sql_type_match;
 mod util;
 mod value_type;
@@ -35,6 +36,7 @@ pub use model::*;
 pub use one_of::*;
 pub use partial_model::*;
 pub use relation::*;
+pub use scope::{expand_derive_scope, expand_derive_scope_context};
 pub use value_type::*;
 
 pub(crate) use util::Reader;

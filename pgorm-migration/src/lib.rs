@@ -32,7 +32,7 @@ pub trait MigrationName {
 /// Implement [`MigrationName`] for a migration, naming it for the file stem of
 /// the file it is written in. The derive and the trait share a name and live
 /// in different namespaces.
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 pub use pgorm_macros::MigrationName;
 
 /// The migration definition

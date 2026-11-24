@@ -563,3 +563,13 @@ assert.equal(RegionalCake.find().inspect().sql, `SELECT "cake"."id", "cake"."nam
 The same table read twice in one statement, as a join of a table to itself
 needs, is the model read under an alias: `Cake.as("other")` qualifies every
 column by `"other"`.
+
+## Scopes
+
+A Rust entity can declare scopes, conditions such as `company_id = $me` that
+every statement on its table is held to and that no statement can be built
+without, as the [Rust guide's Scopes](../../docs/guide/02-entities.md#scopes)
+section shows. The JavaScript binding has no scopes yet: a model declares
+none, and a Rust entity that declares one cannot be registered, since a
+registration's statements take no context, so its registration does not
+compile.

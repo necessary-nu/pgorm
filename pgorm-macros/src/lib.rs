@@ -23,7 +23,7 @@ use proc_macro::TokenStream;
 #[cfg(feature = "derive")]
 use syn::{DeriveInput, Error, parse_macro_input};
 
-// [spec:pgorm:def:macros.derive+7]
+// [spec:pgorm:def:macros.derive+8]
 #[cfg(feature = "derive")]
 mod derives;
 
@@ -70,7 +70,7 @@ mod derives;
 /// let cake = Entity { tenant: "bakery" };
 /// assert_eq!(cake.schema_name(), Some("bakery"));
 /// ```
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveEntity")]
 #[proc_macro_derive(EntityTrait, attributes(pgorm))]
@@ -159,10 +159,10 @@ pub fn derive_entity_trait(input: TokenStream) -> TokenStream {
 /// `Cargo.toml` (`my_orm = { package = "pgorm", .. }`), alias it back with
 /// `use my_orm as pgorm;` there or at the crate root; otherwise every generated path is
 /// an `E0433`. There is no `#[pgorm(crate = ...)]` override.
-// [spec:pgorm:def:macros.derive+7]
+// [spec:pgorm:def:macros.derive+8]
 // [spec:pgorm:sem:macros.derive.entity-model+9]
 // [spec:pgorm:req:macros.derive.entity-model.reject+4]
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveEntityModel")]
 #[proc_macro_derive(Entity, attributes(pgorm))]
@@ -341,7 +341,7 @@ pub fn derive_into_active_model(input: TokenStream) -> TokenStream {
 ///
 /// assert!(matches!(Tea::db_type().get_column_type(), ColumnType::Enum { .. }));
 /// ```
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveActiveEnum", alias = "DeriveDisplay")]
 #[proc_macro_derive(ActiveEnum, attributes(pgorm))]
@@ -459,7 +459,7 @@ pub fn derive_active_enum(input: TokenStream) -> TokenStream {
 /// ```
 // [spec:pgorm:def:disjoint.declare+5]
 // [spec:pgorm:sem:disjoint.unkinded+1]
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(Disjoint, attributes(pgorm))]
 pub fn derive_disjoint(input: TokenStream) -> TokenStream {
@@ -551,7 +551,7 @@ pub fn derive_disjoint(input: TokenStream) -> TokenStream {
 /// # }
 /// ```
 // [spec:pgorm:def:disjoint.one-of+4]
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(OneOf, attributes(pgorm))]
 pub fn derive_one_of(input: TokenStream) -> TokenStream {
@@ -674,7 +674,7 @@ pub fn derive_relation(input: TokenStream) -> TokenStream {
 /// (`use my_migration as pgorm_migration;`) in the module holding the migration or at
 /// the crate root, exactly as `pgorm` itself does. There is no `#[pgorm(crate = ...)]`
 /// override.
-// [spec:pgorm:def:macros.derive+7]
+// [spec:pgorm:def:macros.derive+8]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveMigrationName")]
 #[proc_macro_derive(MigrationName)]
@@ -699,7 +699,7 @@ pub fn derive_migration_name(input: TokenStream) -> TokenStream {
 /// a value that was never null: a confusing constraint violation against a `NOT NULL`
 /// column, and silent data loss against a nullable one. The panic message names the
 /// type and carries serde's own error.
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "derive")]
 #[doc(alias = "FromJsonQueryResult")]
 #[proc_macro_derive(JsonValueType)]
@@ -848,6 +848,77 @@ pub fn derive_value_type(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Make a type a scope: a value an application holds a scoped entity's
+/// statements to, such as a company or a user. The type is also the value
+/// type of the columns it scopes, so it is usually a `ValueType` newtype too,
+/// and one of its values is a context of its own.
+///
+/// ```
+/// use pgorm::entity::prelude::*;
+///
+/// #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueType, Scope)]
+/// pub struct CompanyId(pub i64);
+/// ```
+// [spec:pgorm:def:scope.declare]
+#[cfg(feature = "derive")]
+#[proc_macro_derive(Scope)]
+pub fn derive_scope(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    derives::expand_derive_scope(input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
+/// Make a struct of scopes a context: what a scoped entity's statements are
+/// built under. Each field is a scope, whose value the context holds, or an
+/// `Every` of one, lifting it on purpose; the struct then provides each.
+///
+/// ```
+/// use pgorm::entity::prelude::*;
+///
+/// #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueType, Scope)]
+/// pub struct CompanyId(pub i64);
+///
+/// #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueType, Scope)]
+/// pub struct UserId(pub i64);
+///
+/// #[derive(Clone, Copy, Debug, ScopeContext)]
+/// pub struct Member {
+///     pub company: CompanyId,
+///     pub user: UserId,
+/// }
+///
+/// #[derive(Clone, Copy, Debug, ScopeContext)]
+/// pub struct CompanyAdmin {
+///     pub company: CompanyId,
+///     pub users: Every<UserId>,
+/// }
+/// ```
+///
+/// A context holds each scope once:
+///
+/// ```compile_fail
+/// use pgorm::entity::prelude::*;
+///
+/// #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueType, Scope)]
+/// pub struct UserId(pub i64);
+///
+/// #[derive(Clone, Copy, Debug, ScopeContext)]
+/// pub struct Pair {
+///     pub author: UserId,
+///     pub reader: UserId,
+/// }
+/// ```
+// [spec:pgorm:def:scope.context]
+#[cfg(feature = "derive")]
+#[proc_macro_derive(ScopeContext)]
+pub fn derive_scope_context(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    derives::expand_derive_scope_context(input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
 /// Derive the traits a newtype needs to stand for a type `CREATE TYPE ... AS
 /// RANGE` makes: over a [`Range<T>`] for the range type, or over a
 /// `Multirange<T>` for the multirange PostgreSQL creates beside it. It
@@ -924,7 +995,7 @@ pub fn derive_created_range(input: TokenStream) -> TokenStream {
 /// assert_eq!(MyOther.to_string(), "my_other");
 /// ```
 // [spec:pgorm:sem:macros.derive.iden+3]
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "derive")]
 #[doc(alias = "DeriveSqlName", alias = "DeriveIden", alias = "Iden")]
 #[proc_macro_derive(SqlName, attributes(iden, method))]
@@ -954,7 +1025,7 @@ pub fn derive_sql_name(input: TokenStream) -> TokenStream {
 /// assert_eq!(Shelf::Top.as_str(), "top_shelf");
 /// ```
 // [spec:pgorm:sem:macros.derive.iden+3]
-// [spec:pgorm:req:macros.derive.names+2]
+// [spec:pgorm:req:macros.derive.names+3]
 #[cfg(feature = "derive")]
 #[proc_macro_derive(StaticName, attributes(iden, method))]
 pub fn derive_static_name(input: TokenStream) -> TokenStream {

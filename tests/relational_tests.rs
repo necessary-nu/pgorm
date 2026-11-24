@@ -1793,6 +1793,8 @@ fn relation_def_converts_to_foreign_key_forms() {
         enforcement: None,
         deferrability: None,
         condition_type: ConditionType::All,
+        from_scopes: None,
+        to_scopes: None,
     };
     let stmt: ForeignKeyCreateStatement = qualified.into();
     assert_eq!(

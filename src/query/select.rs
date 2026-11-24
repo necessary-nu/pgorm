@@ -1,10 +1,14 @@
-use crate::{ColumnTrait, EntityTrait, Iterable, QueryFilter, QueryOrder, QuerySelect, QueryTrait};
+use crate::entity::entity_table;
+use crate::{
+    ColumnTrait, EntityTrait, Iterable, QueryFilter, QueryOrder, QuerySelect, QueryTrait,
+    ScopeContext, ScopeError,
+};
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use pgorm_query::{
     AliasName, CaseStatement, Expr, FunctionCall, Grouping, IntoColumnRef, JsonArray, JsonArrayAgg,
     JsonArrayQuery, JsonExists, JsonObject, JsonObjectAgg, JsonParse, JsonQuery, JsonSerialize,
-    JsonValue, SelectExpr, SelectStatement, SimpleCaseStatement, SimpleExpr, SqlJson,
+    JsonValue, Name, SelectExpr, SelectStatement, SimpleCaseStatement, SimpleExpr, SqlJson,
 };
 
 /// Defines a structure to perform select operations
@@ -16,6 +20,9 @@ where
 {
     pub(crate) query: SelectStatement,
     pub(crate) entity: PhantomData<E>,
+    /// What a scoped table its context does not cover was refused with, the
+    /// root's or a join's, held until the statement would run.
+    pub(crate) refused: Option<ScopeError>,
 }
 
 /// A [`Select<E>`] whose projection list has been cleared by
@@ -34,6 +41,9 @@ where
 {
     pub(crate) query: SelectStatement,
     pub(crate) entity: PhantomData<E>,
+    /// What a scoped table its context does not cover was refused with, the
+    /// root's or a join's, held until the statement would run.
+    pub(crate) refused: Option<ScopeError>,
 }
 
 /// A select carrying a caller-authored projection instead of `E`'s columns.
@@ -52,6 +62,9 @@ where
 {
     pub(crate) query: SelectStatement,
     pub(crate) entity: PhantomData<E>,
+    /// What a scoped table its context does not cover was refused with, the
+    /// root's or a join's, held until the statement would run.
+    pub(crate) refused: Option<ScopeError>,
 }
 
 /// Performs a conversion to [SimpleExpr]
@@ -118,6 +131,10 @@ macro_rules! impl_query_select {
                 let $this = self;
                 $body
             }
+
+            fn refuse(&mut self, refusal: ScopeError) {
+                self.refused.get_or_insert(refusal);
+            }
         }
     };
 }
@@ -127,6 +144,7 @@ impl_query_select!(SelectCustom<E>, SelectProjected<E>, |this| {
     SelectProjected {
         query: this.query,
         entity: PhantomData,
+        refused: this.refused,
     }
 });
 impl_query_select!(SelectProjected<E>, Self, |this| this);
@@ -328,7 +346,43 @@ where
 {
     // [spec:pgorm:sem:query.build.select-defaults+1]
     pub(crate) fn new() -> Self {
-        E::find_in(E::default())
+        Self::read(&E::default())
+    }
+
+    /// Every row of the table `entity` names, under the default select list:
+    /// what [`EntityTrait::find_in`] reads, held to no scope.
+    // [spec:pgorm:sem:query.build.select-defaults+1]
+    pub(crate) fn read(entity: &E) -> Self {
+        let mut select = Self::projected();
+        select.query.from(entity_table(entity));
+        select
+    }
+
+    /// [`read`](Self::read) held to the scopes `cx` holds: what every `_for`
+    /// read starts from, and what a read pgorm makes for itself under a
+    /// context whose type it cannot check starts from, refused when `cx`
+    /// does not hold a scope `E` declares.
+    // [spec:pgorm:sem:scope.read]
+    pub(crate) fn scoped(entity: &E, cx: &dyn ScopeContext) -> Self {
+        let mut select = Self::read(entity);
+        select.hold_to(cx);
+        select
+    }
+
+    /// `E`'s scopes under `cx`, ANDed into the `WHERE` for the rows read under
+    /// `E`'s own name, or the refusal held.
+    // [spec:pgorm:sem:scope.read]
+    pub(crate) fn hold_to(&mut self, cx: &dyn ScopeContext) {
+        let Some(scopes) = E::scopes() else {
+            return;
+        };
+        match scopes.condition(cx, Name::new(E::default())) {
+            Ok(Some(condition)) => {
+                self.query.cond_where(condition);
+            }
+            Ok(None) => {}
+            Err(refusal) => QuerySelect::refuse(self, refusal),
+        }
     }
 
     /// The default select list, every column under its read cast, with no
@@ -338,6 +392,7 @@ where
         Self {
             query: SelectStatement::new(),
             entity: PhantomData,
+            refused: None,
         }
         .prepare_select()
     }
@@ -385,6 +440,7 @@ where
         SelectCustom {
             query: self.query,
             entity: PhantomData,
+            refused: self.refused,
         }
     }
 
@@ -447,6 +503,7 @@ where
         SelectProjected {
             query: self.query,
             entity: PhantomData,
+            refused: self.refused,
         }
     }
 }
@@ -466,6 +523,7 @@ where
         SelectProjected {
             query: self.query,
             entity: PhantomData,
+            refused: self.refused,
         }
     }
 }
@@ -494,6 +552,7 @@ where
         SelectCustom {
             query: self.query,
             entity: PhantomData,
+            refused: self.refused,
         }
     }
 }

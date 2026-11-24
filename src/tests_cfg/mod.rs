@@ -21,6 +21,7 @@ pub mod lunch_set;
 pub mod photo;
 pub mod post;
 pub mod rust_keyword;
+pub mod scoped;
 pub mod shop;
 pub mod storefront;
 pub mod tenant_cake;

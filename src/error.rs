@@ -100,6 +100,23 @@ pub enum Error {
         "a COPY runs through CopyTrait's copy_in or copy_out, which carry its data, not as a statement"
     )]
     CopyStatement,
+    /// A statement on a scoped table that its context does not cover: a join
+    /// added without one, a context that does not hold a scope, or a row
+    /// outside the context's scopes. Nothing was sent.
+    // [spec:pgorm:req:scope.refusals]
+    #[error("Scope Error: {0}")]
+    Scope(#[from] crate::ScopeError),
+    /// An update would change a column its definition marks immutable,
+    /// written when its row is inserted and never changed, as every scope
+    /// column is. Nothing was sent.
+    // [spec:pgorm:req:scope.immutable]
+    #[error("`{table}`.`{column}` is written when its row is inserted and never changed")]
+    ImmutableColumn {
+        /// The table the update writes.
+        table: String,
+        /// The immutable column it would set.
+        column: String,
+    },
     /// A custom error
     #[error("Custom Error: {0}")]
     Custom(String),
