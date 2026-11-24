@@ -21934,4 +21934,36 @@ children (
             }
         )
     }
+
+    {
+        id redact
+        title "A Redacted<T> column's value appears in no text pgorm produces: Debug, Values, built statements and errors"
+        kind @feat
+        children (
+            {
+                id redact.rust
+                title "Redacted<T> binds and decodes as T, masks itself through Value::Redacted, and scrubs its values out of PostgreSQL's errors"
+            }
+
+            {
+                id redact.python
+                title "A Python model's redacted column decodes to pgorm.Redacted, masked in repr and refused by json.dumps"
+                deps (redact.rust)
+            }
+
+            {
+                id redact.napi
+                title "A JavaScript model's redacted column decodes to Redacted, masked in inspect and refused by JSON.stringify"
+                deps (redact.rust)
+            }
+        )
+        log (
+            {
+                at 2026-11-24T00:56:27.481456Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-24, agreed with the operator: redaction is a type, not an attribute, because the mask must follow the value. Redacted<T> (pgorm-query, re-exported by pgorm): private field, new / expose(&self) / into_inner; Debug prints <redacted>; Clone, PartialEq, Eq, Hash when T has them (not constant-time); deliberately NO Display, NO Deref (auto-deref would reach the secret with no expose() in the code), NO Serialize (a #[derive(Serialize)] model must choose #[serde(skip)] or serialize_with = pgorm::redacted::expose); Deserialize implemented. As a column type it is T's (ValueType, TryGetable, Nullable, IntoActiveValue; Option<Redacted<T>> nullable), so Model and ActiveModel Debug mask with no attribute. It converts to a new Value::Redacted(Box<Value>): Value/Values Debug and Display, build() output and statement Debug print it masked, inline rendering masks it and DDL refuses it, binding sends the inner value; a redacted column's definition marks plain values its predicates bind (Column::ApiKey.eq(plain)) as redacted too. Errors: pgorm::Error's Display/Debug scrub the statement's redacted parameters' text (the Redactions technique pgorm-bindings uses for credentials), drop a DETAIL that echoes a row (Failing row contains) and mask a Key (..)=(..) naming a redacted column, for tables with redacted columns; as_db_error() stays the explicit raw route. Not covered, documented: selecting a redacted column into a plain type, the server's own parameter logging (log_parameter_max_length = 0, log_parameter_max_length_on_error = 0), zeroize-on-drop (possible later feature). Bindings: Python Column(.., redacted=True) decodes to pgorm.Redacted (masked repr, expose(), json.dumps raises TypeError); JavaScript Redacted (masked inspect/toString, toJSON throws, expose(), TypeScript Redacted<string>); both build errors from pgorm's scrubbed error. Codegen generating Redacted<..> for configured columns is a possible follow-up."
+            }
+        )
+    }
 )
