@@ -178,3 +178,8 @@ with-jiff = []
 with-uuid = ["uuid"]
 postgres-array = []
 tests-cfg = []
+
+[[bench]]
+name = "driver_baseline"
+harness = false
+required-features = ["macros"]

@@ -22133,12 +22133,34 @@ children (
                 title "Capture repeatable PostgreSQL driver and ORM performance before adding native dispatch"
                 kind @perf
                 deps (driver-vendor)
+                sealed true
                 log (
                     {
                         at 2026-11-24T14:06:26.527364Z
                         author "brendan@necessary.nu"
                         kind @note
                         text "Add or reuse a repeatable release-build benchmark harness against the vendored PostgreSQL path before native integration. Cover prepared statement reuse, scalar reads, parameter-heavy reads/writes, streamed multi-row results, transactions and concurrent pool use. Record throughput, latency distributions and allocation/copy measurements where the harness supports them, with workload, machine, build features and revisions. Preserve a baseline for evaluating both turso-disabled builds and PostgreSQL connections in turso-enabled builds. This is a measurement prerequisite, not a new adapter abstraction; turso.performance compares the completed native path and its overhead to the direct embedded API using equivalent database settings."
+                    }
+
+                    {
+                        at 2026-11-24T14:27:26.967859Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T14:40:05.639923Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Implemented and measured the release benchmark at benches/driver_baseline.rs, with instructions and a 42-measurement report under docs/performance/. Covers direct driver versus pgorm scalar, 16-parameter reads/writes, model lookup, 128-row streams, transactions and four-worker pool use over three alternating rounds. PostgreSQL 19 on Apple M5 Pro over TCP; zero other active server sessions at start; source fingerprint unchanged during final run. Report identifies the executable hash and labels compiler/source/flags as runtime-inspected metadata rather than build provenance. Allocation/copy/residency metrics remain explicitly unmeasured. Median-of-round p50 driver/ORM: scalar 96.00/94.58 us, model lookup 99.29/102.17 us, 128-row stream 158.12/161.17 us, transaction 278.08/284.62 us; concurrent pool about 34.1k operations/s each. Writes varied substantially across rounds, so the report makes no overhead ranking from those values and sets no arbitrary percentage gate. Independent review corrected provenance, warmup and combined cleanup-error handling. Release smoke/full run, strict benchmark Clippy, formatting and all required nplan checks pass."
+                    }
+
+                    {
+                        at 2026-11-24T14:40:05.916004Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
