@@ -21907,6 +21907,27 @@ children (
                 title "A JavaScript model's scoped columns hold its statements to a scopes context, checked by TypeScript and refused at build time"
                 deps (scopes.rust trait-names)
             }
+
+            {
+                id scopes.from-using
+                title "An UPDATE .. FROM or DELETE .. USING naming a scoped entity holds it to its scopes, refused without a context that holds them"
+                deps (trait-names)
+                log (
+                    {
+                        at 2026-11-24T03:03:07.935409Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Left by scopes.rust (its report, 2026-11-24): UpdateMany::from and DeleteMany::using take any IntoFromItem (src/query/update.rs, src/query/delete.rs), so `Update::many_for(&cx, invoice).from(note::Entity)` adds note's rows with no scope condition. Hold a scoped entity named there to its scopes as the joins are: a context form ANDs the scopes into the WHERE, the plain form holds a ScopeError::Unscoped refusal returned when the statement runs (the `refused` slot the builders carry). Re-locate by name: trait-names renames the traits first."
+                    }
+                )
+            }
+
+            {
+                id scopes.one-of-live
+                title "OneOf::load_for is exercised against a live database: a scoped target read under its context, and refused under one that lacks its scopes"
+                kind @test
+                deps (trait-names)
+            }
         )
         log (
             {
