@@ -276,7 +276,7 @@ async fn schema_ddl_and_crud_round_trip() -> Result<(), Error> {
 // [spec:pgorm:req:entity.traits.entity-name+6/test]    finds, filters,
 // ordering, pagination, keyset cursors and the schema-qualified enum's value
 // predicates all address tenant_a.item
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+18/test]
 // [spec:pgorm:sem:exec.cursor.keyset+8/test]
 #[pgorm_macros::test]
 async fn qualified_finds_filters_and_cursors() -> Result<(), Error> {
@@ -484,7 +484,7 @@ async fn same_table_name_in_two_schemas() -> Result<(), Error> {
 // [spec:pgorm:sem:pipeline.select-sources+6/test]    the pipeline reads
 // qualified sources: a cross-schema join lands whole models per source, and
 // streaming decodes the qualified projection row by row
-// [spec:pgorm:sem:exec.stream.decode+1/test]
+// [spec:pgorm:sem:exec.stream.decode+2/test]
 #[pgorm_macros::test]
 async fn pipeline_and_stream_read_qualified_sources() -> Result<(), Error> {
     use pgorm::pipeline::{JoinSide, Pipeline};

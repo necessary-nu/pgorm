@@ -13,7 +13,7 @@ use super::{TypeAs, TypeCreateStatement};
 /// collation, and refuses `NOT NULL`, `DEFAULT`, a constraint or `GENERATED`
 /// after it as a syntax error, so the attribute is not a
 /// [`ColumnDef`](crate::ColumnDef) whose specs could spell them.
-// [spec:pgorm:req:sql.ddl.type-composite+2]
+// [spec:pgorm:req:sql.ddl.type-composite+3]
 #[derive(Debug, Clone)]
 pub struct CompositeAttribute {
     pub(crate) name: Name,
@@ -40,7 +40,7 @@ impl TypeCreateStatement {
     /// The type is an enumeration or a composite, never both: what it is is
     /// one slot, so this replaces an enumeration's labels, as
     /// [`as_enum`](Self::as_enum) replaces a composite's attributes.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn as_composite(&mut self) -> &mut Self {
         if !matches!(self.as_type, Some(TypeAs::Composite(_))) {
             self.as_type = Some(TypeAs::Composite(Vec::new()));
@@ -66,7 +66,7 @@ impl TypeCreateStatement {
     ///     r#"CREATE TYPE "address" AS ("street" text, "no" integer)"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn attribute<N>(&mut self, name: N, column_type: ColumnType) -> &mut Self
     where
         N: IntoName,
@@ -91,7 +91,7 @@ impl TypeCreateStatement {
     ///     r#"CREATE TYPE "label" AS ("text" text COLLATE "C")"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn attribute_collated<N, C>(
         &mut self,
         name: N,

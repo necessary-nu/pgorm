@@ -8,11 +8,11 @@ use crate::{
     KeyOf, PartialModelTrait, QueryOrder, QuerySelect, ScopeError, Select, SelectGraph,
     SelectModel, SelectProjected, SelectorTrait, Slot, SlotAt, Slots, Unsliced, error::query_err,
 };
+use pgorm_driver::types::{IsNull, Kind, ToSql, Type, to_sql_checked};
 use pgorm_query::{
     Condition, Expr, ExprTrait, IntoName, IntoValueTuple, Name, Order, SelectStatement, SimpleExpr,
     TypeName, Value, ValueTuple,
 };
-use tokio_postgres::types::{IsNull, Kind, ToSql, Type, to_sql_checked};
 // use uuid::Uuid;
 use std::marker::PhantomData;
 use std::sync::Arc;

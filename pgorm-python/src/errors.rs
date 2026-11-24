@@ -30,7 +30,7 @@ impl<T> Raise<T> for Result<T, Failure> {
 }
 
 // [spec:pgorm:req:bindings.errors+6]
-// [spec:pgorm:sem:error.model.parameter-count]
+// [spec:pgorm:sem:error.model.parameter-count+1]
 // [spec:pgorm:req:conn.copy.statement+2]
 pub(crate) fn database_error(
     error: impl std::borrow::Borrow<pgorm::Error>,

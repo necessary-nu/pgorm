@@ -1330,6 +1330,7 @@ dependencies = [
  "jiff",
  "log",
  "pgorm-case-style",
+ "pgorm-driver",
  "pgorm-macros",
  "pgorm-pool",
  "pgorm-query",
@@ -1344,7 +1345,6 @@ dependencies = [
  "strum",
  "thiserror 2.0.21",
  "tokio",
- "tokio-postgres",
  "tracing",
  "url",
  "uuid",
@@ -1357,14 +1357,14 @@ dependencies = [
  "fallible-iterator",
  "futures-util",
  "pgorm",
+ "pgorm-driver",
+ "pgorm-driver-rustls",
  "pgorm-migration",
  "postgres-protocol",
  "rustls",
  "rustls-native-certs",
  "serde_json",
  "tokio",
- "tokio-postgres",
- "tokio-postgres-rustls",
  "tokio-util",
 ]
 
@@ -1386,6 +1386,42 @@ dependencies = [
  "rust_decimal",
  "tracing",
  "unicode-ident",
+]
+
+[[package]]
+name = "pgorm-driver"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "byteorder",
+ "bytes",
+ "fallible-iterator",
+ "futures-channel",
+ "futures-util",
+ "log",
+ "parking_lot",
+ "percent-encoding",
+ "phf",
+ "pin-project-lite",
+ "postgres-protocol",
+ "postgres-types",
+ "rand 0.10.3",
+ "socket2",
+ "tokio",
+ "tokio-util",
+ "whoami",
+]
+
+[[package]]
+name = "pgorm-driver-rustls"
+version = "0.2.0"
+dependencies = [
+ "pgorm-driver",
+ "rustls",
+ "sha2",
+ "tokio",
+ "tokio-rustls",
+ "x509-cert",
 ]
 
 [[package]]
@@ -1427,12 +1463,12 @@ dependencies = [
  "pgorm",
  "pgorm-bindings",
  "pgorm-codegen",
+ "pgorm-driver",
  "pgorm-migration",
  "postgres-protocol",
  "rust_decimal",
  "serde_json",
  "tokio",
- "tokio-postgres",
  "tokio-util",
  "uuid",
 ]
@@ -1456,9 +1492,9 @@ dependencies = [
  "bytes",
  "deadpool",
  "futures-util",
+ "pgorm-driver",
  "serde",
  "tokio",
- "tokio-postgres",
  "tracing",
 ]
 
@@ -2522,46 +2558,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
-]
-
-[[package]]
-name = "tokio-postgres"
-version = "0.7.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a528f7d280f6d5b9cd149635c8705b0dd049754bc67d81d31fa25169a93809d3"
-dependencies = [
- "async-trait",
- "byteorder",
- "bytes",
- "fallible-iterator",
- "futures-channel",
- "futures-util",
- "log",
- "parking_lot",
- "percent-encoding",
- "phf",
- "pin-project-lite",
- "postgres-protocol",
- "postgres-types",
- "rand 0.10.3",
- "socket2",
- "tokio",
- "tokio-util",
- "whoami",
-]
-
-[[package]]
-name = "tokio-postgres-rustls"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c2ad44aa0ae96db89c4742212ed41645b2f597311ff6e1945542a4d9fadc2fb"
-dependencies = [
- "rustls",
- "sha2",
- "tokio",
- "tokio-postgres",
- "tokio-rustls",
- "x509-cert",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
+use pgorm_driver::{Statement, types::Type};
 use pgorm_pool::GenericClient;
 use pgorm_query::TypeName;
-use tokio_postgres::{Statement, types::Type};
 
 use crate::query::graph::source_read_cast;
 use crate::{

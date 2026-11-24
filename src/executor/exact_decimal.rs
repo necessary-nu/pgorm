@@ -1,9 +1,9 @@
 //! A `numeric` read only when a [`Decimal`] holds it exactly.
 
 use bytes::BytesMut;
+use pgorm_driver::row::RowIndex;
+use pgorm_driver::types::{FromSql, ToSql, Type};
 use rust_decimal::Decimal;
-use tokio_postgres::row::RowIndex;
-use tokio_postgres::types::{FromSql, ToSql, Type};
 
 use crate::{QueryResult, TryGetError, TryGetable};
 

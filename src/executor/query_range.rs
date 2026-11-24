@@ -7,12 +7,12 @@
 
 use std::ops::Bound;
 
-use pgorm_query::{Multirange, Range};
-use postgres_protocol::types::{self as wire, RangeBound};
-use tokio_postgres::{
+use pgorm_driver::{
     row::RowIndex,
     types::{FromSql, Kind, Type},
 };
+use pgorm_query::{Multirange, Range};
+use postgres_protocol::types::{self as wire, RangeBound};
 
 use super::{QueryResult, TryGetError, TryGetable};
 
@@ -21,11 +21,11 @@ type WireResult<T> = Result<T, Box<dyn std::error::Error + Sync + Send>>;
 /// A [`Range`] read from the wire, over any subtype a `FromSql` reads: the
 /// `FromSql` a range column decodes through, which the language bindings
 /// read a built-in range with.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 #[derive(Debug)]
 pub struct RangeSql<T>(pub Range<T>);
 
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 impl<'a, T> FromSql<'a> for RangeSql<T>
 where
     T: FromSql<'a>,
@@ -44,11 +44,11 @@ where
 
 /// A [`Multirange`] read from the wire: a count of ranges, each
 /// length-prefixed in a range's own encoding.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 #[derive(Debug)]
 pub struct MultirangeSql<T>(pub Multirange<T>);
 
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 impl<'a, T> FromSql<'a> for MultirangeSql<T>
 where
     T: FromSql<'a>,
@@ -67,7 +67,7 @@ where
 
 /// A multirange over `subtype` from its binary form, each bound read by
 /// `T`'s `FromSql` for `subtype`.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 pub fn multirange_from_sql<'a, T>(subtype: &Type, raw: &'a [u8]) -> WireResult<Multirange<T>>
 where
     T: FromSql<'a>,
@@ -77,7 +77,7 @@ where
 
 /// A range over `subtype` from its binary form, each bound read by `T`'s
 /// `FromSql` for `subtype`.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 pub fn range_from_sql<'a, T>(subtype: &Type, raw: &'a [u8]) -> WireResult<Range<T>>
 where
     T: FromSql<'a>,
@@ -88,7 +88,7 @@ where
 /// A multirange from its binary form: a count of ranges, each
 /// length-prefixed in a range's own encoding ([`range_from_sql_with`]), and
 /// nothing after the last.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 pub fn multirange_from_sql_with<'a, B>(
     raw: &'a [u8],
     mut bound: impl FnMut(&'a [u8]) -> WireResult<B>,
@@ -122,7 +122,7 @@ fn read_i32(raw: &mut &[u8]) -> WireResult<i32> {
 /// no bounds is the range with no values, never the range of every value.
 /// The server never sends a NULL bound, so one is a malformed message rather
 /// than something to read as either.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 pub fn range_from_sql_with<'a, B>(
     raw: &'a [u8],
     mut bound: impl FnMut(&'a [u8]) -> WireResult<B>,
@@ -152,7 +152,7 @@ pub fn range_from_sql_with<'a, B>(
 /// fails to decode rather than coming back rounded, as a `numeric` column
 /// does. Every range subtype pgorm reads implements it, a range type a schema
 /// created included.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 // [spec:pgorm:req:exec.decode.decimal-exact]
 #[doc(hidden)]
 pub trait BoundSql: Sized {
@@ -163,7 +163,7 @@ pub trait BoundSql: Sized {
 macro_rules! bound_sql {
     ( $( $type: ty ),+ ) => {
         $(
-            // [spec:pgorm:def:exec.decode.range+5]
+            // [spec:pgorm:def:exec.decode.range+6]
             impl BoundSql for $type {
                 type Wire = $type;
             }
@@ -198,7 +198,7 @@ type WireMultirange<T> = MultirangeSql<<T as BoundSql>::Wire>;
 /// A range over a subtype, read whatever range type the server reports over
 /// it: a built-in one, or one a schema created, which tokio-postgres reports
 /// as a range over its subtype all the same.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 macro_rules! try_getable_range {
     ( $type: ty ) => {
         impl TryGetable for Range<$type> {
@@ -221,7 +221,7 @@ macro_rules! try_getable_range {
 
 /// A built-in range's subtype: its range, its multirange, and an array of
 /// either.
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 macro_rules! try_getable_range_family {
     ( $type: ty ) => {
         try_getable_range!($type);
@@ -242,7 +242,7 @@ macro_rules! try_getable_range_family {
             }
         }
 
-        // [spec:pgorm:def:exec.decode.range+5]
+        // [spec:pgorm:def:exec.decode.range+6]
         #[cfg(feature = "postgres-array")]
         impl TryGetable for Vec<Range<$type>> {
             fn try_get_by<I: RowIndex + std::fmt::Display>(
@@ -263,7 +263,7 @@ macro_rules! try_getable_range_family {
             }
         }
 
-        // [spec:pgorm:def:exec.decode.range+5]
+        // [spec:pgorm:def:exec.decode.range+6]
         #[cfg(feature = "postgres-array")]
         impl TryGetable for Vec<Multirange<$type>> {
             fn try_get_by<I: RowIndex + std::fmt::Display>(
@@ -304,7 +304,7 @@ try_getable_range_family!(jiff::Timestamp);
 /// as in every array. The `CreatedRange` derive reads an array column of its
 /// type through this rather than `Vec<Range<T>>`, which a crate built without
 /// `postgres-array` lacks and which only a built-in range's subtype has.
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+10]
 #[doc(hidden)]
 pub fn try_get_created_ranges<T, I>(res: &QueryResult, idx: I) -> Result<Vec<Range<T>>, TryGetError>
 where
@@ -332,7 +332,7 @@ where
 /// `CreatedRange` derive reads an array of a created multirange through, the
 /// driver reporting the multirange with no subtype, so the column's
 /// `select_as` casts it to `text[]`.
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+10]
 #[doc(hidden)]
 pub fn try_get_texts<I>(res: &QueryResult, idx: I) -> Result<Vec<String>, TryGetError>
 where
@@ -356,7 +356,7 @@ where
 // multiranges are reported by tokio-postgres as simple types, and an array of
 // their ranges is read by `try_get_created_ranges`, so the range alone
 // decodes here.
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+10]
 try_getable_range!(i16);
 try_getable_range!(f32);
 try_getable_range!(f64);
@@ -380,7 +380,7 @@ mod tests {
         RangeSql::<i32>::from_sql(&Type::INT4_RANGE, raw).map(|range| range.0)
     }
 
-    // [spec:pgorm:def:exec.decode.range+5/test]
+    // [spec:pgorm:def:exec.decode.range+6/test]
     #[test]
     fn decodes_each_bound_with_its_inclusivity() {
         assert_eq!(
@@ -398,14 +398,14 @@ mod tests {
         assert_eq!(decode(&[0b0001_1000]).unwrap(), Range::from(..));
     }
 
-    // [spec:pgorm:def:exec.decode.range+5/test]
+    // [spec:pgorm:def:exec.decode.range+6/test]
     #[test]
     fn decodes_the_empty_flag_as_the_empty_range() {
         assert_eq!(decode(&[0b0000_0001]).unwrap(), Range::Empty);
         assert_ne!(decode(&[0b0000_0001]).unwrap(), Range::from(..));
     }
 
-    // [spec:pgorm:def:exec.decode.range+5/test]
+    // [spec:pgorm:def:exec.decode.range+6/test]
     #[test]
     fn refuses_a_malformed_range() {
         let null_bound = [&[0b0000_0010][..], &(-1i32).to_be_bytes()[..], &int4(6)].concat();
@@ -417,7 +417,7 @@ mod tests {
         assert!(decode(&[0b0000_0001, 0]).is_err());
     }
 
-    // [spec:pgorm:def:exec.decode.range+5/test]
+    // [spec:pgorm:def:exec.decode.range+6/test]
     #[test]
     fn decodes_a_multirange_range_by_range() {
         let first = [&[0b0000_0010][..], &int4(1), &int4(4)].concat();

@@ -20,12 +20,12 @@ use pgorm::tests_cfg::{
     photo, post,
 };
 use pgorm::{ConnectionTrait, DatabaseConnection, Error, OneOf, Schema, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio_postgres::error::SqlState;
 
 /// A comment on a post or a photo, never on neither.
 #[derive(Clone, Copy, Debug, OneOf)]

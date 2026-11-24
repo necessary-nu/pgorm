@@ -7,10 +7,10 @@
 use std::process::{Child, Command};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use pgorm_driver::{Client, Error};
 use pgorm_test_support::{
     Creator, connect, create_database, drop_database, name_for, scoped_name, sweep, this_run,
 };
-use tokio_postgres::{Client, Error};
 
 fn base_url() -> String {
     dotenvy::from_filename(".env.local").ok();
@@ -63,7 +63,7 @@ async fn exists(maintenance: &Client, catalogue: &str, name: &str) -> Result<boo
     Ok(maintenance.query_one(sql, &[&name]).await?.get(0))
 }
 
-// [spec:pgorm:req:testing.isolation/test]    the sweep drops a database and a role
+// [spec:pgorm:req:testing.isolation+1/test]    the sweep drops a database and a role
 // only when their creator is gone from this host and nobody is connected; a
 // running creator, one of another host or user, and an occupied database all
 // keep theirs

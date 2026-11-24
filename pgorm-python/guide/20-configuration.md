@@ -65,7 +65,7 @@ timeout that is not positive, raises `ConstructionError` as the pool is built
 
 ## The connection's settings
 
-The connection string is tokio-postgres's connection configuration, written
+The connection string is pgorm-driver's connection configuration, written
 as a URL or in libpq's `key=value` form. Either names the `host`, `port`,
 `user`, `password` and `dbname`, and a URL's query or the `key=value` pairs
 carry the rest: `application_name`, `keepalives_idle`, `sslmode`,
@@ -358,7 +358,7 @@ asyncio.run(main())
 A pool verifies the server's certificate and host name by default, and never
 falls back to plaintext. Here Python differs from Rust in shape: Rust's pool
 speaks plaintext unless it is given a TLS connector through `connect_with`,
-any type implementing tokio-postgres's `MakeTlsConnect<Socket>`. Python's
+any type implementing pgorm-driver's `MakeTlsConnect<Socket>`. Python's
 connector is built in, rustls, and the TLS configuration of your own is its
 options: `tls`, the mode, named as libpq's `sslmode` names it; `ca` or
 `cafile`, the certificates a verifying mode trusts; and `cert` and `key`, or
@@ -382,7 +382,7 @@ certificates issued to anyone, which says nothing about whose server this
 is. libpq's `allow`, which tries plaintext first, is not a mode a pool
 takes: it would hand an impostor the plaintext. Neither are libpq's
 `sslrootcert`, `sslcert` and `sslkey` settings in the string, which
-tokio-postgres's parser refuses: give them as the options.
+pgorm-driver's parser refuses: give them as the options.
 
 A client certificate is how a server that authenticates by certificate
 (`cert` in `pg_hba.conf`) lets the pool's user in, with no password: the

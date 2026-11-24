@@ -509,7 +509,7 @@ pub struct TypeCreateStatement {
 pub enum TypeAs {
     /// `AS (..)`, a composite carrying its attributes, the marker and the
     /// attributes one fact as an enumeration's marker and labels are.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     Composite(Vec<CompositeAttribute>),
     /// `AS ENUM (..)`, carrying its labels: the marker and the values are one
     /// fact, so no value list survives without the `AS ENUM` that renders it.
@@ -519,7 +519,7 @@ pub enum TypeAs {
     // [spec:pgorm:req:sql.render.ddl.enum-type+7]
     Enum(Vec<String>),
     /// `AS RANGE (..)`, carrying the subtype and the options beside it.
-    // [spec:pgorm:req:sql.ddl.type-range+2]
+    // [spec:pgorm:req:sql.ddl.type-range+3]
     Range(RangeDefinition),
 }
 

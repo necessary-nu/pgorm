@@ -16,7 +16,7 @@ use pgorm::{
 use pgorm_query::Values;
 use pretty_assertions::assert_eq;
 
-const NO_PARAMS: [&(dyn tokio_postgres::types::ToSql + Sync); 0] = [];
+const NO_PARAMS: [&(dyn pgorm_driver::types::ToSql + Sync); 0] = [];
 
 #[derive(FromQueryResult)]
 struct Cake {

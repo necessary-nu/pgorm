@@ -17,9 +17,9 @@ use pgorm::{
     entity::prelude::*,
     pgorm_query::{Name, TableName},
 };
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::fmt::Debug;
-use tokio_postgres::error::SqlState;
 
 pub mod car {
     use pgorm::entity::prelude::*;

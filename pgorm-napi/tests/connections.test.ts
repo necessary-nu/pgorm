@@ -166,7 +166,7 @@ async function preparedStatement(db: Queryable, sql: string): Promise<string | n
 }
 
 // [spec:pgorm:req:bindings.connections+3/test]
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    from JavaScript
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    from JavaScript
 test("clearing the statement caches makes a connection that ran an insert prepare it again", async () => {
   await using single = new Pool(scratch(), { maxSize: 1 });
   await single.execute("CREATE DOMAIN stock AS integer DEFAULT 1");

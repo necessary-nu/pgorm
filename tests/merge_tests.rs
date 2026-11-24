@@ -20,7 +20,7 @@ use pgorm::pgorm_query::{
     Query, SimpleExpr, WithClause,
 };
 use pgorm::{ConnectionTrait, ValueHolder, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {

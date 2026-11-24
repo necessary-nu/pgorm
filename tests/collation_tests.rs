@@ -21,7 +21,7 @@ use pgorm::pgorm_query::{
     ColumnDef, Expr, Func, Name, Order, OrderedStatement, Query, SimpleExpr, Table,
 };
 use pgorm::{ConnectionTrait, SelectGetableTuple, SelectorRaw, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {

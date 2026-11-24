@@ -20,9 +20,9 @@ use pgorm::{
     ConnectionTrait, DatabaseConnection, Error, KindedDisjoint, Schema, TransactionTrait,
     check_disjoint, entity::prelude::*, result_column_name,
 };
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::fmt::Debug;
-use tokio_postgres::error::SqlState;
 
 /// A kind entity keyed by one `i32` it is given.
 pub mod plain {

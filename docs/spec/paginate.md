@@ -157,9 +157,9 @@ bound parameter is held to.
 > cursor is totally ordered and can be resumed mid-tie through `after_with`
 > / `before_with`.
 
-> [spec:pgorm:def:exec.cursor.binding+6]
+> [spec:pgorm:def:exec.cursor.binding+7]
 > `ValueHolder` (cursor.rs) is a public newtype over `pgorm_query::Value`
-> implementing `tokio_postgres::types::ToSql`; every executor path
+> implementing `pgorm_driver::types::ToSql`; every executor path
 > (select, insert, update, delete, cursor, paginator) wraps built
 > statement values in it for parameter binding. It delegates per variant:
 > `Bool` to the primitive `bool` impl; the integer variants
@@ -310,12 +310,12 @@ bound parameter is held to.
 > placeholder to the type the value is actually written as, and the test
 > runs unignored.
 
-> [spec:pgorm:req:exec.cursor.binding-accepts+4]
+> [spec:pgorm:req:exec.cursor.binding-accepts+5]
 > A `Value` MUST NOT be written into a placeholder whose inferred Postgres
 > type its binary representation is not the wire format of.
 > `ValueHolder::to_sql` decides this per variant and raises a `ToSql` error
 > — `` cannot bind a `<Variant>` value to Postgres type `<type>` `` — which
-> tokio-postgres surfaces while encoding the bind message, so the statement
+> pgorm-driver surfaces while encoding the bind message, so the statement
 > never reaches the server. The failure arrives as an `Error::Postgres`
 > carrying no `DbError`, the same shape as any other encoding failure (see
 > `[spec:pgorm:sem:error.model.sql-class]`).
@@ -393,9 +393,9 @@ bound parameter is held to.
 > `bigint` would drop the months and the days. An array of intervals binds
 > through the `Array` arm, each element against the member type.
 
-> [spec:pgorm:req:exec.cursor.binding-range+3]
+> [spec:pgorm:req:exec.cursor.binding-range+4]
 > A `Value::Range` binds against a placeholder whose type is a range — the
-> built-in six, or a range type a schema created, which tokio-postgres
+> built-in six, or a range type a schema created, which pgorm-driver
 > reports as a range over its subtype all the same — and a
 > `Value::Multirange` against a multirange whose kind names its subtype: a
 > built-in one, or one a schema created whose kind a COPY's description
@@ -436,7 +436,7 @@ bound parameter is held to.
 > A multirange is written as a count and then each range length-prefixed in
 > a range's own encoding, against the subtype the multirange's kind names. A
 > statement's placeholder of a multirange a schema created cannot be bound in
-> binary: tokio-postgres learns a type's kind from `pg_range` joined on the
+> binary: pgorm-driver learns a type's kind from `pg_range` joined on the
 > *range* type, so the multirange arrives as a simple type with no subtype to
 > write the bounds in, and guessing one would send bytes the server could
 > read as another type. A value of one is written as its text cast to its

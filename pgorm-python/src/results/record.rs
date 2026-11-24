@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use pgorm_driver::Row;
 use pyo3::{exceptions::PyKeyError, prelude::*, types::PyTuple};
-use tokio_postgres::Row;
 
 use crate::{
     errors::DecodeError,

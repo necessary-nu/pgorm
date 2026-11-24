@@ -19,8 +19,8 @@ pub use common::TestContext;
 
 use pgorm::entity::prelude::*;
 use pgorm::{ConnectionTrait, OneOf, Schema, set};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 mod codegen_one_of;
 

@@ -18,7 +18,7 @@ use pgorm::pgorm_query::{
     TypeName,
 };
 use pgorm::{ConnectionTrait, SelectGetableTuple, SelectorRaw, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 /// One row: a one-dimensional array, a two-dimensional one, and a text to
 /// split into an array by a function.

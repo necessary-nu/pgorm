@@ -41,7 +41,7 @@ use super::{IntoTypeRef, TypeAs, TypeCreateStatement, TypeRef};
 ///     r#"CREATE TYPE "floatrange" AS RANGE (SUBTYPE = double precision, SUBTYPE_DIFF = "float8mi")"#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.type-range+2]
+// [spec:pgorm:req:sql.ddl.type-range+3]
 #[derive(Debug, Clone)]
 pub struct RangeDefinition {
     pub(crate) subtype: ColumnType,
@@ -56,7 +56,7 @@ impl RangeDefinition {
     /// [`ColumnType`] serves — a type created elsewhere by
     /// [`ColumnType::named`]. PostgreSQL drops a type modifier here: a range
     /// over `varchar(10)` ranges over `varchar`.
-    // [spec:pgorm:req:sql.ddl.type-range+2]
+    // [spec:pgorm:req:sql.ddl.type-range+3]
     pub fn new(subtype: ColumnType) -> Self {
         Self {
             subtype,
@@ -70,7 +70,7 @@ impl RangeDefinition {
     /// `SUBTYPE_OPCLASS = "opclass"`: the b-tree operator class ordering the
     /// subtype. The name is unqualified, as a function name is everywhere
     /// in this crate, and is found on the search path.
-    // [spec:pgorm:req:sql.ddl.type-range+2]
+    // [spec:pgorm:req:sql.ddl.type-range+3]
     #[must_use]
     pub fn subtype_opclass<N>(mut self, opclass: N) -> Self
     where
@@ -82,7 +82,7 @@ impl RangeDefinition {
 
     /// `COLLATION = "collation"`: the collation a collatable subtype is
     /// ordered under.
-    // [spec:pgorm:req:sql.ddl.type-range+2]
+    // [spec:pgorm:req:sql.ddl.type-range+3]
     #[must_use]
     pub fn collation<C>(mut self, collation: C) -> Self
     where
@@ -95,7 +95,7 @@ impl RangeDefinition {
     /// `SUBTYPE_DIFF = "function"`: the subtype's difference function, which
     /// takes two subtype values and returns `double precision`. Unqualified,
     /// as [`subtype_opclass`](Self::subtype_opclass) is.
-    // [spec:pgorm:req:sql.ddl.type-range+2]
+    // [spec:pgorm:req:sql.ddl.type-range+3]
     #[must_use]
     pub fn subtype_diff<N>(mut self, function: N) -> Self
     where
@@ -108,7 +108,7 @@ impl RangeDefinition {
     /// `MULTIRANGE_TYPE_NAME = <name>`: what the multirange PostgreSQL
     /// creates beside the range is called, schema-qualified as the range's
     /// own name can be.
-    // [spec:pgorm:req:sql.ddl.type-range+2]
+    // [spec:pgorm:req:sql.ddl.type-range+3]
     #[must_use]
     pub fn multirange_type_name<T>(mut self, name: T) -> Self
     where
@@ -144,7 +144,7 @@ impl TypeCreateStatement {
     ///     )
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ddl.type-range+2]
+    // [spec:pgorm:req:sql.ddl.type-range+3]
     pub fn as_range(&mut self, range: RangeDefinition) -> &mut Self {
         self.as_type = Some(TypeAs::Range(range));
         self

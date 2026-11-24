@@ -1,6 +1,6 @@
 use crate::{ActiveModelTrait, ConnectionTrait, DeleteMany, DeleteOne, EntityTrait, error::*};
+use pgorm_driver::types::ToSql;
 use pgorm_query::DeleteStatement;
-use tokio_postgres::types::ToSql;
 
 use super::ValueHolder;
 

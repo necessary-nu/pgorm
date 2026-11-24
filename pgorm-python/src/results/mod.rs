@@ -60,6 +60,6 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
             "pgorm::FromQueryResult::find_by_statement",
         ),
         ("entity_query.from_raw_sql", "pgorm::Select::from_raw_sql"),
-        ("record", "tokio_postgres::Row::try_get / FromSql"),
+        ("record", "pgorm_driver::Row::try_get / FromSql"),
     ])
 }

@@ -20,9 +20,9 @@ use pgorm::pgorm_query::{
     ColumnType, ForeignKeyCreateStatement, Name, Table, TableCreateStatement,
 };
 use pgorm::{ConnectionTrait, Error, Schema, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
-use tokio_postgres::error::SqlState;
 
 /// The enum, the two domains over it, the domain over its array and the
 /// domain over an integer the fixtures' columns are typed with.

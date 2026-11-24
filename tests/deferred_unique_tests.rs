@@ -21,7 +21,7 @@ use pgorm::pgorm_query::{
     ColumnDef, Deferrability, Index, Name, OnConflict, Query, Table, TableKey, Unique,
 };
 use pgorm::{ConnectionTrait, TransactionTrait, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {

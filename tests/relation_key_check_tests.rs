@@ -13,8 +13,8 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::{ConnectionTrait, LoaderTrait, Schema, TransactionTrait, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 mod shelf {
     use pgorm::entity::prelude::*;

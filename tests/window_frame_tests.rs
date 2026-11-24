@@ -25,8 +25,8 @@ use pgorm::pgorm_query::{
     SelectStatement, SimpleExpr, WindowStatement,
 };
 use pgorm::{ConnectionTrait, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use rust_decimal::Decimal;
-use tokio_postgres::error::SqlState;
 
 /// Four readings: timestamps 12h, 18h and 42h apart, levels 0.4, 0.6 and 1.5
 /// apart, and a grade on which the middle two tie.

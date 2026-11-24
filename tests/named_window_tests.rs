@@ -18,7 +18,7 @@ use pgorm::pgorm_query::{
     WindowDefinition, WindowStatement, error::Error as QueryError,
 };
 use pgorm::{ConnectionTrait, FromQueryResult, SelectModel, Selector, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 /// Five readings of two kinds, `a` holding ids 1, 3 and 5.
 const SEED: &str = "

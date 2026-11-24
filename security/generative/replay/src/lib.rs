@@ -32,8 +32,8 @@ pub mod wire;
 
 use std::fmt;
 
+pub use pgorm_driver::Row;
 pub use report::Report;
-pub use tokio_postgres::Row;
 
 use pgorm::{Config, ConnectionTrait, DatabasePool};
 
@@ -110,12 +110,12 @@ impl From<FormatError> for Error {
     }
 }
 
-/// A reproducer reaches `tokio_postgres` directly wherever pgorm hands it a
+/// A reproducer reaches `pgorm_driver` directly wherever pgorm hands it a
 /// driver type — `Row::try_get` for a result reference, `RowStream` for a
 /// streamed step — so those failures have to classify as the database failures
 /// they are rather than stall at the crate boundary.
-impl From<tokio_postgres::Error> for Error {
-    fn from(error: tokio_postgres::Error) -> Self {
+impl From<pgorm_driver::Error> for Error {
+    fn from(error: pgorm_driver::Error) -> Self {
         Self::Database(pgorm::Error::Postgres(error))
     }
 }
@@ -196,7 +196,7 @@ impl ObservedError {
     pub fn classify(error: &pgorm::Error, secrets: &Redactions) -> Self {
         let mut source: &(dyn std::error::Error + 'static) = error;
         loop {
-            if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
+            if let Some(postgres) = source.downcast_ref::<pgorm_driver::Error>() {
                 return Self::from_postgres(postgres, secrets);
             }
             match source.source() {
@@ -243,7 +243,7 @@ impl ObservedError {
         self.sqlstate.as_deref()
     }
 
-    fn from_postgres(error: &tokio_postgres::Error, secrets: &Redactions) -> Self {
+    fn from_postgres(error: &pgorm_driver::Error, secrets: &Redactions) -> Self {
         let Some(db) = error.as_db_error() else {
             if let Some(refusal) = pgorm::DecodeRefusal::of(error) {
                 return Self::new("DecodeError", secrets.apply(&refusal.to_string()), None);

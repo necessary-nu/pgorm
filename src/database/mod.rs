@@ -18,26 +18,26 @@ pub(crate) use transaction::{drive, rolled_back, sealed};
 
 /// What a [`Notifications`] stream yields: the channel, the payload, and the
 /// process id of the session that sent it.
-// [spec:pgorm:req:conn.listen]
-pub use tokio_postgres::Notification;
+// [spec:pgorm:req:conn.listen+1]
+pub use pgorm_driver::Notification;
 
 /// The chunk type COPY's data travels in, both ways, re-exported so writing a
 /// [`CopyInSink`] needs no direct dependency on `bytes`.
-// [spec:pgorm:req:conn.copy+2]
+// [spec:pgorm:req:conn.copy+3]
 pub use bytes::Bytes;
 
 /// The buffer [`CopyRowEncoder`] writes a binary COPY's header, rows and
 /// trailer into.
-// [spec:pgorm:req:conn.driver-types]
+// [spec:pgorm:req:conn.driver-types+1]
 pub use bytes::BytesMut;
 
 /// The traits [`CopyInSink`] and the streams pgorm returns implement, for
 /// code that names them in a signature of its own. Reading a stream or
 /// writing a sink still takes the extension traits of the `futures` crate.
-// [spec:pgorm:req:conn.driver-types]
+// [spec:pgorm:req:conn.driver-types+1]
 pub use futures::{Sink, Stream};
 
-pub use tokio_postgres::{Config, IsolationLevel};
+pub use pgorm_driver::{Config, IsolationLevel};
 
 /// The row [`query_one`], [`query_opt`] and [`query_all`] return, and the
 /// stream of them [`query_raw`] returns.
@@ -46,22 +46,22 @@ pub use tokio_postgres::{Config, IsolationLevel};
 /// [`query_opt`]: ConnectionTrait::query_opt
 /// [`query_all`]: ConnectionTrait::query_all
 /// [`query_raw`]: ConnectionTrait::query_raw
-// [spec:pgorm:req:conn.driver-types]
-pub use tokio_postgres::{Row, RowStream};
+// [spec:pgorm:req:conn.driver-types+1]
+pub use pgorm_driver::{Row, RowStream};
 
 /// The driver's error, which [`Error::Postgres`] carries, renamed so that it
 /// does not collide with pgorm's own [`Error`].
-// [spec:pgorm:req:conn.driver-types]
-pub use tokio_postgres::Error as PostgresError;
+// [spec:pgorm:req:conn.driver-types+1]
+pub use pgorm_driver::Error as PostgresError;
 
 /// What the driver's error reports of a refusal the server sent: the
 /// server's error, and the SQLSTATE that [`PostgresError::code`] returns.
-// [spec:pgorm:req:conn.driver-types]
-pub use tokio_postgres::error::{DbError, SqlState};
+// [spec:pgorm:req:conn.driver-types+1]
+pub use pgorm_driver::error::{DbError, SqlState};
 
 /// What [`Config`]'s setters take and its getters return.
-// [spec:pgorm:req:conn.driver-types]
-pub use tokio_postgres::config::{
+// [spec:pgorm:req:conn.driver-types+1]
+pub use pgorm_driver::config::{
     ChannelBinding, Host, LoadBalanceHosts, SslMode, SslNegotiation, TargetSessionAttrs,
 };
 
@@ -71,7 +71,7 @@ pub use pgorm_pool::{ManagerConfig, PoolBuilder, RecyclingMethod, StatementCache
 
 /// What [`PoolBuilder`]'s setters take, what [`DatabasePool::status`] returns,
 /// and the error [`Error::Pool`] carries, with what its variants hold.
-// [spec:pgorm:req:conn.driver-types]
+// [spec:pgorm:req:conn.driver-types+1]
 pub use pgorm_pool::{
     Hook, HookError, PoolConfig, PoolError, QueueMode, Runtime, Status, TimeoutType, Timeouts,
 };
@@ -85,7 +85,7 @@ pub use pgorm_pool::STATEMENT_CACHE_CHANNEL;
 
 /// The TLS connector types [`connect_with`]'s bounds are written in, plus the
 /// [`NoTls`] the simple entry points pass, re-exported for the same reason.
-pub use tokio_postgres::{
+pub use pgorm_driver::{
     NoTls, Socket,
     tls::{MakeTlsConnect, TlsConnect},
 };
@@ -144,9 +144,8 @@ fn check_statement_cache_channel(manager: &ManagerConfig) -> Result<(), Error> {
 /// with anything but [`RecyclingMethod::Fast`], or that caches a number of
 /// statements other than the default.
 ///
-/// `tls` is a `tokio_postgres` TLS connector — [`NoTls`], or one of
-/// `tokio-postgres-rustls` / `tokio-postgres-openssl`, which is where a managed
-/// PostgreSQL requiring TLS is reached from.
+/// `tls` is a `pgorm_driver` TLS connector: [`NoTls`], or
+/// `pgorm_driver_rustls::MakeRustlsConnect` for a PostgreSQL server requiring TLS.
 ///
 /// ```no_run
 /// use pgorm::{ManagerConfig, NoTls, RecyclingMethod, StatementCacheSize, connect_with};
@@ -179,7 +178,7 @@ fn check_statement_cache_channel(manager: &ManagerConfig) -> Result<(), Error> {
 /// pool — deadpool rejects a pool configured with timeouts but no runtime —
 /// or if `statement_cache_channel` is empty or longer than the 63 bytes of an
 /// identifier.
-// [spec:pgorm:req:conn.pool+4]    the general entry point
+// [spec:pgorm:req:conn.pool+5]    the general entry point
 #[doc(alias = "ConnectOptions")]
 pub fn connect_with<T>(
     config: Config,
@@ -220,7 +219,7 @@ where
 /// [`connect_with_builder`] for a fallible pool whose shape the caller chooses,
 /// or [`connect_with`] for one whose TLS and manager configuration it chooses
 /// too.
-// [spec:pgorm:req:conn.pool+4]
+// [spec:pgorm:req:conn.pool+5]
 #[doc(alias = "Database")]
 pub fn connect(config: Config) -> DatabasePool {
     connect_with(config, NoTls, simple_manager_config(None), identity)
@@ -234,7 +233,7 @@ pub fn connect(config: Config) -> DatabasePool {
 ///
 /// Returns [`Error::Custom`] if the builder produced by `build` cannot build a
 /// pool — deadpool rejects a pool configured with timeouts but no runtime.
-// [spec:pgorm:req:conn.pool+4]    builder customization
+// [spec:pgorm:req:conn.pool+5]    builder customization
 #[doc(alias = "ConnectOptions")]
 pub fn connect_with_builder(
     config: Config,
@@ -251,7 +250,7 @@ pub fn connect_with_builder(
 ///
 /// Returns [`Error::Custom`] for the first entry whose builder cannot produce a
 /// pool; none of the pools is returned in that case.
-// [spec:pgorm:sem:conn.pool.multi+4]    per-tag pool construction
+// [spec:pgorm:sem:conn.pool.multi+5]    per-tag pool construction
 pub fn connect_multi_with_builder(
     config: Config,
     build: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>>,
@@ -299,7 +298,7 @@ pub fn connect_multi_with_builder(
 /// Returns [`Error::Custom`] for the first entry whose builder cannot produce a
 /// pool, or if `manager`'s `statement_cache_channel` is no channel name; none
 /// of the pools is returned in that case.
-// [spec:pgorm:sem:conn.pool.multi+4]    the general multi constructor
+// [spec:pgorm:sem:conn.pool.multi+5]    the general multi constructor
 pub fn connect_multi_with<T, F>(
     config: Config,
     tls: T,

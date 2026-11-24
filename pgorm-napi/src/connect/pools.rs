@@ -147,7 +147,7 @@ fn pool_status(mut cx: FunctionContext) -> JsResult<JsObject> {
 /// statements stale, as `DatabasePool::clear_statement_caches` does. Nothing
 /// is sent, so a closed pool is no reason to refuse it.
 // [spec:pgorm:req:bindings.connections+3]
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1]
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2]
 fn pool_clear_statement_caches(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     pool(&mut cx)?.pool.clear_statement_caches();
     Ok(cx.undefined())

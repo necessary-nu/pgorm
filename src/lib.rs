@@ -1,4 +1,4 @@
-//! An async ORM for PostgreSQL, built on tokio-postgres and deadpool.
+//! An async ORM for PostgreSQL, built on pgorm-driver and deadpool.
 //!
 //! You declare each table as an entity, a Rust type, and pgorm writes the SQL
 //! that reads and writes it. Every value is bound as a parameter rather than
@@ -110,6 +110,8 @@ pub use executor::*;
 pub use query::*;
 pub use schema::*;
 
+#[cfg(feature = "macros")]
+pub use pgorm_driver::row::RowIndex;
 /// Each derive is named for the trait it implements or the item it writes,
 /// so most share a name with a trait the `entity` glob brings; a derive and a
 /// trait live in different namespaces, and one `use` brings both.
@@ -124,8 +126,6 @@ pub use pgorm_macros::{
     IntoActiveModel, JsonValueType, Model, OneOf, PartialModel, Relation, Scope, ScopeContext,
     ValueType,
 };
-#[cfg(feature = "macros")]
-pub use tokio_postgres::row::RowIndex;
 
 /// Hold a raw SQL string literal to the PostgreSQL grammar at compile time,
 /// expanding to the literal unchanged.
@@ -246,4 +246,5 @@ pub use pgorm_query::{AliasName, Values, alias};
 // [spec:pgorm:sem:schema.from-shape]
 pub use pgorm_case_style::{CASE_STYLES, CaseStyle, UnknownCaseStyle};
 
-pub use tokio_postgres::types;
+// [spec:pgorm:req:conn.driver-source]
+pub use pgorm_driver::types;

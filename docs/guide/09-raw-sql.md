@@ -26,7 +26,7 @@ beside it:
 | [`execute_raw`](crate::ConnectionTrait::execute_raw) | as `execute`, with the values as an iterator |
 | [`batch_execute`](crate::ConnectionTrait::batch_execute) | nothing: it runs a whole script of `;`-separated statements, with no parameters |
 
-The rows are tokio-postgres's [`Row`](crate::Row), which pgorm re-exports,
+The rows are pgorm-driver's [`Row`](crate::Row), which pgorm re-exports,
 whose `get` and `try_get` read a column by position or by name:
 
 ```rust
@@ -69,7 +69,7 @@ nothing; it takes no parameters, so it is for DDL and fixed scripts, never
 for values a user supplied.
 
 A statement is text and only text: the statement methods take `&str` and
-`&String` and nothing else. A tokio-postgres `Statement` prepared elsewhere
+`&String` and nothing else. A pgorm-driver `Statement` prepared elsewhere
 belongs to the one connection it was prepared on, so it cannot be passed.
 
 `query_raw` streams the rows instead of collecting them, for a result too
@@ -297,7 +297,7 @@ assert_eq!(described, [("name", &Type::VARCHAR), ("price", &Type::NUMERIC)]);
 A statement built with [the query builder](crate::guide::query_builder) renders to
 the same pair through [`build`](crate::pgorm_query::SelectStatement::build),
 so it decodes with `DecodeRaw` too. To run one directly on a connection,
-whose methods take tokio-postgres parameters, wrap each value in a
+whose methods take pgorm-driver parameters, wrap each value in a
 [`ValueHolder`](crate::ValueHolder):
 
 ```rust

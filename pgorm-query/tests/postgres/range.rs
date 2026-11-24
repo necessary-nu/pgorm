@@ -53,7 +53,7 @@ fn s(text: &str) -> String {
     text.to_owned()
 }
 
-// [spec:pgorm:req:sql.ddl.type-range+2/test]    the subtype, then each option that is set, every
+// [spec:pgorm:req:sql.ddl.type-range+3/test]    the subtype, then each option that is set, every
 // name quoted and the multirange's qualified as the range's can be
 #[test]
 fn a_range_type_writes_its_options() {
@@ -89,7 +89,7 @@ fn a_range_type_writes_its_options() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.type-range+2/test]    the subtype alone is a range type, written as a
+// [spec:pgorm:req:sql.ddl.type-range+3/test]    the subtype alone is a range type, written as a
 // column's type is
 #[test]
 fn a_range_type_needs_only_its_subtype() {
@@ -126,7 +126,7 @@ fn a_range_type_needs_only_its_subtype() {
     }
 }
 
-// [spec:pgorm:req:sql.ddl.type-range+2/test]    a range is a third kind of type, and choosing a
+// [spec:pgorm:req:sql.ddl.type-range+3/test]    a range is a third kind of type, and choosing a
 // kind replaces the others
 #[test]
 fn a_range_is_one_kind_of_type() {
@@ -151,7 +151,7 @@ fn a_range_is_one_kind_of_type() {
     assert_eq!(sql, r#"CREATE TYPE "t" AS RANGE (SUBTYPE = bigint)"#);
 }
 
-// [spec:pgorm:req:sql.ddl.type-range+2/test]    a range type binds nothing, so its two renderings
+// [spec:pgorm:req:sql.ddl.type-range+3/test]    a range type binds nothing, so its two renderings
 // agree
 #[test]
 fn a_range_type_binds_nothing() {

@@ -110,7 +110,7 @@ test("the main package offers the release platforms' packages at its own version
 test("the platform package carries the dependency notices and the licences", () => {
   const inventory = readJson(join(platformDirectory, "DEPENDENCIES.json")) as { packages: { name: string; license: string }[] };
   const names = inventory.packages.map((entry) => entry.name);
-  for (const name of ["pgorm", "pgorm-napi", "neon", "tokio-postgres", "rustls"]) assert.ok(names.includes(name), name);
+  for (const name of ["pgorm", "pgorm-napi", "neon", "pgorm-driver", "pgorm-driver-rustls", "rustls"]) assert.ok(names.includes(name), name);
   assert.ok(inventory.packages.every((entry) => entry.license), "a package without a licence");
   assert.match(readFileSync(join(platformDirectory, "THIRD_PARTY_NOTICES.txt"), "utf8"), /^@necessary\/pgorm npm packages/);
   for (const directory of [mainDirectory, platformDirectory]) {

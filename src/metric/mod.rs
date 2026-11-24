@@ -15,11 +15,11 @@ use crate::{
 };
 use async_trait::async_trait;
 use fingerprint::FingerprintSuffix;
-use std::time::{Duration, Instant};
-use tokio_postgres::{
+use pgorm_driver::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };
+use std::time::{Duration, Instant};
 
 /// The body every instrumented `ConnectionTrait` method shares: build the
 /// context, time the awaited delegation, report the outcome under the hook it
@@ -327,7 +327,7 @@ impl<M: MetricsCollector> ConnectionTrait for InstrumentedConnection<M> {
             self.connection.query_all(statement, params).await, rows => Some(rows.len() as u64))
     }
 
-    // [spec:pgorm:sem:exec.stream.decode+1]    row count unknown at stream creation
+    // [spec:pgorm:sem:exec.stream.decode+2]    row count unknown at stream creation
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
@@ -425,7 +425,7 @@ impl<M: MetricsCollector> ConnectionTrait for InstrumentedTransaction<'_, M> {
             self.transaction.query_all(statement, params).await, rows => Some(rows.len() as u64))
     }
 
-    // [spec:pgorm:sem:exec.stream.decode+1]    row count unknown at stream creation
+    // [spec:pgorm:sem:exec.stream.decode+2]    row count unknown at stream creation
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,

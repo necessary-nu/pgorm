@@ -20,7 +20,7 @@ use pgorm::pgorm_query::{
 use pgorm::{
     ConnectionTrait, DatabaseConnection, Error, SelectGetableTuple, Selector, TransactionTrait,
 };
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 const SEED: &str = "
     CREATE TABLE stock (id int PRIMARY KEY, qty int NOT NULL);

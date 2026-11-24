@@ -17,8 +17,8 @@ use pgorm::pgorm_query::{
     extension::{RangeDefinition, Type},
 };
 use pgorm::{ConnectionTrait, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {
@@ -93,7 +93,7 @@ async fn catalogued(
 /// have it, a non-default operator class and collation, the difference
 /// function, and the multirange's name — given, schema and all, or derived
 /// by PostgreSQL from the range's when it is not.
-// [spec:pgorm:req:sql.ddl.type-range+2/test]
+// [spec:pgorm:req:sql.ddl.type-range+3/test]
 async fn the_options_are_the_ones_written(db: &DatabaseConnection) -> Result<(), Error> {
     db.batch_execute("CREATE SCHEMA app; CREATE SCHEMA spans")
         .await?;
@@ -155,7 +155,7 @@ async fn the_options_are_the_ones_written(db: &DatabaseConnection) -> Result<(),
 /// What PostgreSQL refuses in a range type's options, it refuses with its own
 /// code: a collation on a subtype that has none, a difference function or an
 /// operator class that does not fit the subtype, and one that does not exist.
-// [spec:pgorm:req:sql.ddl.type-range+2/test]
+// [spec:pgorm:req:sql.ddl.type-range+3/test]
 async fn the_server_judges_the_options(db: &DatabaseConnection) -> Result<(), Error> {
     let refused =
         |definition: RangeDefinition| Type::create(n("refused")).as_range(definition).to_string();
@@ -191,7 +191,7 @@ async fn the_server_judges_the_options(db: &DatabaseConnection) -> Result<(), Er
 /// `DROP TYPE` and `ALTER TYPE ... RENAME TO` reach a range type: a column of
 /// the type holds a plain drop back, `CASCADE` takes the column's dependency
 /// with it, and the multirange goes with its range.
-// [spec:pgorm:req:sql.ddl.type-range+2/test]
+// [spec:pgorm:req:sql.ddl.type-range+3/test]
 // [spec:pgorm:req:sql.ddl.type-alter-drop+7/test]
 async fn drop_and_rename_reach_a_range(db: &DatabaseConnection) -> Result<(), Error> {
     db.batch_execute(

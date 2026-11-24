@@ -10,8 +10,8 @@ use std::collections::HashSet;
 
 use pgorm::pgorm_query::{ArrayType, ColumnType, Name, SqlName, Value};
 use pgorm::{ColumnTrait, EntityTrait, Iterable, ModelTrait, StaticName};
+use pgorm_driver::Row;
 use serde_json::{Value as Json, json};
-use tokio_postgres::Row;
 
 use crate::{
     FormatError, ObservedError, decode,

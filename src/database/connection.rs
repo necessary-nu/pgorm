@@ -1,5 +1,5 @@
 use crate::Error;
-use tokio_postgres::{
+use pgorm_driver::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };
@@ -27,14 +27,14 @@ mod private {
 /// (`conn.pool.conn-trait`) and the metrics fingerprint (`metric.fingerprint`)
 /// — are therefore total: neither has a case where the SQL it is looking at has
 /// gone missing.
-// [spec:pgorm:def:conn.sql-text+2]
+// [spec:pgorm:def:conn.sql-text+3]
 #[doc(alias("Statement", "StatementBuilder", "from_sql_and_values", "from_string"))]
 pub trait SqlText: private::Sealed {
     /// The statement's SQL text.
     fn sql_text(&self) -> &str;
 }
 
-// [spec:pgorm:def:conn.sql-text+2]    the two spellings of a statement
+// [spec:pgorm:def:conn.sql-text+3]    the two spellings of a statement
 impl SqlText for str {
     fn sql_text(&self) -> &str {
         self
@@ -61,7 +61,7 @@ impl SqlText for String {
 ///
 /// ```compile_fail,E0277
 /// # use pgorm::{ConnectionTrait, DatabaseConnection, Error};
-/// # use tokio_postgres::Statement;
+/// # use pgorm_driver::Statement;
 /// async fn run(db: &DatabaseConnection, prepared: &Statement) -> Result<u64, Error> {
 ///     db.execute(prepared, &[]).await
 /// }
@@ -118,7 +118,7 @@ pub trait ConnectionTrait: Sync {
 
     /// Execute a statement and return its rows as a stream, without buffering
     /// the whole result set
-    // [spec:pgorm:def:exec.stream+2]
+    // [spec:pgorm:def:exec.stream+3]
     #[doc(alias = "StreamTrait")]
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where

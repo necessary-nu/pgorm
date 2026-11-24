@@ -129,14 +129,14 @@ and `pgorm-query`, the fork of sea-query, which pgorm re-exports as
 and crates.io does not accept git dependencies, so pgorm is not published
 there; depend on it by git or path.
 
-SeaORM's driver and runtime features are gone. pgorm runs on tokio-postgres
+SeaORM's driver and runtime features are gone. pgorm runs on pgorm-driver
 with a deadpool pool, always on tokio, so there is no `sqlx-postgres`, no
 `runtime-tokio-rustls` and no `mock`. TLS is a connector you pass in (see
 [Connecting](#connecting)), not a feature.
 
 | SeaORM feature | pgorm |
 | --- | --- |
-| `sqlx-postgres`, `sqlx-mysql`, `sqlx-sqlite` | gone: PostgreSQL through tokio-postgres |
+| `sqlx-postgres`, `sqlx-mysql`, `sqlx-sqlite` | gone: PostgreSQL through pgorm-driver |
 | `runtime-tokio-rustls` and the other `runtime-*` features | gone: pgorm always runs on tokio |
 | `with-chrono`, `with-time` | `with-jiff` (on by default) |
 | `with-bigdecimal` | gone: `rust_decimal::Decimal` is always available |
@@ -155,7 +155,7 @@ SeaORM connects with a URL and checks the connection:
 let db: DatabaseConnection = Database::connect("postgres://...").await?;
 ```
 
-pgorm takes a `tokio_postgres::Config` (re-exported as `pgorm::Config`) and
+pgorm takes a `pgorm_driver::Config` (re-exported as `pgorm::Config`) and
 builds a pool. Building a pool connects to nothing: a wrong host or password
 shows up at the first `pool.get()`. If you want to fail at startup, get one
 connection there and drop it.
@@ -189,7 +189,7 @@ fn start() -> Result<pgorm::DatabasePool, Box<dyn std::error::Error>> {
 | `max_connections(n)` | `builder.max_size(n)` |
 | `connect_timeout`, `acquire_timeout`, `idle_timeout` | deadpool's `create_timeout`, `wait_timeout`, `recycle_timeout`, which also need `builder.runtime(..)` |
 | `set_schema_search_path("s")` | `config.options("-c search_path=s")` on the `Config` |
-| TLS through an sqlx feature | `connect_with(config, tls, manager, build)` with any tokio-postgres connector, such as `tokio-postgres-rustls` |
+| TLS through an sqlx feature | `connect_with(config, tls, manager, build)` with a pgorm-driver connector, such as `pgorm-driver-rustls` |
 | `sqlx_logging(true)` | `metric::LoggingMetrics`, or `log_statement` in PostgreSQL |
 | `db.ping()` | `pool.get().await?`, which opens or reuses a connection |
 | `db.close()` | `pool.close()` |
@@ -265,9 +265,9 @@ async fn rename(db: &DatabaseConnection) -> Result<u64, Error> {
 }
 ```
 
-The methods of `ConnectionTrait` follow tokio-postgres: `execute` returns
+The methods of `ConnectionTrait` follow pgorm-driver: `execute` returns
 the row count; `query_one` expects exactly one row, `query_opt` at most one,
-`query_all` any number, each as a `pgorm::Row`, tokio-postgres's row
+`query_all` any number, each as a `pgorm::Row`, pgorm-driver's row
 re-exported; `query_raw` streams the rows, where SeaORM had `stream`. `execute_unprepared` is `batch_execute`,
 which runs a whole script of `;`-separated statements and takes no
 parameters. There is no `get_database_backend` and no `support_returning`:

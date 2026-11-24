@@ -10,8 +10,8 @@ use pgorm::{
     CreatedRangeCodec, CreatedRangeText, ExactDecimal, MultirangeSql, RangeSql,
     pgorm_query::{ArrayType, RangeType, Value},
 };
+use pgorm_driver::types::{Kind, Type};
 use pyo3::PyResult;
-use tokio_postgres::types::{Kind, Type};
 
 use super::decode::{Field, typed};
 use crate::{
@@ -57,7 +57,7 @@ fn built_in(ty: &Type) -> bool {
 /// `None` for a column of any other type. A range type a schema created reads
 /// as its own kind, named as the column's type is, whatever its subtype.
 // [spec:pgorm:req:bindings.values]
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 pub(super) fn value(field: Field<'_>, ty: &Type, array: bool) -> PyResult<Option<PyValue>> {
     let index = field.index();
     let (subtype, multi) = match ty.kind() {

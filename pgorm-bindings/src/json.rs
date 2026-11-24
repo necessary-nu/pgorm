@@ -8,8 +8,8 @@
 
 use std::{collections::BTreeMap, error::Error};
 
+use pgorm_driver::types::{FromSql, Type};
 use serde_json::{Value, value::RawValue};
-use tokio_postgres::types::{FromSql, Type};
 
 type CodecError = Box<dyn Error + Send + Sync>;
 

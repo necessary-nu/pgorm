@@ -1,6 +1,6 @@
 # The pgorm guide
 
-pgorm is an async ORM for PostgreSQL, built on tokio-postgres and deadpool.
+pgorm is an async ORM for PostgreSQL, built on pgorm-driver and deadpool.
 This guide teaches it from adding the dependency and running a first query to
 every feature it has. Each chapter is a page of this module, and every example
 in it runs as a test against a real PostgreSQL server, so what the guide shows

@@ -24,12 +24,12 @@ use fallible_iterator::FallibleIterator;
 use pgorm::pgorm_query::{IpNetwork, MacAddress};
 
 use crate::FormatError;
-use rust_decimal::Decimal;
-use serde_json::{Value as Json, value::RawValue};
-use tokio_postgres::{
+use pgorm_driver::{
     Row,
     types::{FromSql, Kind, ToSql, Type},
 };
+use rust_decimal::Decimal;
+use serde_json::{Value as Json, value::RawValue};
 
 type CodecError = Box<dyn Error + Send + Sync>;
 

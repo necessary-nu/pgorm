@@ -1,11 +1,11 @@
-//! This is a 1:1 copy of the `tokio_postgres::GenericClient`
+//! This is a 1:1 copy of the `pgorm_driver::GenericClient`
 //! trait as of `tokio-postgres 0.7.7` with two changes:
 //! - The `client()` method is not available.
 //! - The `prepare_cached()` and `prepare_typed_cached()` are
 //!   added.
-use tokio_postgres::RowStream;
-use tokio_postgres::types::{BorrowToSql, ToSql, Type};
-use tokio_postgres::{Error, Row, Statement, ToStatement};
+use pgorm_driver::RowStream;
+use pgorm_driver::types::{BorrowToSql, ToSql, Type};
+use pgorm_driver::{Error, Row, Statement, ToStatement};
 
 use async_trait::async_trait;
 
@@ -18,7 +18,7 @@ mod private {
 /// A trait allowing abstraction over connections and transactions.
 ///
 /// This trait is "sealed", and cannot be implemented outside of this crate.
-// [spec:pgorm:def:conn.pool.generic-client]
+// [spec:pgorm:def:conn.pool.generic-client+1]
 #[async_trait]
 pub trait GenericClient: Sync + private::Sealed {
     /// Like `Client::execute`.
@@ -90,14 +90,14 @@ pub trait GenericClient: Sync + private::Sealed {
 
 impl private::Sealed for Client {}
 
-// [spec:pgorm:def:conn.pool.generic-client]    Client delegation
+// [spec:pgorm:def:conn.pool.generic-client+1]    Client delegation
 #[async_trait]
 impl GenericClient for Client {
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
-        tokio_postgres::Client::execute(self, query, params).await
+        pgorm_driver::Client::execute(self, query, params).await
     }
 
     async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
@@ -107,14 +107,14 @@ impl GenericClient for Client {
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator,
     {
-        tokio_postgres::Client::execute_raw(self, statement, params).await
+        pgorm_driver::Client::execute_raw(self, statement, params).await
     }
 
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
-        tokio_postgres::Client::query(self, query, params).await
+        pgorm_driver::Client::query(self, query, params).await
     }
 
     async fn query_one<T>(
@@ -125,7 +125,7 @@ impl GenericClient for Client {
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
-        tokio_postgres::Client::query_one(self, statement, params).await
+        pgorm_driver::Client::query_one(self, statement, params).await
     }
 
     async fn query_opt<T>(
@@ -136,7 +136,7 @@ impl GenericClient for Client {
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
-        tokio_postgres::Client::query_opt(self, statement, params).await
+        pgorm_driver::Client::query_opt(self, statement, params).await
     }
 
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
@@ -146,11 +146,11 @@ impl GenericClient for Client {
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator,
     {
-        tokio_postgres::Client::query_raw(self, statement, params).await
+        pgorm_driver::Client::query_raw(self, statement, params).await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
-        tokio_postgres::Client::prepare(self, query).await
+        pgorm_driver::Client::prepare(self, query).await
     }
 
     async fn prepare_typed(
@@ -158,7 +158,7 @@ impl GenericClient for Client {
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error> {
-        tokio_postgres::Client::prepare_typed(self, query, parameter_types).await
+        pgorm_driver::Client::prepare_typed(self, query, parameter_types).await
     }
 
     async fn prepare_cached(&self, query: &str) -> Result<Statement, Error> {
@@ -174,13 +174,13 @@ impl GenericClient for Client {
     }
 
     async fn batch_execute(&self, query: &str) -> Result<(), Error> {
-        tokio_postgres::Client::batch_execute(self, query).await
+        pgorm_driver::Client::batch_execute(self, query).await
     }
 }
 
 impl private::Sealed for Transaction<'_> {}
 
-// [spec:pgorm:def:conn.pool.generic-client]    Transaction delegation
+// [spec:pgorm:def:conn.pool.generic-client+1]    Transaction delegation
 #[async_trait]
 #[allow(clippy::needless_lifetimes)]
 impl GenericClient for Transaction<'_> {
@@ -188,7 +188,7 @@ impl GenericClient for Transaction<'_> {
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
-        tokio_postgres::Transaction::execute(&self.txn, query, params).await
+        pgorm_driver::Transaction::execute(&self.txn, query, params).await
     }
 
     async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
@@ -198,14 +198,14 @@ impl GenericClient for Transaction<'_> {
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator,
     {
-        tokio_postgres::Transaction::execute_raw(&self.txn, statement, params).await
+        pgorm_driver::Transaction::execute_raw(&self.txn, statement, params).await
     }
 
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
-        tokio_postgres::Transaction::query(&self.txn, query, params).await
+        pgorm_driver::Transaction::query(&self.txn, query, params).await
     }
 
     async fn query_one<T>(
@@ -216,7 +216,7 @@ impl GenericClient for Transaction<'_> {
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
-        tokio_postgres::Transaction::query_one(&self.txn, statement, params).await
+        pgorm_driver::Transaction::query_one(&self.txn, statement, params).await
     }
 
     async fn query_opt<T>(
@@ -227,7 +227,7 @@ impl GenericClient for Transaction<'_> {
     where
         T: ?Sized + ToStatement + Sync + Send,
     {
-        tokio_postgres::Transaction::query_opt(&self.txn, statement, params).await
+        pgorm_driver::Transaction::query_opt(&self.txn, statement, params).await
     }
 
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
@@ -237,11 +237,11 @@ impl GenericClient for Transaction<'_> {
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator,
     {
-        tokio_postgres::Transaction::query_raw(&self.txn, statement, params).await
+        pgorm_driver::Transaction::query_raw(&self.txn, statement, params).await
     }
 
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
-        tokio_postgres::Transaction::prepare(&self.txn, query).await
+        pgorm_driver::Transaction::prepare(&self.txn, query).await
     }
 
     async fn prepare_typed(
@@ -249,7 +249,7 @@ impl GenericClient for Transaction<'_> {
         query: &str,
         parameter_types: &[Type],
     ) -> Result<Statement, Error> {
-        tokio_postgres::Transaction::prepare_typed(&self.txn, query, parameter_types).await
+        pgorm_driver::Transaction::prepare_typed(&self.txn, query, parameter_types).await
     }
 
     async fn prepare_cached(&self, query: &str) -> Result<Statement, Error> {
@@ -266,6 +266,6 @@ impl GenericClient for Transaction<'_> {
     }
 
     async fn batch_execute(&self, query: &str) -> Result<(), Error> {
-        tokio_postgres::Transaction::batch_execute(&self.txn, query).await
+        pgorm_driver::Transaction::batch_execute(&self.txn, query).await
     }
 }

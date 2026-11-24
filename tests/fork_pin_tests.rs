@@ -658,3 +658,60 @@ fn no_manifest_or_lockfile_names_pg_query() {
     }
     assert!(found.is_empty(), "pg_query is retired: {found:?}");
 }
+
+// [spec:pgorm:req:conn.driver-source/test]
+#[test]
+fn every_driver_consumer_uses_the_vendored_crate_identity() {
+    let checkout = Checkout::read();
+    let retired = ["tokio-postgres", "tokio-postgres-rustls"];
+    let vendored = ["pgorm-driver", "pgorm-driver-rustls"];
+    for (path, manifest) in &checkout.manifests {
+        for dependency in declared_dependencies(manifest) {
+            assert!(
+                !retired.contains(&dependency.crate_name),
+                "{} declares the original driver {}",
+                checkout.relative(path),
+                dependency.crate_name,
+            );
+            if !vendored.contains(&dependency.crate_name) {
+                continue;
+            }
+            assert_eq!(dependency.key, dependency.crate_name);
+            if dependency.spec.get("workspace").and_then(Value::as_bool) == Some(true) {
+                continue;
+            }
+            let relative = dependency.field("path").unwrap_or_else(|| {
+                panic!(
+                    "{} must depend directly on the local {}",
+                    checkout.relative(path),
+                    dependency.crate_name,
+                )
+            });
+            let actual = std::fs::canonicalize(path.parent().unwrap().join(relative)).unwrap();
+            let expected = checkout.root.join("crates").join(dependency.crate_name);
+            assert_eq!(actual, expected, "{}", checkout.relative(path));
+        }
+    }
+    for (path, lock) in &checkout.lockfiles {
+        for package in lock
+            .get("package")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let name = package.get("name").and_then(Value::as_str).unwrap();
+            assert!(
+                !retired.contains(&name),
+                "{} still resolves {name}",
+                checkout.relative(path),
+            );
+            if vendored.contains(&name) {
+                assert!(
+                    package.get("source").is_none(),
+                    "{} resolves a non-local {name}",
+                    checkout.relative(path),
+                );
+            }
+        }
+    }
+}

@@ -17,8 +17,8 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, Schema, Sequence};
 use pgorm::{ConnectionTrait, TransactionTrait, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 /// An invoice's state: an enum type that lives in `billing`.
 mod invoice_state {

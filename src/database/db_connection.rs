@@ -7,12 +7,12 @@ use super::{
 };
 use crate::{ConnectionTrait, RetryableError, SqlText, TransactionError, error::*};
 use deadpool::Status;
-use pgorm_pool::{Object, Pool, Transaction};
-use tokio_postgres::{
+use pgorm_driver::{
     IsolationLevel, RowStream,
     error::SqlState,
     types::{BorrowToSql, ToSql},
 };
+use pgorm_pool::{Object, Pool, Transaction};
 
 /// Run a statement against the connection's statement cache, re-preparing it
 /// and running it again once if PostgreSQL rejects the cached plan.
@@ -99,7 +99,7 @@ macro_rules! cached_evict {
 /// the cost of one round trip on a call that was already failing, and inside
 /// one it costs an eviction that makes the next call parse the text again.
 // [spec:pgorm:req:conn.pool.statement-cache.invalidate+4]    the SQLSTATE that means "re-prepare"
-fn is_stale_cached_plan(error: &tokio_postgres::Error) -> bool {
+fn is_stale_cached_plan(error: &pgorm_driver::Error) -> bool {
     error.code() == Some(&SqlState::FEATURE_NOT_SUPPORTED)
 }
 
@@ -117,7 +117,7 @@ pub struct DatabasePool(pub(crate) Pool);
 /// Which pool a statement runs on is the caller's choice, made by tag:
 /// nothing here balances load across the pools or falls back from one to
 /// another.
-// [spec:pgorm:sem:conn.pool.multi+4]    tag-keyed accessor surface
+// [spec:pgorm:sem:conn.pool.multi+5]    tag-keyed accessor surface
 #[derive(Debug, Clone)]
 pub struct DatabaseMultiPool(pub(crate) BTreeMap<String, DatabasePool>);
 
@@ -175,7 +175,7 @@ pub struct DatabaseConnection(pub(crate) Object);
 /// `DEFERRABLE` is reachable only through [`TransactionMode::DeferrableSnapshot`],
 /// which carries the whole `SERIALIZABLE READ ONLY DEFERRABLE` combination,
 /// because that is the only one in which the server honours it.
-// [spec:pgorm:req:conn.tx+3]    transaction configuration
+// [spec:pgorm:req:conn.tx+4]    transaction configuration
 #[derive(Debug, Clone, Copy, Default)]
 #[doc(alias = "AccessMode")]
 pub enum TransactionMode {
@@ -217,7 +217,7 @@ pub(crate) trait OpenWith: Handle {
 }
 
 impl OpenWith for DatabaseConnection {
-    // [spec:pgorm:req:conn.tx+3]    configured START TRANSACTION on the pooled client
+    // [spec:pgorm:req:conn.tx+4]    configured START TRANSACTION on the pooled client
     async fn open_with(&mut self, mode: TransactionMode) -> Result<DatabaseTransaction<'_>, Error> {
         let mut builder = self.0.build_transaction();
 
@@ -373,7 +373,7 @@ enum Retryable<E> {
 /// What the closure returns ends it. A closure whose future is dropped before
 /// it finishes leaves this handle to roll back as it drops, which queues the
 /// `ROLLBACK` without awaiting the server's answer.
-// [spec:pgorm:sem:conn.tx.guard+4]
+// [spec:pgorm:sem:conn.tx.guard+5]
 #[derive(Debug)]
 pub struct DatabaseTransaction<'a>(pub(crate) Option<Transaction<'a>>);
 
@@ -400,7 +400,7 @@ impl<'a> DatabaseTransaction<'a> {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+4]    rollback-on-drop warning
+// [spec:pgorm:sem:conn.tx.guard+5]    rollback-on-drop warning
 impl Drop for DatabaseTransaction<'_> {
     fn drop(&mut self) {
         if self.0.is_some() {
@@ -440,7 +440,7 @@ impl ConnectionTrait for &DatabaseConnection {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<tokio_postgres::Row, Error>
+    ) -> Result<pgorm_driver::Row, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -454,7 +454,7 @@ impl ConnectionTrait for &DatabaseConnection {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<tokio_postgres::Row>, Error>
+    ) -> Result<Option<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -468,7 +468,7 @@ impl ConnectionTrait for &DatabaseConnection {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<tokio_postgres::Row>, Error>
+    ) -> Result<Vec<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -526,7 +526,7 @@ impl ConnectionTrait for &DatabaseConnection {
 /// });
 /// # let _ = writable;
 /// ```
-// [spec:pgorm:def:conn.pool.hook-connection]
+// [spec:pgorm:def:conn.pool.hook-connection+1]
 #[derive(Debug, Clone, Copy)]
 pub struct HookConnection<'a>(&'a pgorm_pool::ClientWrapper);
 
@@ -537,7 +537,7 @@ impl<'a> HookConnection<'a> {
     }
 }
 
-// [spec:pgorm:def:conn.pool.hook-connection]    the cache-routing impl
+// [spec:pgorm:def:conn.pool.hook-connection+1]    the cache-routing impl
 // [spec:pgorm:def:conn.pool.conn-trait+10]
 #[async_trait::async_trait]
 impl ConnectionTrait for HookConnection<'_> {
@@ -568,7 +568,7 @@ impl ConnectionTrait for HookConnection<'_> {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<tokio_postgres::Row, Error>
+    ) -> Result<pgorm_driver::Row, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -582,7 +582,7 @@ impl ConnectionTrait for HookConnection<'_> {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<tokio_postgres::Row>, Error>
+    ) -> Result<Option<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -596,7 +596,7 @@ impl ConnectionTrait for HookConnection<'_> {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<tokio_postgres::Row>, Error>
+    ) -> Result<Vec<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -656,7 +656,7 @@ impl ConnectionTrait for DatabaseConnection {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<tokio_postgres::Row, Error>
+    ) -> Result<pgorm_driver::Row, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -670,7 +670,7 @@ impl ConnectionTrait for DatabaseConnection {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<tokio_postgres::Row>, Error>
+    ) -> Result<Option<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -684,7 +684,7 @@ impl ConnectionTrait for DatabaseConnection {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<tokio_postgres::Row>, Error>
+    ) -> Result<Vec<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -694,7 +694,7 @@ impl ConnectionTrait for DatabaseConnection {
             .await)
     }
 
-    // [spec:pgorm:def:exec.stream+2]    pooled-client row stream
+    // [spec:pgorm:def:exec.stream+3]    pooled-client row stream
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
@@ -745,7 +745,7 @@ impl ConnectionTrait for DatabaseTransaction<'_> {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<tokio_postgres::Row, Error>
+    ) -> Result<pgorm_driver::Row, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -759,7 +759,7 @@ impl ConnectionTrait for DatabaseTransaction<'_> {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<tokio_postgres::Row>, Error>
+    ) -> Result<Option<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -773,7 +773,7 @@ impl ConnectionTrait for DatabaseTransaction<'_> {
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<tokio_postgres::Row>, Error>
+    ) -> Result<Vec<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
     {
@@ -783,7 +783,7 @@ impl ConnectionTrait for DatabaseTransaction<'_> {
             .await)
     }
 
-    // [spec:pgorm:def:exec.stream+2]    in-transaction row stream
+    // [spec:pgorm:def:exec.stream+3]    in-transaction row stream
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,

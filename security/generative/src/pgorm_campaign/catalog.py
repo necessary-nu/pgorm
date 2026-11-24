@@ -34,7 +34,7 @@ OPERATIONS = {
         "value",
         {},
         {"step": "id", "row": "nonnegative", "column": "identifier", "type": "type"},
-        "tokio_postgres::Row::try_get",
+        "pgorm_driver::Row::try_get",
         "sequences",
     ),
     "table": op(
@@ -713,7 +713,7 @@ EFFECTS = {
         "rows",
         {"query": "select|raw|pipeline"},
         {"take": "nonnegative", "cancel": "bool", "ordered": "bool"},
-        "pgorm::ConnectionTrait::query_raw;tokio_postgres::RowStream",
+        "pgorm::ConnectionTrait::query_raw;pgorm_driver::RowStream",
         "sequences",
     ),
     "inspect": op(

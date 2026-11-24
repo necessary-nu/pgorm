@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
-  "cargo_lock_sha256": "d01dd22844618366f213cf7c5201ab861c6fe381da86748bfc52fb36b89ba530",
+  "cargo_lock_sha256": "b4ba42ae25b4d23cac593e4a1d2df26ade01b81fb9e62d5f12acc20781aaa744",
   "python_runtime_dependencies": [],
   "packages": [
     {
@@ -2493,6 +2493,40 @@
       ]
     },
     {
+      "name": "pgorm-driver",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/necessary-nu/pgorm",
+      "source": "pgorm workspace",
+      "notices": [
+        {
+          "source": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "source": "LICENSE-MIT",
+          "sha256": "4d033ae2577fa5055e26ed7e4aa3b885522f20570d18366bbc0178e0ddc19e0f"
+        },
+        {
+          "source": "LICENSE-POSTGRESQL",
+          "sha256": "5398c4ce0bab6cf56657c6b60cb1a07d99e3011a601a3d273e1851c1d7fde192"
+        }
+      ]
+    },
+    {
+      "name": "pgorm-driver-rustls",
+      "version": "0.2.0",
+      "license": "MIT",
+      "repository": "https://github.com/necessary-nu/pgorm",
+      "source": "pgorm workspace",
+      "notices": [
+        {
+          "source": "LICENSE",
+          "sha256": "66765d2624face69f976e3346c44e8c7fb2b2f4bce60182cf5a4c9fd83a79311"
+        }
+      ]
+    },
+    {
       "name": "pgorm-macros",
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0",
@@ -4395,36 +4429,6 @@
         {
           "source": "LICENSE",
           "sha256": "0b83dc40cba89b9922bb84b0a9c7d2768ce37c1d7e138b7424fd4549915778c9"
-        }
-      ]
-    },
-    {
-      "name": "tokio-postgres",
-      "version": "0.7.18",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/rust-postgres/rust-postgres",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "source": "LICENSE-MIT",
-          "sha256": "4d033ae2577fa5055e26ed7e4aa3b885522f20570d18366bbc0178e0ddc19e0f"
-        }
-      ]
-    },
-    {
-      "name": "tokio-postgres-rustls",
-      "version": "0.14.0",
-      "license": "MIT",
-      "repository": "https://github.com/jbg/tokio-postgres-rustls",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notices": [
-        {
-          "source": "LICENSE",
-          "sha256": "66765d2624face69f976e3346c44e8c7fb2b2f4bce60182cf5a4c9fd83a79311"
         }
       ]
     },

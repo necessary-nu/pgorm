@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use neon::prelude::*;
 use pgorm::QueryResult;
 use pgorm_bindings::entity::{DisjointCore, RowCodec};
-use tokio_postgres::Row;
+use pgorm_driver::Row;
 
 use crate::{
     codec::Codec,

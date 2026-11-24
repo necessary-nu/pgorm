@@ -10,12 +10,12 @@ use std::{
 };
 
 use futures::{TryStreamExt, future, pin_mut};
-use serde::{Deserialize, Serialize};
-use tokio_postgres::{
+use pgorm_driver::{
     IsolationLevel,
     error::SqlState,
     types::{ToSql, Type},
 };
+use serde::{Deserialize, Serialize};
 
 use pgorm_pool::{
     Client, ClientWrapper, GenericClient, ManagerConfig, Object, Pool, PoolConfig, RecyclingMethod,
@@ -43,7 +43,7 @@ fn test_config() -> pgorm_pool::Config {
 }
 
 fn create_pool() -> Pool {
-    test_config().create_pool(tokio_postgres::NoTls).unwrap()
+    test_config().create_pool(pgorm_driver::NoTls).unwrap()
 }
 
 /// A pool capped at a single connection, so every checkout after the first is
@@ -57,7 +57,7 @@ fn single_connection_pool(recycling_method: RecyclingMethod) -> Pool {
         statement_cache_channel: None,
     });
     cfg.pool = Some(PoolConfig::new(1));
-    cfg.create_pool(tokio_postgres::NoTls).unwrap()
+    cfg.create_pool(pgorm_driver::NoTls).unwrap()
 }
 
 /// A pool whose connections cache statements under `statement_cache`.
@@ -69,7 +69,7 @@ fn cache_size_pool(statement_cache: StatementCacheSize) -> Pool {
         statement_cache,
         statement_cache_channel: None,
     });
-    cfg.create_pool(tokio_postgres::NoTls).unwrap()
+    cfg.create_pool(pgorm_driver::NoTls).unwrap()
 }
 
 /// How many server-side prepared statements the current database session
@@ -94,7 +94,7 @@ async fn session_setting(client: &Client, name: &str) -> String {
         .get(0)
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    prepare_cached inserts on a miss and the statement is usable
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    prepare_cached inserts on a miss and the statement is usable
 #[tokio::test]
 async fn basic() {
     let pool = create_pool();
@@ -106,7 +106,7 @@ async fn basic() {
     assert_eq!(client.statement_cache.size(), 1);
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    prepare_typed_cached binds the declared parameter types
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    prepare_typed_cached binds the declared parameter types
 #[tokio::test]
 async fn prepare_typed_cached() {
     let pool = create_pool();
@@ -131,7 +131,7 @@ async fn prepare_typed_error() {
     assert!(client.query(&stmt, &[&42i32]).await.is_err());
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    a statement cached inside a transaction lands in the client's cache
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    a statement cached inside a transaction lands in the client's cache
 #[tokio::test]
 async fn transaction_1() {
     let pool = create_pool();
@@ -147,7 +147,7 @@ async fn transaction_1() {
     assert_eq!(client.statement_cache.size(), 1);
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    a statement cached on the client is reusable inside its transaction
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    a statement cached on the client is reusable inside its transaction
 #[tokio::test]
 async fn transaction_2() {
     let pool = create_pool();
@@ -227,7 +227,7 @@ async fn recycling_methods() {
             statement_cache: StatementCacheSize::default(),
             statement_cache_channel: None,
         });
-        let pool = cfg.create_pool(tokio_postgres::NoTls).unwrap();
+        let pool = cfg.create_pool(pgorm_driver::NoTls).unwrap();
         for _ in 0usize..20usize {
             let client = pool.get().await.unwrap();
             let rows = client.query("SELECT 1 + 2", &[]).await.unwrap();
@@ -237,11 +237,11 @@ async fn recycling_methods() {
     }
 }
 
-fn _use_generic_client(_client: &impl tokio_postgres::GenericClient) {
+fn _use_generic_client(_client: &impl pgorm_driver::GenericClient) {
     // nop
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    per-connection clear()
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    per-connection clear()
 #[tokio::test]
 async fn statement_cache_clear() {
     let pool = create_pool();
@@ -253,8 +253,8 @@ async fn statement_cache_clear() {
     assert!(client.statement_cache.size() == 0);
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    the manager-level registry clears every live cache
-// [spec:pgorm:sem:conn.pool.lifecycle+3/test]    each created connection gets a fresh cache, registered with the manager
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    the manager-level registry clears every live cache
+// [spec:pgorm:sem:conn.pool.lifecycle+4/test]    each created connection gets a fresh cache, registered with the manager
 #[tokio::test]
 async fn statement_caches_clear() {
     let pool = create_pool();
@@ -274,7 +274,7 @@ async fn statement_caches_clear() {
     assert!(client1.statement_cache.size() == 0);
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    an idle connection is cleared, on the client
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    an idle connection is cleared, on the client
 // and the server, before it is next lent
 #[tokio::test]
 async fn clear_before_reuse_clears_an_idle_connection() {
@@ -297,7 +297,7 @@ async fn clear_before_reuse_clears_an_idle_connection() {
     );
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    a connection checked out at the clear keeps
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    a connection checked out at the clear keeps
 // its statements until it is returned, and is cleared before it is lent again
 #[tokio::test]
 async fn clear_before_reuse_waits_for_a_return() {
@@ -318,7 +318,7 @@ async fn clear_before_reuse_waits_for_a_return() {
     assert_eq!(prepared_count(&client, PROBE).await, 0);
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    a connection created after a clear is not
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    a connection created after a clear is not
 // cleared by it, and one several clears behind is cleared once
 #[tokio::test]
 async fn clear_before_reuse_clears_each_connection_once() {
@@ -351,7 +351,7 @@ async fn clear_before_reuse_clears_each_connection_once() {
     );
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+3/test]    dropping a ClientWrapper aborts its connection task
+// [spec:pgorm:sem:conn.pool.lifecycle+4/test]    dropping a ClientWrapper aborts its connection task
 #[tokio::test]
 async fn client_wrapper_drop_aborts_conn_task() {
     struct AbortWitness(Arc<AtomicBool>);
@@ -363,7 +363,7 @@ async fn client_wrapper_drop_aborts_conn_task() {
     }
 
     let (client, connection) =
-        tokio_postgres::connect(&format!("{}/postgres", base_url()), tokio_postgres::NoTls)
+        pgorm_driver::connect(&format!("{}/postgres", base_url()), pgorm_driver::NoTls)
             .await
             .unwrap();
     let _driver = tokio::spawn(async move {
@@ -400,7 +400,7 @@ async fn client_wrapper_drop_aborts_conn_task() {
     );
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+3/test]    recycle refuses a client whose is_closed() is true
+// [spec:pgorm:sem:conn.pool.lifecycle+4/test]    recycle refuses a client whose is_closed() is true
 #[tokio::test]
 async fn recycle_rejects_closed_connection() {
     let pool = single_connection_pool(RecyclingMethod::Fast);
@@ -453,7 +453,7 @@ async fn recycle_rejects_closed_connection() {
     );
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+3/test]    detach unregisters the connection's statement cache
+// [spec:pgorm:sem:conn.pool.lifecycle+4/test]    detach unregisters the connection's statement cache
 #[tokio::test]
 async fn detach_unregisters_statement_cache() {
     let pool = create_pool();
@@ -573,7 +573,7 @@ async fn recycle_custom_discard_all_deallocates() {
     );
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    the cache key is (query text, parameter types)
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    the cache key is (query text, parameter types)
 #[tokio::test]
 async fn statement_cache_keys_include_param_types() {
     const SQL: &str = "SELECT $1::int8";
@@ -617,7 +617,7 @@ async fn statement_cache_keys_include_param_types() {
     assert_eq!(client.statement_cache.size(), 0);
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.bound+1/test]    the default bound
+// [spec:pgorm:req:conn.pool.statement-cache.bound+2/test]    the default bound
 #[test]
 fn statement_cache_is_bounded_by_default() {
     assert_eq!(
@@ -626,7 +626,7 @@ fn statement_cache_is_bounded_by_default() {
     );
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.bound+1/test]    a full cache evicts to make room
+// [spec:pgorm:req:conn.pool.statement-cache.bound+2/test]    a full cache evicts to make room
 #[tokio::test]
 async fn bounded_cache_evicts_to_make_room() {
     let pool = cache_size_pool(StatementCacheSize::Bounded(
@@ -652,7 +652,7 @@ async fn bounded_cache_evicts_to_make_room() {
     );
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.bound+1/test]    Disabled prepares afresh every time
+// [spec:pgorm:req:conn.pool.statement-cache.bound+2/test]    Disabled prepares afresh every time
 #[tokio::test]
 async fn disabled_cache_stores_nothing() {
     const SQL: &str = "SELECT 'uncacheable'";
@@ -673,7 +673,7 @@ async fn disabled_cache_stores_nothing() {
     drop((first, second));
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    a hit returns the cached statement without preparing again
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    a hit returns the cached statement without preparing again
 #[tokio::test]
 async fn statement_cache_hit_avoids_reparse() {
     const CACHED: &str = "SELECT 'cached-parse'";
@@ -700,7 +700,7 @@ async fn statement_cache_hit_avoids_reparse() {
     drop((first, second, third, fourth));
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    the registry removes one statement across every live cache
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    the registry removes one statement across every live cache
 #[tokio::test]
 async fn statement_caches_remove_one_statement() {
     let pool = create_pool();
@@ -721,7 +721,7 @@ async fn statement_caches_remove_one_statement() {
     assert!(client0.statement_cache.remove("SELECT 2;", &[]).is_some());
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    tokio-postgres's own statement paths never consult it
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    tokio-postgres's own statement paths never consult it
 #[tokio::test]
 async fn plain_query_bypasses_statement_cache() {
     let pool = create_pool();
@@ -742,7 +742,7 @@ async fn plain_query_bypasses_statement_cache() {
     );
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    nested transactions and savepoints share the owning client's cache
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    nested transactions and savepoints share the owning client's cache
 #[tokio::test]
 async fn savepoint_shares_client_statement_cache() {
     let pool = create_pool();
@@ -788,7 +788,7 @@ const HOSTILE_SAVEPOINT_NAMES: &[&str] = &[
     "Mixed Case Point",
 ];
 
-// [spec:pgorm:req:conn.pool.savepoint-name+3/test]    a savepoint name is an
+// [spec:pgorm:req:conn.pool.savepoint-name+4/test]    a savepoint name is an
 // identifier, not SQL: a name holding a statement terminator names a savepoint
 // that releases and rolls back normally, and the table it tried to drop lives
 #[tokio::test]
@@ -877,7 +877,7 @@ async fn savepoint_name_cannot_smuggle_sql() {
         .unwrap();
 }
 
-// [spec:pgorm:req:conn.pool.savepoint-name+3/test]    a NUL byte is refused
+// [spec:pgorm:req:conn.pool.savepoint-name+4/test]    a NUL byte is refused
 // client-side, and the transaction it was asked of is still usable
 #[tokio::test]
 async fn savepoint_name_with_a_nul_is_refused() {
@@ -906,7 +906,7 @@ async fn savepoint_name_with_a_nul_is_refused() {
 }
 
 /// Exercises the whole `GenericClient` surface that delegates to
-/// `tokio_postgres`, so it can be run against both implementors.
+/// `pgorm_driver`, so it can be run against both implementors.
 async fn exercise_generic_client<C>(client: &C)
 where
     C: GenericClient,
@@ -959,7 +959,7 @@ where
     client.batch_execute("SELECT 1; SELECT 2;").await.unwrap();
 }
 
-// [spec:pgorm:def:conn.pool.generic-client/test]    one statement surface over both implementors, Client and Transaction
+// [spec:pgorm:def:conn.pool.generic-client+1/test]    one statement surface over both implementors, Client and Transaction
 #[tokio::test]
 async fn generic_client_covers_client_and_txn() {
     let pool = create_pool();
@@ -1003,7 +1003,7 @@ async fn generic_client_covers_client_and_txn() {
     txn.commit().await.unwrap();
 }
 
-// [spec:pgorm:def:conn.pool.generic-client/test]    cached prepares route through the wrapper types onto one shared cache
+// [spec:pgorm:def:conn.pool.generic-client+1/test]    cached prepares route through the wrapper types onto one shared cache
 #[tokio::test]
 async fn generic_client_cached_prepare_shares_cache() {
     let pool = create_pool();
@@ -1095,7 +1095,7 @@ fn config_from_env() {
     env.set("ENV_TEST__PG__POOL__TIMEOUTS__RECYCLE__SECS", "3");
     env.set("ENV_TEST__PG__POOL__TIMEOUTS__RECYCLE__NANOS", "0");
     let cfg = EnvConfig::from_env_with_prefix("ENV_TEST");
-    // `tokio_postgres::Config` does not provide any read access to its
+    // `pgorm_driver::Config` does not provide any read access to its
     // internals, so we can only check if the environment was actually read
     // correctly.
     assert_eq!(cfg.pg.host, Some("pg.example.com".to_string()));
@@ -1122,7 +1122,7 @@ fn config_url() {
         assert_eq!(pg_cfg.get_user(), Some("zombie"));
         assert_eq!(
             pg_cfg.get_hosts(),
-            &[tokio_postgres::config::Host::Tcp("localhost".into())]
+            &[pgorm_driver::config::Host::Tcp("localhost".into())]
         );
     }
     // now apply some overrides
@@ -1136,8 +1136,8 @@ fn config_url() {
         assert_eq!(
             pg_cfg.get_hosts(),
             &[
-                tokio_postgres::config::Host::Tcp("localhost".into()),
-                tokio_postgres::config::Host::Tcp("remotehost".into()),
+                pgorm_driver::config::Host::Tcp("localhost".into()),
+                pgorm_driver::config::Host::Tcp("remotehost".into()),
             ]
         );
     }

@@ -87,7 +87,7 @@ pub use rust_decimal::Decimal;
 #[cfg(feature = "with-uuid")]
 pub use uuid::Uuid;
 
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 pub use crate::pgorm_query::{IpNetwork, MacAddress, Vector};
 
 // [spec:pgorm:req:exec.decode.interval+1]
@@ -99,5 +99,5 @@ pub use crate::pgorm_query::Interval;
 // [spec:pgorm:def:entity.prelude+12]
 pub use crate::pgorm_query::{IntervalPrecision, IntervalSpec, PgInterval};
 
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 pub use crate::pgorm_query::{Multirange, Range, RangeType};

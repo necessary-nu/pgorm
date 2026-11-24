@@ -7,8 +7,8 @@ use pgorm_bindings::entity::{
     Active, EntityBackend, GraphQuery, Insertion, Insertions, Model, Read as Terminal,
     Row as GraphRow, Select, Selected, VersionWrite, Versions, Write, Written,
 };
+use pgorm_driver::{Row, types::ToSql};
 use pgorm_migration::MigratorTrait;
-use tokio_postgres::{Row, types::ToSql};
 
 pub(crate) enum Work {
     Execute(Compiled),

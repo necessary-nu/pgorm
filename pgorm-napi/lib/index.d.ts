@@ -466,7 +466,7 @@ export declare class Value {
 
 // [spec:pgorm:req:napi.lifecycle+3]
 /** How a {@link Pool} connects. Durations are in milliseconds. */
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 /**
  * How a connection uses TLS, named as libpq's `sslmode` names it:
  * `"verify-full"` verifies the server's certificate chain and host name;
@@ -477,7 +477,7 @@ export declare class Value {
  */
 export type TlsMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full";
 
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 /** How a pool or a listener of its own reaches its server, and over what TLS. */
 export interface ConnectionOptions {
   /**

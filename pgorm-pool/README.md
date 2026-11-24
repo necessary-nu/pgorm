@@ -3,9 +3,9 @@
 pgorm's connection pool: a vendored fork of
 [deadpool-postgres](https://crates.io/crates/deadpool-postgres), the
 [`deadpool`](https://crates.io/crates/deadpool) manager for
-[`tokio-postgres`](https://crates.io/crates/tokio-postgres). It pools
+[`pgorm-driver`](../crates/pgorm-driver). It pools
 connections and provides a statement cache by wrapping
-`tokio_postgres::Client` and `tokio_postgres::Transaction`, so repeated
+`pgorm_driver::Client` and `pgorm_driver::Transaction`, so repeated
 SQL is prepared once per connection and reused.
 
 Most applications don't touch this crate directly: `pgorm::connect` builds
@@ -24,7 +24,7 @@ fork tracks pgorm's requirements, not upstream deadpool's release cadence.
 
 ```rust,ignore
 use pgorm_pool::{Config, Runtime};
-use tokio_postgres::NoTls;
+use pgorm_driver::NoTls;
 
 let mut cfg = Config::new();
 cfg.dbname = Some("app".to_string());

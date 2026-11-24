@@ -6,11 +6,11 @@ use pgorm::{
     CopyColumn,
     pgorm_query::{ArrayType, Interval, Value, Vector},
 };
-use pyo3::prelude::*;
-use tokio_postgres::{
+use pgorm_driver::{
     Row,
     types::{FromSql, Kind, Type},
 };
+use pyo3::prelude::*;
 use uuid::Uuid;
 
 use super::codecs::{CheckedArray, EnumLabel, Inet, Mac};

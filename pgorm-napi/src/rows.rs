@@ -2,7 +2,7 @@
 //! object keyed by column name.
 
 use neon::prelude::*;
-use tokio_postgres::Row;
+use pgorm_driver::Row;
 
 use crate::{
     codec::Codec,

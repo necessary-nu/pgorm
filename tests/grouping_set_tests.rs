@@ -24,7 +24,7 @@ use pgorm::pgorm_query::{
     SimpleExpr,
 };
 use pgorm::{ConnectionTrait, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 /// Four sales: three regions once NULL counts as one, two products, and a
 /// grand total of 100.

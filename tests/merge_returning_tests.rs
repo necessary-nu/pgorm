@@ -21,7 +21,7 @@ use pgorm::pgorm_query::{
     WithClause,
 };
 use pgorm::{ConnectionTrait, ValueHolder, entity::prelude::*, types::ToSql};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {
@@ -79,7 +79,7 @@ async fn stock(db: &DatabaseConnection) -> Result<Vec<(i32, i32, Option<String>)
 async fn rows(
     db: &DatabaseConnection,
     (sql, values): (String, Values),
-) -> Result<Vec<tokio_postgres::Row>, Error> {
+) -> Result<Vec<pgorm_driver::Row>, Error> {
     let holders: Vec<ValueHolder> = values.into_iter().map(ValueHolder).collect();
     let params: Vec<&(dyn ToSql + Sync)> =
         holders.iter().map(|v| v as &(dyn ToSql + Sync)).collect();

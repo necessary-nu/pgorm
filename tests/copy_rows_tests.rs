@@ -24,8 +24,8 @@ use pgorm::{
     },
     types::{Kind, Type},
 };
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 fn n(name: &str) -> Name {
     Name::runtime(name)
@@ -1238,7 +1238,7 @@ async fn copy_rows_created_multiranges_round_trip() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:exec.cursor.binding-range+3/test]    the text a COPY reads binds as a
+// [spec:pgorm:req:exec.cursor.binding-range+4/test]    the text a COPY reads binds as a
 // parameter cast to the multirange, as the ORM writes it; a placeholder the server types as
 // the multirange arrives with no subtype, so a String bound to it is refused, never guessed
 #[pgorm_macros::test]

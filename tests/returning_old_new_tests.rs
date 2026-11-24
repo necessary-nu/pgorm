@@ -20,7 +20,7 @@ use pgorm::pgorm_query::{
     ReturningRow, UpdateStatement, Values, alias,
 };
 use pgorm::{ConnectionTrait, ValueHolder, entity::prelude::*, types::ToSql};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {

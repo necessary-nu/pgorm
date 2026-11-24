@@ -845,7 +845,7 @@ pub async fn logging_metrics_emits_expected_levels() {
 
 // [spec:pgorm:def:metric.layer+3/test]    three wrappers, their inner()/metrics() accessors, and the pool's
 // tag()/status()/clear_statement_caches()
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    the instrumented pool clears the pool it wraps
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    the instrumented pool clears the pool it wraps
 #[pgorm_macros::test]
 pub async fn wrappers_expose_inner_and_metrics() -> Result<(), Error> {
     fn assert_collector_bounds<M: MetricsCollector>() {
@@ -923,7 +923,7 @@ pub async fn wrappers_expose_inner_and_metrics() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.sql-text+2/test]    what each statement form answers
+// [spec:pgorm:def:conn.sql-text+3/test]    what each statement form answers
 #[pgorm_macros::test]
 pub async fn sql_text_answers_with_the_statement_text() {
     let owned = "SELECT id FROM widget WHERE id = $1".to_owned();

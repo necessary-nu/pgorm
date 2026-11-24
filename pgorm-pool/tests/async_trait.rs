@@ -2,11 +2,11 @@
 // See: https://github.com/bikeshedder/deadpool/issues/323
 
 use futures_util::{Stream, StreamExt};
-use pgorm_pool::{GenericClient, tokio_postgres::Row};
+use pgorm_driver::types::ToSql;
+use pgorm_pool::{GenericClient, pgorm_driver::Row};
 use std::future::Future;
-use tokio_postgres::types::ToSql;
 
-// this function borrowed from tokio_postgres source code
+// this function borrowed from pgorm_driver source code
 fn slice_iter<'a>(
     s: &'a [&'a (dyn ToSql + Sync)],
 ) -> impl ExactSizeIterator<Item = &'a dyn ToSql> + 'a {

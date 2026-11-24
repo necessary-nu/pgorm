@@ -44,20 +44,20 @@ use bytes::Buf;
 use cache_listener::CacheListener;
 use config::Tag;
 use deadpool::managed;
+use pgorm_driver::{
+    Client as PgClient, Config as PgConfig, CopyInSink, Error, Statement, ToStatement, types::Type,
+};
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::spawn;
 use tokio::task::JoinHandle;
-use tokio_postgres::{
-    Client as PgClient, Config as PgConfig, CopyInSink, Error, Statement, ToStatement, types::Type,
-};
 
 #[cfg(not(target_arch = "wasm32"))]
-use tokio_postgres::{
+use pgorm_driver::{
     Socket,
     tls::{MakeTlsConnect, TlsConnect},
 };
 
-pub use tokio_postgres;
+pub use pgorm_driver;
 
 pub use self::config::{
     ChannelBinding, Config, ConfigError, LoadBalanceHosts, ManagerConfig, RecyclingMethod, SslMode,
@@ -71,7 +71,7 @@ pub use self::transaction::{CommitError, Transaction, TransactionBuilder};
 
 pub use deadpool::managed::reexports::*;
 deadpool::managed_reexports!(
-    "tokio_postgres",
+    "pgorm_driver",
     Manager,
     managed::Object<Manager>,
     Error,
@@ -107,9 +107,9 @@ pub struct Manager {
 
 impl Manager {
     #[cfg(not(target_arch = "wasm32"))]
-    /// Creates a new [`Manager`] using the given [`tokio_postgres::Config`] and
+    /// Creates a new [`Manager`] using the given [`pgorm_driver::Config`] and
     /// `tls` connector.
-    pub fn new<T>(pg_config: tokio_postgres::Config, tls: T) -> Self
+    pub fn new<T>(pg_config: pgorm_driver::Config, tls: T) -> Self
     where
         T: MakeTlsConnect<Socket> + Clone + Sync + Send + 'static,
         T::Stream: Sync + Send,
@@ -120,9 +120,9 @@ impl Manager {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    /// Create a new [`Manager`] using the given [`tokio_postgres::Config`], and
+    /// Create a new [`Manager`] using the given [`pgorm_driver::Config`], and
     /// `tls` connector and [`ManagerConfig`].
-    pub fn from_config<T>(pg_config: tokio_postgres::Config, tls: T, config: ManagerConfig) -> Self
+    pub fn from_config<T>(pg_config: pgorm_driver::Config, tls: T, config: ManagerConfig) -> Self
     where
         T: MakeTlsConnect<Socket> + Clone + Sync + Send + 'static,
         T::Stream: Sync + Send,
@@ -132,10 +132,10 @@ impl Manager {
         Self::from_connect(pg_config, ConfigConnectImpl { tls }, config)
     }
 
-    /// Create a new [`Manager`] using the given [`tokio_postgres::Config`], and
+    /// Create a new [`Manager`] using the given [`pgorm_driver::Config`], and
     /// `connect` impl and [`ManagerConfig`].
     pub fn from_connect(
-        pg_config: tokio_postgres::Config,
+        pg_config: pgorm_driver::Config,
         connect: impl Connect + 'static,
         config: ManagerConfig,
     ) -> Self {
@@ -164,7 +164,7 @@ impl Manager {
     /// outside the pool: it is not counted against the pool's size, gets no
     /// statement cache and is never recycled, and its I/O half is returned
     /// undriven (see [`Connect::connect_raw`]).
-    // [spec:pgorm:req:conn.listen]    a pool's listener connects as its connections do
+    // [spec:pgorm:req:conn.listen+1]    a pool's listener connects as its connections do
     pub async fn connect_raw(&self) -> Result<Unpooled, Error> {
         self.connect.connect_raw(&self.pg_config).await
     }
@@ -217,7 +217,7 @@ impl fmt::Debug for Manager {
     }
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+3]    create/recycle/detach
+// [spec:pgorm:sem:conn.pool.lifecycle+4]    create/recycle/detach
 impl managed::Manager for Manager {
     type Type = ClientWrapper;
     type Error = Error;
@@ -258,9 +258,9 @@ impl managed::Manager for Manager {
 }
 
 /// Describes a mechanism for establishing a connection to a PostgreSQL
-/// server via `tokio_postgres`.
+/// server via `pgorm_driver`.
 pub trait Connect: Sync + Send {
-    /// Establishes a new `tokio_postgres` connection, returning
+    /// Establishes a new `pgorm_driver` connection, returning
     /// the associated `Client` and a `JoinHandle` to a tokio task
     /// for processing the connection.
     fn connect(
@@ -268,7 +268,7 @@ pub trait Connect: Sync + Send {
         pg_config: &PgConfig,
     ) -> BoxFuture<'_, Result<(PgClient, JoinHandle<()>), Error>>;
 
-    /// Establishes a new `tokio_postgres` connection and returns its I/O half
+    /// Establishes a new `pgorm_driver` connection and returns its I/O half
     /// undriven, for an owner that polls it itself to see the asynchronous
     /// messages a spawned connection task discards.
     fn connect_raw(&self, pg_config: &PgConfig) -> BoxFuture<'_, Result<Unpooled, Error>>;
@@ -276,7 +276,7 @@ pub trait Connect: Sync + Send {
 
 #[cfg(not(target_arch = "wasm32"))]
 /// Provides an implementation of [`Connect`] that establishes the connection
-/// using the `tokio_postgres` configuration itself.
+/// using the `pgorm_driver` configuration itself.
 #[derive(Debug)]
 pub struct ConfigConnectImpl<T>
 where
@@ -327,7 +327,7 @@ where
 
 /// Structure holding a reference to all [`StatementCache`]s and providing
 /// access for clearing all caches and removing single statements from them.
-// [spec:pgorm:sem:conn.pool.statement-cache+3]    manager-level registry
+// [spec:pgorm:sem:conn.pool.statement-cache+4]    manager-level registry
 #[derive(Default, Debug)]
 pub struct StatementCaches {
     caches: Mutex<Vec<Weak<StatementCache>>>,
@@ -380,7 +380,7 @@ impl StatementCaches {
     ///
     /// Call it after DDL that changes what a cached plan depends on: PostgreSQL
     /// re-plans most such changes itself, but not a domain's default.
-    // [spec:pgorm:req:conn.pool.statement-cache.clear+1]    bump the generation
+    // [spec:pgorm:req:conn.pool.statement-cache.clear+2]    bump the generation
     pub fn clear_before_reuse(&self) {
         cache_listener::advance(&self.generation);
     }
@@ -389,7 +389,7 @@ impl StatementCaches {
     /// has been asked for since it was last cleared. Called only while the
     /// pool holds the connection idle, so no statement of its owner's can be
     /// mid-preparation.
-    // [spec:pgorm:req:conn.pool.statement-cache.clear+1]    an idle connection catches up before it is lent
+    // [spec:pgorm:req:conn.pool.statement-cache.clear+2]    an idle connection catches up before it is lent
     fn bring_up_to_date(&self, client: &mut ClientWrapper) {
         let current = self.generation.load(Ordering::Acquire);
         if client.cache_generation != current {
@@ -446,7 +446,7 @@ struct StatementCacheKey<'a> {
 /// Normally, you probably want to use the [`ClientWrapper::prepare_cached()`]
 /// and [`ClientWrapper::prepare_typed_cached()`] methods instead (or the
 /// similar ones on [`Transaction`]).
-// [spec:pgorm:sem:conn.pool.statement-cache+3]
+// [spec:pgorm:sem:conn.pool.statement-cache+4]
 pub struct StatementCache {
     map: RwLock<HashMap<StatementCacheKey<'static>, Statement>>,
     size: AtomicUsize,
@@ -513,7 +513,7 @@ impl StatementCache {
     /// recently used: recency would have to be written on every lookup, turning
     /// the read lock a cache hit takes today into an exclusive one. What the
     /// bound is for is stopping unbounded growth, and any victim achieves that.
-    // [spec:pgorm:req:conn.pool.statement-cache.bound+1]    evict one to make room
+    // [spec:pgorm:req:conn.pool.statement-cache.bound+2]    evict one to make room
     fn insert(&self, query: &str, types: &[Type], stmt: Statement) {
         let Some(capacity) = self.capacity.limit() else {
             return;
@@ -543,7 +543,7 @@ impl StatementCache {
     /// Creates a new prepared [`Statement`] using this [`StatementCache`], if
     /// possible.
     ///
-    /// See [`tokio_postgres::Client::prepare()`].
+    /// See [`pgorm_driver::Client::prepare()`].
     pub async fn prepare(&self, client: &PgClient, query: &str) -> Result<Statement, Error> {
         self.prepare_typed(client, query, &[]).await
     }
@@ -552,10 +552,10 @@ impl StatementCache {
     /// explicitly using this [`StatementCache`], if possible.
     ///
     /// Under [`StatementCacheSize::Disabled`] nothing is stored or looked up,
-    /// so this is [`tokio_postgres::Client::prepare_typed()`] itself.
+    /// so this is [`pgorm_driver::Client::prepare_typed()`] itself.
     ///
-    /// See [`tokio_postgres::Client::prepare_typed()`].
-    // [spec:pgorm:req:conn.pool.statement-cache.bound+1]    Disabled prepares afresh
+    /// See [`pgorm_driver::Client::prepare_typed()`].
+    // [spec:pgorm:req:conn.pool.statement-cache.bound+2]    Disabled prepares afresh
     pub async fn prepare_typed(
         &self,
         client: &PgClient,
@@ -577,7 +577,7 @@ impl StatementCache {
     }
 }
 
-/// Wrapper around [`tokio_postgres::Client`] with a [`StatementCache`].
+/// Wrapper around [`pgorm_driver::Client`] with a [`StatementCache`].
 #[derive(Debug)]
 pub struct ClientWrapper {
     /// Original [`PgClient`].
@@ -597,7 +597,7 @@ pub struct ClientWrapper {
 
 impl ClientWrapper {
     /// Create a new [`ClientWrapper`] instance using the given
-    /// [`tokio_postgres::Client`] and handle to the connection task, with a
+    /// [`pgorm_driver::Client`] and handle to the connection task, with a
     /// statement cache of the default size.
     #[must_use]
     pub fn new(client: PgClient, conn_task: JoinHandle<()>) -> Self {
@@ -606,7 +606,7 @@ impl ClientWrapper {
 
     /// [`ClientWrapper::new`] with the size of the connection's
     /// [`StatementCache`] chosen explicitly, as [`ManagerConfig`] does.
-    // [spec:pgorm:req:conn.pool.statement-cache.bound+1]    per-connection capacity
+    // [spec:pgorm:req:conn.pool.statement-cache.bound+2]    per-connection capacity
     #[must_use]
     pub fn with_cache_size(
         client: PgClient,
@@ -621,13 +621,13 @@ impl ClientWrapper {
         }
     }
 
-    /// Like [`tokio_postgres::Client::prepare()`], but uses an existing
+    /// Like [`pgorm_driver::Client::prepare()`], but uses an existing
     /// [`Statement`] from the [`StatementCache`] if possible.
     pub async fn prepare_cached(&self, query: &str) -> Result<Statement, Error> {
         self.statement_cache.prepare(&self.client, query).await
     }
 
-    /// Like [`tokio_postgres::Client::prepare_typed()`], but uses an
+    /// Like [`pgorm_driver::Client::prepare_typed()`], but uses an
     /// existing [`Statement`] from the [`StatementCache`] if possible.
     pub async fn prepare_typed_cached(
         &self,
@@ -639,7 +639,7 @@ impl ClientWrapper {
             .await
     }
 
-    /// Like [`tokio_postgres::Client::transaction()`], but returns a wrapped
+    /// Like [`pgorm_driver::Client::transaction()`], but returns a wrapped
     /// [`Transaction`] with a [`StatementCache`].
     #[allow(unused_lifetimes)] // false positive
     pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
@@ -651,7 +651,7 @@ impl ClientWrapper {
         })
     }
 
-    /// Like [`tokio_postgres::Client::build_transaction()`], but creates a
+    /// Like [`pgorm_driver::Client::build_transaction()`], but creates a
     /// wrapped [`Transaction`] with a [`StatementCache`].
     pub fn build_transaction(&mut self) -> TransactionBuilder<'_> {
         TransactionBuilder {
@@ -661,12 +661,12 @@ impl ClientWrapper {
         }
     }
 
-    /// Like [`tokio_postgres::Client::copy_in()`], but a COPY the server
+    /// Like [`pgorm_driver::Client::copy_in()`], but a COPY the server
     /// refuses before its data flow starts closes the connection, because
     /// tokio-postgres leaves an answer behind that the next request would read
     /// as its own. Pass a prepared [`Statement`]: preparing is a request of its
     /// own, and a statement refused there leaves the connection intact.
-    // [spec:pgorm:req:conn.copy+2]
+    // [spec:pgorm:req:conn.copy+3]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
@@ -694,7 +694,7 @@ impl DerefMut for ClientWrapper {
     }
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+3]    connection task abort on drop
+// [spec:pgorm:sem:conn.pool.lifecycle+4]    connection task abort on drop
 impl Drop for ClientWrapper {
     fn drop(&mut self) {
         self.conn_task.abort()

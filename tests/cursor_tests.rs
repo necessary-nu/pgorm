@@ -911,7 +911,7 @@ mod net_cursor {
 }
 
 // [spec:pgorm:req:exec.cursor.binding-gaps+3/test]
-// [spec:pgorm:def:exec.cursor.binding+6/test]    `IpNetwork` and `MacAddress`
+// [spec:pgorm:def:exec.cursor.binding+7/test]    `IpNetwork` and `MacAddress`
 // bound by hand through `postgres_protocol`, and the deliberately permissive
 // `accepts`
 #[pgorm_macros::test]

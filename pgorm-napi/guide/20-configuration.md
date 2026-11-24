@@ -29,7 +29,7 @@ Pool` throws either as the pool is built, and `connect` rejects with it.
 
 ## The connection's settings
 
-The connection string is parsed as tokio-postgres's `Config` is, the
+The connection string is parsed as pgorm-driver's `Config` is, the
 configuration Rust's pool takes: a URL, or libpq's `key=value` form. Whatever
 Rust sets with `Config`'s builder methods, JavaScript writes into the string:
 `host`, `port`, `user`, `password`, `dbname`, `application_name`,
@@ -284,7 +284,7 @@ assert.equal(ssl, false);
 ```
 
 Here JavaScript differs from Rust in shape. Rust's `connect_with` takes any
-TLS connector implementing tokio-postgres's `MakeTlsConnect<Socket>`, which
+TLS connector implementing pgorm-driver's `MakeTlsConnect<Socket>`, which
 the program builds and configures, and the shorter constructors connect in
 plain text with `NoTls`. JavaScript's pool has one connector built in,
 rustls, and the program configures it with options: the `tls` mode, named as

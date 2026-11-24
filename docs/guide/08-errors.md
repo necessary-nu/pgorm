@@ -11,7 +11,7 @@ This chapter goes through each, and how a program tells them apart.
 ## What the database refused
 
 A statement the server rejects comes back as
-[`Error::Postgres`](crate::Error::Postgres), holding the tokio-postgres
+[`Error::Postgres`](crate::Error::Postgres), holding the pgorm-driver
 error, [`PostgresError`](crate::PostgresError), with everything the server
 reported: its SQLSTATE code, its message, and the table, column or
 constraint involved.
@@ -142,7 +142,7 @@ assert!(matches!(clash.sql_error(), Some(SqlError::ExclusionConstraintViolation(
 ```
 
 Any other refusal is read off the server's SQLSTATE. `Error::Postgres`
-holds tokio-postgres's error, re-exported as
+holds pgorm-driver's error, re-exported as
 [`PostgresError`](crate::PostgresError), whose
 [`code`](crate::PostgresError::code) is a [`SqlState`](crate::SqlState)
 with a constant for every code PostgreSQL defines, and whose

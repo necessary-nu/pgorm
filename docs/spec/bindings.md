@@ -447,7 +447,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > is released. Connections live on the runtime and hold nothing the
 > language's event loop waits on.
 
-> [spec:pgorm:req:bindings.tls]
+> [spec:pgorm:req:bindings.tls+1]
 > A pool's TLS MUST be configured by the options `tls`, a mode named as
 > libpq's `sslmode` names it; `ca`, PEM certificates a verifying mode trusts
 > in place of the platform's store; and `cert` and `key`, a PEM client
@@ -470,7 +470,7 @@ closed, and a transaction by the block or callback it was opened for ending.
 > is plaintext, and `prefer`, `require` or none is `verify-full`. So a mode
 > that verifies less than `verify-full` is the program's explicit option and
 > never a default a string carried in. libpq's `allow`, plaintext first and
-> TLS only if the server refuses it, is not offered: tokio-postgres
+> TLS only if the server refuses it, is not offered: pgorm-driver
 > negotiates TLS before anything else, so there is nothing for it to fall
 > back from, and a server's impostor would always be given the plaintext.
 > What the pool would not do as asked MUST be a `ConstructionError` raised

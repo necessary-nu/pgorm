@@ -16,8 +16,8 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, extension::Extension};
 use pgorm::{ConnectionTrait, LoaderTrait, Schema, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 mod room {
     use pgorm::entity::prelude::*;

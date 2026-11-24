@@ -2,8 +2,8 @@ use crate::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, IntoActiveModel, Iterable,
     QueryFilter, SelectModel, SelectorRaw, UpdateMany, UpdateOne, error::*,
 };
+use pgorm_driver::types::ToSql;
 use pgorm_query::{Query, UpdateStatement};
-use tokio_postgres::types::ToSql;
 
 use super::ValueHolder;
 

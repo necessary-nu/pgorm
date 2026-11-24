@@ -17,7 +17,7 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, Name, OnConflict, Query};
 use pgorm::{ConnectionTrait, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {

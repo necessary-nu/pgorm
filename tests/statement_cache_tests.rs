@@ -4,12 +4,12 @@ pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{ConnectionTrait, DatabaseConnection, Error, TransactionTrait};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 const SELECT_ALL: &str = "SELECT * FROM plan_check";
 
-const NO_PARAMS: [&(dyn tokio_postgres::types::ToSql + Sync); 0] = [];
+const NO_PARAMS: [&(dyn pgorm_driver::types::ToSql + Sync); 0] = [];
 
 /// How many live server-side prepared statements this session holds for `sql`.
 ///
@@ -27,7 +27,7 @@ async fn prepared_count(db: &DatabaseConnection, sql: &str) -> Result<i64, Error
     Ok(row.get(0))
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+3/test]    one Parse per connection, not per call
+// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    one Parse per connection, not per call
 // [spec:pgorm:def:conn.pool.conn-trait+10/test]    the text-carrying statement routes through the cache
 #[pgorm_macros::test]
 async fn repeated_queries_reuse_one_prepared_statement() -> Result<(), Error> {

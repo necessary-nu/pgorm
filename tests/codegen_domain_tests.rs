@@ -15,9 +15,9 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, Range};
 use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::ops::Bound::{Excluded, Included};
-use tokio_postgres::error::SqlState;
 
 /// The files pgorm-codegen generates from its domain schema: the ones its own
 /// tests hold the writer's output to, so what is run here is what the

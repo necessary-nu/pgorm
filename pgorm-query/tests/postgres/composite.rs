@@ -48,7 +48,7 @@ fn attributes(statement: &serde_json::Value) -> Vec<(String, Vec<String>, Vec<St
         .collect()
 }
 
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]    each attribute is a name, a type as a column
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]    each attribute is a name, a type as a column
 // writes it, and a collation when it has one, in the order given
 #[test]
 fn a_composite_lists_its_attributes() {
@@ -86,7 +86,7 @@ fn a_composite_lists_its_attributes() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]    the empty composite keeps its parentheses
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]    the empty composite keeps its parentheses
 #[test]
 fn an_empty_composite_is_a_type() {
     let sql = Type::create(n("nothing")).as_composite().to_string();
@@ -95,7 +95,7 @@ fn an_empty_composite_is_a_type() {
     crate::oracle::assert_rejected(r#"CREATE TYPE "nothing" AS"#);
 }
 
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]    a type is an enumeration or a composite, and
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]    a type is an enumeration or a composite, and
 // choosing one kind replaces the other's list
 // [spec:pgorm:req:sql.ddl.type-enum+7/test]
 #[test]
@@ -139,7 +139,7 @@ fn a_type_is_one_kind() {
     assert_eq!(sql, r#"CREATE TYPE "t" AS ENUM ('a', 'b')"#);
 }
 
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]    an attribute carries no column spec, because
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]    an attribute carries no column spec, because
 // the grammar refuses every one of them there
 #[test]
 fn an_attribute_is_not_a_column() {
@@ -154,7 +154,7 @@ fn an_attribute_is_not_a_column() {
     }
 }
 
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]    a composite binds nothing, so its two
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]    a composite binds nothing, so its two
 // renderings agree
 #[test]
 fn a_composite_binds_nothing() {
@@ -166,7 +166,7 @@ fn a_composite_binds_nothing() {
     assert!(values.0.is_empty());
 }
 
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]    attribute changes chain in one ALTER TYPE in
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]    attribute changes chain in one ALTER TYPE in
 // call order, each carrying the statement's behavior, and a rename is its own statement
 #[test]
 fn attribute_changes_chain_and_rename_stands_alone() {

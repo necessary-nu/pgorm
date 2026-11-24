@@ -15,7 +15,7 @@ fn params(holders: &[ValueHolder]) -> Vec<&(dyn ToSql + Sync)> {
     holders.iter().map(|v| v as &(dyn ToSql + Sync)).collect()
 }
 
-// [spec:pgorm:def:exec.cursor.binding+6/test]    every built statement value is
+// [spec:pgorm:def:exec.cursor.binding+7/test]    every built statement value is
 // wrapped in `ValueHolder` for binding — here `String`, `Double` and `Int`
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {
@@ -400,7 +400,7 @@ async fn try_insert_result_variants() -> Result<(), Error> {
 // back from the database and handed straight to `set` — against the `Ok(0)` of
 // a `WHERE` that matched nothing, and the no-op read of
 // `UpdateOne::exec_returning_model`
-// [spec:pgorm:def:error.model+14/test]    `Error::NothingToSet` has a
+// [spec:pgorm:def:error.model+15/test]    `Error::NothingToSet` has a
 // construction site, and it is this one
 #[pgorm_macros::test]
 async fn update_noop_and_record_check() -> Result<(), Error> {

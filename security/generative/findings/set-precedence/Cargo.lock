@@ -1182,6 +1182,7 @@ dependencies = [
  "jiff",
  "log",
  "pgorm-case-style",
+ "pgorm-driver",
  "pgorm-macros",
  "pgorm-pool",
  "pgorm-query",
@@ -1196,7 +1197,6 @@ dependencies = [
  "strum",
  "thiserror 2.0.21",
  "tokio",
- "tokio-postgres",
  "tracing",
  "url",
  "uuid",
@@ -1207,6 +1207,30 @@ name = "pgorm-case-style"
 version = "0.2.0"
 dependencies = [
  "heck",
+]
+
+[[package]]
+name = "pgorm-driver"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "byteorder",
+ "bytes",
+ "fallible-iterator",
+ "futures-channel",
+ "futures-util",
+ "log",
+ "parking_lot",
+ "percent-encoding",
+ "phf",
+ "pin-project-lite",
+ "postgres-protocol",
+ "postgres-types",
+ "rand 0.10.3",
+ "socket2",
+ "tokio",
+ "tokio-util",
+ "whoami",
 ]
 
 [[package]]
@@ -1230,9 +1254,9 @@ dependencies = [
  "bytes",
  "deadpool",
  "futures-util",
+ "pgorm-driver",
  "serde",
  "tokio",
- "tokio-postgres",
  "tracing",
 ]
 
@@ -2163,32 +2187,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
-]
-
-[[package]]
-name = "tokio-postgres"
-version = "0.7.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a528f7d280f6d5b9cd149635c8705b0dd049754bc67d81d31fa25169a93809d3"
-dependencies = [
- "async-trait",
- "byteorder",
- "bytes",
- "fallible-iterator",
- "futures-channel",
- "futures-util",
- "log",
- "parking_lot",
- "percent-encoding",
- "phf",
- "pin-project-lite",
- "postgres-protocol",
- "postgres-types",
- "rand 0.10.3",
- "socket2",
- "tokio",
- "tokio-util",
- "whoami",
 ]
 
 [[package]]

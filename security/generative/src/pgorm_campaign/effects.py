@@ -255,7 +255,7 @@ class Effects:
                     "kind": "rows",
                     "rows": [observations.row(row) for row in rows],
                     "stream": state,
-                }, ["pgorm::ConnectionTrait::query_raw", "tokio_postgres::RowStream"]
+                }, ["pgorm::ConnectionTrait::query_raw", "pgorm_driver::RowStream"]
             case "inspect":
                 if not hasattr(query, "inspect"):
                     raise self.p.UnsupportedCapabilityError(

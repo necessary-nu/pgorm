@@ -4,7 +4,7 @@ use crate::{
     ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, HookConnection, SqlText,
     metric::{InstrumentedConnection, InstrumentedTransaction, MetricsCollector, NoOpMetrics},
 };
-use tokio_postgres::{
+use pgorm_driver::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };

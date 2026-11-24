@@ -17,7 +17,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::entity::prelude::*;
 use pretty_assertions::assert_eq;
 
-const NO_PARAMS: [&(dyn tokio_postgres::types::ToSql + Sync); 0] = [];
+const NO_PARAMS: [&(dyn pgorm_driver::types::ToSql + Sync); 0] = [];
 
 /// The entity pgorm-codegen generates from `CREATE TABLE tenant_a.item`.
 mod qualified {

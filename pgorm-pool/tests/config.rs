@@ -1,12 +1,12 @@
-//! `Config` on its own: what reaches the `tokio_postgres::Config` it builds,
+//! `Config` on its own: what reaches the `pgorm_driver::Config` it builds,
 //! and what its `Debug` refuses to print. Neither question needs a server, so
 //! nothing here connects.
 
-use pgorm_pool::{ChannelBinding, Config, LoadBalanceHosts, SslMode, TargetSessionAttrs};
-use tokio_postgres::config::{
+use pgorm_driver::config::{
     ChannelBinding as PgChannelBinding, LoadBalanceHosts as PgLoadBalanceHosts,
     SslMode as PgSslMode, TargetSessionAttrs as PgTargetSessionAttrs,
 };
+use pgorm_pool::{ChannelBinding, Config, LoadBalanceHosts, SslMode, TargetSessionAttrs};
 
 /// The minimum a `Config` needs to build: `get_pg_config` rejects a missing
 /// database name before it looks at anything else.
@@ -17,7 +17,7 @@ fn named() -> Config {
     }
 }
 
-// [spec:pgorm:req:conn.pool.config-forwarding+1/test]    target_session_attrs reaches the connection
+// [spec:pgorm:req:conn.pool.config-forwarding+2/test]    target_session_attrs reaches the connection
 #[test]
 fn target_session_attrs_is_forwarded() {
     let pg = named().get_pg_config().expect("a named config builds");
@@ -41,7 +41,7 @@ fn target_session_attrs_is_forwarded() {
     );
 }
 
-// [spec:pgorm:req:conn.pool.config-forwarding+1/test]    channel_binding reaches the connection
+// [spec:pgorm:req:conn.pool.config-forwarding+2/test]    channel_binding reaches the connection
 #[test]
 fn channel_binding_is_forwarded() {
     let pg = named().get_pg_config().expect("a named config builds");
@@ -67,7 +67,7 @@ fn channel_binding_is_forwarded() {
     }
 }
 
-// [spec:pgorm:req:conn.pool.config-forwarding+1/test]    load_balance_hosts reaches the connection
+// [spec:pgorm:req:conn.pool.config-forwarding+2/test]    load_balance_hosts reaches the connection
 #[test]
 fn load_balance_hosts_is_forwarded() {
     let pg = named().get_pg_config().expect("a named config builds");
@@ -83,7 +83,7 @@ fn load_balance_hosts_is_forwarded() {
     assert_eq!(pg.get_load_balance_hosts(), PgLoadBalanceHosts::Random);
 }
 
-// [spec:pgorm:req:conn.pool.config-forwarding+1/test]    ssl_mode, which was already forwarded, still is
+// [spec:pgorm:req:conn.pool.config-forwarding+2/test]    ssl_mode, which was already forwarded, still is
 #[test]
 fn ssl_mode_is_forwarded() {
     let pg = Config {
@@ -96,7 +96,7 @@ fn ssl_mode_is_forwarded() {
     assert_eq!(pg.get_ssl_mode(), PgSslMode::Require);
 }
 
-// [spec:pgorm:req:conn.pool.config-forwarding+1/test]    the struct form and the URL form agree
+// [spec:pgorm:req:conn.pool.config-forwarding+2/test]    the struct form and the URL form agree
 #[test]
 fn struct_form_matches_url_form() {
     let from_url = Config {
@@ -134,7 +134,7 @@ fn struct_form_matches_url_form() {
     );
 }
 
-// [spec:pgorm:sem:conn.pool.config-redaction/test]    neither credential survives Debug
+// [spec:pgorm:sem:conn.pool.config-redaction+1/test]    neither credential survives Debug
 #[test]
 fn debug_reveals_no_credential() {
     let cfg = Config {
@@ -164,7 +164,7 @@ fn debug_reveals_no_credential() {
     );
 }
 
-// [spec:pgorm:sem:conn.pool.config-redaction/test]    an absent password is absent, not withheld
+// [spec:pgorm:sem:conn.pool.config-redaction+1/test]    an absent password is absent, not withheld
 #[test]
 fn debug_distinguishes_unset_from_withheld() {
     let printed = format!("{:?}", named());
@@ -173,7 +173,7 @@ fn debug_distinguishes_unset_from_withheld() {
     assert!(printed.contains("url: None"), "{printed}");
 }
 
-// [spec:pgorm:sem:conn.pool.config-redaction/test]    a URL with no credentials is printed whole
+// [spec:pgorm:sem:conn.pool.config-redaction+1/test]    a URL with no credentials is printed whole
 #[test]
 fn debug_keeps_a_credential_free_url() {
     let cfg = Config {
@@ -187,7 +187,7 @@ fn debug_keeps_a_credential_free_url() {
     );
 }
 
-// [spec:pgorm:sem:conn.pool.config-redaction/test]    a keyword/value URL that names a password is withheld whole
+// [spec:pgorm:sem:conn.pool.config-redaction+1/test]    a keyword/value URL that names a password is withheld whole
 #[test]
 fn debug_withholds_a_keyword_value_url() {
     let cfg = Config {
@@ -201,7 +201,7 @@ fn debug_withholds_a_keyword_value_url() {
     assert!(printed.contains("url: Some(\"_\")"), "{printed}");
 }
 
-// [spec:pgorm:sem:conn.pool.config-redaction/test]    Serialize is untouched, because round-tripping is its job
+// [spec:pgorm:sem:conn.pool.config-redaction+1/test]    Serialize is untouched, because round-tripping is its job
 #[test]
 fn serialize_still_carries_the_password() {
     let cfg = Config {

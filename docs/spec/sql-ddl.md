@@ -1171,7 +1171,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 
 ## Composite types
 
-> [spec:pgorm:req:sql.ddl.type-composite+2]
+> [spec:pgorm:req:sql.ddl.type-composite+3]
 > `TypeCreateStatement` defines a composite type — a row type — beside the
 > enumeration of `[spec:pgorm:req:sql.ddl.type-enum]` and the range of
 > `[spec:pgorm:req:sql.ddl.type-range]`. `as_composite()`
@@ -1252,7 +1252,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 >
 > Nothing in pgorm reads a composite value. A column can be declared with the
 > type (`ColumnType::named`), but no `Value` variant carries a composite, no
-> `TryGetable` decodes one, and tokio-postgres decodes one only into a Rust
+> `TryGetable` decodes one, and pgorm-driver decodes one only into a Rust
 > type with a derived `FromSql`, which pgorm neither derives nor re-exports —
 > so a model field of a composite type fails to decode, and the live suite
 > holds a `String` refused. The read path is to expand the value in the
@@ -1266,7 +1266,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 
 ## Range types
 
-> [spec:pgorm:req:sql.ddl.type-range+2]
+> [spec:pgorm:req:sql.ddl.type-range+3]
 > `TypeCreateStatement::as_range(definition)` defines a range type, beside the
 > enumeration of `[spec:pgorm:req:sql.ddl.type-enum]` and the composite of
 > `[spec:pgorm:req:sql.ddl.type-composite]`, in the one slot what a type is
@@ -1328,7 +1328,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > carrying its subtype (`[spec:pgorm:def:sql.value.created-range]`); a built-in
 > `Range<T>` value reaches such a column through that cast, there being no
 > cast between two range types. Its multirange travels as its text too, and
-> is read as its text, because tokio-postgres reports it as a simple type
+> is read as its text, because pgorm-driver reports it as a simple type
 > (`[spec:pgorm:req:exec.cursor.binding-range]`); a column of one is
 > `ColumnType::CreatedMultirange`.
 

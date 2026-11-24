@@ -284,7 +284,7 @@ class TlsTests(unittest.IsolatedAsyncioTestCase):
         self.dsn = os.environ["PGORM_TEST_DSN"]
         self.ca = os.environ["PGORM_TEST_CA"]
 
-    # [spec:pgorm:req:bindings.tls/test]    verify-ca verifies the chain and not the name
+    # [spec:pgorm:req:bindings.tls+1/test]    verify-ca verifies the chain and not the name
     async def test_verify_ca_checks_the_chain_alone(self) -> None:
         async with Pool(renamed(self.dsn, "wrong.test"), tls="verify-ca", cafile=self.ca) as pool:
             self.assertTrue(await ssl(pool))
@@ -295,14 +295,14 @@ class TlsTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await stranger.close()
 
-    # [spec:pgorm:req:bindings.tls/test]    require and prefer encrypt and verify nothing
+    # [spec:pgorm:req:bindings.tls+1/test]    require and prefer encrypt and verify nothing
     async def test_require_and_prefer_encrypt_unverified(self) -> None:
         for mode in ("require", "prefer"):
             with self.subTest(mode=mode):
                 async with Pool(renamed(self.dsn, "wrong.test"), tls=mode) as pool:
                     self.assertTrue(await ssl(pool))
 
-    # [spec:pgorm:req:bindings.tls/test]    a client certificate authenticates its user
+    # [spec:pgorm:req:bindings.tls+1/test]    a client certificate authenticates its user
     async def test_a_client_certificate_authenticates(self) -> None:
         user = os.environ["PGORM_TEST_CERT_USER"]
         certified = as_user(self.dsn, user)
@@ -318,7 +318,7 @@ class TlsTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await anonymous.close()
 
-    # [spec:pgorm:req:bindings.tls/test]    what the pool would not do as asked is refused
+    # [spec:pgorm:req:bindings.tls+1/test]    what the pool would not do as asked is refused
     async def test_what_weakens_or_contradicts_tls_is_refused(self) -> None:
         cert = Path(os.environ["PGORM_TEST_CLIENT_CERT"]).read_bytes()
         server = "postgres://postgres@db.example.com/bakery"

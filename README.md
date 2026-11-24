@@ -4,7 +4,7 @@ pgorm is an async ORM for PostgreSQL, and for PostgreSQL alone. You declare
 each table as a Rust type, and pgorm reads and writes it with SQL it builds
 for you: every value bound as a parameter, never pasted into the SQL, and
 each statement prepared and cached per connection. Where the types can say
-so, a statement PostgreSQL would refuse does not compile. It runs on [tokio-postgres](https://docs.rs/tokio-postgres) and a
+so, a statement PostgreSQL would refuse does not compile. It runs on [pgorm-driver](crates/pgorm-driver), a vendored tokio-postgres fork, and a
 [deadpool](https://docs.rs/deadpool) pool, and targets PostgreSQL 19.
 
 Because it serves one database, pgorm offers what PostgreSQL has: `RETURNING`

@@ -1,10 +1,10 @@
 use crate::panics::future_into_py;
+use pgorm_driver::Row;
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
     types::{PyList, PyTuple},
 };
-use tokio_postgres::Row;
 
 use super::PyRecord;
 use crate::{

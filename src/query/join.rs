@@ -199,7 +199,7 @@ pub(crate) fn join_condition(mut rel: RelationDef) -> Condition {
 }
 
 // [spec:pgorm:sem:query.build.join+5]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
 fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> Condition {
     let mut cond = Condition::all();
     for ((owner_key, foreign_key), compared) in columns.compared_pairs() {
@@ -225,7 +225,7 @@ fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> 
 /// One side of a join pair as the equality compares it: cast to the enum when
 /// its column's domain is over one, which is the only way PostgreSQL compares
 /// such a column with anything.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
 fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
     match enum_type {
         Some(enum_type) => Expr::expr(column.cast_as_type(enum_type.clone())),

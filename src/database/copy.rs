@@ -90,7 +90,7 @@ pub(crate) fn refuse_copy_statement(sql: &str) -> Result<(), Error> {
 /// caching it would fill the bounded cache with statements run once.
 ///
 /// [`ConnectionTrait`]: crate::ConnectionTrait
-// [spec:pgorm:req:conn.copy+2]
+// [spec:pgorm:req:conn.copy+3]
 #[async_trait::async_trait]
 pub trait CopyTrait {
     /// Start `COPY … FROM STDIN`, returning the sink its data is written to.
@@ -218,9 +218,9 @@ pub trait CopyTrait {
 /// a transaction nothing is written; inside one, the transaction is aborted,
 /// as by any failed statement, and only a rollback ends it. `Sink::close`
 /// finishes the COPY as `finish` does but discards the row count.
-// [spec:pgorm:req:conn.copy+2]
+// [spec:pgorm:req:conn.copy+3]
 pub struct CopyInSink<'a> {
-    sink: Pin<Box<tokio_postgres::CopyInSink<Bytes>>>,
+    sink: Pin<Box<pgorm_driver::CopyInSink<Bytes>>>,
     /// What is left of a chunk longer than one message carries, sent before
     /// the sink is ready for another.
     rest: Bytes,
@@ -234,7 +234,7 @@ pub struct CopyInSink<'a> {
 const MESSAGE_BYTES: usize = 1 << 20;
 
 impl CopyInSink<'_> {
-    fn new(sink: tokio_postgres::CopyInSink<Bytes>) -> Self {
+    fn new(sink: pgorm_driver::CopyInSink<Bytes>) -> Self {
         Self {
             sink: Box::pin(sink),
             rest: Bytes::new(),
@@ -312,14 +312,14 @@ impl fmt::Debug for CopyInSink<'_> {
 /// server back rather than filling memory. Dropping it early does not stop
 /// the server: the connection reads and discards the rest of the data before
 /// the next statement on it runs.
-// [spec:pgorm:req:conn.copy+2]
+// [spec:pgorm:req:conn.copy+3]
 pub struct CopyOutStream<'a> {
-    stream: Pin<Box<tokio_postgres::CopyOutStream>>,
+    stream: Pin<Box<pgorm_driver::CopyOutStream>>,
     connection: PhantomData<&'a mut ()>,
 }
 
 impl CopyOutStream<'_> {
-    fn new(stream: tokio_postgres::CopyOutStream) -> Self {
+    fn new(stream: pgorm_driver::CopyOutStream) -> Self {
         Self {
             stream: Box::pin(stream),
             connection: PhantomData,
@@ -344,7 +344,7 @@ impl fmt::Debug for CopyOutStream<'_> {
     }
 }
 
-// [spec:pgorm:req:conn.copy+2]    COPY on the pooled client
+// [spec:pgorm:req:conn.copy+3]    COPY on the pooled client
 #[async_trait::async_trait]
 impl CopyTrait for DatabaseConnection {
     async fn copy_in<F>(
@@ -393,7 +393,7 @@ impl CopyTrait for DatabaseConnection {
     }
 }
 
-// [spec:pgorm:req:conn.copy+2]    COPY inside a transaction or savepoint
+// [spec:pgorm:req:conn.copy+3]    COPY inside a transaction or savepoint
 #[async_trait::async_trait]
 impl CopyTrait for DatabaseTransaction<'_> {
     async fn copy_in<F>(

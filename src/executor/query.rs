@@ -14,7 +14,7 @@ pub use range::{
 };
 
 /// Defines the result of a query operation on a Model
-// [spec:pgorm:def:exec.decode+3]
+// [spec:pgorm:def:exec.decode+4]
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct QueryResult {
@@ -36,7 +36,7 @@ impl QueryResult {
 }
 
 /// An interface to get a value from the query result
-// [spec:pgorm:def:exec.decode+3]
+// [spec:pgorm:def:exec.decode+4]
 pub trait TryGetable: Sized {
     /// Get a value from the query result with an RowIndex
     fn try_get_by<I: RowIndex + std::fmt::Display>(
@@ -88,9 +88,9 @@ pub enum TryGetError {
     Null(String),
 }
 
-// [spec:pgorm:sem:exec.decode.null+1]
+// [spec:pgorm:sem:exec.decode.null+2]
 impl TryGetError {
-    pub(crate) fn postgres(value: tokio_postgres::Error) -> Self {
+    pub(crate) fn postgres(value: pgorm_driver::Error) -> Self {
         let Some(source) = value.source() else {
             return TryGetError::Db(Error::Postgres(value));
         };
@@ -254,7 +254,7 @@ impl<'a> FromSql<'a> for AnyValue {
 
 // TryGetable //
 
-// [spec:pgorm:sem:exec.decode.null+1]
+// [spec:pgorm:sem:exec.decode.null+2]
 impl<T: TryGetable> TryGetable for Option<T> {
     fn try_get_by<I: RowIndex + std::fmt::Display>(
         res: &QueryResult,
@@ -273,7 +273,7 @@ impl<T: TryGetable> TryGetable for Option<T> {
     }
 }
 
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 macro_rules! try_getable_all {
     ( $type: ty ) => {
         impl TryGetable for $type {
@@ -319,14 +319,14 @@ try_getable_all!(jiff::civil::DateTime);
 #[cfg(feature = "with-jiff")]
 try_getable_all!(jiff::Timestamp);
 
-use pgorm_query::{Interval, IpNetwork, MacAddress, Values, Vector};
 #[cfg(feature = "with-json")]
-use tokio_postgres::types::Json;
-use tokio_postgres::{
+use pgorm_driver::types::Json;
+use pgorm_driver::{
     Row,
     row::RowIndex,
     types::{FromSql, Oid, Type, WasNull},
 };
+use pgorm_query::{Interval, IpNetwork, MacAddress, Values, Vector};
 
 #[allow(unused_macros)]
 macro_rules! try_getable_uuid {
@@ -370,11 +370,11 @@ try_getable_uuid!(uuid::fmt::Urn, uuid::Uuid::urn);
 /// `ipnetwork::IpNetwork` ships no `FromSql` impl and the orphan rule forbids
 /// writing one for it here, so decoding routes through a local newtype that
 /// reads the wire format with `postgres_protocol` and rebuilds the network.
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 #[derive(Debug)]
 struct InetSql(IpNetwork);
 
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 impl<'a> FromSql<'a> for InetSql {
     fn from_sql(
         _ty: &Type,
@@ -390,11 +390,11 @@ impl<'a> FromSql<'a> for InetSql {
 }
 
 /// The `mac_address::MacAddress` counterpart of [`InetSql`].
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 #[derive(Debug)]
 struct MacAddrSql(MacAddress);
 
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 impl<'a> FromSql<'a> for MacAddrSql {
     fn from_sql(
         _ty: &Type,
@@ -409,7 +409,7 @@ impl<'a> FromSql<'a> for MacAddrSql {
     }
 }
 
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 impl TryGetable for IpNetwork {
     fn try_get_by<I: RowIndex + std::fmt::Display>(
         res: &QueryResult,
@@ -425,7 +425,7 @@ impl TryGetable for IpNetwork {
     }
 }
 
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 impl TryGetable for MacAddress {
     fn try_get_by<I: RowIndex + std::fmt::Display>(
         res: &QueryResult,
@@ -444,7 +444,7 @@ impl TryGetable for MacAddress {
 // [spec:pgorm:req:exec.decode.interval+1]
 try_getable_all!(Interval);
 
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 impl TryGetable for Vector {
     fn try_get_by<I: RowIndex + std::fmt::Display>(
         res: &QueryResult,
@@ -459,7 +459,7 @@ impl TryGetable for Vector {
     }
 }
 
-// [spec:pgorm:sem:exec.decode.u32-oid]
+// [spec:pgorm:sem:exec.decode.u32-oid+1]
 impl TryGetable for u32 {
     #[allow(unused_variables)]
     fn try_get_by<I: RowIndex + std::fmt::Display>(
@@ -476,7 +476,7 @@ impl TryGetable for u32 {
     }
 }
 
-// [spec:pgorm:sem:exec.decode.null-context+1]
+// [spec:pgorm:sem:exec.decode.null-context+2]
 #[allow(dead_code)]
 fn err_null_idx_col<I: RowIndex + std::fmt::Display>(_idx: I) -> TryGetError {
     TryGetError::Null("TODO".into()) //format!("{_idx:?}"))
@@ -594,7 +594,7 @@ mod postgres_array {
     #[cfg(feature = "with-uuid")]
     try_getable_postgres_array_uuid!(uuid::fmt::Urn, uuid::Uuid::urn);
 
-    // [spec:pgorm:sem:exec.decode.u32-oid]
+    // [spec:pgorm:sem:exec.decode.u32-oid+1]
     impl TryGetable for Vec<u32> {
         #[allow(unused_variables)]
         fn try_get_by<I: RowIndex + std::fmt::Display>(
@@ -753,7 +753,7 @@ fn try_get_many_with_slice_len_of(len: usize, cols: &[String]) -> Result<(), Try
 /// A blanket impl is provided for `TryGetableFromJson`, while the impl for `ActiveEnum`
 /// is provided by the `ActiveEnum` macro. So as an end user you won't normally
 /// touch this trait.
-// [spec:pgorm:def:exec.decode.json+1]
+// [spec:pgorm:def:exec.decode.json+2]
 pub trait TryGetableArray: Sized {
     /// Just a delegate
     fn try_get_by<I: RowIndex + std::fmt::Display>(
@@ -777,7 +777,7 @@ where
 // TryGetableFromJson //
 
 /// An interface to get a JSON from the query result
-// [spec:pgorm:def:exec.decode.json+1]
+// [spec:pgorm:def:exec.decode.json+2]
 #[cfg(feature = "with-json")]
 pub trait TryGetableFromJson: Sized
 where
@@ -862,7 +862,7 @@ mod tests {
         assert_eq!(Error::from(try_get_error), Error::Type(expected));
     }
 
-    // [spec:pgorm:def:exec.decode.types+3/test]
+    // [spec:pgorm:def:exec.decode.types+4/test]
     #[test]
     fn decodes_inet_wire_format() {
         let v4 = InetSql::from_sql(&Type::INET, &[2, 24, 0, 4, 10, 0, 0, 1]).unwrap();
@@ -883,7 +883,7 @@ mod tests {
         assert!(!<InetSql as FromSql>::accepts(&Type::MACADDR));
     }
 
-    // [spec:pgorm:def:exec.decode.types+3/test]
+    // [spec:pgorm:def:exec.decode.types+4/test]
     #[test]
     fn decodes_macaddr_wire_format() {
         let mac = MacAddrSql::from_sql(&Type::MACADDR, &[0, 0x11, 0x22, 0x33, 0x44, 0x55]).unwrap();

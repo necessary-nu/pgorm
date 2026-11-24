@@ -42,7 +42,7 @@ pgorm-bindings = { version = "0.2.0", path = "../pgorm-bindings" }
 pgorm-codegen = { version = "0.2.0", path = "../pgorm-codegen", default-features = false }
 neon = { version = "1.1.2", default-features = false, features = ["napi-6"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread"] }
-tokio-postgres = "0.7.18"
+pgorm-driver = { path = "../crates/pgorm-driver", version = "0.2.0" }
 # The value codecs, the same crates pgorm itself resolves, so the addon
 # converts exactly what pgorm's own `Value` holds.
 bytes = "1.12.1"

@@ -513,7 +513,7 @@ pub trait MigratorTrait: Send + Sync {
             // such change: an insert prepared before a domain's default
             // changed keeps the old one. The connection the next transaction
             // takes is one of them.
-            // [spec:pgorm:req:conn.pool.statement-cache.clear+1]    the runner clears after a batch commits
+            // [spec:pgorm:req:conn.pool.statement-cache.clear+2]    the runner clears after a batch commits
             // [spec:pgorm:req:migration.commit-after]    and after each commit inside one
             if batch.applied > 0 {
                 db.clear_statement_caches();

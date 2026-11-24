@@ -1233,7 +1233,7 @@ fn a_unique_key_of_no_columns_is_refused() {
 #[pgorm_macros::test]
 async fn composite_unique_keys_hold_live() -> Result<(), Error> {
     use pgorm::set;
-    use tokio_postgres::error::SqlState;
+    use pgorm_driver::error::SqlState;
 
     let ctx = TestContext::new("schema_gen_composite_unique").await;
     let db = ctx.db.get().await?;

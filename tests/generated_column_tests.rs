@@ -18,8 +18,8 @@ use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Expr, Func, GeneratedKind, Index, Name, Table, TableKey, extension::Type,
 };
 use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 /// An order line whose total is kept on disk and whose discounted price is
 /// computed on read: the two kinds side by side, each from the row's own

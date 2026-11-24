@@ -27,7 +27,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
 /// What a stream that decodes its own rows makes of each: a disjoint read's
 /// codec's rows, or a registered read's models.
 pub(crate) type RowDecode =
-    Arc<dyn Fn(tokio_postgres::Row) -> Result<crate::connect::job::Output, Failure> + Send + Sync>;
+    Arc<dyn Fn(pgorm_driver::Row) -> Result<crate::connect::job::Output, Failure> + Send + Sync>;
 
 /// A stream as JavaScript reads it: pgorm-bindings' stream, which holds its
 /// connection until the last row or `close`, and what each row becomes.

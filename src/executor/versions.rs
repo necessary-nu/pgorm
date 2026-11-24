@@ -11,8 +11,8 @@ use crate::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, Insert,
     IntoActiveModel, Iterable, ManyRows, OneRow, QueryResult, UpdateMany, UpdateOne, error::*,
 };
+use pgorm_driver::types::ToSql;
 use pgorm_query::{Expr, IntoName, Name, Query, ReturningClause, StaticName, Values};
-use tokio_postgres::types::ToSql;
 
 use super::{ValueHolder, result_name::result_column_name, update::find_unchanged_model};
 

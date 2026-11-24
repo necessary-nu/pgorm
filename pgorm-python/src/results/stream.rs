@@ -15,7 +15,7 @@ use crate::{
 
 /// What a stream makes of each row: a `Record`, or what a read that decodes
 /// its own rows, a disjoint one's, makes of it.
-pub(crate) type RowDecode = Arc<dyn Fn(tokio_postgres::Row) -> PyResult<Py<PyAny>> + Send + Sync>;
+pub(crate) type RowDecode = Arc<dyn Fn(pgorm_driver::Row) -> PyResult<Py<PyAny>> + Send + Sync>;
 
 // [spec:pgorm:req:bindings.streams+1]
 // [spec:pgorm:req:bindings.cancellation]

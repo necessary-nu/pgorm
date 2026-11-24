@@ -41,7 +41,7 @@ impl DatabasePool {
     /// when it hears a notification on its
     /// [`statement_cache_channel`](crate::ManagerConfig::statement_cache_channel),
     /// which pgorm-migration's runner sends.
-    // [spec:pgorm:req:conn.pool.statement-cache.clear+1]
+    // [spec:pgorm:req:conn.pool.statement-cache.clear+2]
     pub fn clear_statement_caches(&self) {
         self.0.manager().statement_caches.clear_before_reuse();
     }

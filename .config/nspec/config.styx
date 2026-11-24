@@ -6,6 +6,8 @@ specs ({
             name main,
             languages (@rust @python),
             include (
+                crates/pgorm-driver/src/**/*.rs
+                crates/pgorm-driver-rustls/src/**/*.rs
                 src/**/*.rs
                 pgorm-case-style/src/**/*.rs
                 pgorm-macros/src/**/*.rs
@@ -32,6 +34,8 @@ specs ({
                 .github/workflows/generative*.yml
             ),
             test_include (
+                crates/pgorm-driver/tests/**/*.rs
+                crates/pgorm-driver-rustls/tests/**/*.rs
                 tests/**/*.rs
                 pgorm-macros/tests/**/*.rs
                 pgorm-codegen/tests/**/*.rs

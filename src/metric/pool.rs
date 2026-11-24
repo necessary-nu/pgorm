@@ -47,7 +47,7 @@ impl<M: MetricsCollector> InstrumentedPool<M> {
     }
 
     /// [`DatabasePool::clear_statement_caches`] on the wrapped pool.
-    // [spec:pgorm:req:conn.pool.statement-cache.clear+1]
+    // [spec:pgorm:req:conn.pool.statement-cache.clear+2]
     pub fn clear_statement_caches(&self) {
         self.pool.clear_statement_caches();
     }

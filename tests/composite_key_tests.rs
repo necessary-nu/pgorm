@@ -11,9 +11,9 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::OnConflict;
 use pgorm::{ConnectionTrait, Error, QueryTrait, Schema, TryInsertResult, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::borrow::Cow;
-use tokio_postgres::error::SqlState;
 
 /// The tenant is supplied, the row number generated: `id` is an identity
 /// inside the key, and nothing else about the table is unusual.

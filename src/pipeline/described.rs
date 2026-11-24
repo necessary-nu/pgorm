@@ -44,7 +44,7 @@ use super::sources::{appended_projection, typed_cast};
 /// # Ok::<_, pgorm::pipeline::PipelineError>(())
 /// ```
 // [spec:pgorm:sem:pipeline.described+1]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
 pub fn col_typed<'brand>(
     table: impl IntoName,
     column: impl IntoName,

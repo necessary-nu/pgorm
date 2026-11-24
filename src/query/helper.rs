@@ -1134,7 +1134,7 @@ pub trait QueryFilter: Sized {
     ///
     /// Each key column is compared as [`belongs_to`](QueryFilter::belongs_to)
     /// compares it, under the alias instead of the entity's own name.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+18]
     fn belongs_to_tbl_alias<M>(mut self, model: &M, tbl_alias: impl IntoName) -> Self
     where
         M: ModelTrait,

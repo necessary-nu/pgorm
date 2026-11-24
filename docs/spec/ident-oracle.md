@@ -20,7 +20,7 @@ the modules under `tests/identifier_oracle/`.
 
 ## The property
 
-> [spec:pgorm:req:security.ident-oracle+18]
+> [spec:pgorm:req:security.ident-oracle+19]
 > Every public API that renders a caller-supplied name into SQL text MUST be
 > registered with the oracle. A new identifier-bearing API is incomplete until
 > it is registered, and an unregistered site is not covered by this rule. The
@@ -215,7 +215,7 @@ the modules under `tests/identifier_oracle/`.
 > - the statement reaches it and returns the expected value or label;
 > - the sentinel table survives.
 >
-> The live-only sites are held to the full corpus. tokio-postgres logs each
+> The live-only sites are held to the full corpus. pgorm-driver logs each
 > statement it is handed, at debug level, before encoding it:
 > `executing statement batch: {sql}` and `preparing query {name}: {sql}`. The
 > oracle records those lines for its own thread and compares each run's

@@ -27,7 +27,7 @@ fn optional_seconds(value: Option<f64>, name: &str) -> PyResult<Option<Duration>
 
 /// The `tls`, `ca`, `cert` and `key` options, the files Python reads already
 /// read into PEM.
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 pub(crate) fn tls(
     mode: Option<&str>,
     ca: Option<Vec<u8>>,

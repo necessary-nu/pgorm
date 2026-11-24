@@ -24,10 +24,10 @@ use pgorm::{
     LoaderTrait, NoContext, Opt, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
     RelationTrait, ScopedIn, SelectGraph, alias,
 };
+use pgorm_driver::error::SqlState;
 use pgorm_query::{Expr, ExprTrait, IntoCondition};
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;
-use tokio_postgres::error::SqlState;
 
 pub use common::TestContext;
 

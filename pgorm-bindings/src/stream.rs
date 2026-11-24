@@ -6,8 +6,8 @@ use std::{fmt, pin::Pin, sync::Arc};
 
 use futures_util::TryStreamExt;
 use pgorm::ConnectionTrait;
+use pgorm_driver::{Row, RowStream, types::ToSql};
 use tokio::sync::Mutex;
-use tokio_postgres::{Row, RowStream, types::ToSql};
 use tokio_util::sync::CancellationToken;
 
 use crate::{

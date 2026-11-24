@@ -12,7 +12,7 @@ license = "MIT OR Apache-2.0"
 pgorm = { path = "../../.." }
 axum = "0.8.9"
 tokio = { version = "1.53.2", features = ["full"] }
-tokio-postgres = "0.7.18"
+pgorm-driver = { path = "../../../crates/pgorm-driver", version = "0.2.0" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha2 = "0.11.0"

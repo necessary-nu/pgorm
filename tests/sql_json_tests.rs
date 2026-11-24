@@ -17,9 +17,9 @@ use pgorm::pgorm_query::{
     JsonValueType, Name, Order, Query, SelectStatement, SimpleExpr, Values, WindowStatement,
 };
 use pgorm::{ConnectionTrait, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use tokio_postgres::error::SqlState;
 
 fn refused_with(error: &Error, state: &SqlState) {
     match error {

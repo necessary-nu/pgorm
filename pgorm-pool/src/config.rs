@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use tokio_postgres::config::{
+use pgorm_driver::config::{
     ChannelBinding as PgChannelBinding, LoadBalanceHosts as PgLoadBalanceHosts,
     SslMode as PgSslMode, TargetSessionAttrs as PgTargetSessionAttrs,
 };
@@ -23,7 +23,7 @@ use super::Pool;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::{CreatePoolError, PoolBuilder};
 #[cfg(not(target_arch = "wasm32"))]
-use tokio_postgres::{
+use pgorm_driver::{
     Socket,
     tls::{MakeTlsConnect, TlsConnect},
 };
@@ -64,7 +64,7 @@ pub struct Config {
     /// Initialize the configuration by parsing the URL first.
     ///
     /// Most of the other options then override what the URL set, because
-    /// their `tokio_postgres::Config` setters replace. Four do not: `host`,
+    /// their `pgorm_driver::Config` setters replace. Four do not: `host`,
     /// `hosts`, `hostaddr`, `hostaddrs`, `port` and `ports` all reach setters
     /// that *push*, so they are added to whatever the URL already supplied.
     /// That is the point for hosts — a multi-host configuration is written by
@@ -74,61 +74,61 @@ pub struct Config {
     /// choosing between them. Write the port in the URL or in `port`, not in
     /// both.
     pub url: Option<String>,
-    /// See [`tokio_postgres::Config::user`].
+    /// See [`pgorm_driver::Config::user`].
     ///
     /// Left unset — here and in `url` — the connection falls back to the
     /// `USER` environment variable, so the user a connection authenticates as
     /// can come from the process environment rather than from this struct.
     /// See [`Config::get_pg_config`].
     pub user: Option<String>,
-    /// See [`tokio_postgres::Config::password`].
+    /// See [`pgorm_driver::Config::password`].
     pub password: Option<String>,
-    /// See [`tokio_postgres::Config::dbname`].
+    /// See [`pgorm_driver::Config::dbname`].
     pub dbname: Option<String>,
-    /// See [`tokio_postgres::Config::options`].
+    /// See [`pgorm_driver::Config::options`].
     pub options: Option<String>,
-    /// See [`tokio_postgres::Config::application_name`].
+    /// See [`pgorm_driver::Config::application_name`].
     pub application_name: Option<String>,
-    /// See [`tokio_postgres::Config::ssl_mode`].
+    /// See [`pgorm_driver::Config::ssl_mode`].
     pub ssl_mode: Option<SslMode>,
     /// This is similar to [`Config::hosts`] but only allows one host to be
     /// specified.
     ///
-    /// Unlike [`tokio_postgres::Config`] this structure differentiates between
+    /// Unlike [`pgorm_driver::Config`] this structure differentiates between
     /// one host and more than one host. This makes it possible to store this
     /// configuration in an environment variable.
     ///
-    /// See [`tokio_postgres::Config::host`].
+    /// See [`pgorm_driver::Config::host`].
     pub host: Option<String>,
-    /// See [`tokio_postgres::Config::host`].
+    /// See [`pgorm_driver::Config::host`].
     pub hosts: Option<Vec<String>>,
-    /// See [`tokio_postgres::Config::hostaddr`].
+    /// See [`pgorm_driver::Config::hostaddr`].
     pub hostaddr: Option<IpAddr>,
-    /// See [`tokio_postgres::Config::hostaddr`].
+    /// See [`pgorm_driver::Config::hostaddr`].
     pub hostaddrs: Option<Vec<IpAddr>>,
     /// This is similar to [`Config::ports`] but only allows one port to be
     /// specified.
     ///
-    /// Unlike [`tokio_postgres::Config`] this structure differentiates between
+    /// Unlike [`pgorm_driver::Config`] this structure differentiates between
     /// one port and more than one port. This makes it possible to store this
     /// configuration in an environment variable.
     ///
-    /// See [`tokio_postgres::Config::port`].
+    /// See [`pgorm_driver::Config::port`].
     pub port: Option<u16>,
-    /// See [`tokio_postgres::Config::port`].
+    /// See [`pgorm_driver::Config::port`].
     pub ports: Option<Vec<u16>>,
-    /// See [`tokio_postgres::Config::connect_timeout`].
+    /// See [`pgorm_driver::Config::connect_timeout`].
     pub connect_timeout: Option<Duration>,
-    /// See [`tokio_postgres::Config::keepalives`].
+    /// See [`pgorm_driver::Config::keepalives`].
     pub keepalives: Option<bool>,
     #[cfg(not(target_arch = "wasm32"))]
-    /// See [`tokio_postgres::Config::keepalives_idle`].
+    /// See [`pgorm_driver::Config::keepalives_idle`].
     pub keepalives_idle: Option<Duration>,
-    /// See [`tokio_postgres::Config::target_session_attrs`].
+    /// See [`pgorm_driver::Config::target_session_attrs`].
     pub target_session_attrs: Option<TargetSessionAttrs>,
-    /// See [`tokio_postgres::Config::channel_binding`].
+    /// See [`pgorm_driver::Config::channel_binding`].
     pub channel_binding: Option<ChannelBinding>,
-    /// See [`tokio_postgres::Config::load_balance_hosts`].
+    /// See [`pgorm_driver::Config::load_balance_hosts`].
     pub load_balance_hosts: Option<LoadBalanceHosts>,
 
     /// [`Manager`] configuration.
@@ -141,7 +141,7 @@ pub struct Config {
 }
 
 /// A value the [`fmt::Debug`] impl refuses to print, spelled `_` as
-/// [`tokio_postgres::Config`] spells it.
+/// [`pgorm_driver::Config`] spells it.
 struct Redaction;
 
 impl fmt::Debug for Redaction {
@@ -152,14 +152,14 @@ impl fmt::Debug for Redaction {
 
 /// [`Config::url`] with its credentials removed.
 ///
-/// The field holds whatever [`tokio_postgres::Config::from_str`] accepts, which
+/// The field holds whatever [`pgorm_driver::Config::from_str`] accepts, which
 /// is two spellings. In a URL the credentials are the `userinfo` before the
 /// authority's `@`, and everything after it — host, port, database, options —
 /// is what makes the printed value worth having, so only the `userinfo` is
 /// replaced. A libpq keyword/value string has no such delimiter and its quoting
 /// and escaping are not worth re-implementing to find one, so a string that
 /// mentions `password` at all is withheld whole.
-// [spec:pgorm:sem:conn.pool.config-redaction]    url credentials
+// [spec:pgorm:sem:conn.pool.config-redaction+1]    url credentials
 fn redact_url(url: &str) -> Cow<'_, str> {
     let Some(scheme_end) = url.find("://") else {
         return if url.contains("password") {
@@ -188,7 +188,7 @@ fn redact_url(url: &str) -> Cow<'_, str> {
 /// the type is built to be deserialized from the environment — the crate's own
 /// example fills it from `PG__PASSWORD` — so a derived impl would put the
 /// password in whatever log a `?cfg` reaches.
-// [spec:pgorm:sem:conn.pool.config-redaction]
+// [spec:pgorm:sem:conn.pool.config-redaction+1]
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut config_dbg = &mut f.debug_struct("Config");
@@ -229,7 +229,7 @@ impl fmt::Debug for Config {
 #[non_exhaustive]
 pub enum ConfigError {
     /// This variant is returned if the `url` is invalid
-    InvalidUrl(tokio_postgres::Error),
+    InvalidUrl(pgorm_driver::Error),
     /// This variant is returned if the `dbname` is missing from the config
     DbnameMissing,
     /// This variant is returned if the `dbname` contains an empty string
@@ -286,7 +286,7 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// See [`ConfigError`] and [`tokio_postgres::Error`] for details.
+    /// See [`ConfigError`] and [`pgorm_driver::Error`] for details.
     pub fn builder<T>(&self, tls: T) -> Result<PoolBuilder, ConfigError>
     where
         T: MakeTlsConnect<Socket> + Clone + Sync + Send + 'static,
@@ -301,7 +301,7 @@ impl Config {
         Ok(Pool::builder(manager).config(pool_config))
     }
 
-    /// Returns [`tokio_postgres::Config`] which can be used to connect to
+    /// Returns [`pgorm_driver::Config`] which can be used to connect to
     /// the database.
     ///
     /// Every field this struct declares is applied here. A field carried but
@@ -323,13 +323,13 @@ impl Config {
     /// How `url` and the individual fields combine is documented on
     /// [`url`](Self::url): most fields replace what the URL set, but the host,
     /// hostaddr and port families are added to it.
-    // [spec:pgorm:req:conn.pool.config-forwarding+1]
+    // [spec:pgorm:req:conn.pool.config-forwarding+2]
     #[allow(unused_results)]
-    pub fn get_pg_config(&self) -> Result<tokio_postgres::Config, ConfigError> {
+    pub fn get_pg_config(&self) -> Result<pgorm_driver::Config, ConfigError> {
         let mut cfg = if let Some(url) = &self.url {
-            tokio_postgres::Config::from_str(url).map_err(ConfigError::InvalidUrl)?
+            pgorm_driver::Config::from_str(url).map_err(ConfigError::InvalidUrl)?
         } else {
-            tokio_postgres::Config::new()
+            pgorm_driver::Config::new()
         };
         if let Some(user) = self.user.as_ref().filter(|s| !s.is_empty()) {
             cfg.user(user.as_str());
@@ -451,7 +451,7 @@ pub enum RecyclingMethod {
     ///
     /// Unless you have special needs this is a safe choice.
     ///
-    /// [1]: tokio_postgres::Client::is_closed
+    /// [1]: pgorm_driver::Client::is_closed
     #[default]
     Fast,
 
@@ -464,7 +464,7 @@ pub enum RecyclingMethod {
     /// returns `false` while the connection is dead. You will receive an error
     /// on your first query then.
     ///
-    /// [1]: tokio_postgres::Client::is_closed
+    /// [1]: pgorm_driver::Client::is_closed
     Verified,
 
     /// Like [`Verified`] query method, but instead use the following sequence
@@ -528,7 +528,7 @@ impl RecyclingMethod {
 /// say so with a large [`Bounded`](StatementCacheSize::Bounded). A zero bound
 /// is unrepresentable for the same reason: it would be
 /// [`Disabled`](StatementCacheSize::Disabled) spelled a second way.
-// [spec:pgorm:req:conn.pool.statement-cache.bound+1]
+// [spec:pgorm:req:conn.pool.statement-cache.bound+2]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum StatementCacheSize {
     /// Hold at most this many statements per connection.
@@ -548,7 +548,7 @@ const DEFAULT_STATEMENT_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(256) 
     None => NonZeroUsize::MIN,
 };
 
-// [spec:pgorm:req:conn.pool.statement-cache.bound+1]    the default bound
+// [spec:pgorm:req:conn.pool.statement-cache.bound+2]    the default bound
 impl Default for StatementCacheSize {
     fn default() -> Self {
         Self::Bounded(DEFAULT_STATEMENT_CACHE_SIZE)
@@ -603,8 +603,8 @@ pub struct ManagerConfig {
     /// that drops idle TCP connections, such as an AWS Network Load Balancer
     /// (after 350 seconds by default), is kept from it by TCP keepalives sent
     /// more often than its cutoff: set
-    /// [`keepalives_idle`](tokio_postgres::Config::keepalives_idle) below it
-    /// on the `tokio_postgres::Config` the pool is built from (its default is
+    /// [`keepalives_idle`](pgorm_driver::Config::keepalives_idle) below it
+    /// on the `pgorm_driver::Config` the pool is built from (its default is
     /// two hours), which reaches this connection as it reaches the pool's own. A
     /// keepalive carries no data, so it does not reset a timeout that waits
     /// for the client to send something, as a pooler's can.
@@ -655,7 +655,7 @@ pub enum TargetSessionAttrs {
     ReadWrite,
 }
 
-// [spec:pgorm:req:conn.pool.config-forwarding+1]    the enum the field is forwarded as
+// [spec:pgorm:req:conn.pool.config-forwarding+2]    the enum the field is forwarded as
 impl From<TargetSessionAttrs> for PgTargetSessionAttrs {
     fn from(attrs: TargetSessionAttrs) -> Self {
         match attrs {
@@ -711,7 +711,7 @@ pub enum ChannelBinding {
     Require,
 }
 
-// [spec:pgorm:req:conn.pool.config-forwarding+1]    the enum the field is forwarded as
+// [spec:pgorm:req:conn.pool.config-forwarding+2]    the enum the field is forwarded as
 impl From<ChannelBinding> for PgChannelBinding {
     fn from(cb: ChannelBinding) -> Self {
         match cb {
@@ -736,7 +736,7 @@ pub enum LoadBalanceHosts {
     Random,
 }
 
-// [spec:pgorm:req:conn.pool.config-forwarding+1]    the enum the field is forwarded as
+// [spec:pgorm:req:conn.pool.config-forwarding+2]    the enum the field is forwarded as
 impl From<LoadBalanceHosts> for PgLoadBalanceHosts {
     fn from(cb: LoadBalanceHosts) -> Self {
         match cb {

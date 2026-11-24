@@ -81,7 +81,7 @@ test("an error PostgreSQL reports rejects with a DatabaseError carrying its SQLS
   assert.equal(error.detail, null);
 });
 
-// [spec:pgorm:sem:error.model.parameter-count/test]    a statement given another number of values than it takes is the caller's ConstructionError, in pgorm's words
+// [spec:pgorm:sem:error.model.parameter-count+1/test]    a statement given another number of values than it takes is the caller's ConstructionError, in pgorm's words
 test("a statement given another number of values than its placeholders take rejects with a ConstructionError naming both", async () => {
   await assert.rejects(pool.one("SELECT $1 AS x, $2 AS y", [1]), (error: unknown) => {
     assert.ok(error instanceof ConstructionError, `${error}`);

@@ -25,8 +25,8 @@ use pgorm::{
     Error, SelectGetableTuple, SelectModel, Selector, SelectorRaw, Values, alias,
     entity::prelude::*,
 };
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 async fn seed(db: &impl ConnectionTrait) -> Result<(i32, i32), Error> {
     let alpha = bakery::ActiveModel {

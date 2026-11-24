@@ -3,10 +3,10 @@ use crate::{
     ScopeError, Select, SelectProjected, SqlText, TryGetableMany, error::*,
 };
 use futures::{Stream, StreamExt};
+use pgorm_driver::types::ToSql;
 use pgorm_query::{SelectStatement, Values};
 use std::marker::PhantomData;
 use std::pin::Pin;
-use tokio_postgres::types::ToSql;
 
 use super::ValueHolder;
 
@@ -14,7 +14,7 @@ use super::ValueHolder;
 ///
 /// Unlike [`PinBoxStream`](crate::PinBoxStream) this is `Send`, so it can be
 /// consumed from a spawned task.
-// [spec:pgorm:def:exec.stream+2]
+// [spec:pgorm:def:exec.stream+3]
 pub type PinBoxSendStream<'db, Item> = Pin<Box<dyn Stream<Item = Item> + Send + 'db>>;
 
 /// The guard every ORM path that sends a `SELECT` passes through: a statement
@@ -431,7 +431,7 @@ where
     }
 
     /// Stream the results of a SELECT operation on a Model
-    // [spec:pgorm:def:exec.stream+2]
+    // [spec:pgorm:def:exec.stream+3]
     pub async fn stream<'b, C>(
         self,
         db: &C,
@@ -444,7 +444,7 @@ where
     }
 
     /// Stream the result of the operation with PartialModel
-    // [spec:pgorm:def:exec.stream+2]
+    // [spec:pgorm:def:exec.stream+3]
     pub async fn stream_partial_model<'b, C, M>(
         self,
         db: &C,
@@ -694,7 +694,7 @@ where
     }
 
     /// Stream the results of the Select operation
-    // [spec:pgorm:def:exec.stream+2]
+    // [spec:pgorm:def:exec.stream+3]
     pub async fn stream<'b, C>(
         self,
         db: &C,
@@ -975,7 +975,7 @@ where
 
     /// Stream the results of the Select operation, decoding each row as it
     /// arrives rather than buffering the whole result set
-    // [spec:pgorm:sem:exec.stream.decode+1]
+    // [spec:pgorm:sem:exec.stream.decode+2]
     pub async fn stream<'b, C>(
         self,
         db: &C,

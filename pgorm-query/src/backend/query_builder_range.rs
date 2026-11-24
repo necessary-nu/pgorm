@@ -69,7 +69,7 @@ impl QueryBuilder {
     /// a column's type is, then each option that is set, in the order
     /// PostgreSQL documents them. Every name is quoted; the multirange's is
     /// the type name it will be, schema-qualified as the range's can be.
-    // [spec:pgorm:req:sql.ddl.type-range+2]
+    // [spec:pgorm:req:sql.ddl.type-range+3]
     pub(super) fn prepare_range_definition(
         &self,
         range: &RangeDefinition,

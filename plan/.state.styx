@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-24T03:02:44.138946Z
+last_sync_at 2026-11-24T13:53:18.633361Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -117,7 +117,7 @@ rule_versions (
     {id bindings.streams, version 1}
     {id bindings.surface, version 2}
     {id bindings.template, version 0}
-    {id bindings.tls, version 0}
+    {id bindings.tls, version 1}
     {id bindings.transaction-retry, version 0}
     {id bindings.transactions, version 2}
     {id bindings.value-tags, version 1}
@@ -161,30 +161,31 @@ rule_versions (
     {id codegen.models.one-of, version 0}
     {id codegen.models.refused, version 0}
     {id codegen.models.relations, version 0}
-    {id conn.copy, version 2}
+    {id conn.copy, version 3}
     {id conn.copy.rows, version 5}
     {id conn.copy.rows.kind, version 0}
     {id conn.copy.statement, version 2}
     {id conn.database-ref, version 1}
-    {id conn.driver-types, version 0}
-    {id conn.listen, version 0}
-    {id conn.pool, version 4}
+    {id conn.driver-source, version 0}
+    {id conn.driver-types, version 1}
+    {id conn.listen, version 1}
+    {id conn.pool, version 5}
     {id conn.pool.conn-trait, version 10}
-    {id conn.pool.generic-client, version 0}
+    {id conn.pool.generic-client, version 1}
     {id conn.pool.get, version 1}
-    {id conn.pool.hook-connection, version 0}
-    {id conn.pool.lifecycle, version 3}
-    {id conn.pool.multi, version 4}
+    {id conn.pool.hook-connection, version 1}
+    {id conn.pool.lifecycle, version 4}
+    {id conn.pool.multi, version 5}
     {id conn.pool.no-conn-trait, version 0}
     {id conn.pool.recycle, version 1}
-    {id conn.pool.statement-cache, version 3}
-    {id conn.pool.statement-cache.clear, version 1}
+    {id conn.pool.statement-cache, version 4}
+    {id conn.pool.statement-cache.clear, version 2}
     {id conn.pool.statement-cache.listen, version 1}
-    {id conn.tx, version 3}
-    {id conn.tx.aborted, version 0}
+    {id conn.tx, version 4}
+    {id conn.tx.aborted, version 1}
     {id conn.tx.closure, version 6}
     {id conn.tx.compose, version 0}
-    {id conn.tx.guard, version 4}
+    {id conn.tx.guard, version 5}
     {id conn.tx.retry, version 3}
     {id disjoint.declare, version 5}
     {id disjoint.evolve, version 2}
@@ -214,16 +215,16 @@ rule_versions (
     {id entity.traits.active-enum.limits, version 3}
     {id entity.traits.column, version 9}
     {id entity.traits.column-def, version 2}
-    {id entity.traits.column.enum-cast, version 17}
+    {id entity.traits.column.enum-cast, version 18}
     {id entity.traits.crud, version 5}
     {id entity.traits.entity-name, version 6}
     {id entity.traits.from-query-result, version 5}
     {id entity.traits.model, version 3}
     {id entity.traits.primary-key, version 8}
-    {id error.model, version 14}
-    {id error.model.bind-refusal, version 0}
-    {id error.model.decode-refusal, version 0}
-    {id error.model.parameter-count, version 0}
+    {id error.model, version 15}
+    {id error.model.bind-refusal, version 1}
+    {id error.model.decode-refusal, version 1}
+    {id error.model.parameter-count, version 1}
     {id error.model.runtime, version 3}
     {id error.model.sql-class, version 5}
     {id exec.crud, version 2}
@@ -236,7 +237,7 @@ rule_versions (
     {id exec.crud.try-insert, version 4}
     {id exec.crud.update, version 7}
     {id exec.cursor, version 5}
-    {id exec.cursor.binding, version 6}
+    {id exec.cursor.binding, version 7}
     {id exec.cursor.binding-coerce, version 2}
     {id exec.cursor.binding-gaps, version 3}
     {id exec.cursor.binding-interval, version 0}
@@ -244,17 +245,17 @@ rule_versions (
     {id exec.cursor.keyset, version 8}
     {id exec.cursor.order, version 4}
     {id exec.cursor.window, version 1}
-    {id exec.decode, version 3}
+    {id exec.decode, version 4}
     {id exec.decode.array, version 2}
     {id exec.decode.decimal-exact, version 0}
     {id exec.decode.interval, version 1}
-    {id exec.decode.json, version 1}
+    {id exec.decode.json, version 2}
     {id exec.decode.many, version 0}
     {id exec.decode.many-arity, version 0}
-    {id exec.decode.null, version 1}
-    {id exec.decode.null-context, version 1}
-    {id exec.decode.types, version 3}
-    {id exec.decode.u32-oid, version 0}
+    {id exec.decode.null, version 2}
+    {id exec.decode.null-context, version 2}
+    {id exec.decode.types, version 4}
+    {id exec.decode.u32-oid, version 1}
     {id exec.paginator, version 3}
     {id exec.paginator.count, version 0}
     {id exec.paginator.erased, version 0}
@@ -262,8 +263,8 @@ rule_versions (
     {id exec.paginator.iterate, version 0}
     {id exec.paginator.page-size, version 2}
     {id exec.paginator.raw, version 8}
-    {id exec.stream, version 2}
-    {id exec.stream.decode, version 1}
+    {id exec.stream, version 3}
+    {id exec.stream.decode, version 2}
     {id exec.tie-limit, version 1}
     {id exec.verify, version 1}
     {id exec.verify.describe, version 0}
@@ -437,7 +438,7 @@ rule_versions (
     {id scope.refusals, version 0}
     {id scope.write, version 0}
     {id scope.written, version 0}
-    {id security.ident-oracle, version 18}
+    {id security.ident-oracle, version 19}
     {id security.ident-oracle.nul, version 3}
     {id security.sqlmap, version 0}
     {id security.sqlmap.acceptance, version 1}
@@ -568,7 +569,7 @@ rule_versions (
     {id sql.value.render, version 2}
     {id sql.value.tuple, version 3}
     {id sql.value.value-type, version 5}
-    {id testing.isolation, version 0}
+    {id testing.isolation, version 1}
 )
 
 derived_priorities (
@@ -735,6 +736,7 @@ derived_priorities (
     {id domain-enum-predicates, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id domain-enum-remaining, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id domain-unwrap-shared, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
+    {id driver-vendor, priority 1, derived_at 2026-11-24T13:53:18.633361Z}
     {id embedded-index-kinds, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id empty-insert-batch, priority 3, derived_at 2026-09-07T15:33:15.757479Z}
     {id entity-composite-unique, priority 0, derived_at 2026-11-03T03:53:31.000679Z}
@@ -1163,9 +1165,12 @@ derived_priorities (
     {id scope-range-types, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-sequences, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-simple-case, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id scopes.from-using, priority 2, derived_at 2026-11-24T13:53:18.633361Z}
     {id scopes.napi, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
+    {id scopes.one-of-live, priority 2, derived_at 2026-11-24T13:53:18.633361Z}
     {id scopes.python, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
     {id scopes.rust, priority 0, derived_at 2026-11-24T03:02:44.138946Z}
+    {id scopes.security-regressions, priority 1, derived_at 2026-11-24T13:53:18.633361Z}
     {id sea-config-residue, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id sea-orm-active-enums-name, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id sea-rc-name, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
@@ -1845,6 +1850,7 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id pg19-only, kind @complete, author "brendan@necessary.nu", at 2026-11-23T19:01:40.682007Z}
+    {id scopes.security-regressions, kind @doing, author "brendan@necessary.nu", at 2026-11-24T09:41:46.543776Z}
 )
 
 impl_evidence (
@@ -2361,7 +2367,8 @@ impl_evidence (
     {id disjoint.bindings, covered_rules (
         bindings.disjoint
     ), covered_claims (
-        {impl_name main, rule bindings.disjoint}
+        {impl_name javascript, rule bindings.disjoint}
+        {impl_name python, rule bindings.disjoint}
     )}
     {id disjoint.bindings-codegen, covered_rules (
         bindings.codegen-disjoint
@@ -2374,7 +2381,8 @@ impl_evidence (
     {id disjoint.bindings-unkinded, covered_rules (
         bindings.disjoint-unkinded
     ), covered_claims (
-        {impl_name main, rule bindings.disjoint-unkinded}
+        {impl_name javascript, rule bindings.disjoint-unkinded}
+        {impl_name python, rule bindings.disjoint-unkinded}
     ), rule_versions_seen (
         {id bindings.disjoint-unkinded, version 0}
     )}
@@ -2947,7 +2955,7 @@ impl_evidence (
     {id napi-codegen, covered_rules (
         napi.codegen-types
     ), covered_claims (
-        {impl_name main, rule napi.codegen-types}
+        {impl_name javascript, rule napi.codegen-types}
     ), rule_versions_seen (
         {id napi.codegen-types, version 0}
     )}
@@ -2995,16 +3003,8 @@ impl_evidence (
     )}
     {id napi-values, covered_rules (
         napi.inference
-        napi.rows
-        napi.temporal
-        napi.value-tags
-        napi.values
     ), covered_claims (
-        {impl_name main, rule napi.inference}
-        {impl_name main, rule napi.rows}
-        {impl_name main, rule napi.temporal}
-        {impl_name main, rule napi.value-tags}
-        {impl_name main, rule napi.values}
+        {impl_name javascript, rule napi.inference}
     ), rule_versions_seen (
         {id napi.inference, version 0}
     )}
@@ -3317,7 +3317,6 @@ impl_evidence (
         exec.crud.update
         exec.decode
         exec.decode.array
-        exec.decode.from-u64
         exec.decode.json
         exec.decode.many
         exec.decode.many-arity
@@ -3336,7 +3335,6 @@ impl_evidence (
         {impl_name main, rule exec.crud.update}
         {impl_name main, rule exec.decode}
         {impl_name main, rule exec.decode.array}
-        {impl_name main, rule exec.decode.from-u64}
         {impl_name main, rule exec.decode.json}
         {impl_name main, rule exec.decode.many}
         {impl_name main, rule exec.decode.many-arity}
@@ -3374,7 +3372,6 @@ impl_evidence (
     )}
     {id orm.query, covered_rules (
         query.build
-        query.build.debug-query
         query.build.delete
         query.build.filter
         query.build.insert
@@ -3392,7 +3389,6 @@ impl_evidence (
         query.loader.table-ref-limitation
     ), covered_claims (
         {impl_name main, rule query.build}
-        {impl_name main, rule query.build.debug-query}
         {impl_name main, rule query.build.delete}
         {impl_name main, rule query.build.filter}
         {impl_name main, rule query.build.insert}
@@ -3547,41 +3543,35 @@ impl_evidence (
     {id python.acceptance, covered_rules (
         python.acceptance
     ), covered_claims (
-        {impl_name main, rule python.acceptance}
+        {impl_name python, rule python.acceptance}
     ), rule_versions_seen (
         {id python.acceptance, version 1}
     )}
     {id python.direct-builders, covered_rules (
         python.direct-builders
     ), covered_claims (
-        {impl_name main, rule python.direct-builders}
+        {impl_name python, rule python.direct-builders}
     ), rule_versions_seen (
         {id python.direct-builders, version 0}
     )}
     {id python.distribution, covered_rules (
         python.distribution
     ), covered_claims (
-        {impl_name main, rule python.distribution}
+        {impl_name python, rule python.distribution}
     ), rule_versions_seen (
         {id python.distribution, version 0}
     )}
     {id python.package, covered_rules (
-        python.api
-        python.capabilities
-        python.optional
         python.package
     ), covered_claims (
-        {impl_name main, rule python.api}
-        {impl_name main, rule python.capabilities}
-        {impl_name main, rule python.optional}
-        {impl_name main, rule python.package}
+        {impl_name python, rule python.package}
     ), rule_versions_seen (
         {id python.package, version 0}
     )}
     {id python.statements, covered_rules (
         python.raw
     ), covered_claims (
-        {impl_name main, rule python.raw}
+        {impl_name python, rule python.raw}
     ), rule_versions_seen (
         {id python.raw, version 0}
     )}
@@ -4056,6 +4046,11 @@ impl_evidence (
         {impl_name main, rule exec.decode.decimal-exact}
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
+    )}
+    {id driver-vendor, covered_rules (
+        conn.driver-source
+    ), covered_claims (
+        {impl_name main, rule conn.driver-source}
     )}
 )
 

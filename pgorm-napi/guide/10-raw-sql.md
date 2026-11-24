@@ -31,7 +31,7 @@ passed beside it as an array:
 Each row is a plain object keyed by column name, in column order, each value
 decoded by its column's type: a `numeric` as a `Decimal`, an `int4` as a
 `number`, an enum as its label ([Values and types](13-values.md)). Rust's rows
-are tokio-postgres `Row`s, read by position or name with `get`:
+are pgorm-driver `Row`s, read by position or name with `get`:
 
 ```ts
 import assert from "node:assert/strict";
@@ -269,7 +269,7 @@ the same terminals, given in place of the text and its array, and is built as
 `inspect()` builds it. `inspect()` returns the same pair of SQL and values,
 and the values, `Value`s, are parameters like any other, so the pair runs as
 SQL text too. Rust needs each value wrapped in a `ValueHolder` to pass it to
-tokio-postgres; JavaScript needs nothing:
+pgorm-driver; JavaScript needs nothing:
 
 ```ts
 import assert from "node:assert/strict";

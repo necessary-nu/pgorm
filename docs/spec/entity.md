@@ -199,7 +199,7 @@ explicit limitations.
 > (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`) and a hand-written
 > definition meets when its schema is created.
 
-> [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+> [spec:pgorm:sem:entity.traits.column.enum-cast+18]
 > Enum-typed columns are transparently cast at the SQL boundary
 > (`src/entity/column.rs`). On read, `select_as` / `select_enum_as` casts an enum
 > column to `text` — or `text[]` when the column type is `Array` of an enum — and
@@ -221,7 +221,7 @@ explicit limitations.
 > `TypeName`, there being no cast to it from a built-in range type. On read
 > it is left untouched: the range's binary form decodes as it is. A column of
 > the multirange created beside such a range is written the same way and read
-> as an enum column is, `select_as` casting it to `text`: tokio-postgres
+> as an enum column is, `select_as` casting it to `text`: pgorm-driver
 > reports that multirange as a simple type whose binary form it cannot read.
 > A column of an array of either is written through `Expr::as_range` to the
 > type's array, the array of the values' texts cast to it, and read as an

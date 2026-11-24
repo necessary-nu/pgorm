@@ -93,7 +93,7 @@ pub(crate) mod sealed {
 /// `C: TransactionTrait` gets a future the compiler does not know to be
 /// `Send`: promising it would mean bounding an async closure's future, which
 /// stable Rust cannot express.
-// [spec:pgorm:req:conn.tx+3]
+// [spec:pgorm:req:conn.tx+4]
 pub trait TransactionTrait: sealed::Open {
     /// Run `f` inside a transaction, committing when it returns `Ok` and
     /// rolling back when it returns `Err`.
@@ -239,7 +239,7 @@ impl<E: Into<Error>> From<TransactionError<E>> for Error {
     }
 }
 
-// [spec:pgorm:req:conn.tx+3]    BEGIN on the pooled client
+// [spec:pgorm:req:conn.tx+4]    BEGIN on the pooled client
 impl TransactionTrait for DatabaseConnection {}
 
 impl sealed::Handle for DatabaseConnection {
@@ -252,7 +252,7 @@ impl sealed::Open for DatabaseConnection {
     }
 }
 
-// [spec:pgorm:req:conn.tx+3]    a savepoint inside a transaction
+// [spec:pgorm:req:conn.tx+4]    a savepoint inside a transaction
 impl TransactionTrait for DatabaseTransaction<'_> {}
 
 impl sealed::Handle for DatabaseTransaction<'_> {
@@ -267,9 +267,9 @@ impl sealed::Open for DatabaseTransaction<'_> {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+4]    the awaited ends a closure's outcome selects
+// [spec:pgorm:sem:conn.tx.guard+5]    the awaited ends a closure's outcome selects
 impl sealed::Close for DatabaseTransaction<'_> {
-    // [spec:pgorm:sem:conn.tx.aborted]    a COMMIT or RELEASE an aborted transaction answers is an error
+    // [spec:pgorm:sem:conn.tx.aborted+1]    a COMMIT or RELEASE an aborted transaction answers is an error
     async fn commit(mut self, _: sealed::Token) -> Result<(), Error> {
         self.take().commit().await.map_err(|error| match error {
             CommitError::Aborted {

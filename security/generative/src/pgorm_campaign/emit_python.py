@@ -258,7 +258,7 @@ async def _stream(query, take, cancel, connection):
         "rows": [_row(item) for item in records],
         "stream": state,
     }
-    paths = ["pgorm::ConnectionTrait::query_raw", "tokio_postgres::RowStream"]
+    paths = ["pgorm::ConnectionTrait::query_raw", "pgorm_driver::RowStream"]
     return observation, paths, records
 
 

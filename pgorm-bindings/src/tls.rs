@@ -5,11 +5,12 @@
 //! `sslmode=disable`, or a `tls` mode that verifies less. The string's own
 //! `prefer` and `require` keep full verification, so a weaker mode is always
 //! the program's explicit choice and never a default a DSN carried in.
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 
 use std::sync::Arc;
 
 use pgorm::{Config, SslMode};
+use pgorm_driver_rustls::MakeRustlsConnect;
 use rustls::{
     ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme,
     client::{
@@ -20,7 +21,6 @@ use rustls::{
     pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime, pem::PemObject},
     server::ParsedCertificate,
 };
-use tokio_postgres_rustls::MakeRustlsConnect;
 
 use crate::{Dialect, Refusal};
 
@@ -122,7 +122,7 @@ impl TlsSettings {
     /// client certificate without its key, PEM that holds nothing usable, and
     /// a platform store with no root to verify against are each refused here,
     /// before anything is sent.
-    // [spec:pgorm:req:bindings.tls]
+    // [spec:pgorm:req:bindings.tls+1]
     pub fn connector(&self, config: &mut Config, dialect: Dialect) -> Result<Connector, Refusal> {
         let tls = |mode: TlsMode| dialect.setting("tls", mode.name());
         let mode = match self.mode {

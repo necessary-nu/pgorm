@@ -1,7 +1,7 @@
 # Query execution
 
 The executor layer (`src/executor/`) turns built statements into database
-round-trips and decodes `tokio_postgres` rows back into Rust values. It is
+round-trips and decodes `pgorm_driver` rows back into Rust values. It is
 split into a decoding surface (`QueryResult` and the `TryGetable` family,
 `src/executor/query.rs`) and a CRUD execution surface (`Selector`,
 `src/executor/{select,insert,update,delete,execute}.rs`).
@@ -9,11 +9,11 @@ These rules capture what the code does today, including known gaps.
 
 ## Decoding (`exec.decode`)
 
-> [spec:pgorm:def:exec.decode+3]
+> [spec:pgorm:def:exec.decode+4]
 > `QueryResult` is a `#[repr(transparent)]` wrapper around a single
-> `tokio_postgres::Row`. Values are extracted through the `TryGetable`
+> `pgorm_driver::Row`. Values are extracted through the `TryGetable`
 > trait, which has three entry points: `try_get_by` (any
-> `tokio_postgres::row::RowIndex`, i.e. a column name or ordinal),
+> `pgorm_driver::row::RowIndex`, i.e. a column name or ordinal),
 > `try_get` (a prefix plus column name, composed as `{pre}{col}` with no
 > separator through the bounded spelling of
 > `[spec:pgorm:sem:query.graph.writer]`, so a composition past
@@ -29,10 +29,10 @@ These rules capture what the code does today, including known gaps.
 > converting the internal `TryGetError` into `Error`. `column_names`
 > returns the result set's column names in order.
 
-> [spec:pgorm:sem:exec.decode.null+1]
+> [spec:pgorm:sem:exec.decode.null+2]
 > Decoding delegates to `Row::try_get`. A resulting
-> `tokio_postgres::Error` is classified by `TryGetError::postgres`: when
-> the error's `source()` downcasts to `tokio_postgres::types::WasNull`
+> `pgorm_driver::Error` is classified by `TryGetError::postgres`: when
+> the error's `source()` downcasts to `pgorm_driver::types::WasNull`
 > it becomes `TryGetError::Null(...)`; any other error (including one with
 > no source at all) becomes `TryGetError::Db(Error::Postgres(...))`.
 >
@@ -42,10 +42,10 @@ These rules capture what the code does today, including known gaps.
 > `From<TryGetError> for Error` renders the null case as
 > `Error::Type("A null value was encountered while decoding {s}")`.
 
-> [spec:pgorm:sem:exec.decode.null-context+1]
+> [spec:pgorm:sem:exec.decode.null-context+2]
 > Null-decode errors do not carry structured column context. The payload
 > of `TryGetError::Null` is the `Display` output of the underlying
-> `tokio_postgres::Error` (e.g. "error deserializing column 0"), not the
+> `pgorm_driver::Error` (e.g. "error deserializing column 0"), not the
 > requested column name or prefix. The internal helper
 > `err_null_idx_col` (query.rs:494) that would format the index is dead
 > code (`#[allow(dead_code)]`) and returns the literal string `"TODO"`;
@@ -97,10 +97,10 @@ These rules capture what the code does today, including known gaps.
 > every entity model reads it, so the second arises only for a projection
 > that leaves the key out.
 
-> [spec:pgorm:def:exec.decode.types+3]
+> [spec:pgorm:def:exec.decode.types+4]
 > The scalar Rust types implementing `TryGetable` by direct delegation to
 > `Row::try_get` (and therefore accepting exactly the Postgres types
-> tokio-postgres's `FromSql` accepts for them) are: `bool`, `i8`, `i16`,
+> pgorm-driver's `FromSql` accepts for them) are: `bool`, `i8`, `i16`,
 > `i32`, `i64`, `f32`, `f64`, `String`, `Vec<u8>`, and
 > `rust_decimal::Decimal`.
 >
@@ -123,7 +123,7 @@ These rules capture what the code does today, including known gaps.
 > (`with-uuid`). These three features are weaker than they look for the
 > same reason — the underlying types are unconditional in `pgorm-query` and
 > their `FromSql`/`ToSql` impls come from `postgres-types` through
-> tokio-postgres's own always-on features — so what they gate is the
+> pgorm-driver's own always-on features — so what they gate is the
 > conversion surface (`TryGetable`, `IntoActiveValue`, the prelude names),
 > not the dependency. They still build with the feature off, which is why
 > they remain.
@@ -134,7 +134,7 @@ These rules capture what the code does today, including known gaps.
 > (`[spec:pgorm:req:exec.cursor.binding-gaps]`), so it names jiff's civil
 > types in every configuration; an optional edge left a build without
 > `with-jiff` unable to compile. The crate is compiled in any case,
-> `pgorm-query` and tokio-postgres's `with-jiff-0_2` both depending on it, so
+> `pgorm-query` and pgorm-driver's `with-jiff-0_2` both depending on it, so
 > `with-jiff` turning off removes the conversion surface and nothing else.
 >
 > A workspace build cannot show any of this, because feature unification
@@ -186,8 +186,8 @@ These rules capture what the code does today, including known gaps.
 > carrying `ExactDecimal`'s reason, as a value of another type is. NaN and the
 > infinities, which no `Decimal` holds, are refused the same way.
 
-> [spec:pgorm:sem:exec.decode.u32-oid]
-> `u32` implements `TryGetable` by decoding a `tokio_postgres::types::Oid`,
+> [spec:pgorm:sem:exec.decode.u32-oid+1]
+> `u32` implements `TryGetable` by decoding a `pgorm_driver::types::Oid`,
 > so it reads Postgres `OID` columns, not `INT4`. Likewise `Vec<u32>`
 > (under `postgres-array`) decodes as `Vec<Oid>`. No other unsigned
 > integer widths implement `TryGetable`; `u8`, `u16`, and `u64` cannot be
@@ -231,7 +231,7 @@ These rules capture what the code does today, including known gaps.
 > column's field qualifier, carrying the qualifier in the column's
 > definition (`[spec:pgorm:sem:codegen.entity.types]`).
 
-> [spec:pgorm:def:exec.decode.range+5]
+> [spec:pgorm:def:exec.decode.range+6]
 > `Range<T>` and `Multirange<T>` (`[spec:pgorm:def:sql.value.range]`)
 > implement `TryGetable` for each built-in subtype: `i32`, `i64` and
 > `Decimal` unconditionally, and `jiff::civil::Date`,
@@ -241,7 +241,7 @@ These rules capture what the code does today, including known gaps.
 > ranges over (`[spec:pgorm:def:sql.value.created-range]`): `i16`, `f32`,
 > `f64` and `String` unconditionally, `jiff::civil::Time` under `with-jiff`
 > and `Uuid` under `with-uuid`. Their multiranges are reported by
-> tokio-postgres as simple types, and an array of such a range has no
+> pgorm-driver as simple types, and an array of such a range has no
 > conversion to bind it, so neither decodes. pgorm-query
 > owns the two types but not the wire crates, so they have no `FromSql`, and
 > the orphan rule forbids writing one here; each decodes through a local
@@ -279,7 +279,7 @@ These rules capture what the code does today, including known gaps.
 > (`conn.copy.rows`), and the language bindings read a built-in range
 > through `RangeSql`, `MultirangeSql` or the `_with` readers, keeping no
 > reader of their own. A multirange a schema
-> created is reported by tokio-postgres as a simple type, which neither
+> created is reported by pgorm-driver as a simple type, which neither
 > accepts: it is read as its text instead, by the newtype that names it
 > (`[spec:pgorm:def:sql.value.created-range]`). `TryGetable::accepts` answers through the newtype, so
 > `VerifyStatement` reports a range column of another subtype or a
@@ -313,10 +313,10 @@ These rules capture what the code does today, including known gaps.
 > Surplus column names are ignored. The index-based path performs no such
 > check; it simply reads ordinals `0..N`.
 
-> [spec:pgorm:def:exec.decode.json+1]
+> [spec:pgorm:def:exec.decode.json+2]
 > Under `with-json`, `TryGetableFromJson` decodes any
 > `serde::Deserialize` type from a JSON/JSONB column via the
-> `tokio_postgres::types::Json<T>` wrapper. A blanket impl provides
+> `pgorm_driver::types::Json<T>` wrapper. A blanket impl provides
 > `TryGetable` for every `TryGetableFromJson` type; consequently a type
 > can implement `ActiveEnum` or `TryGetableFromJson` but not both.
 >
@@ -830,10 +830,10 @@ These rules capture what the code does today, including known gaps.
 
 ## Streaming (`exec.stream`)
 
-> [spec:pgorm:def:exec.stream+2]
+> [spec:pgorm:def:exec.stream+3]
 > Row-level streaming is exposed through `ConnectionTrait::query_raw`, which
 > takes the same `BorrowToSql` `ExactSizeIterator` params as `execute_raw`
-> and returns a `tokio_postgres::RowStream`: rows are read from the
+> and returns a `pgorm_driver::RowStream`: rows are read from the
 > connection as they arrive instead of being buffered into a `Vec` the way
 > `query_all` does. It is implemented by `DatabaseConnection`,
 > `&DatabaseConnection`, `DatabaseTransaction`, `InstrumentedConnection`,
@@ -849,7 +849,7 @@ These rules capture what the code does today, including known gaps.
 > (`[spec:pgorm:sem:query.graph.grouped]`). Page-batched and keyset-windowed
 > consumption remain available through `exec.paginator` and `exec.cursor`.
 
-> [spec:pgorm:sem:exec.stream.decode+1]
+> [spec:pgorm:sem:exec.stream.decode+2]
 > `SelectorRaw::stream` binds `Values` through the `ValueHolder` `ToSql`
 > adapter exactly as `all` does, then maps the `RowStream` item-wise: each
 > `Ok(row)` is decoded by `S::from_raw_query_result`, and each transport
@@ -860,7 +860,7 @@ These rules capture what the code does today, including known gaps.
 >
 > The adapter is a stateless `map`: pgorm neither fuses the stream after an
 > error nor cancels the in-flight query. Dropping the stream before it is
-> exhausted is safe — the tokio-postgres connection task keeps paging
+> exhausted is safe — the pgorm-driver connection task keeps paging
 > through and discarding the remaining messages, so the connection stays
 > usable — but the query still runs to completion server-side. A stream MUST
 > NOT be polled after the connection or transaction it came from is dropped:

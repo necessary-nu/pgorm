@@ -59,7 +59,7 @@ fn models() -> Vec<net_decode::Model> {
     ]
 }
 
-// [spec:pgorm:def:exec.decode.types+3/test]
+// [spec:pgorm:def:exec.decode.types+4/test]
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {
     let ctx = TestContext::new("value_decode_tests_valuedecode").await;
@@ -78,8 +78,8 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:exec.decode.types+3/test]
-// [spec:pgorm:def:exec.cursor.binding+6/test]    `IpNetwork` and `MacAddress`
+// [spec:pgorm:def:exec.decode.types+4/test]
+// [spec:pgorm:def:exec.cursor.binding+7/test]    `IpNetwork` and `MacAddress`
 // values, and a `None` payload emitted as SQL NULL, bound through `ValueHolder`
 async fn round_trip_inet_and_macaddr(db: &DatabaseConnection) -> Result<(), Error> {
     for model in models() {
@@ -101,7 +101,7 @@ async fn round_trip_inet_and_macaddr(db: &DatabaseConnection) -> Result<(), Erro
     Ok(())
 }
 
-// [spec:pgorm:def:exec.decode.types+3/test]
+// [spec:pgorm:def:exec.decode.types+4/test]
 async fn decode_inet_and_macaddr_as_tuple(db: &DatabaseConnection) -> Result<(), Error> {
     let decoded: Vec<(IpNetwork, MacAddress, Option<IpNetwork>)> = net_decode::Entity::find()
         .select([
@@ -158,7 +158,7 @@ impl FromQueryResult for EntryPoints {
     }
 }
 
-// [spec:pgorm:def:exec.decode+3/test]    every `QueryResult` entry point, and the
+// [spec:pgorm:def:exec.decode+4/test]    every `QueryResult` entry point, and the
 // `{pre}{col}` concatenation `try_get` performs
 #[pgorm_macros::test]
 async fn decode_entry_points() -> Result<(), Error> {
@@ -233,9 +233,9 @@ impl FromQueryResult for NullProbe {
     }
 }
 
-// [spec:pgorm:sem:exec.decode.null+1/test]    `Option<T>` swallows only the null
+// [spec:pgorm:sem:exec.decode.null+2/test]    `Option<T>` swallows only the null
 // case; every other decode error propagates
-// [spec:pgorm:sem:exec.decode.null-context+1/test]    the null payload is the
+// [spec:pgorm:sem:exec.decode.null-context+2/test]    the null payload is the
 // driver's ordinal-based message, not the requested column name
 #[pgorm_macros::test]
 async fn decode_null_handling() -> Result<(), Error> {
@@ -261,7 +261,7 @@ async fn decode_null_handling() -> Result<(), Error> {
     );
 
     // The payload carries no structured column context: it is the `Display` of
-    // the underlying `tokio_postgres::Error`, which names the ordinal, never
+    // the underlying `pgorm_driver::Error`, which names the ordinal, never
     // the requested column name.
     assert!(!row.strict_null_message.contains("maybe"));
 
@@ -293,7 +293,7 @@ impl FromQueryResult for OidProbe {
     }
 }
 
-// [spec:pgorm:sem:exec.decode.u32-oid/test]    `u32` and `Vec<u32>` read `OID`
+// [spec:pgorm:sem:exec.decode.u32-oid+1/test]    `u32` and `Vec<u32>` read `OID`
 // columns, and reject `INT4`
 #[pgorm_macros::test]
 async fn decode_u32_is_oid() -> Result<(), Error> {
@@ -530,7 +530,7 @@ impl FromQueryResult for JsonProbe {
     }
 }
 
-// [spec:pgorm:def:exec.decode.json+1/test]    the `TryGetableFromJson` blanket
+// [spec:pgorm:def:exec.decode.json+2/test]    the `TryGetableFromJson` blanket
 // impl and the `TryGetableArray` `Vec<T>` path, including its non-array error
 #[pgorm_macros::test]
 async fn decode_json() -> Result<(), Error> {

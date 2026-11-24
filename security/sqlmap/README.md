@@ -216,7 +216,7 @@ route is the same kind of evidence it is anywhere else in this suite. The other
 Those positions are judged by a separate, structural instrument: the
 identifier render oracle (`tests/identifier_oracle/`, run by
 `tests/identifier_oracle_tests.rs` and specified as
-`[spec:pgorm:req:security.ident-oracle+18]` in
+`[spec:pgorm:req:security.ident-oracle+19]` in
 [`docs/spec/ident-oracle.md`](../../docs/spec/ident-oracle.md)). It covers:
 
 - the 38 identifier pairs no sqlmap boundary reaches;

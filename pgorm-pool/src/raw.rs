@@ -2,8 +2,8 @@
 
 use std::task::{Context, Poll};
 
+use pgorm_driver::{AsyncMessage, Client, Connection, Error};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_postgres::{AsyncMessage, Client, Connection, Error};
 
 /// A client with the undriven I/O half of its connection, as
 /// [`Connect::connect_raw`](crate::Connect::connect_raw) opens them.
@@ -22,11 +22,11 @@ pub type Unpooled = (Client, Box<dyn RawConnection>);
 ///
 /// It is a trait object because a connection's type names its TLS stream, which
 /// the pool's connector erases.
-// [spec:pgorm:req:conn.listen]    the connection the listener drives itself
+// [spec:pgorm:req:conn.listen+1]    the connection the listener drives itself
 pub trait RawConnection: Send {
     /// Drive the connection, returning the next asynchronous message.
     ///
-    /// This is `tokio_postgres::Connection::poll_message`: `None` once the
+    /// This is `pgorm_driver::Connection::poll_message`: `None` once the
     /// client has been dropped and the connection has closed, an `Err` when it
     /// failed, and either one is the last answer it gives.
     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<AsyncMessage, Error>>>;

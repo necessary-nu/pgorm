@@ -4,10 +4,10 @@ pub mod common;
 
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::entity::prelude::*;
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
-const NO_PARAMS: [&(dyn tokio_postgres::types::ToSql + Sync); 0] = [];
+const NO_PARAMS: [&(dyn pgorm_driver::types::ToSql + Sync); 0] = [];
 
 const TWO_TABLES: &str = "CREATE TABLE batch_left (id int primary key);
      CREATE TABLE batch_right (id int primary key);";

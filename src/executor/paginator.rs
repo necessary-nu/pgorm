@@ -4,6 +4,7 @@ use crate::{
 };
 use async_stream::stream;
 use futures::Stream;
+use pgorm_driver::types::ToSql;
 use pgorm_query::{
     Asterisk, Expr, FromItem, IntoName, SelectStatement, SqlTemplate, Value, alias,
     error::{Error as QueryError, TemplateError},
@@ -15,7 +16,6 @@ use std::{
     num::NonZeroU64,
     pin::Pin,
 };
-use tokio_postgres::types::ToSql;
 
 use super::{
     QueryResult, ValueHolder,

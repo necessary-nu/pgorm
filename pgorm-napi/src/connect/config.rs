@@ -126,7 +126,7 @@ fn callable<'cx>(
 impl Shared {
     /// `dsn` and the shared options, as JavaScript passes them.
     // [spec:pgorm:req:bindings.connections+3]
-    // [spec:pgorm:req:bindings.tls]
+    // [spec:pgorm:req:bindings.tls+1]
     // [spec:pgorm:req:napi.lifecycle+3]
     pub(crate) fn read<'cx>(
         cx: &mut Cx<'cx>,

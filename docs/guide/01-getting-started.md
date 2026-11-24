@@ -6,7 +6,7 @@ and writes it. Every value travels to the server as a bound parameter, never
 pasted into the SQL text, and each statement is prepared once per connection
 and reused.
 
-pgorm runs on [tokio-postgres] and a [deadpool] connection pool, on the tokio
+pgorm runs on [pgorm-driver] and a [deadpool] connection pool, on the tokio
 runtime. Because it targets one database, it can offer what PostgreSQL has and
 other databases lack: `RETURNING`, `ON CONFLICT`, `MERGE`, `COPY`,
 `LISTEN`/`NOTIFY`, enums, domains, ranges, arrays and JSON among them.
@@ -14,7 +14,7 @@ other databases lack: `RETURNING`, `ON CONFLICT`, `MERGE`, `COPY`,
 This chapter adds pgorm to a project, connects to a database and runs a first
 query.
 
-[tokio-postgres]: https://docs.rs/tokio-postgres
+[pgorm-driver]: https://github.com/necessary-nu/pgorm/tree/main/crates/pgorm-driver
 [deadpool]: https://docs.rs/deadpool
 
 ## Adding the dependency
@@ -69,7 +69,7 @@ its own, so what one example writes no other example sees.
 
 ## Connecting
 
-[`pgorm::connect`](crate::connect) takes a tokio-postgres
+[`pgorm::connect`](crate::connect) takes a pgorm-driver
 [`Config`](crate::Config), which parses from a connection URL, and returns a
 [`DatabasePool`](crate::DatabasePool). Building a pool connects to nothing:
 the pool opens connections when they are first asked for, so a wrong host or

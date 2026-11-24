@@ -285,7 +285,7 @@ impl NativePool {
     /// `DatabasePool::clear_statement_caches` does. Nothing is sent, so a
     /// closed pool or another event loop is no reason to refuse it.
     // [spec:pgorm:req:bindings.connections+3]
-    // [spec:pgorm:req:conn.pool.statement-cache.clear+1]
+    // [spec:pgorm:req:conn.pool.statement-cache.clear+2]
     fn clear_statement_caches(&self) {
         self.state.pool.clear_statement_caches();
     }

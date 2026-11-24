@@ -1,4 +1,4 @@
-//! The transaction wrappers: a [`tokio_postgres::Transaction`] and its
+//! The transaction wrappers: a [`pgorm_driver::Transaction`] and its
 //! builder, each carrying the [`StatementCache`] of the client that opened it.
 
 use std::{
@@ -9,31 +9,31 @@ use std::{
 
 use bytes::Buf;
 use futures_util::StreamExt;
-use tokio::task::AbortHandle;
-use tokio_postgres::{
+use pgorm_driver::{
     CopyInSink, CopyOutStream, Error, IsolationLevel, Row, RowStream, SimpleQueryMessage,
     Statement, ToStatement, Transaction as PgTransaction,
     TransactionBuilder as PgTransactionBuilder,
     types::{BorrowToSql, ToSql, Type},
 };
+use tokio::task::AbortHandle;
 
 use crate::StatementCache;
 
-/// Wrapper around [`tokio_postgres::Transaction`] with a [`StatementCache`]
+/// Wrapper around [`pgorm_driver::Transaction`] with a [`StatementCache`]
 /// from the [`Client`](crate::Client) object it was created by.
 ///
 /// It forwards the statement methods rather than dereferencing to the inner
-/// transaction. `tokio_postgres::Transaction::savepoint` writes its name
+/// transaction. `pgorm_driver::Transaction::savepoint` writes its name
 /// into `SAVEPOINT {name}` unquoted, so a `Deref` to it made
 /// [`savepoint`](Self::savepoint)'s quoting optional; without one, the
 /// quoted method is the only route to a savepoint name:
 ///
 /// ```compile_fail,E0308
 /// async fn bypass(txn: &mut pgorm_pool::Transaction<'_>) {
-///     let _ = pgorm_pool::tokio_postgres::Transaction::savepoint(&mut *txn, "x").await;
+///     let _ = pgorm_pool::pgorm_driver::Transaction::savepoint(&mut *txn, "x").await;
 /// }
 /// ```
-// [spec:pgorm:req:conn.pool.savepoint-name+3]
+// [spec:pgorm:req:conn.pool.savepoint-name+4]
 pub struct Transaction<'a> {
     /// Original [`PgTransaction`].
     pub(crate) txn: PgTransaction<'a>,
@@ -51,13 +51,13 @@ pub struct Transaction<'a> {
 }
 
 impl Transaction<'_> {
-    /// Like [`tokio_postgres::Transaction::prepare()`], but uses an existing
+    /// Like [`pgorm_driver::Transaction::prepare()`], but uses an existing
     /// [`Statement`] from the [`StatementCache`] if possible.
     pub async fn prepare_cached(&self, query: &str) -> Result<Statement, Error> {
         self.statement_cache.prepare(self.txn.client(), query).await
     }
 
-    /// Like [`tokio_postgres::Transaction::prepare_typed()`], but uses an
+    /// Like [`pgorm_driver::Transaction::prepare_typed()`], but uses an
     /// existing [`Statement`] from the [`StatementCache`] if possible.
     pub async fn prepare_typed_cached(
         &self,
@@ -69,7 +69,7 @@ impl Transaction<'_> {
             .await
     }
 
-    /// Like [`tokio_postgres::Transaction::execute()`].
+    /// Like [`pgorm_driver::Transaction::execute()`].
     pub async fn execute<T>(
         &self,
         statement: &T,
@@ -81,7 +81,7 @@ impl Transaction<'_> {
         self.txn.execute(statement, params).await
     }
 
-    /// Like [`tokio_postgres::Transaction::execute_raw()`].
+    /// Like [`pgorm_driver::Transaction::execute_raw()`].
     pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -92,7 +92,7 @@ impl Transaction<'_> {
         self.txn.execute_raw(statement, params).await
     }
 
-    /// Like [`tokio_postgres::Transaction::query()`].
+    /// Like [`pgorm_driver::Transaction::query()`].
     pub async fn query<T>(
         &self,
         statement: &T,
@@ -104,7 +104,7 @@ impl Transaction<'_> {
         self.txn.query(statement, params).await
     }
 
-    /// Like [`tokio_postgres::Transaction::query_one()`].
+    /// Like [`pgorm_driver::Transaction::query_one()`].
     pub async fn query_one<T>(
         &self,
         statement: &T,
@@ -116,7 +116,7 @@ impl Transaction<'_> {
         self.txn.query_one(statement, params).await
     }
 
-    /// Like [`tokio_postgres::Transaction::query_opt()`].
+    /// Like [`pgorm_driver::Transaction::query_opt()`].
     pub async fn query_opt<T>(
         &self,
         statement: &T,
@@ -128,7 +128,7 @@ impl Transaction<'_> {
         self.txn.query_opt(statement, params).await
     }
 
-    /// Like [`tokio_postgres::Transaction::query_raw()`].
+    /// Like [`pgorm_driver::Transaction::query_raw()`].
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
@@ -139,7 +139,7 @@ impl Transaction<'_> {
         self.txn.query_raw(statement, params).await
     }
 
-    /// Like [`tokio_postgres::Transaction::batch_execute()`].
+    /// Like [`pgorm_driver::Transaction::batch_execute()`].
     ///
     /// Statement text runs as written through the simple query protocol, as
     /// on the client; it is the caller's SQL, not a name this wrapper
@@ -148,11 +148,11 @@ impl Transaction<'_> {
         self.txn.batch_execute(query).await
     }
 
-    /// Like [`tokio_postgres::Transaction::copy_in()`], but a COPY the server
+    /// Like [`pgorm_driver::Transaction::copy_in()`], but a COPY the server
     /// refuses before its data flow starts closes the connection, as
     /// [`ClientWrapper::copy_in`](crate::ClientWrapper::copy_in) does and for
     /// the same reason. The transaction then ends without committing.
-    // [spec:pgorm:req:conn.copy+2]    the transaction wrapper forwards COPY FROM STDIN
+    // [spec:pgorm:req:conn.copy+3]    the transaction wrapper forwards COPY FROM STDIN
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
@@ -161,8 +161,8 @@ impl Transaction<'_> {
         crate::copy::guarded(&self.connection, self.txn.copy_in(statement)).await
     }
 
-    /// Like [`tokio_postgres::Transaction::copy_out()`].
-    // [spec:pgorm:req:conn.copy+2]    the transaction wrapper forwards COPY TO STDOUT
+    /// Like [`pgorm_driver::Transaction::copy_out()`].
+    // [spec:pgorm:req:conn.copy+3]    the transaction wrapper forwards COPY TO STDOUT
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,
@@ -170,7 +170,7 @@ impl Transaction<'_> {
         self.txn.copy_out(statement).await
     }
 
-    /// Like [`tokio_postgres::Transaction::commit()`], but a transaction a
+    /// Like [`pgorm_driver::Transaction::commit()`], but a transaction a
     /// failed statement has aborted is rolled back and reported as
     /// [`CommitError::Aborted`].
     ///
@@ -183,7 +183,7 @@ impl Transaction<'_> {
     /// way, a round trip ahead of its `RELEASE`: an aborted savepoint refuses
     /// the `RELEASE` too, but the `RELEASE` consumes the handle the
     /// `ROLLBACK TO` would be sent through.
-    // [spec:pgorm:sem:conn.tx.aborted]
+    // [spec:pgorm:sem:conn.tx.aborted+1]
     pub async fn commit(self) -> Result<(), CommitError> {
         if self.savepoint {
             if let Err(refusal) = self.txn.batch_execute("SELECT").await {
@@ -229,12 +229,12 @@ impl Transaction<'_> {
         std::mem::forget(txn);
     }
 
-    /// Like [`tokio_postgres::Transaction::rollback()`].
+    /// Like [`pgorm_driver::Transaction::rollback()`].
     pub async fn rollback(self) -> Result<(), Error> {
         self.txn.rollback().await
     }
 
-    /// Like [`tokio_postgres::Transaction::transaction()`], but returns a
+    /// Like [`pgorm_driver::Transaction::transaction()`], but returns a
     /// wrapped [`Transaction`] with a [`StatementCache`].
     #[allow(unused_lifetimes)] // false positive
     pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
@@ -246,12 +246,12 @@ impl Transaction<'_> {
         })
     }
 
-    /// Like [`tokio_postgres::Transaction::savepoint()`], but returns a wrapped
+    /// Like [`pgorm_driver::Transaction::savepoint()`], but returns a wrapped
     /// [`Transaction`] with a [`StatementCache`], and quotes `name` as an
     /// identifier.
     ///
     /// `SAVEPOINT` takes no parameters, so the name is the one part of the
-    /// statement that can only travel as SQL text. `tokio_postgres` writes it
+    /// statement that can only travel as SQL text. `pgorm_driver` writes it
     /// into `SAVEPOINT {name}` — and, from the handle returned here, into
     /// `RELEASE {name}` and `ROLLBACK TO {name}` — through the simple query
     /// protocol, which accepts several statements at once. A name is therefore
@@ -267,7 +267,7 @@ impl Transaction<'_> {
     /// containing one under any quoting at all, and the protocol encoder
     /// rejects it before a byte reaches the server, so the `Err` arrives with
     /// the transaction untouched.
-    // [spec:pgorm:req:conn.pool.savepoint-name+3]
+    // [spec:pgorm:req:conn.pool.savepoint-name+4]
     #[allow(unused_lifetimes)] // false positive
     pub async fn savepoint<I>(&mut self, name: I) -> Result<Transaction<'_>, Error>
     where
@@ -289,7 +289,7 @@ impl Transaction<'_> {
 /// identifier gives special meaning to, and doubling is how PostgreSQL spells
 /// an escaped one, so there is no name this can fail on and no name it can
 /// turn into something other than an identifier.
-// [spec:pgorm:req:conn.pool.savepoint-name+3]
+// [spec:pgorm:req:conn.pool.savepoint-name+4]
 fn quote_identifier(name: &str) -> String {
     let mut quoted = String::with_capacity(name.len() + 2);
     quoted.push('"');
@@ -313,7 +313,7 @@ enum Ending {
 
 /// Send `SELECT; COMMIT` as one simple query, and say which statement failed
 /// by whether the `SELECT` had completed.
-// [spec:pgorm:sem:conn.tx.aborted]
+// [spec:pgorm:sem:conn.tx.aborted+1]
 async fn committed(txn: &PgTransaction<'_>) -> Result<(), Ending> {
     let answers = txn
         .client()
@@ -337,7 +337,7 @@ async fn committed(txn: &PgTransaction<'_>) -> Result<(), Ending> {
 ///
 /// Exhaustive, so that pgorm, which turns each kind into an error of its
 /// own, is told by the compiler when a kind is added.
-// [spec:pgorm:sem:conn.tx.aborted]
+// [spec:pgorm:sem:conn.tx.aborted+1]
 #[derive(Debug)]
 pub enum CommitError {
     /// The `COMMIT` or `RELEASE` failed, or the connection broke before the
@@ -392,7 +392,7 @@ impl fmt::Debug for Transaction<'_> {
     }
 }
 
-/// Wrapper around [`tokio_postgres::TransactionBuilder`] with a
+/// Wrapper around [`pgorm_driver::TransactionBuilder`] with a
 /// [`StatementCache`] from the [`Client`](crate::Client) object it was created by.
 #[must_use = "builder does nothing itself, use `.start()` to use it"]
 pub struct TransactionBuilder<'a> {
@@ -409,7 +409,7 @@ pub struct TransactionBuilder<'a> {
 impl<'a> TransactionBuilder<'a> {
     /// Sets the isolation level of the transaction.
     ///
-    /// Like [`tokio_postgres::TransactionBuilder::isolation_level()`].
+    /// Like [`pgorm_driver::TransactionBuilder::isolation_level()`].
     pub fn isolation_level(self, isolation_level: IsolationLevel) -> Self {
         Self {
             builder: self.builder.isolation_level(isolation_level),
@@ -419,7 +419,7 @@ impl<'a> TransactionBuilder<'a> {
 
     /// Sets the access mode of the transaction.
     ///
-    /// Like [`tokio_postgres::TransactionBuilder::read_only()`].
+    /// Like [`pgorm_driver::TransactionBuilder::read_only()`].
     pub fn read_only(self, read_only: bool) -> Self {
         Self {
             builder: self.builder.read_only(read_only),
@@ -434,7 +434,7 @@ impl<'a> TransactionBuilder<'a> {
     /// is able to run with less overhead and a guarantee that it will not
     /// be aborted due to serialization failure.
     ///
-    /// Like [`tokio_postgres::TransactionBuilder::deferrable()`].
+    /// Like [`pgorm_driver::TransactionBuilder::deferrable()`].
     pub fn deferrable(self, deferrable: bool) -> Self {
         Self {
             builder: self.builder.deferrable(deferrable),
@@ -447,7 +447,7 @@ impl<'a> TransactionBuilder<'a> {
     /// The transaction will roll back by default - use the commit method
     /// to commit it.
     ///
-    /// Like [`tokio_postgres::TransactionBuilder::start()`].
+    /// Like [`pgorm_driver::TransactionBuilder::start()`].
     pub async fn start(self) -> Result<Transaction<'a>, Error> {
         Ok(Transaction {
             txn: self.builder.start().await?,

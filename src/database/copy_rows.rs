@@ -24,13 +24,13 @@ use jiff::{
     Timestamp,
     civil::{Date, DateTime, Time},
 };
+use pgorm_driver::types::{FromSql, IsNull, Kind, ToSql, Type};
 use pgorm_pool::GenericClient;
 use pgorm_query::{
     ArrayType, Asterisk, CopyFormat, CopyFromStatement, CopyToStatement, Interval, IpNetwork,
     MacAddress, Multirange, Query, Range, RangeType, StaticName, Value, Vector, base_type,
 };
 use postgres_protocol::types as wire;
-use tokio_postgres::types::{FromSql, IsNull, Kind, ToSql, Type};
 
 use crate::{
     ActiveModelTrait, CopyInSink, CopyOutStream, EntityTrait, Error, ExactDecimal, Iterable,

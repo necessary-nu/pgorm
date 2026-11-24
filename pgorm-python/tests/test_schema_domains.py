@@ -214,7 +214,7 @@ class DomainDatabase(unittest.IsolatedAsyncioTestCase):
     # [spec:pgorm:req:bindings.connections+3/test]    clear_statement_caches makes the connection
     # that already ran an insert prepare it again, its old statement closed on the server, and
     # write the domain's new default
-    # [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    from Python
+    # [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    from Python
     async def test_a_cleared_pool_writes_the_new_default(self):
         await self.create()
 

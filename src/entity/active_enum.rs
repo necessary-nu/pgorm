@@ -1,6 +1,6 @@
 use crate::{ColumnDef, Error, Iterable, QueryResult, TryGetError, TryGetable};
+use pgorm_driver::row::RowIndex;
 use pgorm_query::{Expr, ExprTrait, Name, Nullable, SimpleExpr, Value, ValueType};
-use tokio_postgres::row::RowIndex;
 
 /// A Rust representation of enum defined in database.
 ///

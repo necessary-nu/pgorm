@@ -11,7 +11,7 @@
 // [spec:pgorm:req:napi.transactions+3]
 // [spec:pgorm:req:bindings.copy]
 // [spec:pgorm:req:bindings.listen+3]
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 // [spec:pgorm:req:bindings.pool-hooks]
 // [spec:pgorm:req:bindings.multi-pool]
 

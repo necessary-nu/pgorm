@@ -708,7 +708,7 @@ async fn a_read_never_widens_a_pre_checksum_ledger() -> Result<(), Error> {
 /// prepared.
 // [spec:pgorm:sem:migration.up+7/test]    a committed batch that applied a migration clears the
 // pool's statement caches, and a run that applied nothing does not
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    the runner clears after the DDL it applied
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    the runner clears after the DDL it applied
 #[tokio::test]
 async fn up_clears_the_pools_prepared_statements() -> Result<(), Error> {
     use common::migrator::domain_default::{Created, Defaulted, INSERT, prepared_insert};

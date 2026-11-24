@@ -5,7 +5,7 @@ use super::{CompositeAttribute, PendingTypeAlter, TypeRef};
 use crate::{Collation, ColumnType, DropBehavior, IntoCollation, IntoName, Name, QueryBuilder};
 
 /// One change to a composite's attributes, as `ALTER TYPE` chains them.
-// [spec:pgorm:req:sql.ddl.type-composite+2]
+// [spec:pgorm:req:sql.ddl.type-composite+3]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum AttributeChange {
@@ -56,7 +56,7 @@ pub enum AttributeChange {
 /// an attribute added twice (`42701`) and one dropped or retyped that the type
 /// does not have (`42703`, which `drop_attribute_if_exists` turns into a
 /// notice for a drop).
-// [spec:pgorm:req:sql.ddl.type-composite+2]
+// [spec:pgorm:req:sql.ddl.type-composite+3]
 #[derive(Debug, Clone)]
 pub struct CompositeAlterStatement {
     pub(crate) name: TypeRef,
@@ -90,7 +90,7 @@ pub struct CompositeAlterStatement {
 ///     r#"ALTER TYPE "address" RENAME ATTRIBUTE "no" TO "number" CASCADE"#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.type-composite+2]
+// [spec:pgorm:req:sql.ddl.type-composite+3]
 #[derive(Debug, Clone)]
 pub struct AttributeRenameStatement {
     pub(crate) name: TypeRef,
@@ -148,7 +148,7 @@ impl PendingTypeAlter {
     /// Add an attribute to the composite: `ADD ATTRIBUTE "name" <type>`,
     /// written as [`TypeCreateStatement::attribute`](super::TypeCreateStatement::attribute)
     /// writes one.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn add_attribute<N>(self, name: N, column_type: ColumnType) -> CompositeAlterStatement
     where
         N: IntoName,
@@ -158,7 +158,7 @@ impl PendingTypeAlter {
 
     /// Add an attribute under a named collation: `ADD ATTRIBUTE "name" <type>
     /// COLLATE "collation"`.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn add_attribute_collated<N, C>(
         self,
         name: N,
@@ -173,7 +173,7 @@ impl PendingTypeAlter {
     }
 
     /// Drop an attribute: `DROP ATTRIBUTE "name"`.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn drop_attribute<N>(self, name: N) -> CompositeAlterStatement
     where
         N: IntoName,
@@ -183,7 +183,7 @@ impl PendingTypeAlter {
 
     /// Drop an attribute, passing over one the type does not have with a
     /// notice: `DROP ATTRIBUTE IF EXISTS "name"`.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn drop_attribute_if_exists<N>(self, name: N) -> CompositeAlterStatement
     where
         N: IntoName,
@@ -192,7 +192,7 @@ impl PendingTypeAlter {
     }
 
     /// Give an attribute a new type: `ALTER ATTRIBUTE "name" TYPE <type>`.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn alter_attribute<N>(self, name: N, column_type: ColumnType) -> CompositeAlterStatement
     where
         N: IntoName,
@@ -202,7 +202,7 @@ impl PendingTypeAlter {
 
     /// Give an attribute a new type under a named collation: `ALTER ATTRIBUTE
     /// "name" TYPE <type> COLLATE "collation"`.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn alter_attribute_collated<N, C>(
         self,
         name: N,
@@ -218,7 +218,7 @@ impl PendingTypeAlter {
 
     /// Rename an attribute: `RENAME ATTRIBUTE "from" TO "to"`, a statement of
     /// its own ([`AttributeRenameStatement`]).
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub fn rename_attribute<F, T>(self, from: F, to: T) -> AttributeRenameStatement
     where
         F: IntoName,
@@ -240,7 +240,7 @@ impl CompositeAlterStatement {
     }
 
     /// Add a further attribute, after the changes already listed.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     #[must_use]
     pub fn add_attribute<N>(self, name: N, column_type: ColumnType) -> Self
     where
@@ -250,7 +250,7 @@ impl CompositeAlterStatement {
     }
 
     /// Add a further attribute under a named collation.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     #[must_use]
     pub fn add_attribute_collated<N, C>(self, name: N, ty: ColumnType, collation: C) -> Self
     where
@@ -261,7 +261,7 @@ impl CompositeAlterStatement {
     }
 
     /// Drop a further attribute.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     #[must_use]
     pub fn drop_attribute<N>(self, name: N) -> Self
     where
@@ -271,7 +271,7 @@ impl CompositeAlterStatement {
     }
 
     /// Drop a further attribute if the type has it.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     #[must_use]
     pub fn drop_attribute_if_exists<N>(self, name: N) -> Self
     where
@@ -281,7 +281,7 @@ impl CompositeAlterStatement {
     }
 
     /// Retype a further attribute.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     #[must_use]
     pub fn alter_attribute<N>(self, name: N, column_type: ColumnType) -> Self
     where
@@ -291,7 +291,7 @@ impl CompositeAlterStatement {
     }
 
     /// Retype a further attribute under a named collation.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     #[must_use]
     pub fn alter_attribute_collated<N, C>(self, name: N, ty: ColumnType, collation: C) -> Self
     where

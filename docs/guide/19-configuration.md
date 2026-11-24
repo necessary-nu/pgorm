@@ -25,13 +25,13 @@ for, so a wrong host, password or database name shows up at the first
 
 ## The connection's settings
 
-[`Config`](crate::Config) is tokio-postgres's connection configuration. It
+[`Config`](crate::Config) is pgorm-driver's connection configuration. It
 parses from a URL or from libpq's `key=value` form, and its builder methods
 set each part: `host`, `port`, `user`, `password`, `dbname`,
 `application_name`, `connect_timeout`, `keepalives_idle`, and `options`,
 which passes server settings for every session, such as a `search_path` or
 a `statement_timeout`. The setters that choose between modes take
-tokio-postgres's enums, which pgorm re-exports: `ssl_mode` an
+pgorm-driver's enums, which pgorm re-exports: `ssl_mode` an
 [`SslMode`](crate::SslMode), `ssl_negotiation` an
 [`SslNegotiation`](crate::SslNegotiation), `target_session_attrs` a
 [`TargetSessionAttrs`](crate::TargetSessionAttrs), `channel_binding` a
@@ -206,7 +206,7 @@ assert!(matches!(
 # }
 ```
 
-The client a hook is given is tokio-postgres's.
+The client a hook is given is pgorm-driver's.
 [`HookConnection::new(client)`](crate::HookConnection) borrows it for the
 hook's length as a [`ConnectionTrait`](crate::ConnectionTrait), so pgorm's
 own statements run in a hook, an entity's `find` among them, through the
@@ -333,11 +333,9 @@ and the pool opens a fresh one when it next needs one.
 
 A server that requires TLS, as most managed PostgreSQL services do, is
 reached through [`connect_with`](crate::connect_with) with a TLS connector:
-any type implementing tokio-postgres's
+any type implementing pgorm-driver's
 [`MakeTlsConnect<Socket>`](crate::MakeTlsConnect), such as `MakeRustlsConnect`
-from the [tokio-postgres-rustls](https://docs.rs/tokio-postgres-rustls) crate
-or `MakeTlsConnector` from
-[postgres-openssl](https://docs.rs/postgres-openssl). Build the connector
+from the `pgorm-driver-rustls` crate. Build the connector
 with the root certificates the server's certificate chains to, and set the
 `Config`'s `ssl_mode` to [`SslMode::Require`](crate::SslMode::Require) so
 that the connection fails rather than falls back to plain text.

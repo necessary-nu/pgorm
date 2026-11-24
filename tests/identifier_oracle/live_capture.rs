@@ -387,7 +387,7 @@ static CAPTURE: Capture = Capture;
 
 impl log::Log for Capture {
     fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-        metadata.target().starts_with("tokio_postgres") && metadata.level() <= log::Level::Debug
+        metadata.target().starts_with("pgorm_driver") && metadata.level() <= log::Level::Debug
     }
 
     fn log(&self, record: &log::Record<'_>) {
@@ -509,7 +509,7 @@ fn judge_sequence(
 
 /// Every live-only site holds every corpus name, statement by statement, and
 /// keeps a NUL-bearing name out of the server.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 // [spec:pgorm:req:security.ident-oracle.nul+3/test]
 #[tokio::test]
 async fn live_sites_hold_every_hostile_name() {

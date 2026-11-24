@@ -247,7 +247,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
         row = await self.pool.one(p.Select(p.literal("O'Brien").as_("value")).inspect())
         self.assertEqual(row["value"], "O'Brien")
 
-    # [spec:pgorm:sem:error.model.parameter-count/test]    another number of values than the placeholders take is the caller's ConstructionError
+    # [spec:pgorm:sem:error.model.parameter-count+1/test]    another number of values than the placeholders take is the caller's ConstructionError
     async def test_raw_parameter_count_is_refused(self):
         with self.assertRaises(p.ConstructionError) as caught:
             await self.pool.one(p.RawSQL("SELECT $1 AS x, $2 AS y", [1]))

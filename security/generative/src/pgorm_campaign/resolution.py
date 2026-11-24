@@ -36,7 +36,7 @@ class Resolution:
             raise self.p.DecodeError(
                 "result reference type differs from the declared value tag"
             )
-        return value, ["tokio_postgres::Row::try_get"]
+        return value, ["pgorm_driver::Row::try_get"]
 
     # [spec:pgorm:req:generative.execution]
     def get(self, reference, *, scope="root", binder=None, local=None):

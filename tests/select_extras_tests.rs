@@ -19,6 +19,7 @@ use pgorm::{
     ConnectionTrait, Error, PaginatorTrait, QueryTrait, RuntimeError, SelectGetableTuple, Selector,
     entity::prelude::*,
 };
+use pgorm_driver::error::SqlState;
 use pgorm_query::{
     ColumnType, Expr, Func, GroupingElement, LikeExpr, LockBehavior, LockType, Name, Order,
     OrderedStatement, Query, SampleMethod, SelectStatement, TableFunction, TableSample,
@@ -26,7 +27,6 @@ use pgorm_query::{
 };
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;
-use tokio_postgres::error::SqlState;
 
 mod player {
     use pgorm::entity::prelude::*;

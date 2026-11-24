@@ -23,8 +23,8 @@ use pgorm::pgorm_query::{
     UnionType, View, ViewCheckOption, WindowStatement, error::Error as QueryError,
 };
 use pgorm::{ConnectionTrait, TransactionTrait, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 /// An account the `active_account` view shows: the view's three columns, its
 /// key the table's.

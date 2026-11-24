@@ -20,9 +20,9 @@ use pgorm::pgorm_query::{
 use pgorm::{
     ConnectionTrait, CreatedRange, DecodeRaw, QueryTrait, Schema, TryGetable, entity::prelude::*,
 };
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::ops::Bound::{Excluded, Included, Unbounded};
-use tokio_postgres::error::SqlState;
 
 mod measures {
     use pgorm::entity::prelude::*;
@@ -289,7 +289,7 @@ async fn create_the_range_types(db: &DatabaseConnection) -> Result<(), Error> {
 
 /// A table built from the entity names each created type in full, quoted
 /// where the name needs it, and the server takes it.
-// [spec:pgorm:def:sql.value.created-range+9/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
 // [spec:pgorm:sem:macros.derive.created-range+3/test]
 async fn the_table_names_each_created_type(db: &DatabaseConnection) -> Result<(), Error> {
     let schema = Schema::new();
@@ -325,8 +325,8 @@ fn measure(id: i32) -> measures::Model {
 /// Every subtype is written by an entity insert, its text bound and cast by
 /// name, and read back from the range's binary form by its select; a NULL of
 /// a created range type round-trips too.
-// [spec:pgorm:def:sql.value.created-range+9/test]
-// [spec:pgorm:def:exec.decode.range+5/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
+// [spec:pgorm:def:exec.decode.range+6/test]
 async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) -> Result<(), Error> {
     let written = measure(1);
     written.clone().into_active_model().insert(db).await?;
@@ -382,7 +382,7 @@ async fn every_subtype_round_trips_through_an_entity(db: &DatabaseConnection) ->
 
 /// A value cast to its type renders as an escaped literal inline and as a
 /// `text` parameter bound, and the two are one value — the value written.
-// [spec:pgorm:def:sql.value.created-range+9/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
 async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Result<(), Error> {
     let floats = [
         Range::from(1.5..2.5),
@@ -420,7 +420,7 @@ async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Resul
 
 /// The server's own text for a value reads back as the value written, and
 /// for a continuous range whose bounds print alike it is the text written.
-// [spec:pgorm:def:sql.value.created-range+9/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
 async fn the_canonical_text_reads_back_as_written(db: &DatabaseConnection) -> Result<(), Error> {
     async fn canonical(db: &DatabaseConnection, expr: SimpleExpr) -> Result<String, Error> {
         let query = select(expr.cast_as_type(TypeName::new(n("text"))));
@@ -472,7 +472,7 @@ async fn the_canonical_text_reads_back_as_written(db: &DatabaseConnection) -> Re
 /// A bound holding the range literal's own syntax, the SQL string's, or a
 /// placeholder's is written and read back as the text it is, by entity insert
 /// and by both renderings of a cast.
-// [spec:pgorm:def:sql.value.created-range+9/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
 async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Result<(), Error> {
     let hostile = [
         "'); DROP TABLE measures; --",
@@ -526,7 +526,7 @@ async fn a_bound_holding_range_syntax_stays_data(db: &DatabaseConnection) -> Res
 /// of ranges written as the array of their texts. Written
 /// as the built-in it is, it is refused: there is no cast between two range
 /// types.
-// [spec:pgorm:def:sql.value.created-range+9/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
 async fn a_builtin_range_value_reaches_a_created_type(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -682,8 +682,8 @@ async fn a_builtin_range_value_reaches_a_created_type(
 /// as the array of their texts cast to the type's array — written, compared
 /// with, and bound by a pipeline — an empty array and a NULL element
 /// included, where a built-in range array cast as it is is refused.
-// [spec:pgorm:def:sql.value.created-range+9/test]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+18/test]
 // [spec:pgorm:sem:macros.derive.created-range+3/test]    `Vec` of the newtype is a field, read
 // element by element through the subtype's codec
 async fn created_range_arrays_bind_as_texts(db: &DatabaseConnection) -> Result<(), Error> {
@@ -789,7 +789,7 @@ async fn created_range_arrays_bind_as_texts(db: &DatabaseConnection) -> Result<(
 /// author the C function one needs — so it is continuous whatever its
 /// subtype: a range over `int4` keeps the bounds written, where `int4range`
 /// moves them.
-// [spec:pgorm:def:sql.value.created-range+9/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
 async fn a_created_range_over_int4_is_continuous(db: &DatabaseConnection) -> Result<(), Error> {
     for range in [Range::from(1..=5), Range::new(Excluded(1), Included(5))] {
         let (inline, bound) = both::<Slot>(db, &select(Slot(range.clone()).into_expr())).await?;
@@ -803,7 +803,7 @@ async fn a_created_range_over_int4_is_continuous(db: &DatabaseConnection) -> Res
 /// A row decodes by the subtype the server reports: a `floatrange` column
 /// read as a range over `int4` is refused, and so is a built-in `int4range`
 /// read as `floatrange`'s newtype.
-// [spec:pgorm:def:exec.decode.range+5/test]
+// [spec:pgorm:def:exec.decode.range+6/test]
 async fn a_column_reads_only_its_own_subtype(db: &DatabaseConnection) -> Result<(), Error> {
     let query = select(FloatRange(Range::from(1.0..2.0)).into_expr());
     let (sql, values) = query.build();
@@ -816,10 +816,10 @@ async fn a_column_reads_only_its_own_subtype(db: &DatabaseConnection) -> Result<
             .is_err()
     );
     assert!(!<FloatRange as TryGetable>::accepts(
-        &tokio_postgres::types::Type::INT4_RANGE
+        &pgorm_driver::types::Type::INT4_RANGE
     ));
     assert!(<Slot as TryGetable>::accepts(
-        &tokio_postgres::types::Type::INT4_RANGE
+        &pgorm_driver::types::Type::INT4_RANGE
     ));
     Ok(())
 }
@@ -827,7 +827,7 @@ async fn a_column_reads_only_its_own_subtype(db: &DatabaseConnection) -> Result<
 /// What the server refuses, it refuses with its own code on both renderings:
 /// bounds out of order, a bound the subtype does not read, and one outside
 /// its range.
-// [spec:pgorm:def:sql.value.created-range+9/test]
+// [spec:pgorm:def:sql.value.created-range+10/test]
 async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Result<(), Error> {
     let cases = [
         (
@@ -871,7 +871,7 @@ async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Res
 /// `numeric(10, 2)` ranges over `numeric`, its bounds held to no scale. The
 /// DDL bridge refuses the modifier for that reason.
 // [spec:pgorm:req:codegen.ddl.unsupported+23/test]
-// [spec:pgorm:req:sql.ddl.type-range+2/test]
+// [spec:pgorm:req:sql.ddl.type-range+3/test]
 async fn a_subtype_modifier_is_dropped(db: &DatabaseConnection) -> Result<(), Error> {
     db.batch_execute(
         &Type::create(Name::runtime("scaled"))

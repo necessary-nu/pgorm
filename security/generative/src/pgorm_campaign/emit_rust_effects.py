@@ -399,7 +399,7 @@ class EffectEmitter:
         if name == "execute":
             return ["pgorm::ConnectionTrait::execute_raw"]
         if name == "stream":
-            return ["pgorm::ConnectionTrait::query_raw", "tokio_postgres::RowStream"]
+            return ["pgorm::ConnectionTrait::query_raw", "pgorm_driver::RowStream"]
         if name == "active.write":
             return ["pgorm::ActiveModelTrait::" + d["method"]]
         if name == "entity.change":

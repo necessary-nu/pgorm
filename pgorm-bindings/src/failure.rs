@@ -306,7 +306,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
     }
     let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
-        if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
+        if let Some(postgres) = source.downcast_ref::<pgorm_driver::Error>() {
             return marked(postgres_failure(postgres, None, secrets));
         }
         match source.source() {
@@ -370,7 +370,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
 /// `error` as the failure its SQLSTATE names, its message the server's
 /// unless `message` replaces it.
 fn postgres_failure(
-    error: &tokio_postgres::Error,
+    error: &pgorm_driver::Error,
     message: Option<&str>,
     secrets: &Redactions,
 ) -> Failure {
@@ -390,7 +390,7 @@ fn postgres_failure(
                 reason: reason(&refusal.reason),
             }
         } else if let Some(refusal) = ParameterCountRefusal::of(error) {
-            // [spec:pgorm:sem:error.model.parameter-count]
+            // [spec:pgorm:sem:error.model.parameter-count+1]
             Failure::Construction(refusal.to_string())
         } else {
             Failure::Connection(format!(

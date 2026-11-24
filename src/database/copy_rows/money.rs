@@ -5,11 +5,11 @@
 //! `numeric` gives, counted at those places.
 
 use bytes::{BufMut, BytesMut};
+use pgorm_driver::types::{FromSql, IsNull, Kind, ToSql, Type};
 use pgorm_pool::GenericClient;
 use pgorm_query::{ArrayType, Value, base_type};
 use postgres_protocol::types::{self as wire, ArrayDimension};
 use rust_decimal::{Decimal, RoundingStrategy, prelude::ToPrimitive};
-use tokio_postgres::types::{FromSql, IsNull, Kind, ToSql, Type};
 
 use super::{Element, WireError};
 use crate::{Error, error::query_err};

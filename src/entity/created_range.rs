@@ -38,7 +38,7 @@ use pgorm_query::{Expr, ExprTrait, SimpleExpr, TypeName, Value};
 ///     ),
 /// );
 /// ```
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+10]
 pub trait CreatedRange: Into<Value> {
     /// The range type's name, schema-qualified when it was declared with one.
     fn name() -> TypeName;
