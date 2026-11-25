@@ -1,0 +1,1238 @@
+{
+  "groups": [
+    {
+      "group": "batch-stream-file",
+      "artifact": "after-native",
+      "workload": "direct/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 109708.5,
+        "mean": 110163.16666666667,
+        "minimum": 97417,
+        "maximum": 132666,
+        "stdev": 10827.435840437378,
+        "coefficient_of_variation": 0.0982854448365595
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 105083.5,
+        "mean": 107271.25,
+        "minimum": 99209,
+        "maximum": 119709,
+        "stdev": 9320.397787469517,
+        "coefficient_of_variation": 0.08688626064737306
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 117562.5,
+        "mean": 117729.25,
+        "minimum": 101792,
+        "maximum": 137958,
+        "stdev": 10991.301892653779,
+        "coefficient_of_variation": 0.0933608418694061
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 110687.5,
+        "mean": 113927.25,
+        "minimum": 106750,
+        "maximum": 127584,
+        "stdev": 9596.344976951728,
+        "coefficient_of_variation": 0.08423221816511614
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 129104.0,
+        "mean": 139034.33333333334,
+        "minimum": 110291,
+        "maximum": 178041,
+        "stdev": 23698.763386738265,
+        "coefficient_of_variation": 0.17045259842344646
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 125270.5,
+        "mean": 133551.75,
+        "minimum": 117291,
+        "maximum": 166375,
+        "stdev": 22207.87207838698,
+        "coefficient_of_variation": 0.16628664228201412
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 9038.193849997586,
+        "mean": 9087.375585773048,
+        "minimum": 7514.758516053121,
+        "maximum": 10167.501969318038,
+        "stdev": 838.0676015941249,
+        "coefficient_of_variation": 0.09222328203383395
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 9495.051496967322,
+        "mean": 9319.48960467807,
+        "minimum": 8313.18195858088,
+        "maximum": 9974.673466196757,
+        "stdev": 747.3948694659249,
+        "coefficient_of_variation": 0.08019697442344459
+      }
+    },
+    {
+      "group": "batch-stream-file",
+      "artifact": "after-native",
+      "workload": "driver/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 145687.5,
+        "mean": 152850.66666666666,
+        "minimum": 126208,
+        "maximum": 192917,
+        "stdev": 22782.84097271187,
+        "coefficient_of_variation": 0.1490529382014158
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 146042.0,
+        "mean": 150052.25,
+        "minimum": 130625,
+        "maximum": 177500,
+        "stdev": 20464.123165106943,
+        "coefficient_of_variation": 0.13637998207362398
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 228875.5,
+        "mean": 217562.5,
+        "minimum": 144000,
+        "maximum": 264417,
+        "stdev": 40898.8446213782,
+        "coefficient_of_variation": 0.18798664577479207
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 234437.5,
+        "mean": 221156.25,
+        "minimum": 167375,
+        "maximum": 248375,
+        "stdev": 36818.47512119425,
+        "coefficient_of_variation": 0.1664817300944208
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 273771.0,
+        "mean": 267770.8333333333,
+        "minimum": 200625,
+        "maximum": 325041,
+        "stdev": 38065.72040046084,
+        "coefficient_of_variation": 0.14215782924003117
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 273771.0,
+        "mean": 267833.5,
+        "minimum": 223833,
+        "maximum": 299959,
+        "stdev": 31964.491731711718,
+        "coefficient_of_variation": 0.11934463661831593
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 6235.803317161917,
+        "mean": 6317.063454754433,
+        "minimum": 5249.5656640608695,
+        "maximum": 7728.907039797688,
+        "stdev": 888.3619537245058,
+        "coefficient_of_variation": 0.14062894255967856
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 6273.62232665702,
+        "mean": 6360.103982940369,
+        "minimum": 5469.0688133846825,
+        "maximum": 7424.102465062753,
+        "stdev": 813.5944459107669,
+        "coefficient_of_variation": 0.1279215635613917
+      }
+    },
+    {
+      "group": "batch-stream-file",
+      "artifact": "after-native",
+      "workload": "harness/control",
+      "p50_ns": {
+        "count": 12,
+        "median": 0.0,
+        "mean": 0,
+        "minimum": 0,
+        "maximum": 0,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 0.0,
+        "mean": 0,
+        "minimum": 0,
+        "maximum": 0,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 26028993.759369705,
+        "mean": 26001223.653332636,
+        "minimum": 23094688.221709006,
+        "maximum": 28846042.899835,
+        "stdev": 2113093.873044401,
+        "coefficient_of_variation": 0.08126901645929117
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 24959025.66150856,
+        "mean": 25393383.667080615,
+        "minimum": 23506292.634538267,
+        "maximum": 28149190.710767068,
+        "stdev": 1984941.7261001205,
+        "coefficient_of_variation": 0.07816767360048012
+      }
+    },
+    {
+      "group": "batch-stream-file",
+      "artifact": "after-native",
+      "workload": "orm/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 144624.5,
+        "mean": 156180.41666666666,
+        "minimum": 126667,
+        "maximum": 203584,
+        "stdev": 29903.531446844605,
+        "coefficient_of_variation": 0.19146786828381454
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 145687.0,
+        "mean": 155510.25,
+        "minimum": 130333,
+        "maximum": 200334,
+        "stdev": 31137.11528465667,
+        "coefficient_of_variation": 0.2002254853596896
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 228812.5,
+        "mean": 236604.08333333334,
+        "minimum": 142375,
+        "maximum": 391166,
+        "stdev": 62258.74298800908,
+        "coefficient_of_variation": 0.2631346936658634
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 226187.5,
+        "mean": 230135.5,
+        "minimum": 204167,
+        "maximum": 264000,
+        "stdev": 26247.36241352008,
+        "coefficient_of_variation": 0.11405177564313233
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 281479.5,
+        "mean": 396139,
+        "minimum": 202334,
+        "maximum": 1765833,
+        "stdev": 432559.20424586756,
+        "coefficient_of_variation": 1.0919379415959236
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 271896.0,
+        "mean": 274094,
+        "minimum": 257709,
+        "maximum": 294875,
+        "stdev": 16059.630817674484,
+        "coefficient_of_variation": 0.05859169050644846
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 6372.066661918617,
+        "mean": 6115.036496851544,
+        "minimum": 3421.980497808739,
+        "maximum": 7717.426431220849,
+        "stdev": 1211.4479462225272,
+        "coefficient_of_variation": 0.19810968370283102
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 6372.066661918617,
+        "mean": 6248.525370910512,
+        "minimum": 5171.65053060157,
+        "maximum": 7078.317629203243,
+        "stdev": 821.7342014447087,
+        "coefficient_of_variation": 0.13150850043279388
+      }
+    },
+    {
+      "group": "batch-stream-file",
+      "artifact": "before-native",
+      "workload": "direct/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 115666.0,
+        "mean": 120423.58333333333,
+        "minimum": 108917,
+        "maximum": 134792,
+        "stdev": 11304.264798242648,
+        "coefficient_of_variation": 0.09387085556948063
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 115666.0,
+        "mean": 118333,
+        "minimum": 109750,
+        "maximum": 132250,
+        "stdev": 10130.116912783715,
+        "coefficient_of_variation": 0.08560686294426503
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 134166.5,
+        "mean": 136562.5,
+        "minimum": 115209,
+        "maximum": 157208,
+        "stdev": 13953.724888814717,
+        "coefficient_of_variation": 0.1021783058219842
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 134166.5,
+        "mean": 134875,
+        "minimum": 117833,
+        "maximum": 153334,
+        "stdev": 14516.930736212804,
+        "coefficient_of_variation": 0.1076324799719207
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 164583.0,
+        "mean": 169211.66666666666,
+        "minimum": 146250,
+        "maximum": 195708,
+        "stdev": 16042.427629334166,
+        "coefficient_of_variation": 0.09480686494824529
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 164583.0,
+        "mean": 167697.75,
+        "minimum": 151750,
+        "maximum": 189875,
+        "stdev": 16024.148555123504,
+        "coefficient_of_variation": 0.09555374806831639
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 8476.22121124519,
+        "mean": 8228.323146127634,
+        "minimum": 7156.608054046704,
+        "maximum": 9140.107798431374,
+        "stdev": 790.7385054387839,
+        "coefficient_of_variation": 0.09609959300284855
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 8476.22121124519,
+        "mean": 8363.893566087982,
+        "minimum": 7435.494298648859,
+        "maximum": 9067.637543212688,
+        "stdev": 701.1612315055012,
+        "coefficient_of_variation": 0.08383191703304436
+      }
+    },
+    {
+      "group": "batch-stream-file",
+      "artifact": "before-native",
+      "workload": "driver/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 160937.5,
+        "mean": 164572.83333333334,
+        "minimum": 138042,
+        "maximum": 189791,
+        "stdev": 17695.803369126475,
+        "coefficient_of_variation": 0.1075256651459879
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 160937.5,
+        "mean": 162802,
+        "minimum": 153041,
+        "maximum": 176292,
+        "stdev": 9845.138461867022,
+        "coefficient_of_variation": 0.06047308056330403
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 254187.5,
+        "mean": 255267.5,
+        "minimum": 209250,
+        "maximum": 297666,
+        "stdev": 28021.80167947158,
+        "coefficient_of_variation": 0.10977426299654904
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 251354.5,
+        "mean": 249948.25,
+        "minimum": 231542,
+        "maximum": 265542,
+        "stdev": 14780.888524826014,
+        "coefficient_of_variation": 0.0591357952089123
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 306396.0,
+        "mean": 327385.3333333333,
+        "minimum": 259542,
+        "maximum": 473583,
+        "stdev": 62815.630944612,
+        "coefficient_of_variation": 0.1918706323983522
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 306396.0,
+        "mean": 315093.75,
+        "minimum": 262916,
+        "maximum": 384667,
+        "stdev": 50995.03914679676,
+        "coefficient_of_variation": 0.16184084624590858
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 5858.468630143299,
+        "mean": 5646.0934868457725,
+        "minimum": 4856.314008385761,
+        "maximum": 6578.060914125471,
+        "stdev": 564.2464055278008,
+        "coefficient_of_variation": 0.09993571782726905
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 5858.468630143299,
+        "mean": 5812.372184800375,
+        "minimum": 5664.354699498659,
+        "maximum": 5868.196779416243,
+        "stdev": 98.98546339525907,
+        "coefficient_of_variation": 0.017030131630956236
+      }
+    },
+    {
+      "group": "batch-stream-file",
+      "artifact": "before-native",
+      "workload": "harness/control",
+      "p50_ns": {
+        "count": 12,
+        "median": 0.0,
+        "mean": 0,
+        "minimum": 0,
+        "maximum": 0,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 0.0,
+        "mean": 0,
+        "minimum": 0,
+        "maximum": 0,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 24797815.20531186,
+        "mean": 25147478.455009013,
+        "minimum": 21078458.237250693,
+        "maximum": 30959752.321981426,
+        "stdev": 3208267.597848827,
+        "coefficient_of_variation": 0.12757810305270534
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 24214854.07946279,
+        "mean": 24055505.812788647,
+        "minimum": 21272884.305291418,
+        "maximum": 26519430.78693759,
+        "stdev": 2245796.916855304,
+        "coefficient_of_variation": 0.09335895633761188
+      }
+    },
+    {
+      "group": "batch-stream-file",
+      "artifact": "before-native",
+      "workload": "orm/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 157375.0,
+        "mean": 157006.75,
+        "minimum": 139041,
+        "maximum": 170875,
+        "stdev": 10276.237099824924,
+        "coefficient_of_variation": 0.0654509255164184
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 159499.5,
+        "mean": 158010.25,
+        "minimum": 145417,
+        "maximum": 167625,
+        "stdev": 10160.807690172403,
+        "coefficient_of_variation": 0.06430473776335652
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 270854.0,
+        "mean": 262288.1666666667,
+        "minimum": 199167,
+        "maximum": 315291,
+        "stdev": 31788.000216872384,
+        "coefficient_of_variation": 0.12119494608108149
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 272958.0,
+        "mean": 267448,
+        "minimum": 242042,
+        "maximum": 281834,
+        "stdev": 17603.72386740942,
+        "coefficient_of_variation": 0.06582110865442785
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 312521.0,
+        "mean": 327545.3333333333,
+        "minimum": 249375,
+        "maximum": 453792,
+        "stdev": 59515.88279585288,
+        "coefficient_of_variation": 0.18170273467241038
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 312521.0,
+        "mean": 327000.25,
+        "minimum": 285334,
+        "maximum": 397625,
+        "stdev": 49000.91136822525,
+        "coefficient_of_variation": 0.14984976729597377
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 5597.8270719947395,
+        "mean": 5749.642379589065,
+        "minimum": 5190.37046139409,
+        "maximum": 6825.7320147770115,
+        "stdev": 500.13509441114184,
+        "coefficient_of_variation": 0.08698542646523473
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 5597.8270719947395,
+        "mean": 5646.481847608007,
+        "minimum": 5199.034870299126,
+        "maximum": 6191.238376143425,
+        "stdev": 408.94424323702333,
+        "coefficient_of_variation": 0.072424609566444
+      }
+    },
+    {
+      "group": "batch-stream-memory",
+      "artifact": "after-native",
+      "workload": "direct/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 139437.5,
+        "mean": 140878.33333333334,
+        "minimum": 110208,
+        "maximum": 178125,
+        "stdev": 16329.270190969864,
+        "coefficient_of_variation": 0.11591044417265392
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 139437.5,
+        "mean": 140083.25,
+        "minimum": 132125,
+        "maximum": 149333,
+        "stdev": 8805.460744144322,
+        "coefficient_of_variation": 0.06285876965407586
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 164396.0,
+        "mean": 172673.58333333334,
+        "minimum": 117291,
+        "maximum": 244458,
+        "stdev": 37219.067164946355,
+        "coefficient_of_variation": 0.21554580872453286
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 167104.0,
+        "mean": 169146,
+        "minimum": 155209,
+        "maximum": 187167,
+        "stdev": 13960.259906845096,
+        "coefficient_of_variation": 0.08253378682821406
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 199625.0,
+        "mean": 217718.66666666666,
+        "minimum": 147625,
+        "maximum": 365625,
+        "stdev": 61792.19382933757,
+        "coefficient_of_variation": 0.2838167015047136
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 203124.5,
+        "mean": 203885,
+        "minimum": 193125,
+        "maximum": 216166,
+        "stdev": 9694.976809324164,
+        "coefficient_of_variation": 0.04755120194876604
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 7104.078492996905,
+        "mean": 7077.0408531072135,
+        "minimum": 5189.7228574235405,
+        "maximum": 9039.890561927752,
+        "stdev": 934.2363279044929,
+        "coefficient_of_variation": 0.1320094580907091
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 7250.072917912457,
+        "mean": 7152.634946378547,
+        "minimum": 6598.798386000958,
+        "maximum": 7511.595563688316,
+        "stdev": 428.6055817406177,
+        "coefficient_of_variation": 0.05992275363607437
+      }
+    },
+    {
+      "group": "batch-stream-memory",
+      "artifact": "after-native",
+      "workload": "driver/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 176521.0,
+        "mean": 181163.25,
+        "minimum": 134083,
+        "maximum": 263792,
+        "stdev": 33475.92522212452,
+        "coefficient_of_variation": 0.18478320090926012
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 179396.0,
+        "mean": 176687.5,
+        "minimum": 154667,
+        "maximum": 193291,
+        "stdev": 16668.175355049116,
+        "coefficient_of_variation": 0.094337037736394
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 275333.0,
+        "mean": 313746.5833333333,
+        "minimum": 212291,
+        "maximum": 777667,
+        "stdev": 150358.92452120772,
+        "coefficient_of_variation": 0.4792368507212144
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 273083.0,
+        "mean": 280833.25,
+        "minimum": 262375,
+        "maximum": 314792,
+        "stdev": 23685.91490562834,
+        "coefficient_of_variation": 0.08434156178311628
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 334208.5,
+        "mean": 565392.4166666666,
+        "minimum": 258708,
+        "maximum": 2446833,
+        "stdev": 612475.286527837,
+        "coefficient_of_variation": 1.0832746752047944
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 403479.5,
+        "mean": 482896,
+        "minimum": 315583,
+        "maximum": 809042,
+        "stdev": 229681.0731354821,
+        "coefficient_of_variation": 0.47563258576480666
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 5215.848857279996,
+        "mean": 5069.059007614396,
+        "minimum": 2447.9064096838197,
+        "maximum": 6861.901883317317,
+        "stdev": 1090.3750632524348,
+        "coefficient_of_variation": 0.2151040383658086
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 5027.699337175249,
+        "mean": 5050.015773419576,
+        "minimum": 4364.216250221529,
+        "maximum": 5780.44816910628,
+        "stdev": 608.6938195484291,
+        "coefficient_of_variation": 0.12053305313465529
+      }
+    },
+    {
+      "group": "batch-stream-memory",
+      "artifact": "after-native",
+      "workload": "harness/control",
+      "p50_ns": {
+        "count": 12,
+        "median": 0.0,
+        "mean": 3.4166666666666665,
+        "minimum": 0,
+        "maximum": 41,
+        "stdev": 11.835680518387328,
+        "coefficient_of_variation": 3.4641016151377544
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 0.0,
+        "mean": 0,
+        "minimum": 0,
+        "maximum": 0,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 22849617.718790613,
+        "mean": 23642940.772070263,
+        "minimum": 18458698.661744345,
+        "maximum": 28950431.07191866,
+        "stdev": 3388815.290663295,
+        "coefficient_of_variation": 0.14333307025268827
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 22849617.718790613,
+        "mean": 23209942.457626253,
+        "minimum": 22176981.180613767,
+        "maximum": 24963553.212310027,
+        "stdev": 1218811.3705352996,
+        "coefficient_of_variation": 0.05251246842858183
+      }
+    },
+    {
+      "group": "batch-stream-memory",
+      "artifact": "after-native",
+      "workload": "orm/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 165521.0,
+        "mean": 180628.41666666666,
+        "minimum": 142500,
+        "maximum": 271667,
+        "stdev": 35468.418998669105,
+        "coefficient_of_variation": 0.1963612351434318
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 176250.5,
+        "mean": 180687.75,
+        "minimum": 158542,
+        "maximum": 211708,
+        "stdev": 24372.552682269456,
+        "coefficient_of_variation": 0.1348876870859782
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 294271.0,
+        "mean": 372163.1666666667,
+        "minimum": 212875,
+        "maximum": 1320959,
+        "stdev": 300406.1410726344,
+        "coefficient_of_variation": 0.8071893405337919
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 296541.5,
+        "mean": 296260.25,
+        "minimum": 266500,
+        "maximum": 325458,
+        "stdev": 24325.386141162624,
+        "coefficient_of_variation": 0.08210816719813956
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 360041.5,
+        "mean": 662003.3333333334,
+        "minimum": 282875,
+        "maximum": 3864792,
+        "stdev": 1010459.2776091594,
+        "coefficient_of_variation": 1.5263658455030327
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 405229.0,
+        "mean": 395270.75,
+        "minimum": 304875,
+        "maximum": 465750,
+        "stdev": 77246.76188844423,
+        "coefficient_of_variation": 0.1954274681049489
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 5205.281389900517,
+        "mean": 5009.6792716735135,
+        "minimum": 2093.310355763328,
+        "maximum": 6550.808697202653,
+        "stdev": 1098.1107272157992,
+        "coefficient_of_variation": 0.219197810411717
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 4982.454994267722,
+        "mean": 5041.076223469132,
+        "minimum": 4561.803252067934,
+        "maximum": 5637.591653273149,
+        "stdev": 480.98571336681704,
+        "coefficient_of_variation": 0.0954132990744218
+      }
+    },
+    {
+      "group": "batch-stream-memory",
+      "artifact": "before-native",
+      "workload": "direct/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 125229.0,
+        "mean": 128010.41666666667,
+        "minimum": 99333,
+        "maximum": 151917,
+        "stdev": 20957.04226380645,
+        "coefficient_of_variation": 0.16371356964158346
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 129771.0,
+        "mean": 129781.25,
+        "minimum": 109875,
+        "maximum": 149708,
+        "stdev": 21884.59353632139,
+        "coefficient_of_variation": 0.16862677417825295
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 137437.5,
+        "mean": 149798.66666666666,
+        "minimum": 111333,
+        "maximum": 204834,
+        "stdev": 33811.43323663094,
+        "coefficient_of_variation": 0.2257125112593188
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 151083.5,
+        "mean": 152052.25,
+        "minimum": 114458,
+        "maximum": 191584,
+        "stdev": 37430.10973690388,
+        "coefficient_of_variation": 0.24616610235563027
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 176458.5,
+        "mean": 179763.75,
+        "minimum": 130458,
+        "maximum": 233083,
+        "stdev": 35354.661207733785,
+        "coefficient_of_variation": 0.1966729176918805
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 179896.0,
+        "mean": 178822.75,
+        "minimum": 140291,
+        "maximum": 215208,
+        "stdev": 37202.56056935687,
+        "coefficient_of_variation": 0.20804154152285922
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 7846.534202357048,
+        "mean": 7805.783236497392,
+        "minimum": 6198.974689586343,
+        "maximum": 9883.52756935889,
+        "stdev": 1346.5426651509083,
+        "coefficient_of_variation": 0.17250577224011263
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 7545.547476040008,
+        "mean": 7683.162841596558,
+        "minimum": 6463.399917930592,
+        "maximum": 9178.156496375621,
+        "stdev": 1314.9719078646847,
+        "coefficient_of_variation": 0.17114981615975147
+      }
+    },
+    {
+      "group": "batch-stream-memory",
+      "artifact": "before-native",
+      "workload": "driver/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 166749.5,
+        "mean": 166253.33333333334,
+        "minimum": 124666,
+        "maximum": 238375,
+        "stdev": 34630.5895372425,
+        "coefficient_of_variation": 0.2083001215248366
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 164187.5,
+        "mean": 160948,
+        "minimum": 128792,
+        "maximum": 186625,
+        "stdev": 28959.432694719693,
+        "coefficient_of_variation": 0.17993036691800887
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 249500.0,
+        "mean": 246163.25,
+        "minimum": 144250,
+        "maximum": 406708,
+        "stdev": 72827.7325613171,
+        "coefficient_of_variation": 0.2958513610838218
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 239500.5,
+        "mean": 230135.75,
+        "minimum": 168000,
+        "maximum": 273542,
+        "stdev": 49653.4271954112,
+        "coefficient_of_variation": 0.21575712246103093
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 299813.0,
+        "mean": 365229.0833333333,
+        "minimum": 188416,
+        "maximum": 1142375,
+        "stdev": 255067.07553698972,
+        "coefficient_of_variation": 0.6983755872042585
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 293313.0,
+        "mean": 287927.25,
+        "minimum": 224125,
+        "maximum": 340958,
+        "stdev": 58188.37738686882,
+        "coefficient_of_variation": 0.2020940268309749
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 5480.940999448603,
+        "mean": 5801.157589573066,
+        "minimum": 3317.9220455170966,
+        "maximum": 7856.608522463009,
+        "stdev": 1377.5310935999648,
+        "coefficient_of_variation": 0.2374579680572587
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 5729.536973394594,
+        "mean": 5981.685181273713,
+        "minimum": 4969.15850529672,
+        "maximum": 7498.508273008946,
+        "stdev": 1216.4390545788347,
+        "coefficient_of_variation": 0.2033605945005303
+      }
+    },
+    {
+      "group": "batch-stream-memory",
+      "artifact": "before-native",
+      "workload": "harness/control",
+      "p50_ns": {
+        "count": 12,
+        "median": 0.0,
+        "mean": 6.833333333333333,
+        "minimum": 0,
+        "maximum": 41,
+        "stdev": 15.959228355311222,
+        "coefficient_of_variation": 2.3354968324845693
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 0.0,
+        "mean": 10.25,
+        "minimum": 0,
+        "maximum": 41,
+        "stdev": 20.5,
+        "coefficient_of_variation": 2.0
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 42.0,
+        "mean": 42,
+        "minimum": 42,
+        "maximum": 42,
+        "stdev": 0.0,
+        "coefficient_of_variation": 0.0
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 26635130.077134565,
+        "mean": 24859581.22218319,
+        "minimum": 16440608.302507194,
+        "maximum": 29542097.488921713,
+        "stdev": 3907239.771015934,
+        "coefficient_of_variation": 0.15717238903161204
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 26635130.077134565,
+        "mean": 25123579.931328196,
+        "minimum": 19074868.860276587,
+        "maximum": 28149190.710767068,
+        "stdev": 4097302.705448473,
+        "coefficient_of_variation": 0.1630859422362529
+      }
+    },
+    {
+      "group": "batch-stream-memory",
+      "artifact": "before-native",
+      "workload": "orm/stream",
+      "p50_ns": {
+        "count": 12,
+        "median": 154458.5,
+        "mean": 165941.16666666666,
+        "minimum": 127834,
+        "maximum": 217375,
+        "stdev": 32991.734206763016,
+        "coefficient_of_variation": 0.1988158506384071
+      },
+      "process_median_p50_ns": {
+        "count": 4,
+        "median": 158062.5,
+        "mean": 165000.25,
+        "minimum": 130167,
+        "maximum": 213709,
+        "stdev": 35238.90987128669,
+        "coefficient_of_variation": 0.2135688271459388
+      },
+      "p95_ns": {
+        "count": 12,
+        "median": 257104.0,
+        "mean": 264229.0833333333,
+        "minimum": 177625,
+        "maximum": 356583,
+        "stdev": 61246.215530517526,
+        "coefficient_of_variation": 0.2317921053877839
+      },
+      "process_median_p95_ns": {
+        "count": 4,
+        "median": 262333.5,
+        "mean": 264645.75,
+        "minimum": 186708,
+        "maximum": 347208,
+        "stdev": 67249.96282712727,
+        "coefficient_of_variation": 0.2541131411599365
+      },
+      "p99_ns": {
+        "count": 12,
+        "median": 305583.5,
+        "mean": 361885.5,
+        "minimum": 222709,
+        "maximum": 619042,
+        "stdev": 134876.52197169757,
+        "coefficient_of_variation": 0.37270496323201
+      },
+      "process_median_p99_ns": {
+        "count": 4,
+        "median": 323542.0,
+        "mean": 372979.5,
+        "minimum": 240209,
+        "maximum": 604625,
+        "stdev": 162340.97465211918,
+        "coefficient_of_variation": 0.4352544165352766
+      },
+      "operations_per_second": {
+        "count": 12,
+        "median": 5812.21522208798,
+        "mean": 5696.332629187847,
+        "minimum": 4078.718170864184,
+        "maximum": 7452.984705505006,
+        "stdev": 1177.4459278488168,
+        "coefficient_of_variation": 0.2067024530512171
+      },
+      "process_median_operations_per_second": {
+        "count": 4,
+        "median": 5639.985239671421,
+        "mean": 5677.402953777739,
+        "minimum": 4166.002855771628,
+        "maximum": 7263.638479996484,
+        "stdev": 1276.8765527829185,
+        "coefficient_of_variation": 0.22490504253063207
+      }
+    }
+  ],
+  "postgres_ratios": [],
+  "stream_memory": []
+}

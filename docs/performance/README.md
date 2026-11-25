@@ -5,6 +5,9 @@ PostgreSQL server. It measures an existing connection separately from concurrent
 pool acquisition. The separate native harness compares the embedded engine,
 `pgorm-driver`, and pgorm using matched SQL and database settings.
 
+[The recorded Turso results](turso-results.md) include the retained implementation,
+the rejected batching experiment, raw evidence, and measurement limitations.
+
 Run from the repository root, with the normal test server available:
 
 ```sh
@@ -228,3 +231,10 @@ records the runner SHA256 and start/end host conditions, and checks every result
 Runtime source inspection in the old executable describes the candidate checkout;
 its separate build record identifies the actual compiled source. This focused
 comparison does not rerun PostgreSQL workloads.
+
+To isolate stream throughput, add `--stream-latency-only --repeats 4` to the
+comparison command and choose a fresh output directory. This runs 16 processes,
+retaining the direct engine control and alternating variant order for each
+fixed storage mode: two repeats start with before and two start with after.
+Python-only scheduling changes do not require recompiling the preserved
+executables; each window records the exact runner SHA256 used.

@@ -272,11 +272,17 @@ def compare(args):
     schedule = []
     for repeat in range(args.repeats):
         modes = ["memory", "file"] if repeat % 2 == 0 else ["file", "memory"]
-        for mode_index, mode in enumerate(modes):
-            for work_index, workload in enumerate(["scalar", "stream", "memory"]):
-                binaries = ["native-alloc"] if workload == "memory" else ["native", "native-alloc"]
+        for mode in modes:
+            workloads = ["stream"] if args.stream_latency_only else ["scalar", "stream", "memory"]
+            for work_index, workload in enumerate(workloads):
+                if args.stream_latency_only:
+                    binaries = ["native"]
+                elif workload == "memory":
+                    binaries = ["native-alloc"]
+                else:
+                    binaries = ["native", "native-alloc"]
                 for profile_index, binary in enumerate(binaries):
-                    variants = ["before", "after"] if (repeat + mode_index + work_index + profile_index) % 2 == 0 else ["after", "before"]
+                    variants = ["before", "after"] if (repeat + work_index + profile_index) % 2 == 0 else ["after", "before"]
                     for variant in variants:
                         options = ["--database", mode, "--samples", "5000", "--warmup", "500", "--rounds", "3", "--workers", "4", "--pool-size", "4", "--rows", "128"]
                         options += ["--stream-memory", "true"] if workload == "memory" else ["--workload", workload]
@@ -394,6 +400,7 @@ def main():
     comparing.add_argument("--after", type=Path, required=True)
     comparing.add_argument("--output", type=Path, required=True)
     comparing.add_argument("--repeats", type=int, default=3)
+    comparing.add_argument("--stream-latency-only", action="store_true")
     comparing.set_defaults(function=compare)
     summarizing = commands.add_parser("summarize")
     summarizing.add_argument("--input", type=Path, required=True)

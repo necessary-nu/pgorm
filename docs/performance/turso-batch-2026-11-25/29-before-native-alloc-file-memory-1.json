@@ -1,0 +1,333 @@
+{
+  "allocation_profile": true,
+  "available_parallelism": 18,
+  "available_rustc_at_run": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: aarch64-apple-darwin\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "backend": "native-turso",
+  "copy_measurements": null,
+  "cpu": "Apple M5 Pro",
+  "database": "file",
+  "executable_git_blob_hash": "f4102e89f57e96bea41ee48d22d373f0ff593d72",
+  "git_head_at_run_end": "2f118b501d43f8417aacb20718439d8a32ecdf31",
+  "git_status_at_run_end": "A  docs/performance/turso-before-2026-11-25/00-postgresql-postgres-before-0.json\nA  docs/performance/turso-before-2026-11-25/01-postgresql-postgres-off-0.json\nA  docs/performance/turso-before-2026-11-25/02-postgresql-postgres-on-0.json\nA  docs/performance/turso-before-2026-11-25/03-native-memory-native-0.json\nA  docs/performance/turso-before-2026-11-25/04-native-file-native-0.json\nA  docs/performance/turso-before-2026-11-25/05-alloc-memory-native-alloc-0.json\nA  docs/performance/turso-before-2026-11-25/06-alloc-file-native-alloc-0.json\nA  docs/performance/turso-before-2026-11-25/07-memory-memory-native-alloc-0.json\nA  docs/performance/turso-before-2026-11-25/08-memory-file-native-alloc-0.json\nA  docs/performance/turso-before-2026-11-25/09-postgresql-postgres-on-1.json\nA  docs/performance/turso-before-2026-11-25/10-postgresql-postgres-before-1.json\nA  docs/performance/turso-before-2026-11-25/11-postgresql-postgres-off-1.json\nA  docs/performance/turso-before-2026-11-25/12-native-file-native-1.json\nA  docs/performance/turso-before-2026-11-25/13-native-memory-native-1.json\nA  docs/performance/turso-before-2026-11-25/14-alloc-file-native-alloc-1.json\nA  docs/performance/turso-before-2026-11-25/15-alloc-memory-native-alloc-1.json\nA  docs/performance/turso-before-2026-11-25/16-memory-file-native-alloc-1.json\nA  docs/performance/turso-before-2026-11-25/17-memory-memory-native-alloc-1.json\nA  docs/performance/turso-before-2026-11-25/18-postgresql-postgres-off-2.json\nA  docs/performance/turso-before-2026-11-25/19-postgresql-postgres-on-2.json\nA  docs/performance/turso-before-2026-11-25/20-postgresql-postgres-before-2.json\nA  docs/performance/turso-before-2026-11-25/21-native-memory-native-2.json\nA  docs/performance/turso-before-2026-11-25/22-native-file-native-2.json\nA  docs/performance/turso-before-2026-11-25/23-alloc-memory-native-alloc-2.json\nA  docs/performance/turso-before-2026-11-25/24-alloc-file-native-alloc-2.json\nA  docs/performance/turso-before-2026-11-25/25-memory-memory-native-alloc-2.json\nA  docs/performance/turso-before-2026-11-25/26-memory-file-native-alloc-2.json\nA  docs/performance/turso-before-2026-11-25/build.json\nA  docs/performance/turso-before-2026-11-25/summary.json\nA  docs/performance/turso-before-2026-11-25/summary.md\nA  docs/performance/turso-before-2026-11-25/window.json\nA  docs/performance/turso-results.md\n?? tests/scope_security_tests.rs",
+  "kernel": "Darwin 27.2.0 arm64",
+  "layer": "all",
+  "measurements": [],
+  "native_lockfile_git_blob_hash": "eb70126f8aea396b038e6804476490f5863f93d8",
+  "native_revision": "adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa",
+  "native_settings": {
+    "cache_size": -2000,
+    "checkpoint_thresholds": null,
+    "durability_note": "SyncMode is sampled from the engine, not a verification of power-loss guarantees. Checkpoint thresholds are not measured; PostgreSQL-equivalent durability is not established.",
+    "experimental_mvcc_passive_checkpoint": false,
+    "io_backend_from_pinned_source": "PlatformIO",
+    "io_backend_source": "turso core/database.rs::Database::io_for_path at the recorded native_revision; open_database receives no custom VFS",
+    "mvcc": true,
+    "page_size": "PageSize(4096)",
+    "postgresql_durability_equivalence": null,
+    "source": "public getters on the direct native database/connection; all layers use identical open_database/tursopg_database_opts and PgConnection::connect defaults",
+    "sync_mode": "Full"
+  },
+  "notes": [
+    "Latency and allocation builds are separate; profiling timings must not establish performance rankings.",
+    "Setup, connections, preparation and warmup are outside per-operation timing; all layers decode the same owned model fields.",
+    "Native update16 alternates equal-length payloads and binds16 values; PostgreSQL historical workload remains unchanged.",
+    "Direct concurrency is a lower bound with one retained connection per OS thread, without pool acquisition. Driver/ORM include acquisition and Fast recycling.",
+    "Global profiling counts requested Rust heap storage including worker threads and measurement coordination, excluding C allocator activity, allocator fragmentation, mappings, stacks, OS caches, RSS and byte copies.",
+    "Allocation sample storage is preallocated; JSON/report construction is outside counter snapshots. Realloc counts both old deallocated and new allocated requested sizes.",
+    "File and memory modes have different durability. Compare adapter layers within one mode; no cross-engine durability equivalence is claimed.",
+    "Runtime-inspected compiler/source/flags are not compiled provenance; preserve executable hashes and build records."
+  ],
+  "pool_size": 4,
+  "profile": "release",
+  "rounds": 3,
+  "rss_measurements": null,
+  "rustflags_at_run": null,
+  "samples_per_worker": 5000,
+  "schema_version": 2,
+  "source_fingerprint_at_run_end": "7eca24f3d3df8cd1387d7daa8c05f373c4e437df",
+  "source_fingerprint_at_run_start": "7eca24f3d3df8cd1387d7daa8c05f373c4e437df",
+  "source_tree_changed_during_run": false,
+  "sql": {
+    "lookup": "SELECT \"bench_row\".\"id\", \"bench_row\".\"payload\", \"bench_row\".\"value\" FROM \"bench_row\" WHERE \"bench_row\".\"id\" = $1 LIMIT $2",
+    "params16": "SELECT ($1::BIGINT + $2::BIGINT + $3::BIGINT + $4::BIGINT + $5::BIGINT + $6::BIGINT + $7::BIGINT + $8::BIGINT + $9::BIGINT + $10::BIGINT + $11::BIGINT + $12::BIGINT + $13::BIGINT + $14::BIGINT + $15::BIGINT + $16::BIGINT)::BIGINT",
+    "scalar": "SELECT $1::BIGINT",
+    "stream": "SELECT \"bench_row\".\"id\", \"bench_row\".\"payload\", \"bench_row\".\"value\" FROM \"bench_row\" ORDER BY \"bench_row\".\"id\" ASC LIMIT $1",
+    "update16": "UPDATE \"bench_row\" SET \"payload\" = $1, \"value\" = $2::int4 + $3::int4 + $4::int4 + $5::int4 + $6::int4 + $7::int4 + $8::int4 + $9::int4 + $10::int4 + $11::int4 + $12::int4 + $13::int4 + $14::int4 + $15::int4 WHERE \"bench_row\".\"id\" = $16"
+  },
+  "stream_memory_measurements": [
+    {
+      "allocation_measurements": {
+        "allocations": 1038,
+        "live_requested_bytes_at_start": 3087799,
+        "live_requested_bytes_delta": 460,
+        "peak_live_requested_bytes_above_start": 8498,
+        "reallocations": 1,
+        "requested_allocated_bytes": 41341,
+        "requested_deallocated_bytes": 40881
+      },
+      "layer": "direct",
+      "rows": 1000
+    },
+    {
+      "allocation_measurements": {
+        "allocations": 3078,
+        "live_requested_bytes_at_start": 3091354,
+        "live_requested_bytes_delta": 4804,
+        "peak_live_requested_bytes_above_start": 23705,
+        "reallocations": 1,
+        "requested_allocated_bytes": 229261,
+        "requested_deallocated_bytes": 224457
+      },
+      "initial_consumer_pause_ms": 50,
+      "layer": "driver",
+      "rows": 1000
+    },
+    {
+      "allocation_measurements": {
+        "allocations": 3080,
+        "live_requested_bytes_at_start": 3100408,
+        "live_requested_bytes_delta": 4816,
+        "peak_live_requested_bytes_above_start": 23717,
+        "reallocations": 1,
+        "requested_allocated_bytes": 231338,
+        "requested_deallocated_bytes": 226522
+      },
+      "initial_consumer_pause_ms": 50,
+      "layer": "orm",
+      "rows": 1000
+    },
+    {
+      "allocation_measurements": {
+        "allocations": 100038,
+        "live_requested_bytes_at_start": 3128888,
+        "live_requested_bytes_delta": 460,
+        "peak_live_requested_bytes_above_start": 8499,
+        "reallocations": 2,
+        "requested_allocated_bytes": 3209346,
+        "requested_deallocated_bytes": 3208886
+      },
+      "layer": "direct",
+      "rows": 100000
+    },
+    {
+      "allocation_measurements": {
+        "allocations": 303172,
+        "live_requested_bytes_at_start": 3131023,
+        "live_requested_bytes_delta": 4804,
+        "peak_live_requested_bytes_above_start": 30195,
+        "reallocations": 2,
+        "requested_allocated_bytes": 21613778,
+        "requested_deallocated_bytes": 21608974
+      },
+      "initial_consumer_pause_ms": 50,
+      "layer": "driver",
+      "rows": 100000
+    },
+    {
+      "allocation_measurements": {
+        "allocations": 303174,
+        "live_requested_bytes_at_start": 3135117,
+        "live_requested_bytes_delta": 4824,
+        "peak_live_requested_bytes_above_start": 29455,
+        "reallocations": 2,
+        "requested_allocated_bytes": 21615865,
+        "requested_deallocated_bytes": 21611041
+      },
+      "initial_consumer_pause_ms": 50,
+      "layer": "orm",
+      "rows": 100000
+    },
+    {
+      "allocation_measurements": {
+        "allocations": 1000038,
+        "live_requested_bytes_at_start": 3163607,
+        "live_requested_bytes_delta": 460,
+        "peak_live_requested_bytes_above_start": 8499,
+        "reallocations": 2,
+        "requested_allocated_bytes": 32009346,
+        "requested_deallocated_bytes": 32008886
+      },
+      "layer": "direct",
+      "rows": 1000000
+    },
+    {
+      "allocation_measurements": {
+        "allocations": 3031297,
+        "live_requested_bytes_at_start": 3165742,
+        "live_requested_bytes_delta": 4804,
+        "peak_live_requested_bytes_above_start": 30275,
+        "reallocations": 2,
+        "requested_allocated_bytes": 216013778,
+        "requested_deallocated_bytes": 216008974
+      },
+      "initial_consumer_pause_ms": 50,
+      "layer": "driver",
+      "rows": 1000000
+    },
+    {
+      "allocation_measurements": {
+        "allocations": 3031299,
+        "live_requested_bytes_at_start": 3168213,
+        "live_requested_bytes_delta": 4816,
+        "peak_live_requested_bytes_above_start": 30407,
+        "reallocations": 2,
+        "requested_allocated_bytes": 216015858,
+        "requested_deallocated_bytes": 216011042
+      },
+      "initial_consumer_pause_ms": 50,
+      "layer": "orm",
+      "rows": 1000000
+    }
+  ],
+  "stream_rows": 128,
+  "timestamp_unix_seconds": 1795624928,
+  "tokio_worker_threads": 4,
+  "warmup_per_worker": 500,
+  "workers": 4,
+  "workload": "all",
+  "comparison": {
+    "sequence": 29,
+    "repeat": 1,
+    "group": "batch-memory-file",
+    "artifact": "before-native-alloc",
+    "command": [
+      "/private/tmp/pgorm-performance-artifacts/native-alloc",
+      "--database",
+      "file",
+      "--samples",
+      "5000",
+      "--warmup",
+      "500",
+      "--rounds",
+      "3",
+      "--workers",
+      "4",
+      "--pool-size",
+      "4",
+      "--rows",
+      "128",
+      "--stream-memory",
+      "true",
+      "--source-root",
+      "/Users/brendan/git/necessary/pgorm",
+      "--output",
+      "/private/tmp/pgorm-performance-batch-results/29-before-native-alloc-file-memory-1.json"
+    ],
+    "build": {
+      "path": "/private/tmp/pgorm-performance-artifacts/native-alloc",
+      "executable_git_blob_hash": "f4102e89f57e96bea41ee48d22d373f0ff593d72",
+      "build_command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "/Users/brendan/git/necessary/pgorm/benches/native/Cargo.toml",
+        "--release",
+        "--features",
+        "alloc-profile",
+        "--locked",
+        "--offline",
+        "--message-format=json",
+        "--target-dir",
+        "/private/tmp/pgorm-native-perf-build"
+      ],
+      "cargo_reported_features": [
+        "alloc-profile"
+      ],
+      "compiled_crates": {
+        "turso_core": {
+          "package_id": "git+https://github.com/tursodatabase/turso.git?rev=adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa#turso_core@0.9.0-pre.6",
+          "features": [
+            "autovacuum",
+            "baseline",
+            "conn_raw_api",
+            "default",
+            "encryption",
+            "fs",
+            "json",
+            "percentile",
+            "series",
+            "simd",
+            "time",
+            "uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "turso_pg": {
+          "package_id": "git+https://github.com/tursodatabase/turso.git?rev=adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa#turso_pg@0.9.0-pre.6",
+          "features": [],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_driver": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/crates/pgorm-driver#0.2.0",
+          "features": [
+            "array-impls",
+            "default",
+            "runtime",
+            "turso",
+            "with-jiff-0_2",
+            "with-serde_json-1",
+            "with-uuid-1"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_pool": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/pgorm-pool#0.2.0",
+          "features": [
+            "default",
+            "turso"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm#0.2.0",
+          "features": [
+            "default",
+            "macros",
+            "postgres-array",
+            "serde_json",
+            "turso",
+            "uuid",
+            "with-jiff",
+            "with-json",
+            "with-uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        }
+      },
+      "build_stdout": "/private/tmp/pgorm-performance-artifacts/native-alloc-build.jsonl",
+      "build_stderr": "/private/tmp/pgorm-performance-artifacts/native-alloc-build.stderr"
+    },
+    "compiled_source_fingerprint": "1bc9f034f0606044e72e1e8147bb09ee0f643670",
+    "runtime_source_note": "Both executables inspect the candidate runtime checkout. Each variant's separate build record identifies its actual compiled source and executable hash."
+  }
+}

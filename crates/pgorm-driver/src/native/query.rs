@@ -6,7 +6,7 @@ use super::{
         Control, Failure, Operation, cancelled, finish_statement, install_progress, next_row,
     },
 };
-use crate::{Error, Row, Statement};
+use crate::{Error, Statement};
 use std::sync::Arc;
 use tokio::{
     runtime::Handle,
@@ -129,38 +129,6 @@ pub(super) fn execute(
     run(connection, entry, operation, control, |_| Ok(()))
 }
 
-// Scalar and empty results must not reserve a full streaming batch.
-#[derive(Default)]
-struct Batch {
-    single: Option<Row>,
-    rows: Vec<Row>,
-    bytes: usize,
-}
-
-impl Batch {
-    fn push(&mut self, row: Row) -> bool {
-        self.bytes += row.raw_size_bytes();
-        if let Some(first) = self.single.take() {
-            self.rows = Vec::with_capacity(BATCH_ROWS);
-            self.rows.push(first);
-            self.rows.push(row);
-        } else if self.rows.is_empty() {
-            self.single = Some(row);
-        } else {
-            self.rows.push(row);
-        }
-        self.rows.len() >= BATCH_ROWS || self.bytes >= BATCH_BYTES
-    }
-
-    fn take(&mut self) -> Vec<Row> {
-        self.bytes = 0;
-        match self.single.take() {
-            Some(row) => vec![row],
-            None => std::mem::take(&mut self.rows),
-        }
-    }
-}
-
 pub(super) struct Request {
     pub(super) statement: Statement,
     pub(super) params: Vec<Value>,
@@ -242,28 +210,35 @@ pub(super) fn query(id: u64, request: Request, context: Context<'_>) -> bool {
         control.complete(connection, operation, store);
         return fatal;
     }
-    let mut batch = Batch::default();
+    let mut batch = Vec::with_capacity(BATCH_ROWS);
+    let mut bytes = 0;
     // The plan is small and prepared once. Split the entry's fields so native
     // row values remain borrowed until each ordinary Row owns its bytes.
     let result_codecs = std::mem::take(&mut entry.result_codecs);
     let result = run(connection, entry, operation, control, |native| {
         let row = codecs::encode_row(statement.clone(), &result_codecs, native)?;
-        if batch.push(row) {
-            output.send(batch.take(), operation, control, shutdown, runtime)?;
+        bytes += row.raw_size_bytes();
+        batch.push(row);
+        if batch.len() >= BATCH_ROWS || bytes >= BATCH_BYTES {
+            output.send(
+                std::mem::replace(&mut batch, Vec::with_capacity(BATCH_ROWS)),
+                operation,
+                control,
+                shutdown,
+                runtime,
+            )?;
+            bytes = 0;
         }
         Ok(())
     });
     entry.result_codecs = result_codecs;
-    let result = result.and_then(|affected| {
-        let pending = batch.take();
-        if pending.is_empty() {
-            return Ok(affected);
-        }
-        output
-            .send(pending, operation, control, shutdown, runtime)
+    let result = match result {
+        Ok(affected) if !batch.is_empty() => output
+            .send(batch, operation, control, shutdown, runtime)
             .map(|_| affected)
-            .map_err(Failure::recoverable)
-    });
+            .map_err(Failure::recoverable),
+        result => result,
+    };
     let fatal = result.as_ref().err().is_some_and(|failure| failure.fatal);
     if fatal {
         control.quarantine();
