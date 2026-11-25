@@ -9,6 +9,7 @@ from ._retrying import _Retrying
 
 STATEMENT_CACHE_CHANNEL: str
 
+
 class _PoolShape:
     def __init__(self, *, max_size: int = ..., acquire_timeout: float = ...,
                  wait_timeout: float | None = ..., create_timeout: float | None = ...,
@@ -35,12 +36,12 @@ class _HookConnection:
 class _Pool:
     def __init__(self, dsn: str, shape: _PoolShape, *, tag: str | None = ..., tls: str | None = ...,
                  ca_pem: bytes | None = ..., cert_pem: bytes | None = ..., key_pem: bytes | None = ...,
-                 connect_timeout: float = ..., statement_cache_size: int = ..., recycle: str = ...,
+                 connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str = ...,
                  recycle_sql: str | None = ..., statement_cache_channel: str | None = ...) -> None: ...
     @staticmethod
     def multi(dsn: str, shapes: Mapping[str, _PoolShape], *, tls: str | None = ...,
               ca_pem: bytes | None = ..., cert_pem: bytes | None = ..., key_pem: bytes | None = ...,
-              connect_timeout: float = ..., statement_cache_size: int = ..., recycle: str = ...,
+              connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str = ...,
               recycle_sql: str | None = ...,
               statement_cache_channel: str | None = ...) -> list[tuple[str, _Pool]]: ...
     def tag(self, /) -> str: ...

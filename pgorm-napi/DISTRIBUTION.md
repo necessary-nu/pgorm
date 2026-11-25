@@ -118,6 +118,25 @@ node pgorm-napi/scripts/build.mjs --release
 
 then import `pgorm-napi/lib/index.js` from the checkout.
 
+### Experimental native Turso
+
+Add `--turso` to build the experimental embedded backend. The same API accepts
+a path or `:memory:`:
+
+```js
+import { connect, features, Pool } from "./pgorm-napi/lib/index.js";
+
+console.log(features); // includes "turso" in an enabled build
+await using pool = await connect("./app.db");
+await using lazy = new Pool(":memory:"); // opens on first acquisition
+```
+
+Each pool shares one native database across its connections; separate memory
+pools are isolated. Without the feature, native targets raise
+`ConstructionError` before opening. The [compatibility matrix](../docs/turso-compatibility.md)
+records the supported scalar types and operations. Explicit TLS/network options,
+Clean recycling and notification cache channels are refused for native targets.
+
 ## Build and verify
 
 `checks/package.js` builds, packs and proves the packages, as
@@ -127,6 +146,11 @@ server in `PGORM_TEST_DSN` or `DATABASE_URL` (see the [README](README.md#tests))
 ```sh
 node pgorm-napi/checks/package.js all --partial
 ```
+
+Run the optional lane with `all --partial --turso`. It keeps artifacts under
+`target/napi-package-turso`, records features in the addon and platform package
+metadata, and runs the installed native tests in both Node.js and Deno.
+The ordinary lane checks that native targets are refused without the feature.
 
 It runs three steps, which CI runs on separate runners:
 
@@ -228,16 +252,21 @@ left once stripped.
 
 The packages have no JavaScript dependencies apart from the platform packages.
 `notices/DEPENDENCIES.json` lists every Rust package in the locked Cargo graph,
-including build and platform-conditional dependencies, so it covers more than
+including the optional Turso graph, build and platform-conditional dependencies, so it covers more than
 any one addon contains, with its licence and the hashes of its notice texts.
 `notices/THIRD_PARTY_NOTICES.txt` holds those texts. Both files are copied
-into every platform package. The inventory also names the one native component
-compiled in, ring's bundled cryptography. PostgreSQL's parser is Rust:
+into every platform package. The inventory also names ring's bundled
+cryptography and the optional `pg_query` C parser components. The ordinary
+addon uses a Rust PostgreSQL parser:
 pgsql-syntax (MIT) and pgsql-parser with the `pg19-*` crates beneath them
 (BSD-3-Clause AND PostgreSQL, libpg_query's licence and the PostgreSQL
 License), ordinary packages in the inventory, each carrying the pgsql-rs
 workspace's `LICENSE` and `LICENSE-PostgreSQL` as its notices. Building the
-addon needs no LLVM, libclang or bindgen. After a dependency update, run:
+ordinary addon needs no LLVM, libclang or bindgen. The optional native Turso
+frontend also depends on `pg_query`, which builds its bundled C parser and
+uses bindgen; that build requires a C compiler and libclang. The inventory
+includes its notices and the pinned Turso workspace's `LICENSE.md`. After a
+dependency update, run:
 
 ```sh
 node pgorm-napi/checks/notices.js --write

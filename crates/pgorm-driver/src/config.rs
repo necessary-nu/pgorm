@@ -13,6 +13,7 @@ use crate::keepalive::KeepaliveConfig;
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::{Client, Connection, Error};
+mod endpoint;
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
@@ -20,7 +21,6 @@ use std::net::IpAddr;
 use std::ops::Deref;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
-#[cfg(unix)]
 use std::path::{Path, PathBuf};
 use std::str;
 use std::str::FromStr;
@@ -102,7 +102,16 @@ pub enum Host {
 
 /// Connection configuration.
 ///
-/// Configuration can be parsed from libpq-style connection strings. These strings come in two formats:
+/// Configuration accepts PostgreSQL URLs, libpq key/value strings, or an
+/// embedded database path such as `data.db`, `/var/data/app.db`, or `:memory:`.
+/// Paths are recognized without the `turso` feature; connecting then reports
+/// that native support is unavailable. Prefix ambiguous filenames with `./`.
+/// Recognized PostgreSQL connection strings never fall back to file creation.
+///
+/// A retained native configuration lazily shares one database across its
+/// connections. Cloning copies its path but starts a separate database owner,
+/// so clones of `:memory:` remain isolated. Parsing opens no files.
+/// PostgreSQL strings come in two formats:
 ///
 /// # Key-Value
 ///
@@ -217,6 +226,7 @@ pub enum Host {
 /// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Config {
+    turso: Option<Box<endpoint::NativeConfig>>,
     pub(crate) user: Option<String>,
     pub(crate) password: Option<Vec<u8>>,
     pub(crate) dbname: Option<String>,
@@ -247,6 +257,7 @@ impl Config {
     /// Creates a new configuration.
     pub fn new() -> Config {
         Config {
+            turso: None,
             user: None,
             password: None,
             dbname: None,
@@ -722,14 +733,34 @@ impl Config {
         Ok(())
     }
 
-    /// Opens a connection to a PostgreSQL database.
+    /// Opens a PostgreSQL connection or a client on the configured native file.
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
+    // [spec:pgorm:req:turso.pool+1] native ownership is lazy and belongs to this retained Config
     pub async fn connect<T>(&self, tls: T) -> Result<(Client, Connection<Socket, T::Stream>), Error>
     where
         T: MakeTlsConnect<Socket>,
     {
+        if let Some(native) = &self.turso {
+            self.validate_native()?;
+            #[cfg(feature = "turso")]
+            {
+                let database = native
+                    .database
+                    .get_or_try_init(|| crate::TursoDatabase::open(&native.path))
+                    .await?;
+                let (client, connection) = database.connect().await?;
+                return Ok((client, Connection::from_turso(connection)));
+            }
+            #[cfg(not(feature = "turso"))]
+            {
+                let _ = native;
+                return Err(Error::turso_unsupported(
+                    "opening an embedded database without the `turso` Cargo feature",
+                ));
+            }
+        }
         connect(tls, self).await
     }
 
@@ -745,6 +776,11 @@ impl Config {
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
+        if self.is_turso() {
+            return Err(Error::turso_unsupported(
+                "connecting an embedded database over a raw stream",
+            ));
+        }
         connect_raw(stream, tls, true, self).await
     }
 }
@@ -752,7 +788,13 @@ impl Config {
 impl FromStr for Config {
     type Err = Error;
 
+    // [spec:pgorm:req:turso.pool+1] PostgreSQL syntax retains its parser and never falls back to a path
     fn from_str(s: &str) -> Result<Config, Error> {
+        if let Some(path) = endpoint::native_path(s)? {
+            let mut config = Config::new();
+            config.turso = Some(Box::new(endpoint::NativeConfig::new(path)));
+            return Ok(config);
+        }
         match UrlParser::parse(s)? {
             Some(config) => Ok(config),
             None => Parser::parse(s),
@@ -763,6 +805,9 @@ impl FromStr for Config {
 // Omit password from debug output
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(path) = self.get_turso_path() {
+            return f.debug_struct("Config").field("turso_path", &path).finish();
+        }
         struct Redaction {}
         impl fmt::Debug for Redaction {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

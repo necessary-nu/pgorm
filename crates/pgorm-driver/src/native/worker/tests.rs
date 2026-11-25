@@ -207,6 +207,44 @@ async fn prepared_stream_backpressure_and_drop() {
     finish(actor, task).await;
 }
 
+// [spec:pgorm:req:turso.compatibility/test]
+// [spec:pgorm:sem:turso.streaming/test] byte batches also bound wide and oversized rows
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn wide_rows_obey_byte_backpressure() {
+    use futures_util::TryStreamExt;
+    for (width, expected) in [(40 * 1024, 4_u64), (128 * 1024, 2_u64)] {
+        let (actor, task) = actor().await;
+        let client = crate::Client::from_turso(Arc::clone(&actor));
+        let payload = vec![0xab_u8; width];
+        let statement = client.prepare_typed(
+            "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<100000) SELECT $1::bytea FROM n",
+            &[crate::types::Type::BYTEA],
+        ).await.unwrap();
+        let mut rows = Box::pin(client.query_raw(&statement, [&payload]).await.unwrap());
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while actor.control.produced_rows.load(Ordering::Acquire) < expected {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(
+            actor.control.produced_rows.load(Ordering::Acquire),
+            expected
+        );
+        let retained = rows.try_next().await.unwrap().unwrap();
+        drop(rows);
+        tokio::time::timeout(Duration::from_secs(3), client.check_connection())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(retained.get::<_, &[u8]>(0), payload);
+        drop(client);
+        finish(actor, task).await;
+    }
+}
+
 // [spec:pgorm:req:turso.rows/test] a failed producer cannot turn a partial stream into EOF
 // [spec:pgorm:sem:turso.streaming/test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

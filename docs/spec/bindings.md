@@ -392,7 +392,7 @@ A pool holds the connections; a `Connection` is one of them checked out; a
 statement's rows over one. Each is a native handle that is released by being
 closed, and a transaction by the block or callback it was opened for ending.
 
-> [spec:pgorm:req:bindings.connections+3]
+> [spec:pgorm:req:bindings.connections+4]
 > A `Pool` MUST be built from a connection string and options, which are the
 > arguments of Rust's `connect_with` (`conn.pool`) a program in the binding's
 > language can give: TLS (`bindings.tls`); the `Config`'s connect timeout; the
@@ -409,9 +409,13 @@ closed, and a transaction by the block or callback it was opened for ending.
 > an empty one is refused. Both bindings read these options into one Rust
 > crate, pgorm-bindings, which decides every one of them, refusals included,
 > and builds the pool through `connect_with`, so a pool means the same from
-> either language. Building one sends nothing, and a string or an option
-> value the pool cannot use is a `ConstructionError`; `connect` returns a
-> pool whose server answered.
+> either language. Building one sends nothing and opens no database. Invalid
+> connection strings and option values are `ConstructionError`s; `connect`
+> validates a connection through the pool before returning it.
+> Native database paths and `:memory:` use these same entry points under
+> `turso.python` and `turso.javascript`, which define native option refusals
+> and the feature-unavailable error class. PostgreSQL retains the options
+> and defaults above.
 >
 > A pool lends a `Connection` with `acquire`, and runs a statement of its own
 > on a connection lent to it alone. Acquiring past the acquire timeout MUST

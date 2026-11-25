@@ -108,6 +108,8 @@ pub enum Failure {
     /// An argument's value cannot become what pgorm sends: a
     /// `ConstructionError`.
     Construction(String),
+    /// An optional backend is absent from this package build.
+    UnsupportedCapability(String),
     /// The driver refused a parameter's value as it encoded it, pgorm's
     /// `BindRefusal`: a `ConstructionError` carrying its fields.
     Bind {
@@ -215,7 +217,9 @@ impl Failure {
             Self::Database(diagnostics) => diagnostics.class(),
             Self::Connection(_) => Class::Connection,
             Self::Decode(_) | Self::Unreadable { .. } => Class::Decode,
-            Self::Construction(_) | Self::Bind { .. } => Class::Construction,
+            Self::Construction(_) | Self::UnsupportedCapability(_) | Self::Bind { .. } => {
+                Class::Construction
+            }
             Self::Internal(_) => Class::Internal,
             Self::Lifecycle(_) => Class::Lifecycle,
             Self::Timeout(_) => Class::Timeout,
@@ -231,6 +235,7 @@ impl Failure {
             Self::Connection(message)
             | Self::Decode(message)
             | Self::Construction(message)
+            | Self::UnsupportedCapability(message)
             | Self::Internal(message)
             | Self::Lifecycle(message)
             | Self::Timeout(message)
@@ -263,6 +268,12 @@ impl fmt::Display for Failure {
 }
 
 impl std::error::Error for Failure {}
+
+impl From<crate::Refusal> for Failure {
+    fn from(error: crate::Refusal) -> Self {
+        Self::Construction(error.into_message())
+    }
+}
 
 /// The most values one statement binds, as PostgreSQL's protocol counts them
 /// in sixteen bits.

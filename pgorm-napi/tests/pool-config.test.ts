@@ -78,7 +78,7 @@ function listens(): boolean {
   return permissions.querySync({ name: "net" }).state === "granted";
 }
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("waitTimeout ends an acquisition with a TimeoutError naming it", async () => {
   await using small = new Pool(scratch(), { maxSize: 1, waitTimeout: 100 });
   const held = await small.acquire();
@@ -87,7 +87,7 @@ test("waitTimeout ends an acquisition with a TimeoutError naming it", async () =
   assert.equal(await small.ping(), true);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("createTimeout ends an acquisition whose connection never opens", async (context) => {
   if (!listens()) {
     context.skip("the runtime may not listen on a socket, which the silent server needs");
@@ -104,7 +104,7 @@ test("createTimeout ends an acquisition whose connection never opens", async (co
   }
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("recycleTimeout discards a returned connection whose check outlasts it", async () => {
   await using slow = new Pool(scratch(), { maxSize: 1, recycleTimeout: 100, recycleSql: "SELECT pg_sleep(3)" });
   const first = await slow.acquire();
@@ -117,7 +117,7 @@ test("recycleTimeout discards a returned connection whose check outlasts it", as
   await second.close();
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("queueMode lends the idle connection returned first, or with lifo the one returned last", async () => {
   for (const [queueMode, lent] of [["fifo", 0], ["lifo", 1]] as const) {
     await using pool = new Pool(scratch(), { maxSize: 2, queueMode });
@@ -134,7 +134,7 @@ test("queueMode lends the idle connection returned first, or with lifo the one r
   assert.throws(() => new Pool(scratch(), { queueMode: "random" }), TypeError);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("clean recycling resets a session, and recycleSql runs the program's own SQL", async () => {
   await using clean = new Pool(scratch(), { maxSize: 1, recycle: "clean" });
   await clean.connection((db) => db.execute("SET enable_seqscan = off"));
@@ -151,7 +151,7 @@ test("clean recycling resets a session, and recycleSql runs the program's own SQ
   assert.throws(() => new Pool(scratch(), { recycleSql: 7 as never }), TypeError);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("a pool reports its tag, or the default-N pgorm names an untagged pool", async () => {
   await using kitchen = new Pool(scratch(), { tag: "kitchen" });
   assert.equal(kitchen.tag, "kitchen");
@@ -161,7 +161,7 @@ test("a pool reports its tag, or the default-N pgorm names an untagged pool", as
   assert.throws(() => new Pool(scratch(), { tag: 7 as never }), TypeError);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("discard closes a connection without returning it, and the pool opens a fresh one", async () => {
   await using single = new Pool(scratch(), { maxSize: 1 });
   const db = await single.acquire();
@@ -184,7 +184,7 @@ class Acquisitions extends NoOpMetrics {
 }
 
 // [spec:pgorm:req:bindings.metrics+2/test]    an instrumented pool is the pool it wraps, its configuration included, and a connection it lends discards
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("an InstrumentedPool keeps its pool's tag and hooks, and a connection it lends discards", async () => {
   let created = 0;
   const inner = new Pool(scratch(), {

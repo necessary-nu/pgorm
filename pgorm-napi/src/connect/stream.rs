@@ -106,7 +106,14 @@ fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
     let work = async move {
-        let state = StreamState::on_connection(operation, sql, params, abort.token()).await?;
+        let state = StreamState::on_connection(
+            operation,
+            sql,
+            params,
+            crate::params::Param::native_value,
+            abort.token(),
+        )
+        .await?;
         Ok(Stream::new(state, decode))
     };
     settle::promise(&mut cx, work, |cx, stream| {

@@ -1,13 +1,14 @@
 # pgorm
 
-pgorm is an async ORM for PostgreSQL, and for PostgreSQL alone. You declare
-each table as a Rust type, and pgorm reads and writes it with SQL it builds
+pgorm is an async ORM for PostgreSQL, with experimental support for Turso's
+embedded engine. You declare each table as a Rust type, and pgorm
+reads and writes it with SQL it builds
 for you: every value bound as a parameter, never pasted into the SQL, and
 each statement prepared and cached per connection. Where the types can say
 so, a statement PostgreSQL would refuse does not compile. It runs on [pgorm-driver](crates/pgorm-driver), a vendored tokio-postgres fork, and a
 [deadpool](https://docs.rs/deadpool) pool, and targets PostgreSQL 19.
 
-Because it serves one database, pgorm offers what PostgreSQL has: `RETURNING`
+On PostgreSQL, pgorm offers `RETURNING`
 on every write, `ON CONFLICT` and `MERGE`, `COPY` in and out, `LISTEN` and
 `NOTIFY`, enums, domains, arrays, JSON, ranges and multiranges, and
 PostgreSQL 18's virtual generated columns and temporal keys. Beside the ORM
@@ -16,6 +17,10 @@ compile-time checking of raw SQL against PostgreSQL's own grammar, entities
 stored as a base table plus a table per kind, an opt-in metrics layer, a
 forward-only migration runner and an entity generator. Python and JavaScript
 bindings wrap the same crate.
+
+Native Turso supports a smaller, evolving subset through the same driver and
+pool APIs. The [compatibility matrix](docs/turso-compatibility.md) records the
+pinned engine revision, supported operations and known differences.
 
 ## Documentation
 
@@ -40,6 +45,32 @@ pgorm = { git = "https://github.com/necessary-nu/pgorm" }
 
 pgorm depends on forks of two crates, pinned to a git revision, so it is not
 published on crates.io; depend on it by git.
+
+To use an embedded database, enable the experimental feature:
+
+```toml
+[dependencies]
+pgorm = { git = "https://github.com/necessary-nu/pgorm", features = ["turso"] }
+```
+
+Pass a file path or `:memory:` through the existing connection API:
+
+```rust,no_run
+use pgorm::ConnectionTrait;
+
+async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    let pool = pgorm::connect("./app.db".parse()?);
+    let connection = pool.get().await?;
+    let row = connection.query_one("SELECT 1", &[]).await?;
+    assert_eq!(row.get::<_, i32>(0), 1);
+    Ok(())
+}
+```
+
+Pool construction is lazy; the first acquisition opens the file. Connections
+from one `:memory:` pool share its database, while separate memory pools are
+isolated. PostgreSQL URLs and libpq connection strings keep their existing
+meaning.
 
 ## The repository
 

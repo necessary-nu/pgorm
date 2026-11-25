@@ -923,7 +923,7 @@ pub async fn wrappers_expose_inner_and_metrics() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.sql-text+4/test]    what each statement form answers
+// [spec:pgorm:def:conn.sql-text+5/test]    what each statement form answers
 #[pgorm_macros::test]
 pub async fn sql_text_answers_with_the_statement_text() {
     let owned = "SELECT id FROM widget WHERE id = $1".to_owned();
@@ -937,6 +937,14 @@ pub async fn sql_text_answers_with_the_statement_text() {
     fn assert_statement_bound<T: ?Sized + SqlText + Sync>() {}
     assert_statement_bound::<str>();
     assert_statement_bound::<String>();
+
+    #[cfg(feature = "turso")]
+    {
+        let values = [pgorm::ValueHolder(pgorm_query::Value::Int(Some(7)))];
+        let statement = pgorm::ValueSql::new(&owned, &values);
+        assert_eq!(statement.sql_text(), owned.as_str());
+        assert_statement_bound::<pgorm::ValueSql<'_>>();
+    }
 }
 
 // [spec:pgorm:req:metric.fingerprint+5/test]    the hooks see the statement they report on
@@ -951,6 +959,20 @@ pub async fn query_context_carries_statement_text() -> Result<(), Error> {
         .await?;
     conn.execute("INSERT INTO widget (id) VALUES ($1)", &[&1i32])
         .await?;
+    #[cfg(feature = "turso")]
+    {
+        let params = [1_i32];
+        let statement =
+            pgorm::ValueSql::mapped("SELECT id FROM widget WHERE id = $1", &params, |_| {
+                panic!("PostgreSQL must not resolve native parameter hints")
+            });
+        assert_eq!(
+            conn.query_one(&statement, &[&params[0]])
+                .await?
+                .get::<_, i32>(0),
+            1
+        );
+    }
     let failed = conn
         .query_one("SELECT id FROM widget WHERE id = $1", &[&404i32])
         .await
@@ -972,6 +994,11 @@ pub async fn query_context_carries_statement_text() -> Result<(), Error> {
             (
                 "execute".to_owned(),
                 Some("INSERT INTO widget (id) VALUES ($1)".to_owned())
+            ),
+            #[cfg(feature = "turso")]
+            (
+                "query_one".to_owned(),
+                Some("SELECT id FROM widget WHERE id = $1".to_owned())
             ),
             (
                 "query_one".to_owned(),

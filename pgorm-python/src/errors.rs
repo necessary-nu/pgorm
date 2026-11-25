@@ -55,6 +55,9 @@ pub(crate) fn raised(failure: Failure) -> PyErr {
         Failure::Connection(message) => ConnectionError::new_err(message),
         Failure::Decode(message) => DecodeError::new_err(message),
         Failure::Construction(message) => ConstructionError::new_err(message),
+        Failure::UnsupportedCapability(message) => {
+            crate::UnsupportedCapabilityError::new_err(message)
+        }
         Failure::Internal(message) => InternalError::new_err(message),
         Failure::Lifecycle(message) => LifecycleError::new_err(message),
         Failure::Timeout(message) => TimeoutError::new_err(message),

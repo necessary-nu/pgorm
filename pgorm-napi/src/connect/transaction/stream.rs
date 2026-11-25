@@ -20,7 +20,15 @@ pub(super) fn transaction_stream(mut cx: FunctionContext) -> JsResult<JsPromise>
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
     let work = async move {
-        let stream = StreamState::in_transaction(&state, lock, sql, params, abort.token()).await?;
+        let stream = StreamState::in_transaction(
+            &state,
+            lock,
+            sql,
+            params,
+            crate::params::Param::native_value,
+            abort.token(),
+        )
+        .await?;
         Ok(crate::connect::stream::Stream::new(stream, decode))
     };
     settle::promise(&mut cx, work, |cx, stream| {

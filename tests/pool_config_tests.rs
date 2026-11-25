@@ -34,7 +34,7 @@ where
         .get(0))
 }
 
-// [spec:pgorm:req:conn.pool+6/test]    connect() builds an untagged, default-sized, Fast-recycling pool
+// [spec:pgorm:req:conn.pool+7/test]    connect() builds an untagged, default-sized, Fast-recycling pool
 #[pgorm_macros::test]
 pub async fn connect_builds_default_fast_pool() -> Result<(), Error> {
     let pool = pgorm::connect(maintenance_config());
@@ -71,7 +71,7 @@ pub async fn connect_builds_default_fast_pool() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool+6/test]    connect_with_builder applies the closure before the pool is built
+// [spec:pgorm:req:conn.pool+7/test]    connect_with_builder applies the closure before the pool is built
 #[pgorm_macros::test]
 pub async fn connect_with_builder_applies_closure() -> Result<(), Error> {
     let pool = pgorm::connect_with_builder(maintenance_config(), |builder| builder.max_size(2))?;
@@ -100,7 +100,7 @@ pub async fn connect_with_builder_applies_closure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool+6/test]    a builder the caller cannot build yields Error, not a panic
+// [spec:pgorm:req:conn.pool+7/test]    a builder the caller cannot build yields Error, not a panic
 #[pgorm_macros::test]
 pub async fn connect_with_builder_errs_on_build_failure() -> Result<(), Error> {
     // deadpool refuses to build a pool with timeouts but no runtime.
@@ -124,7 +124,7 @@ pub async fn connect_with_builder_errs_on_build_failure() -> Result<(), Error> {
 /// `pgorm-driver-rustls` connector, for example — satisfies
 /// its bounds. The test server speaks no TLS, so there is nothing to hand it
 /// and the function is never called; that it type-checks is the assertion.
-// [spec:pgorm:req:conn.pool+6/test]    any TLS connector, not just NoTls
+// [spec:pgorm:req:conn.pool+7/test]    any TLS connector, not just NoTls
 fn connect_with_takes_any_tls_connector<T>(config: Config, tls: T) -> Result<DatabasePool, Error>
 where
     T: MakeTlsConnect<Socket> + Clone + Sync + Send + 'static,
@@ -135,7 +135,7 @@ where
     pgorm::connect_with(config, tls, ManagerConfig::default(), |builder| builder)
 }
 
-// [spec:pgorm:req:conn.pool+6/test]    connect_with reaches the ManagerConfig the shorthands fix
+// [spec:pgorm:req:conn.pool+7/test]    connect_with reaches the ManagerConfig the shorthands fix
 #[pgorm_macros::test]
 pub async fn connect_with_applies_manager_config() -> Result<(), Error> {
     // The three settings none of the shorthands can express: a caller-chosen
@@ -200,7 +200,7 @@ pub async fn connect_with_applies_manager_config() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool+6/test]    connect_with fails like every other caller-input entry point
+// [spec:pgorm:req:conn.pool+7/test]    connect_with fails like every other caller-input entry point
 #[pgorm_macros::test]
 pub async fn connect_with_errs_on_build_failure() -> Result<(), Error> {
     let err = pgorm::connect_with(

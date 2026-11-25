@@ -83,7 +83,7 @@ function withoutSslmode(text: string, host?: string): string {
   return url.toString();
 }
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 // [spec:pgorm:req:bindings.argument-errors+1/test]
 test("a pool sends nothing until used, and refuses an unusable option at construction", async () => {
   await using unreachable = new Pool("postgres://pgorm@127.0.0.1:1/postgres?sslmode=disable");
@@ -125,14 +125,14 @@ test("a pool sends nothing until used, and refuses an unusable option at constru
   assert.throws(() => new Pool("postgres://["), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("connect resolves with a pool whose server answered, and rejects when none does", async () => {
   await using connected = await connect(dsn());
   assert.equal(await connected.ping(), true);
   await assert.rejects(connect("postgres://pgorm@127.0.0.1:1/postgres?sslmode=disable"), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("closing a connection returns it to its pool at once, and a closed connection refuses work", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   const first = await single.acquire();
@@ -165,7 +165,7 @@ async function preparedStatement(db: Queryable, sql: string): Promise<string | n
   return row === null ? null : (row.statement as string);
 }
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 // [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    from JavaScript
 test("clearing the statement caches makes a connection that ran an insert prepare it again", async () => {
   await using single = new Pool(scratch(), { maxSize: 1 });
@@ -200,7 +200,7 @@ async function eventually(what: string, probe: () => Promise<boolean>): Promise<
   }
 }
 
-// [spec:pgorm:req:bindings.connections+3/test]    a pool given statementCacheChannel listens from its
+// [spec:pgorm:req:bindings.connections+4/test]    a pool given statementCacheChannel listens from its
 // first acquisition, clears on a notification there whatever its payload, and closes its
 // listening connection with the pool; a pool without it keeps its statements
 // [spec:pgorm:req:conn.pool.statement-cache.listen+1/test]    from JavaScript
@@ -254,7 +254,7 @@ test("a pool listening on statementCacheChannel clears when notified, and only t
   }
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 // [spec:pgorm:req:bindings.errors+6/test]
 test("acquiring waits for a free connection within acquireTimeout, then fails with a TimeoutError", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 200 });
@@ -265,7 +265,7 @@ test("acquiring waits for a free connection within acquireTimeout, then fails wi
   assert.equal((await held.one("SELECT 3 AS n")).n, 3);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("a connection runs one operation at a time and refuses a second rather than racing it", async () => {
   await using connection = await pool().acquire();
   // Refusal follows the order JavaScript calls in, whichever runtime thread
@@ -279,7 +279,7 @@ test("a connection runs one operation at a time and refuses a second rather than
   assert.equal((await connection.one("SELECT 4 AS n")).n, 4);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 // [spec:pgorm:req:bindings.cancellation/test]
 test("closing a pool cancels what runs on it and releases every connection", async () => {
   const closing = new Pool(scratch(), { maxSize: 3 });
@@ -314,13 +314,13 @@ test("collecting unreferenced handles never cuts work short, and rolls back and 
   );
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("verify-full TLS never falls back to plaintext", async () => {
   await using strict = new Pool(withoutSslmode(dsn()));
   await assert.rejects(strict.ping(), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("verify-full TLS connects through a configured CA, and checks the host name", async (context) => {
   const ca = tlsCa();
   if (ca === undefined) {
@@ -334,7 +334,7 @@ test("verify-full TLS connects through a configured CA, and checks the host name
   await assert.rejects(misnamed.ping(), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+3/test]
+// [spec:pgorm:req:bindings.connections+4/test]
 test("verify-full TLS binds SCRAM authentication to the server's certificate", async (context) => {
   const ca = tlsCa();
   if (ca === undefined || new URL(dsn()).password === "") {

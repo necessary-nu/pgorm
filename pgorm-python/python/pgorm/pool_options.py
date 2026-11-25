@@ -208,5 +208,5 @@ def _shared(
         "recycle_sql": recycle_sql,
         "statement_cache_size": statement_cache_size,
         "statement_cache_channel": statement_cache_channel,
-        "connect_timeout": _seconds("connect_timeout", connect_timeout),
+        "connect_timeout": _optional_seconds("connect_timeout", connect_timeout),
     }

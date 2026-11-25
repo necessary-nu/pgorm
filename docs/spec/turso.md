@@ -198,18 +198,31 @@ conversion failure, unsupported operation, or unknown transaction outcome.
 
 ## Pool and capabilities
 
-> [spec:pgorm:req:turso.pool]
+> [spec:pgorm:req:turso.pool+1]
+> The existing `connect(config)`, `connect_with(config, tls, manager, build)`
+> and builder variants MUST select native Turso through `pgorm_driver::Config`
+> parsed from a database path or `:memory:`. PostgreSQL URLs and libpq
+> key/value strings retain their interpretation; a malformed recognized
+> PostgreSQL target MUST NOT fall back to creating a file. Backend selection
+> MUST live in the driver's configuration and connection machinery. There are
+> no separate public `connect_turso` constructors in pgorm or its bindings.
 >
-> With `turso` enabled, pgorm MUST expose
-> `async connect_turso(path: impl AsRef<Path>) -> Result<DatabasePool, Error>`
-> and `connect_turso_with(path, manager, build)`, an async fallible configuration
-> variant taking the existing `ManagerConfig` and pool-builder customization.
-> Opening the native database and establishing a
-> usable connection MUST finish before this async constructor succeeds. These
-> constructors MUST use the existing pgorm-pool connection factory,
-> `ClientWrapper`, statement cache, hooks and transactions; the database handle
-> is shared as `turso.lifecycle` requires. Public signature types MUST be
-> available from pgorm's existing re-export surface.
+> Rust pool construction MUST remain synchronous and lazy: parsing and building
+> a pool opens no file, creates no client and invokes no hook. First acquisition
+> opens the native database and reports opening or hook failures through the
+> existing pool error surface. All clients from the pool share that database,
+> including `:memory:`; independently built pools, including from cloned
+> configurations, MUST remain isolated in memory. Direct driver connections
+> made from one retained native `Config` share its database. Config cloning
+> copies settings, not the live native database.
+>
+> Native connections MUST use the existing pgorm-pool connection factory,
+> `ClientWrapper`, statement cache, hooks and transactions. The final creation
+> hook check MUST refuse a closed client, unfinished native work or an open
+> transaction before handing the connection to its borrower, without waiting
+> behind a retained stream. Public signature types remain available from
+> pgorm's existing re-export surface. Feature-disabled builds MUST recognize
+> native targets and refuse before opening, without an implicit engine dependency.
 >
 > Native Fast recycling MUST reject closed or unclean clients. Verified
 > recycling MUST perform a native health operation. PostgreSQL-specific Clean
@@ -278,11 +291,14 @@ conversion failure, unsupported operation, or unknown transaction outcome.
 
 ## Language bindings and documentation
 
-> [spec:pgorm:req:turso.python]
+> [spec:pgorm:req:turso.python+1]
 >
-> Python MUST expose `await connect_turso(path, **options)` returning the
-> existing Pool, with the supported pool size, timeout, cache and hook options
-> shared with its PostgreSQL pool. The optional native build feature MUST be
+> Python's existing `Pool(target, **options)` and `await connect(target, **options)`
+> MUST accept database paths and `:memory:` through driver configuration,
+> returning the existing Pool. Pool construction remains lazy; async `connect`
+> validates its first connection through the existing acquisition path.
+> Supported pool size, timeout, cache and hook options remain shared with
+> PostgreSQL. No separate public native constructor is exposed. The optional native build feature MUST be
 > recorded by package capabilities. Without it, the entry point MUST raise
 > `UnsupportedCapabilityError` before opening anything; invalid or unsupported
 > options retain the existing argument-error classifications. The path
@@ -296,11 +312,14 @@ conversion failure, unsupported operation, or unknown transaction outcome.
 > lockfiles, source/wheel contents and notices MUST match the shipped optional
 > dependency and feature set; ordinary builds MUST not enable it implicitly.
 
-> [spec:pgorm:req:turso.javascript]
+> [spec:pgorm:req:turso.javascript+1]
 >
-> JavaScript MUST expose `connectTurso(path, options)` returning a Promise of
-> the existing Pool, with the supported pool size, timeout, cache and hook
-> options shared with its PostgreSQL pool. The optional native build feature
+> JavaScript's existing `new Pool(target, options)` and `connect(target, options)`
+> MUST accept database paths and `:memory:` through driver configuration.
+> Pool construction remains lazy; async `connect` validates its first connection
+> through the existing acquisition path and returns the existing Pool.
+> Supported pool size, timeout, cache and hook options remain shared with
+> PostgreSQL. No separate public native constructor is exposed. The optional native build feature
 > MUST be recorded in package feature metadata. Without it, the entry point MUST
 > reject with the binding's construction-error classification before opening
 > anything. Invalid or unsupported options retain existing argument-error

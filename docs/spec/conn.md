@@ -17,9 +17,9 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## Pool construction and access
 
-> [spec:pgorm:req:conn.pool+6]
-> `connect_with(config, tls, manager, build)` is the general PostgreSQL pool
-> constructor: every other PostgreSQL pool entry point delegates to it. It takes the
+> [spec:pgorm:req:conn.pool+7]
+> `connect_with(config, tls, manager, build)` is the general pool
+> constructor: every pool entry point delegates to it. It takes the
 > `pgorm_driver::Config`, a TLS connector bounded exactly as
 > `pgorm_pool::Manager::from_config` bounds its own (`T: MakeTlsConnect<Socket>
 > + Clone + Sync + Send + 'static`, plus `Send + Sync` on `T::Stream` and
@@ -39,11 +39,11 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `StatementCacheSize::Bounded`/`Disabled` had no reachable setter at all:
 > `ManagerConfig` is private once the `Manager` holds it, and `PoolBuilder`
 > reaches only the pool. There is deliberately no `From<pgorm_pool::Pool> for
-> DatabasePool` beside it: PostgreSQL construction stays funnelled through
-> `connect_with`, so a `DatabasePool` always holds a pool pgorm shaped. The
-> experimental async native constructors are defined by `turso.pool`; they
-> reuse the same pool with a native connection factory and eagerly verify
-> their first connection. PostgreSQL constructors remain lazy.
+> DatabasePool` beside it: construction stays funnelled through
+> `connect_with`, so a `DatabasePool` always holds a pool pgorm shaped.
+> Native targets follow `turso.pool` through the same driver Config and
+> connection factory. Both backends remain lazy; native-specific manager
+> refusals are validated before constructing the pool.
 >
 > `ManagerConfig`, `RecyclingMethod`, `StatementCacheSize` and `PoolBuilder`,
 > together with `NoTls`, `Socket`, `MakeTlsConnect` and `TlsConnect`, MUST be
@@ -553,13 +553,15 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## Statement execution surface
 
-> [spec:pgorm:def:conn.sql-text+4]
+> [spec:pgorm:def:conn.sql-text+5]
 > `SqlText` answers `fn sql_text(&self) -> &str` for a statement, and is what
 > `ConnectionTrait` means by one. It MUST be sealed against implementations
-> outside pgorm. Its public statement forms MUST remain `str` and `String`.
-> With the experimental `turso` feature, an internal wrapper MAY retain SQL
-> and borrowed ORM values until native parameter types are resolved under
-> `turso.parameters`. The wrapper MUST expose the same SQL text, MUST NOT hold
+> outside pgorm. Its public statement forms include `str` and `String`.
+> With the experimental `turso` feature, `ValueSql` MAY retain SQL and borrowed
+> values, directly or through a borrowed-value mapper, until native parameter
+> types are resolved under `turso.parameters`. A mapper returning no value MUST
+> refuse the untyped parameter with its position; a typed null retains its
+> value variant. The wrapper MUST expose the same SQL text, MUST NOT hold
 > a prepared handle, and MUST NOT require PostgreSQL to resolve native hints or
 > allocate their type vector.
 >

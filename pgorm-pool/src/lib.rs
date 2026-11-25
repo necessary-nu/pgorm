@@ -26,8 +26,6 @@ mod copy;
 mod generic_client;
 mod raw;
 mod transaction;
-#[cfg(feature = "turso")]
-mod turso;
 
 use std::{
     borrow::Cow,
@@ -70,8 +68,6 @@ pub use self::cache_listener::STATEMENT_CACHE_CHANNEL;
 pub use self::generic_client::GenericClient;
 pub use self::raw::{RawConnection, Unpooled};
 pub use self::transaction::{CommitError, Transaction, TransactionBuilder};
-#[cfg(feature = "turso")]
-pub use self::turso::TursoConnectImpl;
 
 pub use deadpool::managed::reexports::*;
 deadpool::managed_reexports!(
@@ -95,7 +91,10 @@ type RecycleError = managed::RecycleError<Error>;
 //     pub active_connections: Arc<AtomicUsize>,
 // }
 
-/// [`Manager`] for creating and recycling PostgreSQL connections.
+/// [`Manager`] for creating and recycling configured database connections.
+///
+/// PostgreSQL targets use the wire driver; file paths and `:memory:` use the
+/// experimental native backend when the `turso` feature is enabled.
 ///
 /// [`Manager`]: managed::Manager
 pub struct Manager {
@@ -173,6 +172,9 @@ impl Manager {
     /// opening a client.
     // [spec:pgorm:req:conn.listen+2]    a pool's listener connects as its connections do
     pub async fn connect_raw(&self) -> Result<Unpooled, Error> {
+        if self.pg_config.is_turso() {
+            return Err(Error::turso_unsupported("native notification connections"));
+        }
         self.connect.connect_raw(&self.pg_config).await
     }
 
@@ -260,6 +262,16 @@ impl managed::Manager for Manager {
     type Error = Error;
 
     async fn create(&self) -> Result<ClientWrapper, Error> {
+        if self.pg_config.is_turso() {
+            if matches!(self.config.recycling_method, RecyclingMethod::Clean) {
+                return Err(Error::turso_unsupported("PostgreSQL Clean recycling"));
+            }
+            if self.config.statement_cache_channel.is_some() {
+                return Err(Error::turso_unsupported(
+                    "notification-based statement cache invalidation",
+                ));
+            }
+        }
         // Started ahead of the connection, so that its first `LISTEN`, which
         // clears, tends to precede the first statement prepared.
         self.start_statement_cache_listener();
@@ -304,10 +316,10 @@ pub trait Connect: Sync + Send {
     /// Establishes a new `pgorm_driver` connection, returning
     /// the associated `Client` and a `JoinHandle` to a tokio task
     /// for processing the connection.
-    fn connect(
-        &self,
-        pg_config: &PgConfig,
-    ) -> BoxFuture<'_, Result<(PgClient, JoinHandle<()>), Error>>;
+    fn connect<'a>(
+        &'a self,
+        pg_config: &'a PgConfig,
+    ) -> BoxFuture<'a, Result<(PgClient, JoinHandle<()>), Error>>;
 
     /// Establishes a new `pgorm_driver` connection and returns its I/O half
     /// undriven, for an owner that polls it itself to see the asynchronous
@@ -315,7 +327,8 @@ pub trait Connect: Sync + Send {
     ///
     /// A factory without notification support returns an error before
     /// opening a connection.
-    fn connect_raw(&self, pg_config: &PgConfig) -> BoxFuture<'_, Result<Unpooled, Error>>;
+    fn connect_raw<'a>(&'a self, pg_config: &'a PgConfig)
+    -> BoxFuture<'a, Result<Unpooled, Error>>;
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -341,12 +354,12 @@ where
     T::TlsConnect: Sync + Send,
     <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
 {
-    fn connect(
-        &self,
-        pg_config: &PgConfig,
-    ) -> BoxFuture<'_, Result<(PgClient, JoinHandle<()>), Error>> {
+    // [spec:pgorm:req:turso.pool+1] one retained Config owns the pool's lazy native database
+    fn connect<'a>(
+        &'a self,
+        pg_config: &'a PgConfig,
+    ) -> BoxFuture<'a, Result<(PgClient, JoinHandle<()>), Error>> {
         let tls = self.tls.clone();
-        let pg_config = pg_config.clone();
         Box::pin(async move {
             let fut = pg_config.connect(tls);
             let (client, connection) = fut.await?;
@@ -359,10 +372,15 @@ where
         })
     }
 
-    fn connect_raw(&self, pg_config: &PgConfig) -> BoxFuture<'_, Result<Unpooled, Error>> {
+    fn connect_raw<'a>(
+        &'a self,
+        pg_config: &'a PgConfig,
+    ) -> BoxFuture<'a, Result<Unpooled, Error>> {
         let tls = self.tls.clone();
-        let pg_config = pg_config.clone();
         Box::pin(async move {
+            if pg_config.is_turso() {
+                return Err(Error::turso_unsupported("native notification connections"));
+            }
             let (client, connection) = pg_config.connect(tls).await?;
             Ok((client, Box::new(connection) as Box<dyn RawConnection>))
         })

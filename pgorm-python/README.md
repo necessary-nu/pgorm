@@ -5,6 +5,7 @@ pgorm's Rust library into your Python process as a native extension and runs
 on asyncio: queries, models, transactions, the pipeline, `COPY` and
 `LISTEN`/`NOTIFY` are pgorm's own, rendered and executed by the Rust library
 over PostgreSQL's protocol, with no HTTP service or query server in between.
+An optional experimental Turso build also opens database files in-process.
 
 **[The Python guide](guide/README.md)** teaches the package from a first
 query to every feature, and every example in it runs as a test. It is the
@@ -26,6 +27,47 @@ uv pip install --python .venv/bin/python dist/pgorm-*.whl
 Free-threaded Python and subinterpreters are not supported. [Packaging and
 distribution](guide/28-distribution.md) covers source distributions,
 platforms and the notices the wheel ships.
+
+## Experimental native databases
+
+Build the optional backend with the same interpreter and Maturin environment:
+
+```sh
+.venv/bin/maturin build --manifest-path pgorm-python/Cargo.toml \
+  --interpreter .venv/bin/python --features extension-module,turso \
+  --release --out dist-turso --locked
+uv pip install --python .venv/bin/python --reinstall-package pgorm dist-turso/pgorm-*.whl
+```
+
+The existing connection API accepts paths. Inside an asyncio function:
+
+```python
+from pathlib import Path
+from pgorm import Pool, RawSQL, connect
+
+async def native_example() -> None:
+    file_pool = await connect("./app.db")
+    memory_pool = await connect(":memory:")
+    lazy_pool = Pool(Path("./lazy.db"))  # No file is opened yet.
+    await lazy_pool.ping()              # First acquisition opens it.
+
+    await memory_pool.batch_execute("CREATE TABLE notes(id BIGINT PRIMARY KEY, body TEXT)")
+    await memory_pool.execute(RawSQL("INSERT INTO notes VALUES($1, $2)", [1, "hello"]))
+    note = await memory_pool.one(RawSQL("SELECT body FROM notes WHERE id=$1", [1]))
+    assert note["body"] == "hello"
+
+    await lazy_pool.close()
+    await memory_pool.close()
+    await file_pool.close()
+```
+
+`connect` validates a connection before returning; `Pool` remains lazy.
+Connections from one memory pool share its database, while separate memory
+pools are isolated. Ordinary builds raise `UnsupportedCapabilityError` for
+native targets before opening a file. Native support is experimental: see the
+[compatibility matrix](../docs/turso-compatibility.md) for supported types,
+operations and options. PostgreSQL connection strings keep their existing
+behavior.
 
 ## A first query
 

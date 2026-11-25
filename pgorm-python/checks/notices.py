@@ -15,6 +15,7 @@ import subprocess
 PGSQL_RS = "git+https://github.com/necessary-nu/pgsql-rs.git"
 PGSQL_RS_FILES = ("LICENSE", "LICENSE-PostgreSQL")
 PGSQL_RS_LICENSE = "BSD-3-Clause AND PostgreSQL"
+TURSO = "git+https://github.com/tursodatabase/turso"
 
 
 def digest(data):
@@ -28,6 +29,13 @@ def from_pgsql_rs(package):
 def license_of(package):
     if not package["license"] and from_pgsql_rs(package):
         return PGSQL_RS_LICENSE
+    # This published archive declares license-file rather than an SPDX
+    # expression; its LICENSE names Apache-2.0 and the supplement supplies
+    # the complete text. Keep the clarification confined to that release.
+    if (package["name"], package["version"], package["repository"]) == (
+        "cfg_block", "0.1.1", "https://github.com/pluots/cfg_block"
+    ) and not package["license"]:
+        return "Apache-2.0"
     return package["license"]
 
 
@@ -76,6 +84,9 @@ def texts_for(package, root, supplements):
         workspace = directory.parents[1]
         for name in PGSQL_RS_FILES:
             texts.append(("pgsql-rs/" + name, (workspace / name).read_bytes()))
+    if (package["source"] or "").startswith(TURSO):
+        workspace = next(parent for parent in directory.parents if (parent / "LICENSE.md").is_file())
+        texts.append(("turso/LICENSE.md", (workspace / "LICENSE.md").read_bytes()))
     if not texts or not license_of(package):
         raise RuntimeError(
             f"missing license evidence for {package['name']} {package['version']}"
@@ -94,6 +105,7 @@ def generate(root):
                 "--format-version",
                 "1",
                 "--locked",
+                "--features", "turso",
             ],
             text=True,
         )
@@ -126,10 +138,16 @@ def generate(root):
             "owner": "ring@0.17.14",
             "license": "see ring notices",
         },
+        {
+            "name": "pg_query bundled libpg_query, PostgreSQL, upb and utf8_range sources",
+            "owner": "pg_query@18.1.0",
+            "license": "see pg_query notices",
+        },
     ]
     report = {
         "schema_version": 1,
-        "scope": "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
+        "scope": "Locked default and optional turso Cargo graph, including build and platform-conditional dependencies; a superset of any one wheel",
+        "optional_features": ["turso"],
         "cargo_lock_sha256": digest((root / "pgorm-python/Cargo.lock").read_bytes()),
         "python_runtime_dependencies": [],
         "packages": packages,

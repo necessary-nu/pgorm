@@ -21,7 +21,7 @@ pub(crate) const DIALECT: Dialect = Dialect::JavaScript;
 pub(crate) struct Shared {
     dsn: String,
     tls: TlsSettings,
-    connect_timeout: Duration,
+    connect_timeout: Option<Duration>,
     recycling_method: pgorm::RecyclingMethod,
     statement_cache_size: usize,
     statement_cache_channel: Option<String>,
@@ -123,9 +123,41 @@ fn callable<'cx>(
     }
 }
 
+fn recycling<'cx>(
+    cx: &mut Cx<'cx>,
+    options: Handle<'cx, JsObject>,
+    default: pgorm::RecyclingMethod,
+) -> NeonResult<pgorm::RecyclingMethod> {
+    let recycle = match option(cx, options, "recycle")? {
+        Some(recycle) => Some(pick(
+            cx,
+            recycle,
+            "recycle",
+            &[
+                ("verified", pgorm::RecyclingMethod::Verified),
+                ("fast", pgorm::RecyclingMethod::Fast),
+                ("clean", pgorm::RecyclingMethod::Clean),
+            ],
+        )?),
+        None => None,
+    };
+    let recycle_sql = match option(cx, options, "recycleSql")? {
+        Some(sql) => Some(text(cx, sql, "recycleSql")?),
+        None => None,
+    };
+    Ok(match (recycle, recycle_sql) {
+        (Some(_), Some(_)) => {
+            return cx.throw_type_error("recycle and recycleSql both say how to recycle: give one");
+        }
+        (_, Some(sql)) => pgorm::RecyclingMethod::Custom(sql),
+        (Some(method), None) => method,
+        (None, None) => default,
+    })
+}
+
 impl Shared {
     /// `dsn` and the shared options, as JavaScript passes them.
-    // [spec:pgorm:req:bindings.connections+3]
+    // [spec:pgorm:req:bindings.connections+4]
     // [spec:pgorm:req:bindings.tls+1]
     // [spec:pgorm:req:napi.lifecycle+3]
     pub(crate) fn read<'cx>(
@@ -144,32 +176,7 @@ impl Shared {
             cert: pem(cx, options, "cert")?,
             key: pem(cx, options, "key")?,
         };
-        let recycle = match option(cx, options, "recycle")? {
-            Some(recycle) => Some(pick(
-                cx,
-                recycle,
-                "recycle",
-                &[
-                    ("verified", pgorm::RecyclingMethod::Verified),
-                    ("fast", pgorm::RecyclingMethod::Fast),
-                    ("clean", pgorm::RecyclingMethod::Clean),
-                ],
-            )?),
-            None => None,
-        };
-        let recycle_sql = match option(cx, options, "recycleSql")? {
-            Some(sql) => Some(text(cx, sql, "recycleSql")?),
-            None => None,
-        };
-        let recycling_method = match (recycle, recycle_sql) {
-            (Some(_), Some(_)) => {
-                return cx
-                    .throw_type_error("recycle and recycleSql both say how to recycle: give one");
-            }
-            (_, Some(sql)) => pgorm::RecyclingMethod::Custom(sql),
-            (Some(method), None) => method,
-            (None, None) => pgorm::RecyclingMethod::Verified,
-        };
+        let recycling_method = recycling(cx, options, pgorm::RecyclingMethod::Verified)?;
         let statement_cache_channel = match option(cx, options, "statementCacheChannel")? {
             Some(channel) => Some(text(cx, channel, "statementCacheChannel")?),
             None => None,
@@ -177,8 +184,7 @@ impl Shared {
         Ok(Self {
             dsn,
             tls,
-            connect_timeout: milliseconds(cx, options, "connectTimeout")?
-                .unwrap_or(Duration::from_secs(10)),
+            connect_timeout: milliseconds(cx, options, "connectTimeout")?,
             recycling_method,
             statement_cache_size: count(cx, options, "statementCacheSize", 128)?,
             statement_cache_channel,
@@ -201,7 +207,7 @@ impl Shared {
     /// certificate and host name unless the connection string says
     /// `sslmode=disable` or the `tls` option names a weaker mode; there is no
     /// silent fallback to plaintext.
-    // [spec:pgorm:req:bindings.connections+3]
+    // [spec:pgorm:req:bindings.connections+4]
     pub(crate) fn build(self, tag: Option<String>, shape: Shape) -> Result<Built, Failure> {
         self.settings(tag).pool(
             &shape,
@@ -226,12 +232,16 @@ impl Shared {
 
     /// The connection string and TLS options, for a listener of their own.
     pub(crate) fn listener_parts(&self) -> (&str, &TlsSettings, Duration) {
-        (&self.dsn, &self.tls, self.connect_timeout)
+        (
+            &self.dsn,
+            &self.tls,
+            self.connect_timeout.unwrap_or(Duration::from_secs(10)),
+        )
     }
 }
 
 /// One pool's own options, as JavaScript passes them.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 // [spec:pgorm:req:bindings.pool-hooks]
 pub(crate) fn shape<'cx>(cx: &mut Cx<'cx>, options: Handle<'cx, JsObject>) -> NeonResult<Shape> {
     let queue_mode = match option(cx, options, "queueMode")? {
