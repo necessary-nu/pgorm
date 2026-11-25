@@ -21181,27 +21181,6 @@ children (
                     }
 
                     {
-                        id guide.python-gaps.postgres-target
-                        title "Python reports the PostgreSQL release a build targets as pgorm_query::POSTGRES_TARGET does, beside capabilities()[\"features\"] listing pg-19"
-                        deps (python.package)
-                        log (
-                            {
-                                at 2026-11-05T18:55:44.811369Z
-                                author "brendan@necessary.nu"
-                                kind @note
-                                text "nplan_start refused this node: \"dep python.package is Todo\", though nplan_node shows python.package done (shipped 75171d85), and an nplan_sync did not change the answer. Worked in the pool-config lane's worktree (nplan/guide.python-gaps.pool-config) without a claim, per the lane brief."
-                            }
-
-                            {
-                                at 2026-11-23T18:27:14.255603Z
-                                author "brendan@necessary.nu"
-                                kind @note
-                                text "pg19-only (2026-11-23) removed what this node delivered: pgorm targets PostgreSQL 19 alone, so the pg-19 feature, POSTGRES_TARGET and rule bindings.postgres-target are gone. Nothing outside tests and docs read the constant. The rule's implements claim was removed from this node with it."
-                            }
-                        )
-                    }
-
-                    {
                         id guide.python-gaps.raw-param-count-error
                         title "A raw statement given the wrong number of parameters raises ConstructionError naming the counts, not ConnectionError(\"PostgreSQL connection or protocol failure\") with no sqlstate"
                         kind @fix
@@ -22072,6 +22051,13 @@ children (
                 author "brendan@necessary.nu"
                 kind @decision
                 text "2026-11-24, agreed with the operator: the capability to write is in the type, on the trait names trait-names settles. Connection covers what only reads (Select / graph / selector terminals, counts, pagination, cursors, pipeline terminals, loaders, copy_out); ConnectionMut: Connection adds inserts, updates, deletes, the ActiveModel and Model write methods, copy_in, migrations and raw SQL text. Every existing connection type implements both, so a function taking &impl Connection cannot write whatever it is handed. ReadOnlyPool / ReadOnlyConnection / ReadOnlyTransaction implement Connection alone, built by connect_read_only(config) and its _with forms (a replica or a read-only role fits), each connection opened with default_transaction_read_only = on so the server refuses what types cannot see (25006, e.g. a SELECT calling a writing function). Transaction modes move to the type they belong to: a read-write connection's transaction_with takes read-write modes only; read_only_transaction(isolation, |tx| ..) and snapshot(|tx| ..) (SERIALIZABLE READ ONLY DEFERRABLE) give a ReadOnlyTransaction, removing today's ReadOnly-mode handle that offers inserts. conn.read_only() downgrades a borrowed read-write connection by type alone; nothing upgrades. Raw SQL: sql! classifies its statement at compile time (SELECT, VALUES, TABLE, SHOW, EXPLAIN without ANALYZE; no data-modifying WITH, no FOR UPDATE/SHARE) and only a read runs on Connection; run-time text needs ConnectionMut, except the read-only types' own unchecked-text method, the server enforcing it there. Database roles stay the real boundary (a raw SET can undo the session setting). Writes to a read-only connection are compile errors with per-trait diagnostics. Python and JavaScript: ReadOnlyPool, write terminals typed to refuse it (mypy, TypeScript under deno check) and TypeError at run time. InstrumentedPool over a read-only pool stays read-only. Orthogonal to scopes (scope = which rows; capability = whether it may write)."
+            }
+
+            {
+                at 2026-11-25T17:52:06.262718Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-25, from trait-names' delivery (7ed60048): CopyTrait did not fold into Connection, because Connection is implemented on shared Copy handles (&DatabaseConnection, DatabaseRef, HookConnection) where copy_in(&mut self) could not hold the connection exclusively (conn.copy). It is CopyConnection, implemented by DatabaseConnection, DatabaseTransaction and the two metrics wrappers. read-only.rust splits it the way it splits Connection: CopyConnection keeps copy_out / copy_out_rows / copy_out_columns (reads), CopyConnectionMut: CopyConnection takes copy_in / copy_in_rows / copy_in_columns (writes); the read-only types implement CopyConnection alone. Native Turso (the turso feature, a path or :memory: in Config) refuses COPY already; a read-only pool over a native target either opens the database read-only, if the pinned engine can, or refuses connect_read_only for a native target before opening anything, decided with a probe."
             }
         )
     }
