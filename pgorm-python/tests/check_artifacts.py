@@ -2,6 +2,7 @@
 
 from pathlib import Path, PurePosixPath
 import json
+import posixpath
 import sys
 import tarfile
 import tomllib
@@ -22,6 +23,7 @@ def pyo3_releases(packages: list[dict]) -> list[str]:
 # [spec:pgorm:req:bindings.optional/test]
 # [spec:pgorm:req:python.package/test]
 # [spec:pgorm:req:python.distribution/test]
+# [spec:pgorm:req:turso.python+1/test]
 def check_source(path: Path) -> None:
     with tarfile.open(path) as source:
         names = source.getnames()
@@ -39,10 +41,20 @@ def check_source(path: Path) -> None:
         native_manifest = project["tool"]["maturin"]["manifest-path"]
         native_root = PurePosixPath(native_manifest).parent
         assert f"{root}/{native_root}/src/lib.rs" in names
+        native_file = source.extractfile(f"{root}/{native_manifest}")
+        assert native_file is not None
+        native = tomllib.loads(native_file.read().decode())
+        assert {"pgorm/turso", "pgorm-bindings/turso", "pgorm-driver/turso"} <= set(native["features"]["turso"])
+        driver = posixpath.normpath(f"{native_root}/{native['dependencies']['pgorm-driver']['path']}")
+        for file in ("src/config/endpoint.rs", "src/native/worker.rs", "src/native/codecs.rs"):
+            assert f"{root}/{driver}/{file}" in names
         lock_file = source.extractfile(f"{root}/{native_root}/Cargo.lock")
         assert lock_file is not None
         packages = tomllib.loads(lock_file.read().decode())["package"]
         assert pyo3_releases(packages) == pyo3_releases(CHECKOUT_LOCK), packages
+        native = [package for package in packages if package["name"] == "turso_pg"]
+        expected = [package for package in CHECKOUT_LOCK if package["name"] == "turso_pg"]
+        assert native == expected and len(native) == 1, native
         assert any(name.endswith("/examples/application.py") for name in names)
         assert any(name.endswith("/licenses/supplemental.json") for name in names)
         assert any(name.endswith("/pgorm/THIRD_PARTY_NOTICES.txt") for name in names)
@@ -51,6 +63,7 @@ def check_source(path: Path) -> None:
 # [spec:pgorm:req:bindings.optional/test]
 # [spec:pgorm:req:python.package/test]
 # [spec:pgorm:req:python.distribution/test]
+# [spec:pgorm:req:turso.python+1/test]
 def check_wheel(path: Path) -> None:
     with zipfile.ZipFile(path) as wheel:
         names = wheel.namelist()
@@ -83,6 +96,12 @@ def check_wheel(path: Path) -> None:
         for package in parser.values():
             sources = {notice["source"] for notice in package["notices"]}
             assert {"pgsql-rs/LICENSE", "pgsql-rs/LICENSE-PostgreSQL"} <= sources
+        assert dependencies["optional_features"] == ["turso"]
+        engine = [package for package in dependencies["packages"]
+                  if package["source"].startswith("git+https://github.com/tursodatabase/turso")]
+        assert any(package["name"] == "turso_pg" for package in engine)
+        for package in engine:
+            assert "turso/LICENSE.md" in {notice["source"] for notice in package["notices"]}
         metadata = wheel.read(
             next(name for name in names if name.endswith(".dist-info/METADATA"))
         ).decode()

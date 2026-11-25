@@ -20,8 +20,8 @@ pub(super) mod private {
 
 /// SQL text accepted by a [`Connection`] statement method.
 ///
-/// Callers supply `str` or `String`. The sealed trait also admits an internal
-/// wrapper that retains ORM parameter types for experimental native execution.
+/// Callers supply `str` or `String`. With the experimental `turso` feature,
+/// `ValueSql` also retains borrowed parameter values for native typing.
 /// Every form carries SQL text, with no prepared connection handle.
 /// tokio-postgres bounds its own statement surface on
 /// `ToStatement`, which additionally admits an already-prepared `Statement` —
@@ -35,14 +35,14 @@ pub(super) mod private {
 /// (`conn.pool.conn-trait`) and the metrics fingerprint (`metric.fingerprint`)
 /// — are therefore total: neither has a case where the SQL it is looking at has
 /// gone missing.
-// [spec:pgorm:def:conn.sql-text+5]
+// [spec:pgorm:def:conn.sql-text+6]
 #[doc(alias("StatementBuilder", "from_sql_and_values", "from_string"))]
 pub trait SqlText: private::Sealed {
     /// The statement's SQL text.
     fn sql_text(&self) -> &str;
 }
 
-// [spec:pgorm:def:conn.sql-text+5]    the two spellings of a statement
+// [spec:pgorm:def:conn.sql-text+6]
 impl SqlText for str {
     fn sql_text(&self) -> &str {
         self

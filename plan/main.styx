@@ -22398,7 +22398,7 @@ children (
 
             {
                 id turso.connect
-                title "Expose connect_turso through the existing pgorm-pool and DatabasePool"
+                title "Accept native database paths through the existing connect and pool APIs"
                 implements {
                     main ([spec:pgorm:req:turso.pool])
                 }
@@ -22444,6 +22444,22 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "The final commit quality check required shortening two test names to the configured eight-word limit. Only those names changed; all 15 staged checks passed or were witnessed again. No gate bypass was used."
+                    }
+
+                    {
+                        at 2026-11-25T14:22:34.634563Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "User explicitly directed paths through existing connect APIs after reviewing examples. Replace separate native constructors with driver Config path/:memory: targets and existing Client/Connection return types. Rust pool construction stays synchronous/lazy; acquisition opens one shared native database. Config clones copy settings with independent memory state. Existing async binding connect validates via its normal pool path; no alternate connection API. Preserve PostgreSQL parsing and reject malformed recognized DSNs before file effects. Driver agent owns Config/Connection; root owns pool/ORM/JS/spec; native API agent owns shared/Python; performance agent migrates public tests before timing."
+                        after_done true
+                    }
+
+                    {
+                        at 2026-11-25T14:50:01.602101Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Unified-connect validation passes: default driver path parsing 4 tests; complete native driver suite 111 tests; focused public run 80 tests (PostgreSQL listeners 12, metrics 25, pool configuration 9; native capabilities 7, paired compatibility 6, ORM execution 9, public pooling 12). Both backends use the existing lazy Rust constructors. Review confirms the default wire connection remains inline with no new PostgreSQL connection allocation. Binding builds now run in separate target directories to avoid artifact contention; measurements still wait for a quiet machine and frozen measured sources."
+                        after_done true
                     }
                 )
             }
@@ -22508,6 +22524,20 @@ children (
                         kind @note
                         text "Add a native test harness using a fresh temporary database per test or an explicitly shared in-memory handle within one test; do not send PostgreSQL CREATE/DROP DATABASE setup SQL to Turso. Exercise the driver and ORM paths through connect_turso: values, queries, metadata, statement cache, transactions, streaming, cancellation, pool reuse, concurrency and errors. Compare equivalent supported operations against the repository's real PostgreSQL oracle. Record a revisioned compatibility matrix of passing, unsupported, known mismatching and unverified behavior with reproducible cases and reasons; expected failures must be specific and visible, not broad skips. Retain and run the existing PostgreSQL suite, test both feature states and add an experimental CI lane. A complete PostgreSQL pass is not the entry criterion for experimental support; the supported subset and regressions must be measurable."
                     }
+
+                    {
+                        at 2026-11-25T13:53:12.655041Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:53:26.64967Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the explicitly user-directed Turso scope after capability delivery 9edd03da; its four dependent leaves are ready and implemented in parallel as requested. Preserve unrelated scope-security WIP and the global guide candidate. Driver review owns the paired corpus/CI, performance agent owns benchmark artifacts, native API agent owns shared typed carrier/pool infrastructure and Python, root owns JavaScript and spec review. Serialize Cargo and final timing runs; deliver each node only with its required evidence."
+                    }
                 )
             }
 
@@ -22525,6 +22555,27 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Use the baseline harness to compare the direct embedded API with pgorm-driver native execution and the ORM for the same supported workloads, database settings, durability and concurrency. Compare the PostgreSQL path before/after with turso disabled and enabled. Report latency distributions, throughput, allocations/copies, statement reuse and streaming memory, identifying backend conversion, scheduling and dispatch costs separately. Resolve avoidable regressions and verify the performance criteria defined with turso.spec. Retain reproducible benchmark commands and results for the pinned revisions; do not claim performance from removing TCP alone, and do not introduce pgwire/duplex/text conversion as an unmeasured convenience fallback."
+                    }
+
+                    {
+                        at 2026-11-25T13:53:25.354302Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:53:26.988436Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the explicitly user-directed Turso scope after capability delivery 9edd03da; its four dependent leaves are ready and implemented in parallel as requested. Preserve unrelated scope-security WIP and the global guide candidate. Driver review owns the paired corpus/CI, performance agent owns benchmark artifacts, native API agent owns shared typed carrier/pool infrastructure and Python, root owns JavaScript and spec review. Serialize Cargo and final timing runs; deliver each node only with its required evidence."
+                    }
+
+                    {
+                        at 2026-11-25T15:53:04.452569Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Separate the completed benchmark harness into a build commit before measuring, so its formatting, Clippy and structural gates pass before the frozen measurement window. This is progress only: the perf delivery remains pending actual repeated PostgreSQL off/on, direct-native/driver/ORM, allocation and growing-stream evidence. Keep other builds and tests out of our measurement window and record observed external load without claiming host isolation."
                     }
                 )
             }
@@ -22550,6 +22601,27 @@ children (
                         kind @note
                         text "When implementing native binding packaging, generate dependency notices for the actual Turso-enabled graph as well as the default graph. An unfinished optional-notices patch was set aside at /tmp/pgorm-driver-import/turso-notices-followup.patch; all-features metadata also pulls additional packages such as antithesis_sdk whose license evidence must be inspected. No notice-generator behavior change is included in the lifecycle foundation."
                     }
+
+                    {
+                        at 2026-11-25T13:53:13.21415Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:53:27.350131Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the explicitly user-directed Turso scope after capability delivery 9edd03da; its four dependent leaves are ready and implemented in parallel as requested. Preserve unrelated scope-security WIP and the global guide candidate. Driver review owns the paired corpus/CI, performance agent owns benchmark artifacts, native API agent owns shared typed carrier/pool infrastructure and Python, root owns JavaScript and spec review. Serialize Cargo and final timing runs; deliver each node only with its required evidence."
+                    }
+
+                    {
+                        at 2026-11-25T15:31:05.035559Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Python compilation passes with and without turso; shared bindings unit suites pass38/38 in each feature state. Fresh installed default wheel passes12 tests with4 native-only skips; installed native wheel passes16/16, covering paths, lazy opening, pooling, persistence, hooks, typed parameters, models, transactions, streaming/cancellation and loop ownership. Explicit pathlib.Path inputs use lexical absolute paths so filenames resembling libpq settings keep filesystem intent. Wheels, exact native sources in source archives, stubs/signatures and460-package notices are verified. The final source archive contains current README, while wheel metadata matches DESCRIPTION.md. Report: target/python-turso/summary.json. Required repository checks continue."
+                    }
                 )
             }
 
@@ -22566,6 +22638,41 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Add the JavaScript file/in-memory connection entry point and optional native build feature using the same pgorm pool, models, codecs, transactions and errors. Do not create a parallel binding backend. Preserve event-loop/worker behavior, cancellation, lifetimes and close semantics. Specify and test feature availability and package behavior when Turso is absent, enabled or opening fails. Verify installed-package smoke paths for supported runtimes, parameterized reads/writes, shared in-memory pooling, persistence, transactions, streaming and unsupported-operation errors. Update TypeScript declarations, binding lockfiles, notices and native package contents for the pinned dependency. Ordinary Rust and JavaScript builds remain free of an implicit Turso dependency."
+                    }
+
+                    {
+                        at 2026-11-25T13:53:26.010649Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:53:27.812968Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the explicitly user-directed Turso scope after capability delivery 9edd03da; its four dependent leaves are ready and implemented in parallel as requested. Preserve unrelated scope-security WIP and the global guide candidate. Driver review owns the paired corpus/CI, performance agent owns benchmark artifacts, native API agent owns shared typed carrier/pool infrastructure and Python, root owns JavaScript and spec review. Serialize Cargo and final timing runs; deliver each node only with its required evidence."
+                    }
+
+                    {
+                        at 2026-11-25T14:30:01.099801Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "User replaced the standalone native constructor design with paths through existing connect/Pool APIs. Public connectTurso and native-only option type removed. Both bindings use shared PoolSettings parsing and driver Config selection; network timeout presence remains optional so unsupported explicit native settings can be refused while PG keeps its effective10s default. Native feature metadata, lazy type hints and installed-package validation remain required."
+                    }
+
+                    {
+                        at 2026-11-25T15:31:04.170807Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Installed npm artifacts pass on darwin-arm64 with Node26.11.1 and Deno2.9.8: default build12 passed/7 native skips per runtime; turso build19/19 per runtime, plus missing/mismatched/unoffered package refusal checks. Both addons expose accurate feature metadata. Native missing-parent opening preserves the engine's DatabaseError XX000; the installed test now asserts that diagnostic rather than incorrectly expecting a transport ConnectionError. No production change was required by the native package run. Locked450-package notices and bundled parser licenses are verified. Reports: target/napi-package/report.json and target/napi-package-turso/report.json."
+                    }
+
+                    {
+                        at 2026-11-25T15:53:05.155033Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Executed the exact native connection blocks from the JavaScript README and distribution guide against the installed Turso tarballs under Node26.11.1 and Deno2.9.8. All four runs passed in separate temporary directories. Existing installed suites remain 19/19 per runtime for native and 12 passed/7 native skips per runtime for default. Main-file-only scratch cleanup left MVCC/WAL companions; the harness now isolates the whole directory and the final user guide will state that file-lifetime boundary."
                     }
                 )
             }

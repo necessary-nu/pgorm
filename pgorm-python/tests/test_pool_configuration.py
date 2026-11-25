@@ -44,7 +44,7 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.dsn = os.environ["PGORM_TEST_DSN"]
 
-    # [spec:pgorm:req:bindings.connections+3/test]    a wait timeout that runs out is a
+    # [spec:pgorm:req:bindings.connections+4/test]    a wait timeout that runs out is a
     # TimeoutError naming it
     async def test_wait_timeout_names_itself(self) -> None:
         async with Pool(self.dsn, max_size=1, wait_timeout=0.1, acquire_timeout=5) as pool:
@@ -54,7 +54,7 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(str(caught.exception), "no connection came free within the pool's wait_timeout")
             await held.close()
 
-    # [spec:pgorm:req:bindings.connections+3/test]    a create timeout bounds opening a
+    # [spec:pgorm:req:bindings.connections+4/test]    a create timeout bounds opening a
     # connection, here to a server that never answers
     async def test_create_timeout_names_itself(self) -> None:
         held: list[asyncio.StreamWriter] = []
@@ -76,7 +76,7 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
             server.close()
             await server.wait_closed()
 
-    # [spec:pgorm:req:bindings.connections+3/test]    recycle_sql is Custom recycling, and a
+    # [spec:pgorm:req:bindings.connections+4/test]    recycle_sql is Custom recycling, and a
     # recycle timeout abandons a check that outlasts it, the pool opening a fresh connection
     async def test_recycle_sql_runs_under_the_recycle_timeout(self) -> None:
         loop = asyncio.get_running_loop()
@@ -89,7 +89,7 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
         async with Pool(self.dsn, max_size=1, recycle_sql="SET application_name = 'recycled'") as pool:
             self.assertEqual((await pool.one(setting))["name"], "recycled")
 
-    # [spec:pgorm:req:bindings.connections+3/test]    clean recycling: a setting the last
+    # [spec:pgorm:req:bindings.connections+4/test]    clean recycling: a setting the last
     # borrower made is gone for the next
     async def test_clean_recycling_resets_the_session(self) -> None:
         seqscan = RawSQL("SELECT current_setting('enable_seqscan') AS value")
@@ -102,7 +102,7 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             Pool(self.dsn, recycle_sql=b"SELECT 1")  # type: ignore[arg-type]
 
-    # [spec:pgorm:req:bindings.connections+3/test]    fifo lends the connection returned
+    # [spec:pgorm:req:bindings.connections+4/test]    fifo lends the connection returned
     # first, lifo the one returned last
     async def test_queue_mode_orders_the_idle_connections(self) -> None:
         for queue_mode, lent in (("fifo", 0), ("lifo", 1)):
@@ -115,7 +115,7 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             Pool(self.dsn, queue_mode="random")  # type: ignore[arg-type]
 
-    # [spec:pgorm:req:bindings.connections+3/test]    a pool reports its tag, pgorm's
+    # [spec:pgorm:req:bindings.connections+4/test]    a pool reports its tag, pgorm's
     # default-N without one, and an empty tag is refused
     async def test_a_pool_is_tagged(self) -> None:
         tagged = Pool(self.dsn, tag="kitchen")
@@ -131,7 +131,7 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             Pool(self.dsn, tag=1)  # type: ignore[arg-type]
 
-    # [spec:pgorm:req:bindings.connections+3/test]    discard closes the connection rather
+    # [spec:pgorm:req:bindings.connections+4/test]    discard closes the connection rather
     # than return it, and the pool opens a fresh one
     async def test_discard_closes_the_connection(self) -> None:
         async with Pool(self.dsn, max_size=1) as pool:
@@ -144,7 +144,7 @@ class PoolShapeTests(unittest.IsolatedAsyncioTestCase):
 
 
 class InstrumentedConfigurationTests(unittest.IsolatedAsyncioTestCase):
-    # [spec:pgorm:req:bindings.connections+3/test]    an instrumented pool wraps a configured
+    # [spec:pgorm:req:bindings.connections+4/test]    an instrumented pool wraps a configured
     # pool: its tag and hooks hold, and its connections are discarded as a pool's are
     async def test_an_instrumented_pool_keeps_its_configuration(self) -> None:
         created: list[int] = []

@@ -68,13 +68,21 @@ impl Work {
         match self {
             Self::Execute(compiled) => {
                 let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
+                #[cfg(feature = "turso")]
+                let sql = pgorm::ValueSql::new(&compiled.sql, &values);
+                #[cfg(not(feature = "turso"))]
+                let sql = compiled.sql;
                 let params: Vec<_> = values.iter().map(|v| v as &(dyn ToSql + Sync)).collect();
-                db.execute(&compiled.sql, &params).await.map(Output::Count)
+                db.execute(&sql, &params).await.map(Output::Count)
             }
             Self::Fetch(compiled) => {
                 let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
+                #[cfg(feature = "turso")]
+                let sql = pgorm::ValueSql::new(&compiled.sql, &values);
+                #[cfg(not(feature = "turso"))]
+                let sql = compiled.sql;
                 let params: Vec<_> = values.iter().map(|v| v as &(dyn ToSql + Sync)).collect();
-                db.query_all(&compiled.sql, &params).await.map(Output::Rows)
+                db.query_all(&sql, &params).await.map(Output::Rows)
             }
             Self::Entity(query, terminal) => query.run(db, terminal).await.map(Output::Models),
             Self::EntityRaw(query, compiled, terminal) => query

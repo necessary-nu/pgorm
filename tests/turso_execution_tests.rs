@@ -2,7 +2,7 @@
 
 use futures::TryStreamExt;
 use pgorm::{Connection, DecodeRaw, Error, HookConnection, entity::prelude::*, set};
-use pgorm_driver::{TursoDatabase, types::Type};
+use pgorm_driver::{Config, NoTls, types::Type};
 use pgorm_pool::ClientWrapper;
 use pgorm_query::{ArrayType, Value, Values};
 use std::num::NonZeroU64;
@@ -30,8 +30,7 @@ mod scalar {
 }
 
 async fn native() -> Result<ClientWrapper, Error> {
-    let database = TursoDatabase::open(":memory:").await?;
-    let (client, connection) = database.connect().await?;
+    let (client, connection) = ":memory:".parse::<Config>()?.connect(NoTls).await?;
     let task = tokio::spawn(async move {
         connection.await.expect("native connection worker failed");
     });
@@ -343,8 +342,8 @@ async fn raw_parameters_require_explicit_typed_preparation() -> Result<(), Error
 // [spec:pgorm:sem:turso.execution/test]
 #[tokio::test]
 async fn native_invalidation_evicts_without_replaying() -> Result<(), Error> {
-    let database = TursoDatabase::open(":memory:").await?;
-    let (client, connection) = database.connect().await?;
+    let config: Config = ":memory:".parse()?;
+    let (client, connection) = config.connect(NoTls).await?;
     let client = ClientWrapper::new(
         client,
         tokio::spawn(async move {
@@ -361,7 +360,7 @@ async fn native_invalidation_evicts_without_replaying() -> Result<(), Error> {
     assert_eq!(client.statement_cache.size(), 1);
     // The idle cached connection has not observed this other connection's
     // schema change, so execution must refuse before any write can run.
-    let (other, connection) = database.connect().await?;
+    let (other, connection) = config.connect(NoTls).await?;
     let other = ClientWrapper::new(
         other,
         tokio::spawn(async move {

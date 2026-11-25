@@ -3,7 +3,7 @@
 // Pools, connections and transactions. Each holds a native handle and
 // releases what it holds when closed — `close()`, `await using`, the end of a
 // callback — never by waiting for garbage collection.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 // [spec:pgorm:req:napi.lifecycle+3]
 // [spec:pgorm:req:bindings.results+3]
 // [spec:pgorm:req:napi.raw]
@@ -446,12 +446,13 @@ export class Pool extends Queryable {
 }
 
 /**
- * A pool whose server has answered.
+ * A validated pool for a PostgreSQL connection string, a database path or `:memory:`.
  *
  * @param {string} dsn
  * @param {import("./index.d.ts").PoolOptions} [options]
  * @returns {Promise<Pool>}
  */
+// [spec:pgorm:req:turso.javascript+1]
 export async function connect(dsn, options = {}) {
   const pool = new Pool(dsn, options);
   try {
@@ -462,7 +463,6 @@ export async function connect(dsn, options = {}) {
   }
   return pool;
 }
-
 
 /** One connection checked out of a pool; one operation at a time. */
 export class Connection extends Queryable {

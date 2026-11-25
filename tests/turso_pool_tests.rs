@@ -4,9 +4,9 @@
 use futures::TryStreamExt;
 use pgorm::{
     Connection, DecodeRaw, Error, Hook, HookConnection, HookError, ManagerConfig, PoolBuilder,
-    PoolError, RecyclingMethod, Runtime, TimeoutType, Transact, connect_turso, connect_turso_with,
+    PoolError, RecyclingMethod, Runtime, TimeoutType, Transact, connect, connect_with,
 };
-use pgorm_driver::{Statement, types::Type};
+use pgorm_driver::{Config, NoTls, Statement, types::Type};
 use pgorm_query::Values;
 use std::{
     num::NonZeroUsize,
@@ -75,30 +75,39 @@ fn cached_hook(statements: Arc<Mutex<Vec<Statement>>>) -> Hook {
     })
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
+// [spec:pgorm:req:conn.pool+7/test]
 #[tokio::test]
-async fn default_constructor_returns_an_open_usable_pool() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
-    assert_eq!(
-        pool.status().size,
-        1,
-        "construction establishes a connection"
-    );
-    assert_eq!(pool.status().available, 1);
+async fn default_constructor_waits_until_first_acquisition() -> Result<(), Error> {
+    let scratch = Scratch::new();
+    let path = scratch.path().join("lazy.db");
+    let config = path.to_str().expect("UTF-8 fixture path").parse()?;
+    assert!(!path.exists(), "parsing a path must not open it");
+    let pool = connect(config);
+    assert_eq!(pool.status().size, 0);
+    assert_eq!(pool.status().available, 0);
     assert!(!pool.is_closed());
+    assert!(!path.exists(), "pool construction must not open the file");
     let db = pool.get().await?;
+    assert!(path.is_file());
+    assert_eq!(pool.status().size, 1);
     assert_eq!(db.query_one("SELECT 1", &[]).await?.get::<_, i32>(0), 1);
     Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
-async fn opening_and_post_create_failures_reach_the_constructor() {
+async fn opening_and_hook_failures_reach_first_acquisition() -> Result<(), Error> {
     let scratch = Scratch::new();
-    let opening = connect_turso(scratch.path().join("missing").join("database.db"))
+    let path = scratch.path().join("missing").join("database.db");
+    let pool = connect(path.to_str().expect("UTF-8 fixture path").parse()?);
+    assert_eq!(pool.status().size, 0);
+    assert!(!path.exists());
+    let opening = pool
+        .get()
         .await
-        .expect_err("opening in a missing directory must fail eagerly");
-    assert!(matches!(opening, Error::Postgres(_) | Error::Pool(_)));
+        .expect_err("first acquisition opens the missing path");
+    assert!(matches!(opening, Error::Pool(_)));
 
     let calls = Arc::new(AtomicUsize::new(0));
     let called = Arc::clone(&calls);
@@ -106,19 +115,27 @@ async fn opening_and_post_create_failures_reach_the_constructor() {
         called.fetch_add(1, Ordering::SeqCst);
         Err(HookError::message("creation hook refused"))
     });
-    let failed = connect_turso_with(":memory:", ManagerConfig::default(), |builder| {
-        builder.post_create(hook)
-    })
-    .await
-    .expect_err("post-create failure must not yield a pool");
+    let pool = connect_with(
+        ":memory:".parse()?,
+        NoTls,
+        ManagerConfig::default(),
+        |builder| builder.post_create(hook),
+    )?;
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(pool.status().size, 0);
+    let failed = pool
+        .get()
+        .await
+        .expect_err("post-create failure must refuse acquisition");
     assert!(matches!(failed, Error::Pool(_)));
     assert!(failed.to_string().contains("creation hook refused"));
     assert_eq!(calls.load(Ordering::SeqCst), 1);
+    Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
-async fn unsupported_options_are_refused_before_file_creation() {
+async fn unsupported_options_are_refused_before_file_creation() -> Result<(), Error> {
     let scratch = Scratch::new();
     let configurations = [
         ManagerConfig {
@@ -141,25 +158,28 @@ async fn unsupported_options_are_refused_before_file_creation() {
     for (index, manager) in configurations.into_iter().enumerate() {
         let path = scratch.path().join(format!("refused-{index}.db"));
         let mut built = false;
-        let error = connect_turso_with(&path, manager, |builder| {
-            built = true;
-            builder
-        })
-        .await
+        let error = connect_with(
+            path.to_str().expect("UTF-8 fixture path").parse()?,
+            NoTls,
+            manager,
+            |builder| {
+                built = true;
+                builder
+            },
+        )
         .expect_err("unsupported native manager setting must be refused");
         assert!(matches!(error, Error::Custom(_)), "{error:?}");
         assert!(!path.exists());
         assert!(!built, "unsupported settings precede builder side effects");
     }
+    Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
 async fn borrowers_share_memory_while_separate_pools_are_isolated() -> Result<(), Error> {
-    let pool = connect_turso_with(":memory:", ManagerConfig::default(), |builder| {
-        builder.max_size(2)
-    })
-    .await?;
+    let config: Config = ":memory:".parse()?;
+    let pool = connect(config.clone());
     let first = pool.get().await?;
     let second = pool.get().await?;
     assert_eq!(pool.status().size, 2);
@@ -185,7 +205,7 @@ async fn borrowers_share_memory_while_separate_pools_are_isolated() -> Result<()
             .get::<_, i64>(0),
         2
     );
-    let separate = connect_turso(":memory:").await?;
+    let separate = connect(":memory:".parse()?);
     let isolated = separate.get().await?;
     isolated
         .batch_execute("CREATE TABLE shared_values(id INTEGER)")
@@ -197,17 +217,31 @@ async fn borrowers_share_memory_while_separate_pools_are_isolated() -> Result<()
             .get::<_, i64>(0),
         0
     );
+    let cloned = connect(config);
+    let isolated_clone = cloned.get().await?;
+    isolated_clone
+        .batch_execute("CREATE TABLE shared_values(id INTEGER)")
+        .await?;
+    assert_eq!(
+        isolated_clone
+            .query_one("SELECT count(*) FROM shared_values", &[])
+            .await?
+            .get::<_, i64>(0),
+        0,
+        "a cloned configuration must not share another pool's memory database"
+    );
     Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
 async fn hooks_reuse_and_clear_typed_cache() -> Result<(), Error> {
     let statements = Arc::new(Mutex::new(Vec::new()));
     let created = cached_hook(Arc::clone(&statements));
     let recycled = cached_hook(Arc::clone(&statements));
-    let pool = connect_turso_with(
-        ":memory:",
+    let pool = connect_with(
+        ":memory:".parse()?,
+        NoTls,
         ManagerConfig {
             tag: Some("native-reader".into()),
             recycling_method: RecyclingMethod::Verified,
@@ -219,11 +253,13 @@ async fn hooks_reuse_and_clear_typed_cache() -> Result<(), Error> {
                 .post_create(created)
                 .post_recycle(recycled)
         },
-    )
-    .await?;
+    )?;
     assert_eq!(pool.tag().as_str(), "native-reader");
     assert_eq!(pool.status().max_size, 1);
-    assert_eq!(statements.lock().expect("read creation hook").len(), 1);
+    assert_eq!(
+        statements.lock().expect("creation hook has not run").len(),
+        0
+    );
     let first = pool.get().await?;
     assert_eq!(typed_value(&first, 11).await?, 11);
     drop(first);
@@ -231,7 +267,7 @@ async fn hooks_reuse_and_clear_typed_cache() -> Result<(), Error> {
     assert_eq!(typed_value(&second, 12).await?, 12);
     {
         let recorded = statements.lock().expect("read reused metadata");
-        assert_eq!(recorded.len(), 3);
+        assert_eq!(recorded.len(), 2);
         assert!(
             recorded.windows(2).all(|pair| {
                 std::ptr::eq(pair[0].columns().as_ptr(), pair[1].columns().as_ptr())
@@ -243,15 +279,15 @@ async fn hooks_reuse_and_clear_typed_cache() -> Result<(), Error> {
     let third = pool.get().await?;
     assert_eq!(typed_value(&third, 13).await?, 13);
     let recorded = statements.lock().expect("read cleared metadata");
-    assert_eq!(recorded.len(), 4);
+    assert_eq!(recorded.len(), 3);
     assert!(!std::ptr::eq(
         recorded[0].columns().as_ptr(),
-        recorded[3].columns().as_ptr()
+        recorded[2].columns().as_ptr()
     ));
     Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
 async fn configured_wait_timeout_preserves_pool_progress() -> Result<(), Error> {
     let configure: fn(PoolBuilder) -> PoolBuilder = |builder| {
@@ -260,7 +296,12 @@ async fn configured_wait_timeout_preserves_pool_progress() -> Result<(), Error> 
             .runtime(Runtime::Tokio1)
             .wait_timeout(Some(Duration::from_millis(25)))
     };
-    let pool = connect_turso_with(":memory:", ManagerConfig::default(), configure).await?;
+    let pool = connect_with(
+        ":memory:".parse()?,
+        NoTls,
+        ManagerConfig::default(),
+        configure,
+    )?;
     let held = pool.get().await?;
     let refused = timeout(LIMIT, pool.get())
         .await
@@ -277,23 +318,38 @@ async fn configured_wait_timeout_preserves_pool_progress() -> Result<(), Error> 
     Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
-async fn invalid_builders_return_errors_without_waiting() {
-    let zero = timeout(
-        LIMIT,
-        connect_turso_with(":memory:", ManagerConfig::default(), |builder| {
-            builder.max_size(0)
-        }),
+async fn builder_validation_and_zero_capacity_remain_lazy() -> Result<(), Error> {
+    let scratch = Scratch::new();
+    let path = scratch.path().join("zero.db");
+    let zero = connect_with(
+        path.to_str().expect("UTF-8 fixture path").parse()?,
+        NoTls,
+        ManagerConfig::default(),
+        |builder| {
+            builder
+                .max_size(0)
+                .runtime(Runtime::Tokio1)
+                .wait_timeout(Some(Duration::from_millis(25)))
+        },
+    )?;
+    assert_eq!(zero.status().size, 0);
+    assert!(!path.exists());
+    let refused = timeout(LIMIT, zero.get())
+        .await
+        .expect("configured wait timeout must finish");
+    assert!(matches!(
+        refused,
+        Err(Error::Pool(PoolError::Timeout(TimeoutType::Wait)))
+    ));
+    assert!(!path.exists(), "zero capacity never creates a client");
+    let missing_runtime = connect_with(
+        ":memory:".parse()?,
+        NoTls,
+        ManagerConfig::default(),
+        |builder| builder.wait_timeout(Some(Duration::from_secs(1))),
     )
-    .await
-    .expect("zero-capacity pool must not wait for an impossible checkout")
-    .expect_err("zero-capacity pool must fail eager initialization");
-    assert!(matches!(zero, Error::Custom(_)));
-    let missing_runtime = connect_turso_with(":memory:", ManagerConfig::default(), |builder| {
-        builder.wait_timeout(Some(Duration::from_secs(1)))
-    })
-    .await
     .expect_err("a timeout requires an explicit pool runtime");
     assert!(matches!(missing_runtime, Error::Custom(_)));
     assert!(
@@ -301,15 +357,18 @@ async fn invalid_builders_return_errors_without_waiting() {
             .to_string()
             .contains("Timeouts require a runtime")
     );
+    Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
 async fn listener_refusal_leaves_the_native_pool_usable() -> Result<(), Error> {
-    let pool = connect_turso_with(":memory:", ManagerConfig::default(), |builder| {
-        builder.max_size(1)
-    })
-    .await?;
+    let pool = connect_with(
+        ":memory:".parse()?,
+        NoTls,
+        ManagerConfig::default(),
+        |builder| builder.max_size(1),
+    )?;
     let held = pool.get().await?;
     let result = timeout(LIMIT, pool.listener(NonZeroUsize::MIN))
         .await
@@ -334,10 +393,10 @@ async fn listener_refusal_leaves_the_native_pool_usable() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
 async fn pool_close_keeps_a_checked_out_connection_usable() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
+    let pool = connect(":memory:".parse()?);
     let mut held = pool.get().await?;
     pool.close();
     assert!(pool.is_closed());
@@ -360,12 +419,12 @@ async fn pool_close_keeps_a_checked_out_connection_usable() -> Result<(), Error>
     Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
 async fn committed_file_data_survives_pool_reopen() -> Result<(), Error> {
     let scratch = Scratch::new();
     let path = scratch.path().join("persistent.db");
-    let pool = connect_turso(&path).await?;
+    let pool = connect(path.to_str().expect("UTF-8 fixture path").parse()?);
     let mut db = pool.get().await?;
     db.batch_execute("CREATE TABLE durable(value BIGINT)")
         .await?;
@@ -385,7 +444,7 @@ async fn committed_file_data_survives_pool_reopen() -> Result<(), Error> {
     pool.close();
     drop(pool);
     assert!(path.is_file());
-    let reopened = connect_turso(path).await?;
+    let reopened = connect(path.to_str().expect("UTF-8 fixture path").parse()?);
     let db = reopened.get().await?;
     assert_eq!(
         db.query_one("SELECT value FROM durable", &[])
@@ -396,9 +455,9 @@ async fn committed_file_data_survives_pool_reopen() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
-async fn a_creation_hook_cannot_leave_a_transaction_open() {
+async fn a_creation_hook_cannot_leave_a_transaction_open() -> Result<(), Error> {
     let hook = Hook::async_fn(|client, _| {
         Box::pin(async move {
             client
@@ -407,18 +466,25 @@ async fn a_creation_hook_cannot_leave_a_transaction_open() {
                 .map_err(HookError::Backend)
         })
     });
-    let error = connect_turso_with(":memory:", ManagerConfig::default(), |builder| {
-        builder.post_create(hook)
-    })
-    .await
-    .expect_err("creation hook must leave an idle connection");
-    assert!(matches!(error, Error::Custom(_)));
+    let pool = connect_with(
+        ":memory:".parse()?,
+        NoTls,
+        ManagerConfig::default(),
+        |builder| builder.post_create(hook),
+    )?;
+    assert_eq!(pool.status().size, 0);
+    let error = pool
+        .get()
+        .await
+        .expect_err("creation hook must leave an idle connection");
+    assert!(matches!(error, Error::Pool(_)));
     assert!(error.to_string().contains("open transaction"));
+    Ok(())
 }
 
-// [spec:pgorm:req:turso.pool/test]
+// [spec:pgorm:req:turso.pool+1/test]
 #[tokio::test]
-async fn retained_hook_stream_refuses_without_waiting() {
+async fn retained_hook_stream_refuses_without_waiting() -> Result<(), Error> {
     let retained = Arc::new(Mutex::new(None));
     let output = Arc::clone(&retained);
     let hook = Hook::async_fn(move |client, _| {
@@ -435,16 +501,19 @@ async fn retained_hook_stream_refuses_without_waiting() {
             Ok(())
         })
     });
-    let error = timeout(
-        LIMIT,
-        connect_turso_with(":memory:", ManagerConfig::default(), |builder| {
-            builder.post_create(hook)
-        }),
-    )
-    .await
-    .expect("eager health must not queue behind a retained hook stream")
-    .expect_err("unfinished hook work must refuse pool construction");
-    assert!(matches!(error, Error::Custom(_)));
+    let pool = connect_with(
+        ":memory:".parse()?,
+        NoTls,
+        ManagerConfig::default(),
+        |builder| builder.post_create(hook),
+    )?;
+    assert!(retained.lock().expect("hook has not run").is_none());
+    let error = timeout(LIMIT, pool.get())
+        .await
+        .expect("acquisition must not wait behind a retained hook stream")
+        .expect_err("unfinished hook work must refuse acquisition");
+    assert!(matches!(error, Error::Pool(_)));
     assert!(error.to_string().contains("unfinished work"));
     drop(retained.lock().expect("release the retained stream").take());
+    Ok(())
 }

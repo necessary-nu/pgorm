@@ -40,6 +40,20 @@ console.log(row.name, row.price.toString()); // Chocolate Fudge 4.50
 Every value is bound as a parameter, never pasted into the SQL. A pool
 verifies TLS unless the connection string says `sslmode=disable`.
 
+An addon built with `--turso` also accepts a file path or `:memory:` through
+the same API:
+
+```js
+await using file = await connect("./app.db");
+await using memory = await connect(":memory:");
+```
+
+`new Pool("./app.db")` opens lazily on first acquisition; `await connect(...)`
+validates the connection before returning. See [building with
+Turso](DISTRIBUTION.md#experimental-native-turso) and the
+[experimental compatibility matrix](../docs/turso-compatibility.md) for the
+supported SQL and types.
+
 ## Tests
 
 The package's suite, written against `node:test` and `node:assert`, runs

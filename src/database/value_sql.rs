@@ -6,37 +6,59 @@ use pgorm_query::Value;
 /// Borrow the values before ToSql erases their variants. PostgreSQL never
 /// resolves these hints, retaining its context inference and cache keys.
 // [spec:pgorm:req:turso.parameters]
-pub(crate) struct ValueSql<'a> {
+#[derive(Debug)]
+pub struct ValueSql<'a, P = ValueHolder> {
     sql: &'a str,
-    values: &'a [ValueHolder],
+    values: &'a [P],
+    value: for<'v> fn(&'v P) -> Option<&'v Value>,
 }
 
 impl<'a> ValueSql<'a> {
-    pub(crate) fn new(sql: &'a str, values: &'a [ValueHolder]) -> Self {
-        Self { sql, values }
+    /// Retain SQL and borrowed values until the connection selects its backend.
+    pub fn new(sql: &'a str, values: &'a [ValueHolder]) -> Self {
+        Self {
+            sql,
+            values,
+            value: |value| Some(&value.0),
+        }
     }
 }
 
-// [spec:pgorm:def:conn.sql-text+5]
-impl SqlText for ValueSql<'_> {
+impl<'a, P> ValueSql<'a, P> {
+    /// Borrow parameters without replacing their encoders. An absent value
+    /// has no native type; PostgreSQL never calls the mapper.
+    pub fn mapped(
+        sql: &'a str,
+        values: &'a [P],
+        value: for<'v> fn(&'v P) -> Option<&'v Value>,
+    ) -> Self {
+        Self { sql, values, value }
+    }
+}
+
+// [spec:pgorm:def:conn.sql-text+6]
+impl<P> SqlText for ValueSql<'_, P> {
     fn sql_text(&self) -> &str {
         self.sql
     }
 }
 
 // [spec:pgorm:req:turso.parameters] typed nulls retain the variant's scalar type
-impl private::Sealed for ValueSql<'_> {
+impl<P> private::Sealed for ValueSql<'_, P> {
     fn native_parameter_types(&self) -> Result<Vec<Type>, Error> {
         self.values
             .iter()
             .enumerate()
             .map(|(index, value)| {
-                native_type(&value.0).map_err(|kind| {
-                    Error::to_sql(
-                        format!("native Turso does not support {kind} parameters").into(),
-                        index,
-                    )
-                })
+                (self.value)(value)
+                    .ok_or("untyped NULL")
+                    .and_then(native_type)
+                    .map_err(|kind| {
+                        Error::to_sql(
+                            format!("native Turso does not support {kind} parameters").into(),
+                            index,
+                        )
+                    })
             })
             .collect()
     }

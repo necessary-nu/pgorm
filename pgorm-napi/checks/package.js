@@ -48,7 +48,8 @@ import { generate, NOTICES } from "./notices.js";
 const napi = dirname(dirname(fileURLToPath(import.meta.url)));
 const checkout = dirname(napi);
 const target = process.env.CARGO_TARGET_DIR ?? join(checkout, "target");
-const out = join(target, "napi-package");
+const turso = process.argv.includes("--turso");
+const out = join(target, turso ? "napi-package-turso" : "napi-package");
 const binaries = join(out, "binaries");
 const tarballs = join(out, "tarballs");
 const projects = join(out, "projects");
@@ -166,10 +167,12 @@ function manifests() {
 function verifyAddon(path, version, { load }) {
   /** @type {string[] | undefined} */
   let exports;
+  /** @type {string[] | undefined} */
+  let features;
   if (load) {
     const loaded = spawnSync(
       process.execPath,
-      ["-e", `const addon = require(${JSON.stringify(path)}); console.log(JSON.stringify({ version: addon.version, exports: Object.keys(addon).sort() }));`],
+      ["-e", `const addon = require(${JSON.stringify(path)}); console.log(JSON.stringify({ version: addon.version, features: addon.features, exports: Object.keys(addon).sort() }));`],
       { encoding: "utf8" },
     );
     ensure(loaded.status === 0, `${path} did not load: ${loaded.stderr}`);
@@ -178,6 +181,8 @@ function verifyAddon(path, version, { load }) {
     ensure(probes.length === 0, `${path} exports ${probes.join(" and ")}, which only a debug build carries: package a release build`);
     ensure(facts.version === version, `${path} reports version ${facts.version}, not ${version}`);
     exports = facts.exports;
+    ensure(JSON.stringify(facts.features) === JSON.stringify(turso ? ["turso"] : []), `${path} does not report the requested optional features`);
+    features = facts.features;
   }
   const data = readFileSync(path);
   const named = PROBES.filter((probe) => data.includes(probe));
@@ -185,7 +190,7 @@ function verifyAddon(path, version, { load }) {
   const symbols = localSymbols(data);
   ensure(symbols !== undefined, `${path} is neither a 64-bit ELF nor a Mach-O library, so whether it is stripped cannot be read`);
   ensure(symbols === 0, `${path} carries ${symbols} symbols beyond the ones it is loaded by: package the addon profile's stripped build`);
-  return { sha256: hash("sha256", data, "hex"), size: data.length, exports };
+  return { sha256: hash("sha256", data, "hex"), size: data.length, exports, features };
 }
 
 function build() {
@@ -193,7 +198,7 @@ function build() {
   const running = platform();
   const entry = support.platforms.find((/** @type {any} */ candidate) => candidate.platform === running);
   ensure(entry, `support.json lists no platform ${running}`);
-  const library = buildLibrary({ release: true });
+  const library = buildLibrary({ release: true, turso });
   const directory = join(binaries, running);
   rmSync(directory, { recursive: true, force: true });
   // Checked under a name of its own, so a refused addon never reaches
@@ -215,6 +220,7 @@ function build() {
     sha256: facts.sha256,
     size: facts.size,
     exports: facts.exports?.length,
+    features: facts.features,
     probes: [],
     node: process.version,
   });
@@ -288,6 +294,7 @@ function platformManifest(pkg, entry) {
     ...(entry.libc ? { libc: [entry.libc] } : {}),
     engines: pkg.engines,
     main: "pgorm_napi.node",
+    pgormFeatures: turso ? ["turso"] : [],
     files: ["pgorm_napi.node", "DEPENDENCIES.json", "THIRD_PARTY_NOTICES.txt", ...LICENCES],
     publishConfig: PUBLISH,
   };
@@ -305,6 +312,7 @@ function pack(partial) {
     const record = readJson(recorded);
     ensure(record.platform === name, `binaries/${name} holds the addon for ${record.platform}`);
     ensure(record.version === version, `the ${name} addon is version ${record.version}, not ${version}`);
+    ensure(JSON.stringify(record.features) === JSON.stringify(turso ? ["turso"] : []), `${name} was built with different optional features`);
     ensure(releases.some((entry) => entry.platform === name), `${name} is not a release platform in support.json, so no package is made for it`);
     const facts = verifyAddon(join(binaries, name, "pgorm_napi.node"), version, { load: false });
     ensure(facts.sha256 === record.sha256, `the ${name} addon differs from the one its build recorded`);
@@ -454,7 +462,7 @@ function project(directory, files) {
   for (const [name, content] of Object.entries(files)) {
     writeFileSync(join(directory, name), typeof content === "string" ? content : `${JSON.stringify(content, null, 2)}\n`);
   }
-  for (const file of ["smoke.test.ts", "exit.ts", "symbols.ts"]) copyFileSync(join(napi, "tests", "package", file), join(directory, file));
+  for (const file of ["smoke.test.ts", "turso.test.ts", "exit.ts", "symbols.ts"]) copyFileSync(join(napi, "tests", "package", file), join(directory, file));
 }
 
 async function install() {
@@ -482,6 +490,7 @@ async function install() {
       PGORM_NAPI_VERSION: version,
       PGORM_NAPI_PLATFORM_PACKAGE: wanted,
       PGORM_NAPI_PARTIAL: listing.partial ? "1" : "0",
+      PGORM_NAPI_TURSO: turso ? "1" : "0",
       // npm and Deno resolve every package from the registry served here,
       // with caches of their own and no user configuration.
       npm_config_registry: registry.url,
@@ -507,7 +516,7 @@ async function install() {
     ensure(existsSync(join(modules, wanted, "pgorm_napi.node")), `npm did not install ${wanted}`);
     for (const other of others) ensure(!existsSync(join(modules, other)), `npm installed ${other} on ${running}`);
     ensure(!existsSync(join(modules, name, "lib", "pgorm_napi.node")), "the installed main package carries an addon");
-    await run(process.execPath, ["--test", "smoke.test.ts"], { cwd: nodeProject, env });
+    await run(process.execPath, ["--test", "smoke.test.ts", "turso.test.ts"], { cwd: nodeProject, env });
 
     // Deno: `npm:@necessary/pgorm` through the import map, into a
     // node_modules Deno manages itself, whose store folders spell a scoped
@@ -524,7 +533,7 @@ async function install() {
       join(store, `${packageName.replace("/", "+")}@${version}`, "node_modules", packageName, "pgorm_napi.node");
     ensure(existsSync(stored(wanted)), `deno did not install ${wanted}`);
     for (const other of others) ensure(!existsSync(stored(other)), `deno installed ${other} on ${running}`);
-    await run("deno", ["test", "--allow-ffi", "--allow-read", "--allow-env", "--allow-run", "smoke.test.ts"], { cwd: denoProject, env });
+    await run("deno", ["test", "--allow-ffi", "--allow-read", "--allow-write", "--allow-env", "--allow-run", "smoke.test.ts", "turso.test.ts"], { cwd: denoProject, env });
 
     // The loader's refusals, in both runtimes: npm installs each project and
     // Deno reads its node_modules as it is.
@@ -595,6 +604,7 @@ async function install() {
       platform: running,
       version,
       partial: listing.partial,
+      features: turso ? ["turso"] : [],
       packages: listing.packages.map((/** @type {any} */ info) => ({ name: info.name, tarball: info.tarball, integrity: info.integrity })),
       installed_from: "a registry serving only these tarballs on loopback",
       runtimes: { node: process.version, npm: versions[0], deno: versions[1] },

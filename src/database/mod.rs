@@ -6,8 +6,6 @@ mod db_connection;
 mod lifecycle;
 mod listen;
 mod transaction;
-#[cfg(feature = "turso")]
-mod turso;
 #[cfg(all(test, feature = "turso"))]
 mod turso_transaction_tests;
 #[cfg(feature = "turso")]
@@ -22,9 +20,7 @@ pub use listen::{Listener, Notifications, connect_listener, notify};
 pub use transaction::{Transact, TransactionError};
 pub(crate) use transaction::{drive, rolled_back, sealed};
 #[cfg(feature = "turso")]
-pub use turso::{connect_turso, connect_turso_with};
-#[cfg(feature = "turso")]
-pub(crate) use value_sql::ValueSql;
+pub use value_sql::ValueSql;
 
 /// What a [`Notifications`] stream yields: the channel, the payload, and the
 /// process id of the session that sent it.
@@ -149,10 +145,10 @@ fn check_statement_cache_channel(manager: &ManagerConfig) -> Result<(), Error> {
 /// Method to create a [DatabasePool] over every knob the pool has: the TLS
 /// connector, the [`ManagerConfig`], and the [`PoolBuilder`].
 ///
-/// This is the general PostgreSQL entry point the other three are
+/// This is the general entry point the other three are
 /// fixed-argument shorthands for. It accepts TLS, recycling and statement-cache
-/// settings. Experimental embedded Turso pools use `connect_turso_with` when
-/// the `turso` feature is enabled.
+/// settings. A path or `:memory:` in `Config` selects experimental native
+/// Turso, opened lazily by the driver when the pool first needs a connection.
 ///
 /// `tls` is a `pgorm_driver` TLS connector: [`NoTls`], or
 /// `pgorm_driver_rustls::MakeRustlsConnect` for a PostgreSQL server requiring TLS.
@@ -187,8 +183,11 @@ fn check_statement_cache_channel(manager: &ManagerConfig) -> Result<(), Error> {
 /// Returns [`Error::Custom`] if the builder produced by `build` cannot build a
 /// pool — deadpool rejects a pool configured with timeouts but no runtime —
 /// or if `statement_cache_channel` is empty or longer than the 63 bytes of an
-/// identifier.
-// [spec:pgorm:req:conn.pool+6]    the general entry point
+/// identifier. Native configurations also return [`Error::Custom`] for
+/// PostgreSQL Clean recycling or notification-based statement-cache invalidation,
+/// before the builder runs or any file is opened.
+// [spec:pgorm:req:conn.pool+7]    the general entry point
+// [spec:pgorm:req:turso.pool+1]
 #[doc(alias = "ConnectOptions")]
 pub fn connect_with<T>(
     config: Config,
@@ -203,11 +202,39 @@ where
     <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
 {
     check_statement_cache_channel(&manager)?;
+    let native = config.is_turso();
+    if native {
+        if matches!(manager.recycling_method, RecyclingMethod::Clean) {
+            return Err(Error::Custom(
+                "native Turso does not support PostgreSQL Clean recycling".into(),
+            ));
+        }
+        if manager.statement_cache_channel.is_some() {
+            return Err(Error::Custom(
+                "native Turso does not support notification-based statement cache invalidation"
+                    .into(),
+            ));
+        }
+    }
     let mgr = Manager::from_config(config, tls, manager);
-    build(Pool::builder(mgr))
-        .build()
-        .map(DatabasePool)
-        .map_err(pool_build_err)
+    let builder = build(Pool::builder(mgr));
+    #[cfg(feature = "turso")]
+    let builder = if native {
+        // Caller hooks run first. A retained stream must be refused without
+        // queuing health work behind its backpressured producer.
+        builder.post_create(Hook::sync_fn(|client, _| {
+            if client.is_closed() || !client.is_turso_clean() {
+                Err(HookError::message(
+                    "native Turso creation hook left a closed connection, unfinished work or an open transaction",
+                ))
+            } else {
+                Ok(())
+            }
+        }))
+    } else {
+        builder
+    };
+    builder.build().map(DatabasePool).map_err(pool_build_err)
 }
 
 /// Method to create a [DatabasePool] on a database
@@ -229,7 +256,7 @@ where
 /// [`connect_with_builder`] for a fallible pool whose shape the caller chooses,
 /// or [`connect_with`] for one whose TLS and manager configuration it chooses
 /// too.
-// [spec:pgorm:req:conn.pool+6]
+// [spec:pgorm:req:conn.pool+7]
 #[doc(alias = "Database")]
 pub fn connect(config: Config) -> DatabasePool {
     connect_with(config, NoTls, simple_manager_config(None), identity)
@@ -243,7 +270,7 @@ pub fn connect(config: Config) -> DatabasePool {
 ///
 /// Returns [`Error::Custom`] if the builder produced by `build` cannot build a
 /// pool — deadpool rejects a pool configured with timeouts but no runtime.
-// [spec:pgorm:req:conn.pool+6]    builder customization
+// [spec:pgorm:req:conn.pool+7]    builder customization
 #[doc(alias = "ConnectOptions")]
 pub fn connect_with_builder(
     config: Config,

@@ -24,10 +24,10 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 /**
  * Build the addon's cdylib and return the path Cargo wrote it to.
  *
- * @param {{ release?: boolean }} [options]
+ * @param {{ release?: boolean, turso?: boolean }} [options]
  * @returns {string}
  */
-export function buildLibrary({ release = false } = {}) {
+export function buildLibrary({ release = false, turso = false } = {}) {
   const args = [
     "rustc",
     "--manifest-path",
@@ -39,6 +39,7 @@ export function buildLibrary({ release = false } = {}) {
     "--message-format=json-render-diagnostics",
   ];
   if (release) args.push("--profile", "addon");
+  if (turso) args.push("--features", "turso");
   if (!process.env.CARGO_TARGET_DIR) {
     args.push("--target-dir", join(root, "..", "target"));
   }
@@ -70,7 +71,10 @@ export function buildLibrary({ release = false } = {}) {
 }
 
 if (import.meta.url === new URL(process.argv[1] ?? "", "file:").href) {
-  const library = buildLibrary({ release: process.argv.includes("--release") });
+  const library = buildLibrary({
+    release: process.argv.includes("--release"),
+    turso: process.argv.includes("--turso"),
+  });
   // Replaced rather than overwritten: macOS kills a process that maps a signed
   // binary whose file changed in place, and a fresh inode sidesteps it.
   const destination = join(root, "lib", "pgorm_napi.node");

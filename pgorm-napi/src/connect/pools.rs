@@ -25,7 +25,8 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
 
 /// `poolNew(dsn, options)`: a pool, which opens connections as they are
 /// first needed. Nothing is sent before then.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:turso.javascript+1]
 fn pool_new(mut cx: FunctionContext) -> JsResult<JsBox<PoolHandle>> {
     let dsn = cx.argument::<JsValue>(0)?;
     let options = cx.argument::<JsObject>(1)?;
@@ -120,7 +121,7 @@ fn pools_new(mut cx: FunctionContext) -> JsResult<JsArray> {
 }
 
 /// `poolTag(pool)`: the pool's tag, or the `default-N` pgorm named it.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 fn pool_tag(mut cx: FunctionContext) -> JsResult<JsString> {
     let tag = pool(&mut cx)?.pool.tag();
     Ok(cx.string(tag.as_str()))
@@ -146,7 +147,7 @@ fn pool_status(mut cx: FunctionContext) -> JsResult<JsObject> {
 /// `poolClearStatementCaches(pool)`: mark every connection's cached prepared
 /// statements stale, as `DatabasePool::clear_statement_caches` does. Nothing
 /// is sent, so a closed pool is no reason to refuse it.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 // [spec:pgorm:req:conn.pool.statement-cache.clear+2]
 fn pool_clear_statement_caches(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     pool(&mut cx)?.pool.clear_statement_caches();

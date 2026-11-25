@@ -89,14 +89,20 @@ function noticePaths(pkg) {
 const PGSQL_RS = "git+https://github.com/necessary-nu/pgsql-rs.git";
 const PGSQL_RS_FILES = ["LICENSE", "LICENSE-PostgreSQL"];
 const PGSQL_RS_LICENSE = "BSD-3-Clause AND PostgreSQL";
+const TURSO = "git+https://github.com/tursodatabase/turso";
 
 /** @param {{ source: string | null }} pkg */
 function fromPgsqlRs(pkg) {
   return (pkg.source ?? "").startsWith(PGSQL_RS);
 }
 
-/** @param {{ license: string | null, source: string | null }} pkg */
+/** @param {{ name: string, version: string, repository: string | null, license: string | null, source: string | null }} pkg */
 function licenseOf(pkg) {
+  // This published archive declares license-file instead of an SPDX expression;
+  // its LICENSE grants Apache-2.0, whose complete text the supplement carries.
+  if (!pkg.license && pkg.name === "cfg_block" && pkg.version === "0.1.1" && pkg.repository === "https://github.com/pluots/cfg_block") {
+    return "Apache-2.0";
+  }
   return !pkg.license && fromPgsqlRs(pkg) ? PGSQL_RS_LICENSE : pkg.license;
 }
 
@@ -123,6 +129,15 @@ function textsFor(pkg, supplements) {
     const workspace = dirname(dirname(directory));
     for (const name of PGSQL_RS_FILES) texts.push([`pgsql-rs/${name}`, readFileSync(join(workspace, name))]);
   }
+  if ((pkg.source ?? "").startsWith(TURSO)) {
+    let workspace = dirname(directory);
+    while (!existsSync(join(workspace, "LICENSE.md"))) {
+      const parent = dirname(workspace);
+      if (parent === workspace) throw new Error(`missing Turso root licence for ${pkg.name}`);
+      workspace = parent;
+    }
+    texts.push(["turso/LICENSE.md", readFileSync(join(workspace, "LICENSE.md"))]);
+  }
   if (texts.length === 0 || !licenseOf(pkg)) {
     throw new Error(`missing licence evidence for ${pkg.name} ${pkg.version}`);
   }
@@ -138,7 +153,7 @@ export function generate() {
   const metadata = JSON.parse(
     execFileSync(
       "cargo",
-      ["metadata", "--manifest-path", join(napi, "Cargo.toml"), "--format-version", "1", "--locked"],
+      ["metadata", "--manifest-path", join(napi, "Cargo.toml"), "--format-version", "1", "--locked", "--features", "turso"],
       { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
     ),
   );
@@ -177,11 +192,17 @@ export function generate() {
       owner: owner("ring"),
       license: "see ring notices",
     },
+    {
+      name: "pg_query libpg_query (PostgreSQL parser, upb and utf8_range)",
+      owner: owner("pg_query"),
+      license: "see pg_query notices",
+    },
   ];
   const report = {
     schema_version: 1,
     scope:
-      "Locked Cargo graph, including build and platform-conditional dependencies; a superset of any one platform's addon",
+      "Locked default and optional turso Cargo graph, including build and platform-conditional dependencies; a superset of any one platform's addon",
+    optional_features: ["turso"],
     cargo_lock_sha256: digest(readFileSync(join(napi, "Cargo.lock"))),
     javascript_runtime_dependencies: [],
     packages,

@@ -5,7 +5,7 @@
 use std::{fmt, pin::Pin, sync::Arc};
 
 use futures_util::TryStreamExt;
-use pgorm::Connection;
+use pgorm::{Connection, SqlText, pgorm_query::Value};
 use pgorm_driver::{Row, RowStream, types::ToSql};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -64,9 +64,9 @@ impl<O> fmt::Debug for StreamState<O> {
 }
 
 /// `sql`'s rows on `db`, its parameters bound.
-async fn query_raw(
+async fn query_raw<T: SqlText + Sync + ?Sized>(
     db: &impl Connection,
-    sql: &str,
+    sql: &T,
     params: &[&(dyn ToSql + Sync)],
 ) -> Result<RowStream, pgorm::Error> {
     db.query_raw(sql, params.iter().copied()).await
@@ -100,10 +100,15 @@ impl<O: Send + Sync + 'static> StreamState<O> {
         operation: Operation<O>,
         sql: String,
         params: Vec<P>,
+        value: for<'v> fn(&'v P) -> Option<&'v Value>,
         cancel: &CancellationToken,
     ) -> Result<Arc<Self>, Failure> {
         let connection = operation.state.clone();
         let db = operation.connection()?;
+        #[cfg(feature = "turso")]
+        let sql = pgorm::ValueSql::mapped(&sql, &params, value);
+        #[cfg(not(feature = "turso"))]
+        let _ = value;
         let bound: Vec<&(dyn ToSql + Sync)> = params
             .iter()
             .map(|param| param as &(dyn ToSql + Sync))
@@ -136,6 +141,7 @@ impl<O: Send + Sync + 'static> StreamState<O> {
         lock: tokio::sync::OwnedMutexGuard<()>,
         sql: String,
         params: Vec<P>,
+        value: for<'v> fn(&'v P) -> Option<&'v Value>,
         cancel: &CancellationToken,
     ) -> Result<Arc<Self>, Failure> {
         let pool = state.connection().pool.clone();
@@ -143,6 +149,10 @@ impl<O: Send + Sync + 'static> StreamState<O> {
             .exchange(
                 move |db| {
                     Box::pin(async move {
+                        #[cfg(feature = "turso")]
+                        let sql = pgorm::ValueSql::mapped(&sql, &params, value);
+                        #[cfg(not(feature = "turso"))]
+                        let _ = value;
                         let bound: Vec<&(dyn ToSql + Sync)> = params
                             .iter()
                             .map(|param| param as &(dyn ToSql + Sync))

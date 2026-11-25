@@ -26,10 +26,10 @@ struct NativeConnector {
 }
 
 impl Connect for NativeConnector {
-    fn connect(
-        &self,
-        _: &Config,
-    ) -> BoxFuture<'_, Result<(Client, JoinHandle<()>), pgorm_driver::Error>> {
+    fn connect<'a>(
+        &'a self,
+        _: &'a Config,
+    ) -> BoxFuture<'a, Result<(Client, JoinHandle<()>), pgorm_driver::Error>> {
         Box::pin(async {
             let (client, connection) = self.database.connect().await?;
             self.connections.fetch_add(1, Ordering::SeqCst);
@@ -41,7 +41,10 @@ impl Connect for NativeConnector {
         })
     }
 
-    fn connect_raw(&self, _: &Config) -> BoxFuture<'_, Result<Unpooled, pgorm_driver::Error>> {
+    fn connect_raw<'a>(
+        &'a self,
+        _: &'a Config,
+    ) -> BoxFuture<'a, Result<Unpooled, pgorm_driver::Error>> {
         Box::pin(async { unreachable!("this fixture never enables a notification listener") })
     }
 }

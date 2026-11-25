@@ -7,6 +7,7 @@ use std::process::Command;
 use toml::{Table, Value};
 
 const DRIVER: &str = "crates/pgorm-driver/Cargo.toml";
+const BENCHMARK: &str = "benches/native/Cargo.toml";
 const ENGINE: [&str; 2] = ["turso_pg", "turso_core"];
 const REPOSITORY: &str = "https://github.com/tursodatabase/turso.git";
 const FEATURE_EDGES: &[(&str, &[&str])] = &[
@@ -92,15 +93,38 @@ fn pin() -> String {
 
 // [spec:pgorm:req:turso.feature/test]
 #[test]
-fn only_driver_declares_the_optional_pinned_engine() {
-    pin();
+fn engine_dependencies_stay_in_driver_and_benchmarks() {
+    let revision = pin();
+    let benchmark = read(&root().join(BENCHMARK));
+    assert!(benchmark["workspace"].is_table());
+    assert_eq!(benchmark["package"]["publish"].as_bool(), Some(false));
+    assert_eq!(
+        read(&root().join("Cargo.toml"))["package"]["autobenches"].as_bool(),
+        Some(false)
+    );
     for path in tracked("Cargo.toml") {
         let manifest = read(&path);
         let mut declared = Vec::new();
         dependencies(&manifest, &mut declared);
-        for (name, _) in declared {
+        for (name, dependency) in declared {
+            assert_ne!(
+                name,
+                "pgorm-native-performance",
+                "benchmark dependency in {}",
+                path.display()
+            );
             if ENGINE.contains(&name) {
-                assert_eq!(path, root().join(DRIVER), "engine dependency {name}");
+                assert!(
+                    path == root().join(DRIVER) || path == root().join(BENCHMARK),
+                    "engine dependency {name} in {}",
+                    path.display()
+                );
+                assert_eq!(dependency["git"].as_str(), Some(REPOSITORY), "{name}");
+                assert_eq!(
+                    dependency["rev"].as_str(),
+                    Some(revision.as_str()),
+                    "{name}"
+                );
             }
         }
     }

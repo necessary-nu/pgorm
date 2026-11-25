@@ -176,6 +176,16 @@ comparisons, the negative checks and the wheel's and report's hashes).
 
 ## Acceptance
 
+`turso.py` checks the optional embedded backend separately from the PostgreSQL
+acceptance run. From the repository root, run
+`python3.14 pgorm-python/checks/turso.py`. It builds default and `turso` wheels,
+installs each into a fresh environment, and exercises the existing `Pool(path)`
+and `await connect(path)` APIs. It also checks the source archive, wheel contents,
+stubs and dependency notices. The default wheel must refuse native targets before
+opening a file. The native wheel covers pooled memory, persistence, bound values,
+models, transactions, hooks, streaming, cancellation and loop ownership.
+`target/python-turso/summary.json` records the two installed-package outcomes.
+
 `acceptance.py` is the complete check. Run it from the repository root with
 CPython 3.14, Rust, a C compiler, OpenSSL, `uv` and the
 repository's `nplan`, through either wrapper. Standalone builds use their own

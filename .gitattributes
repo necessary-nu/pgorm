@@ -3,3 +3,9 @@
 # Semantic merge for nplan plan / state / lock files at any depth under plan/.
 plan/**/*.styx merge=nplan
 plan/architecture.styx merge=text
+
+# Preserve hashed upstream notice bytes, including their original whitespace.
+pgorm-*/licenses/*.txt -text -whitespace
+pgorm-*/licenses/*-Cargo.toml -text -whitespace
+pgorm-napi/notices/THIRD_PARTY_NOTICES.txt -text -whitespace
+pgorm-python/python/pgorm/THIRD_PARTY_NOTICES.txt -text -whitespace

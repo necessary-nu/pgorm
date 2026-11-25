@@ -375,7 +375,6 @@ enum Kind {
     Timeout,
     #[cfg(feature = "turso")]
     TursoWorker,
-    #[cfg(feature = "turso")]
     TursoUnsupported(&'static str),
     #[cfg(feature = "turso")]
     TursoStatementInvalidated,
@@ -428,7 +427,6 @@ impl fmt::Display for Error {
             Kind::Timeout => fmt.write_str("timeout waiting for server"),
             #[cfg(feature = "turso")]
             Kind::TursoWorker => fmt.write_str("native Turso worker failed"),
-            #[cfg(feature = "turso")]
             Kind::TursoUnsupported(operation) => {
                 write!(fmt, "native Turso does not support {operation}")
             }
@@ -449,6 +447,13 @@ impl error::Error for Error {
 }
 
 impl Error {
+    /// Constructs a native capability refusal without inventing a SQLSTATE.
+    ///
+    /// Available without `turso` so callers can report a disabled native feature.
+    pub fn turso_unsupported(operation: &'static str) -> Self {
+        Self::new(Kind::TursoUnsupported(operation), None)
+    }
+
     /// Consumes the error, returning its cause.
     pub fn into_source(self) -> Option<Box<dyn error::Error + Sync + Send>> {
         self.0.cause

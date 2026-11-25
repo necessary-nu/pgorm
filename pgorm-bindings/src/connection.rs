@@ -179,7 +179,7 @@ impl<O: Send + Sync + 'static> PoolState<O> {
 
     /// A connection for its borrower alone, recorded so that closing the
     /// pool closes it.
-    // [spec:pgorm:req:bindings.connections+3]
+    // [spec:pgorm:req:bindings.connections+4]
     pub async fn lend(
         self: &Arc<Self>,
         metered: Option<&InstrumentedPool<Metrics>>,
@@ -257,7 +257,7 @@ impl<O: Send + Sync + 'static> PoolState<O> {
     /// hand back what is left to release. Every lent connection, its
     /// operations, transactions and streams watch the pool's token, so
     /// closing it cuts short what runs.
-    // [spec:pgorm:req:bindings.connections+3]
+    // [spec:pgorm:req:bindings.connections+4]
     pub fn close_now(&self) -> Closed<O> {
         self.closed.cancel();
         self.pool.close();
@@ -332,7 +332,7 @@ impl<O: Send + Sync + 'static> ConnectionState<O> {
 
     /// Close, discarding the connection rather than returning it: one an
     /// operation holds is discarded by that operation once it sees the close.
-    // [spec:pgorm:req:bindings.connections+3]
+    // [spec:pgorm:req:bindings.connections+4]
     pub fn discard_now(&self) {
         self.closed.cancel();
         if let Ok(mut slot) = self.slot.try_lock()
@@ -423,7 +423,7 @@ impl<O: Send + Sync + 'static> ConnectionState<O> {
 /// A connection taken out of its slot for one operation. Restored, it goes
 /// back; dropped unrestored, the operation aborted or cut off, it is
 /// discarded and its handle closed, because its state is unknown.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 // [spec:pgorm:req:bindings.cancellation]
 pub struct Operation<O = ()> {
     slot: OwnedMutexGuard<Option<Held>>,

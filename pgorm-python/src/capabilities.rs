@@ -233,6 +233,15 @@ fn manifest() -> Value {
         "registrations": {"entities": [], "graphs": [], "sources": [], "disjoints": [], "one_ofs": []},
         "python": {"abi": "cp314", "free_threading": false, "subinterpreters": false}
     });
+    // [spec:pgorm:req:turso.python+1]
+    if cfg!(feature = "turso") {
+        if let Some(features) = manifest["features"].as_array_mut() {
+            features.push(json!("turso"));
+        }
+        manifest["operations"]["pool.turso"] = json!({
+            "rust_api": "pgorm::Config::connect", "features": ["turso"], "experimental": true
+        });
+    }
     if let Some(operations) = manifest["operations"].as_object_mut() {
         operations.extend(crate::expressions::capabilities());
         operations.extend(crate::json::capabilities());
@@ -266,7 +275,7 @@ fn manifest() -> Value {
         operations.extend(crate::schema::capabilities());
         operations.extend(crate::transactions::capabilities());
         operations.extend(crate::copy::capabilities());
-        // [spec:pgorm:req:bindings.connections+3]
+        // [spec:pgorm:req:bindings.connections+4]
         operations.insert(
             "pool.statement_cache_channel".to_owned(),
             json!({"rust_api": "pgorm::ManagerConfig::statement_cache_channel", "features": []}),

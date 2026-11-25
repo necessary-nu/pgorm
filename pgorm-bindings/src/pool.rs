@@ -13,7 +13,7 @@ use crate::{Connector, Dialect, Failure, HookEvent, Redactions, Refusal, TlsSett
 /// One pool's own options as a binding read them: Rust's `PoolBuilder`
 /// closure's, how long acquiring a connection waits, and the language's
 /// callables `C` its three hooks call.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 // [spec:pgorm:req:bindings.pool-hooks]
 #[derive(Debug, Clone)]
 pub struct PoolOptions<C> {
@@ -39,6 +39,17 @@ pub struct PoolOptions<C> {
 }
 
 impl<C> PoolOptions<C> {
+    /// Validate pool capacity without constructing or invoking hooks.
+    fn check(&self, dialect: Dialect) -> Result<(), Refusal> {
+        if self.max_size == 0 || self.max_size > tokio::sync::Semaphore::MAX_PERMITS {
+            return Err(Refusal(format!(
+                "{} is outside the supported range",
+                dialect.option("max_size")
+            )));
+        }
+        Ok(())
+    }
+
     /// The shape the pool is built with, each hook the one `hook` makes of
     /// its callable, reporting under `secrets`.
     fn shape(
@@ -154,13 +165,13 @@ impl PoolShape {
 /// place of a connector.
 #[derive(Debug)]
 pub struct PoolSettings {
-    /// The connection string, a URL or libpq's `key=value` form.
+    /// A PostgreSQL URL, libpq `key=value` string, or native database path.
     pub dsn: String,
     /// The TLS options.
     pub tls: TlsSettings,
-    /// How long establishing a connection may take, which replaces a
-    /// `connect_timeout` the string sets.
-    pub connect_timeout: Duration,
+    /// PostgreSQL connection timeout, replacing the string's setting and
+    /// defaulting to ten seconds. Native paths refuse an explicit timeout.
+    pub connect_timeout: Option<Duration>,
     /// How a returned connection is checked before it is lent again.
     pub recycling_method: RecyclingMethod,
     /// How many statements each connection keeps prepared, 0 for none.
@@ -175,36 +186,49 @@ impl PoolSettings {
     /// The parsed configuration, the connector it connects through and the
     /// manager configuration, every refusal decided before anything is
     /// built.
-    // [spec:pgorm:req:bindings.connections+3]
-    fn prepare(self, dialect: Dialect) -> Result<(Config, Connector, ManagerConfig), Refusal> {
+    // [spec:pgorm:req:bindings.connections+4]
+    // [spec:pgorm:req:turso.python+1]
+    // [spec:pgorm:req:turso.javascript+1]
+    fn prepare(self, dialect: Dialect) -> Result<(Config, Connector, ManagerConfig), Failure> {
         let mut config = parse(&self.dsn, self.connect_timeout)?;
-        // [spec:pgorm:req:conn.pool.statement-cache.listen+1]    refused here, by name, rather than
-        // as connect_with's anonymous invalid configuration
-        if self
-            .statement_cache_channel
-            .as_ref()
-            .is_some_and(|channel| channel.is_empty() || channel.len() > 63)
-        {
-            return Err(Refusal(format!(
-                "{} must be a channel name of 1 to 63 bytes",
-                dialect.option("statement_cache_channel")
-            )));
-        }
-        if self.tag.as_ref().is_some_and(String::is_empty) {
-            return Err(Refusal(format!(
-                "{} must not be empty",
-                dialect.option("tag")
-            )));
-        }
-        let connector = self.tls.connector(&mut config, dialect)?;
-        let manager = ManagerConfig {
-            recycling_method: self.recycling_method,
-            tag: self.tag,
-            statement_cache: match NonZeroUsize::new(self.statement_cache_size) {
-                None => StatementCacheSize::Disabled,
-                Some(size) => StatementCacheSize::Bounded(size),
-            },
-            statement_cache_channel: self.statement_cache_channel,
+        let manager = manager_config(
+            self.recycling_method,
+            self.statement_cache_size,
+            self.statement_cache_channel,
+            self.tag,
+            dialect,
+        )?;
+        let connector = if config.is_turso() {
+            if self.tls.mode.is_some()
+                || self.tls.ca.is_some()
+                || self.tls.cert.is_some()
+                || self.tls.key.is_some()
+            {
+                return Err(Failure::Construction(
+                    "native database paths do not accept TLS options".into(),
+                ));
+            }
+            if self.connect_timeout.is_some() {
+                return Err(Failure::Construction(format!(
+                    "native database paths do not accept {}",
+                    dialect.option("connect_timeout")
+                )));
+            }
+            if matches!(manager.recycling_method, RecyclingMethod::Clean)
+                || manager.statement_cache_channel.is_some()
+            {
+                return Err(Failure::Construction("native database paths do not support Clean recycling or notification-based statement cache invalidation".into()));
+            }
+            #[cfg(not(feature = "turso"))]
+            return Err(Failure::UnsupportedCapability(
+                "this pgorm build does not include the experimental turso feature".into(),
+            ));
+            #[cfg(feature = "turso")]
+            {
+                Connector::Plain
+            }
+        } else {
+            self.tls.connector(&mut config, dialect)?
         };
         Ok((config, connector, manager))
     }
@@ -212,25 +236,24 @@ impl PoolSettings {
     /// The pool `connect_with` builds, shaped as `options` say, each hook
     /// the one `hook` makes of its callable once the parsed configuration
     /// has said what its errors redact.
-    // [spec:pgorm:req:bindings.connections+3]
+    // [spec:pgorm:req:bindings.connections+4]
     pub fn pool<C>(
         self,
         options: &PoolOptions<C>,
         hook: impl Fn(HookEvent, &C, &Redactions) -> Hook,
         dialect: Dialect,
     ) -> Result<Built, Failure> {
+        options.check(dialect)?;
         let mut secrets = None;
-        let pool = self
-            .build(
-                |config| {
-                    let redactions = Redactions::from_config(config);
-                    let shape = options.shape(&hook, &redactions);
-                    secrets = Some(redactions);
-                    shape
-                },
-                dialect,
-            )
-            .map_err(|refusal| Failure::Construction(refusal.into_message()))?;
+        let pool = self.build(
+            |config| {
+                let redactions = Redactions::from_config(config);
+                let shape = options.shape(&hook, &redactions);
+                secrets = Some(redactions);
+                shape
+            },
+            dialect,
+        )?;
         Ok(Built {
             pool,
             secrets: secrets.ok_or_else(unshaped)?,
@@ -247,6 +270,20 @@ impl PoolSettings {
         hook: impl Fn(HookEvent, &C, &Redactions) -> Hook,
         dialect: Dialect,
     ) -> Result<Vec<(String, Built)>, Failure> {
+        if options.is_empty() {
+            return Err(Failure::Construction(
+                "a multi-pool needs at least one pool".into(),
+            ));
+        }
+        for (tag, options) in options {
+            if tag.is_empty() {
+                return Err(Failure::Construction(format!(
+                    "{} must not be empty",
+                    dialect.option("tag")
+                )));
+            }
+            options.check(dialect)?;
+        }
         let mut secrets = None;
         let pools = multi_pool(
             self,
@@ -260,8 +297,7 @@ impl PoolSettings {
                 shapes
             },
             dialect,
-        )
-        .map_err(|refusal| Failure::Construction(refusal.into_message()))?;
+        )?;
         let secrets = secrets.ok_or_else(unshaped)?;
         pools
             .iter()
@@ -288,7 +324,7 @@ impl PoolSettings {
         self,
         shape: impl FnOnce(&Config) -> PoolShape,
         dialect: Dialect,
-    ) -> Result<DatabasePool, Refusal> {
+    ) -> Result<DatabasePool, Failure> {
         let (config, connector, manager) = self.prepare(dialect)?;
         let shape = shape(&config);
         shape.check(dialect)?;
@@ -297,8 +333,43 @@ impl PoolSettings {
             Connector::Plain => pgorm::connect_with(config, NoTls, manager, build),
             Connector::Rustls(tls) => pgorm::connect_with(config, tls, manager, build),
         }
-        .map_err(|_| Refusal("invalid PostgreSQL pool configuration".to_owned()))
+        .map_err(|_| Failure::Construction("invalid database pool configuration".to_owned()))
     }
+}
+
+/// Shared option errors take precedence over backend availability failures.
+// [spec:pgorm:req:conn.pool.statement-cache.listen+1]
+fn manager_config(
+    recycling_method: RecyclingMethod,
+    statement_cache_size: usize,
+    statement_cache_channel: Option<String>,
+    tag: Option<String>,
+    dialect: Dialect,
+) -> Result<ManagerConfig, Refusal> {
+    if statement_cache_channel
+        .as_ref()
+        .is_some_and(|channel| channel.is_empty() || channel.len() > 63)
+    {
+        return Err(Refusal(format!(
+            "{} must be a channel name of 1 to 63 bytes",
+            dialect.option("statement_cache_channel")
+        )));
+    }
+    if tag.as_ref().is_some_and(String::is_empty) {
+        return Err(Refusal(format!(
+            "{} must not be empty",
+            dialect.option("tag")
+        )));
+    }
+    Ok(ManagerConfig {
+        recycling_method,
+        tag,
+        statement_cache_channel,
+        statement_cache: match NonZeroUsize::new(statement_cache_size) {
+            None => StatementCacheSize::Disabled,
+            Some(size) => StatementCacheSize::Bounded(size),
+        },
+    })
 }
 
 /// What a pool built without its shape being asked for is, which no input
@@ -307,17 +378,19 @@ fn unshaped() -> Failure {
     Failure::Internal("the pool was built unshaped".to_owned())
 }
 
-/// `dsn` parsed as tokio-postgres parses a `Config`, which must name a host,
-/// connecting within `connect_timeout` in place of a timeout the string sets.
+/// Parse a driver target, requiring a host for PostgreSQL and applying its
+/// connection timeout. Native targets retain their file configuration.
 /// The refusal never repeats the string, which may hold a password.
-fn parse(dsn: &str, connect_timeout: Duration) -> Result<Config, Refusal> {
+fn parse(dsn: &str, connect_timeout: Option<Duration>) -> Result<Config, Refusal> {
     let mut config: Config = dsn
         .parse()
         .map_err(|_| Refusal("invalid PostgreSQL connection string".to_owned()))?;
-    if config.get_hosts().is_empty() {
+    if !config.is_turso() && config.get_hosts().is_empty() {
         return Err(Refusal("the connection string names no host".to_owned()));
     }
-    config.connect_timeout(connect_timeout);
+    if !config.is_turso() {
+        config.connect_timeout(connect_timeout.unwrap_or(Duration::from_secs(10)));
+    }
     Ok(config)
 }
 
@@ -332,7 +405,12 @@ pub fn listener_config(
     connect_timeout: Duration,
     dialect: Dialect,
 ) -> Result<(Config, Connector), Refusal> {
-    let mut config = parse(dsn, connect_timeout)?;
+    let mut config = parse(dsn, Some(connect_timeout))?;
+    if config.is_turso() {
+        return Err(Refusal(
+            "native database paths do not support notification listeners".into(),
+        ));
+    }
     let connector = tls.connector(&mut config, dialect)?;
     Ok((config, connector))
 }
@@ -360,9 +438,9 @@ fn multi_pool(
     settings: PoolSettings,
     shapes: impl FnOnce(&Config) -> BTreeMap<String, PoolShape>,
     dialect: Dialect,
-) -> Result<DatabaseMultiPool, Refusal> {
+) -> Result<DatabaseMultiPool, Failure> {
     if settings.tag.is_some() {
-        return Err(Refusal(format!(
+        return Err(Failure::Construction(format!(
             "each pool's {} is its key, so the shared options name none",
             dialect.option("tag")
         )));
@@ -370,11 +448,13 @@ fn multi_pool(
     let (config, connector, manager) = settings.prepare(dialect)?;
     let shapes = shapes(&config);
     if shapes.is_empty() {
-        return Err(Refusal("a multi-pool needs at least one pool".to_owned()));
+        return Err(Failure::Construction(
+            "a multi-pool needs at least one pool".to_owned(),
+        ));
     }
     for (tag, shape) in &shapes {
         if tag.is_empty() {
-            return Err(Refusal(format!(
+            return Err(Failure::Construction(format!(
                 "{} must not be empty",
                 dialect.option("tag")
             )));
@@ -389,7 +469,7 @@ fn multi_pool(
         Connector::Plain => pgorm::connect_multi_with(config, NoTls, manager, builds),
         Connector::Rustls(tls) => pgorm::connect_multi_with(config, tls, manager, builds),
     }
-    .map_err(|_| Refusal("invalid PostgreSQL pool configuration".to_owned()))
+    .map_err(|_| Failure::Construction("invalid PostgreSQL pool configuration".to_owned()))
 }
 
 /// What a failed `get` was, when the pool rather than the server refused it.
@@ -433,7 +513,7 @@ mod tests {
         PoolSettings {
             dsn: dsn.to_owned(),
             tls: TlsSettings::default(),
-            connect_timeout: Duration::from_secs(10),
+            connect_timeout: Some(Duration::from_secs(10)),
             recycling_method: RecyclingMethod::Fast,
             statement_cache_size: 0,
             statement_cache_channel: None,
@@ -441,9 +521,9 @@ mod tests {
         }
     }
 
-    fn refusal<T>(built: Result<T, Refusal>) -> String {
+    fn refusal<T, E: std::fmt::Display>(built: Result<T, E>) -> String {
         match built {
-            Err(refusal) => refusal.message().to_owned(),
+            Err(refusal) => refusal.to_string(),
             Ok(_) => panic!("the pool was built"),
         }
     }
@@ -456,7 +536,7 @@ mod tests {
             "maxSize is outside the supported range"
         );
         assert_eq!(
-            refusal(settings("not a dsn").build(|_| PoolShape::sized(1), Dialect::Python)),
+            refusal(settings("host='unterminated").build(|_| PoolShape::sized(1), Dialect::Python)),
             "invalid PostgreSQL connection string"
         );
         assert_eq!(
@@ -550,7 +630,44 @@ mod tests {
         unreachable!("no hook is asked for")
     }
 
-    // [spec:pgorm:req:bindings.connections+3/test]    each pool keeps its own acquire timeout
+    // [spec:pgorm:req:turso.python+1/test]
+    // [spec:pgorm:req:turso.javascript+1/test]
+    #[tokio::test]
+    async fn native_targets_validate_before_building() {
+        let native = || PoolSettings {
+            connect_timeout: None,
+            ..settings(":memory:")
+        };
+        let invalid = native().pool(&options(0, 1), no_hook, Dialect::Python);
+        assert!(matches!(invalid, Err(Failure::Construction(_))));
+        let timed = PoolSettings {
+            connect_timeout: Some(Duration::from_secs(10)),
+            ..native()
+        };
+        assert!(matches!(
+            timed.prepare(Dialect::Python),
+            Err(Failure::Construction(_))
+        ));
+        let clean = PoolSettings {
+            recycling_method: RecyclingMethod::Clean,
+            ..native()
+        };
+        assert!(matches!(
+            clean.prepare(Dialect::Python),
+            Err(Failure::Construction(_))
+        ));
+        let built = native().pool(&options(2, 1), no_hook, Dialect::Python);
+        #[cfg(feature = "turso")]
+        {
+            let built = built.expect("native pool is lazy");
+            assert_eq!(built.pool.status().size, 0);
+            assert_eq!(built.pool.status().max_size, 2);
+        }
+        #[cfg(not(feature = "turso"))]
+        assert!(matches!(built, Err(Failure::UnsupportedCapability(_))));
+    }
+
+    // [spec:pgorm:req:bindings.connections+4/test]    each pool keeps its own acquire timeout
     #[tokio::test]
     async fn each_pool_keeps_its_acquire_timeout() {
         let plain = "postgres://postgres@db.example.com/bakery?sslmode=disable";

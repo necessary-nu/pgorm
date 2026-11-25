@@ -16,7 +16,7 @@ rule_versions (
     {id bindings.column-operators, version 4}
     {id bindings.condition-option, version 0}
     {id bindings.conflict-arbiters, version 0}
-    {id bindings.connections, version 3}
+    {id bindings.connections, version 4}
     {id bindings.copy, version 1}
     {id bindings.copy-rows, version 3}
     {id bindings.copy-rows.typed, version 0}
@@ -169,7 +169,7 @@ rule_versions (
     {id conn.driver-source, version 0}
     {id conn.driver-types, version 2}
     {id conn.listen, version 3}
-    {id conn.pool, version 6}
+    {id conn.pool, version 7}
     {id conn.pool.conn-trait, version 12}
     {id conn.pool.generic-client, version 1}
     {id conn.pool.get, version 1}
@@ -577,12 +577,12 @@ rule_versions (
     {id turso.errors, version 0}
     {id turso.execution, version 0}
     {id turso.feature, version 0}
-    {id turso.javascript, version 0}
+    {id turso.javascript, version 1}
     {id turso.lifecycle, version 0}
     {id turso.parameters, version 0}
     {id turso.performance, version 0}
-    {id turso.pool, version 0}
-    {id turso.python, version 0}
+    {id turso.pool, version 1}
+    {id turso.python, version 1}
     {id turso.rows, version 0}
     {id turso.streaming, version 0}
     {id turso.transactions, version 0}
@@ -1633,6 +1633,7 @@ assertions (
     {id pg18-test-server, kind @complete, author "brendan@necessary.nu", at 2026-10-06T14:14:25.161626Z}
     {id pg18-uuid-functions, kind @complete, author "brendan@necessary.nu", at 2026-10-07T08:03:19.869642Z}
     {id pg18-virtual-generated, kind @complete, author "brendan@necessary.nu", at 2026-10-06T19:26:22.580736Z}
+    {id pg19-only, kind @complete, author "brendan@necessary.nu", at 2026-11-23T19:01:40.682007Z}
     {id pg19-test-server, kind @complete, author "brendan@necessary.nu", at 2026-11-23T16:22:22.871883Z}
     {id pgparse.codegen-ddl, kind @complete, author "brendan@necessary.nu", at 2026-09-02T21:15:51.896227Z}
     {id pgparse.fingerprint, kind @complete, author "brendan@necessary.nu", at 2026-09-02T19:06:32.153992Z}
@@ -1774,6 +1775,7 @@ assertions (
     {id scope-range-types, kind @complete, author "brendan@necessary.nu", at 2026-10-04T23:55:37.285787Z}
     {id scope-sequences, kind @complete, author "brendan@necessary.nu", at 2026-10-01T23:10:34.664342Z}
     {id scope-simple-case, kind @complete, author "brendan@necessary.nu", at 2026-09-25T01:02:12.227018Z}
+    {id scopes.security-regressions, kind @doing, author "brendan@necessary.nu", at 2026-11-24T09:41:46.543776Z}
     {id sea-config-residue, kind @complete, author "brendan@necessary.nu", at 2026-09-06T00:40:06.389769Z}
     {id sea-orm-active-enums-name, kind @complete, author "brendan@necessary.nu", at 2026-09-06T00:46:15.78141Z}
     {id sea-rc-name, kind @complete, author "brendan@necessary.nu", at 2026-09-06T10:49:46.138719Z}
@@ -1818,7 +1820,11 @@ assertions (
     {id template-static-text, kind @complete, author "brendan@necessary.nu", at 2026-11-05T17:23:29.336124Z}
     {id test-run-isolation, kind @complete, author "brendan@necessary.nu", at 2026-10-23T22:25:20.936686Z}
     {id tokenizer-backslash-standard, kind @complete, author "brendan@necessary.nu", at 2026-09-23T23:26:31.551166Z}
+    {id trait-names, kind @complete, author "brendan@necessary.nu", at 2026-11-25T16:18:11.061453Z}
     {id transaction-stale-plan-recovery, kind @complete, author "brendan@necessary.nu", at 2026-09-06T12:12:04.84501Z}
+    {id turso.performance, kind @doing, author "brendan@necessary.nu", at 2026-11-25T13:53:25.354302Z}
+    {id turso.performance-baseline, kind @complete, author "brendan@necessary.nu", at 2026-11-24T14:40:05.916004Z}
+    {id turso.spec, kind @complete, author "brendan@necessary.nu", at 2026-11-24T15:31:35.020061Z}
     {id tx-closure-only, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:30:14.075005Z}
     {id tx-closure-send, kind @complete, author "brendan@necessary.nu", at 2026-10-24T15:30:08.176678Z}
     {id type-part-keyword-names, kind @complete, author "brendan@necessary.nu", at 2026-09-24T22:48:03.368721Z}
@@ -1879,11 +1885,6 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id pg19-only, kind @complete, author "brendan@necessary.nu", at 2026-11-23T19:01:40.682007Z}
-    {id scopes.security-regressions, kind @doing, author "brendan@necessary.nu", at 2026-11-24T09:41:46.543776Z}
-    {id turso.performance-baseline, kind @complete, author "brendan@necessary.nu", at 2026-11-24T14:40:05.916004Z}
-    {id turso.spec, kind @complete, author "brendan@necessary.nu", at 2026-11-24T15:31:35.020061Z}
-    {id trait-names, kind @complete, author "brendan@necessary.nu", at 2026-11-25T16:18:11.061453Z}
 )
 
 impl_evidence (
@@ -3995,7 +3996,7 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule turso.pool}
     ), rule_versions_seen (
-        {id turso.pool, version 0}
+        {id turso.pool, version 1}
     )}
     {id turso.execution, covered_rules (
         turso.execution
@@ -4010,6 +4011,13 @@ impl_evidence (
         {id turso.parameters, version 0}
         {id turso.streaming, version 0}
     )}
+    {id turso.javascript, covered_rules (
+        turso.javascript
+    ), covered_claims (
+        {impl_name javascript, rule turso.javascript}
+    ), rule_versions_seen (
+        {id turso.javascript, version 1}
+    )}
     {id turso.native, covered_rules (
         turso.feature
         turso.lifecycle
@@ -4019,6 +4027,20 @@ impl_evidence (
     ), rule_versions_seen (
         {id turso.feature, version 0}
         {id turso.lifecycle, version 0}
+    )}
+    {id turso.python, covered_rules (
+        turso.python
+    ), covered_claims (
+        {impl_name python, rule turso.python}
+    ), rule_versions_seen (
+        {id turso.python, version 1}
+    )}
+    {id turso.tests, covered_rules (
+        turso.compatibility
+    ), covered_claims (
+        {impl_name main, rule turso.compatibility}
+    ), rule_versions_seen (
+        {id turso.compatibility, version 0}
     )}
     {id turso.transactions, covered_rules (
         turso.cleanup

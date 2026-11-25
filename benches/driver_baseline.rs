@@ -1,13 +1,15 @@
+mod support;
+use support as report;
+
 use futures::TryStreamExt;
 use pgorm::{Connection, DatabasePool, Transact, entity::prelude::*};
 use pgorm_driver::{Client, NoTls, types::ToSql};
+use report::{command, hash_file, source_fingerprint};
 use serde_json::{Value, json};
 use std::{
     error::Error,
     hint::black_box,
-    io::Write,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::PathBuf,
     sync::Arc,
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
@@ -387,75 +389,6 @@ async fn pooled(
     ))
 }
 
-fn command(root: &Path, name: &str, args: &[&str]) -> Option<String> {
-    let output = Command::new(name)
-        .args(args)
-        .current_dir(root)
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-}
-
-fn executable_fingerprint(root: &Path) -> Result<String> {
-    let output = Command::new("git")
-        .arg("hash-object")
-        .arg(std::env::current_exe()?)
-        .current_dir(root)
-        .output()?;
-    if !output.status.success() {
-        return Err("cannot fingerprint the measured executable".into());
-    }
-    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
-}
-
-fn source_fingerprint(root: &Path) -> Result<String> {
-    let output = Command::new("git")
-        .args(["ls-files", "-co", "--exclude-standard", "-z"])
-        .current_dir(root)
-        .output()?;
-    if !output.status.success() {
-        return Err("cannot enumerate source files".into());
-    }
-    let mut names = String::from_utf8(output.stdout)?
-        .split('\0')
-        .filter(|name| {
-            name.ends_with(".rs") || name.ends_with("Cargo.toml") || name.ends_with("Cargo.lock")
-        })
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    names.push("Cargo.lock".to_owned());
-    names.sort();
-    names.dedup();
-    let mut hash = Command::new("git")
-        .args(["hash-object", "--stdin"])
-        .current_dir(root)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
-    let mut input = hash
-        .stdin
-        .take()
-        .ok_or("cannot write source fingerprint input")?;
-    for name in names {
-        let path = root.join(&name);
-        if path.is_file() {
-            input.write_all(name.as_bytes())?;
-            input.write_all(&[0])?;
-            input.write_all(&std::fs::read(path)?)?;
-            input.write_all(&[0])?;
-        }
-    }
-    drop(input);
-    let output = hash.wait_with_output()?;
-    if !output.status.success() {
-        return Err("cannot fingerprint source files".into());
-    }
-    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
-}
-
 async fn run(base: &str, database: &str, options: &Options) -> Result<Value> {
     let mut config = pgorm_test_support::config(base, database);
     config.application_name("pgorm-driver-baseline");
@@ -510,7 +443,7 @@ async fn run(base: &str, database: &str, options: &Options) -> Result<Value> {
         "rounds": options.rounds, "workers": options.workers, "pool_size": options.pool_size, "stream_rows": options.rows,
         "transport": transport, "tokio_worker_threads": 4,
         "raw_samples_included": options.raw_samples,
-        "cargo_features": { "macros": cfg!(feature = "macros"), "with-json": cfg!(feature = "with-json"), "with-jiff": cfg!(feature = "with-jiff"), "with-uuid": cfg!(feature = "with-uuid"), "postgres-array": cfg!(feature = "postgres-array"), "tests-cfg": cfg!(feature = "tests-cfg"), "metrics-fingerprint": cfg!(feature = "metrics-fingerprint") },
+        "cargo_features": { "turso": cfg!(feature = "turso"), "macros": cfg!(feature = "macros"), "with-json": cfg!(feature = "with-json"), "with-jiff": cfg!(feature = "with-jiff"), "with-uuid": cfg!(feature = "with-uuid"), "postgres-array": cfg!(feature = "postgres-array"), "tests-cfg": cfg!(feature = "tests-cfg"), "metrics-fingerprint": cfg!(feature = "metrics-fingerprint") },
         "latency_clock": "std::time::Instant", "allocation_measurements": null,
         "notes": ["Each run owns a scoped PostgreSQL database; setup, preparation and warmup are excluded from per-operation latency.", "Driver model lookup/streaming decodes equivalent fields; ORM paths also build queries and decode derived models.", "Concurrent latency includes pool acquisition, cached preparation, query, decoding and release; scalar paths retain one connection.", "Latency recording is uninstrumented for allocation counts; do not infer allocation improvements from this report.", "Compiler, flags, source tree and git state are inspected at run time, not embedded compilation provenance. The executable hash identifies the measured binary; preserve its build command and source snapshot for reproduction."],
         "measurements": results,
@@ -524,7 +457,7 @@ async fn main() -> Result<()> {
     }
     let options = Options::read()?;
     let source_at_start = source_fingerprint(&options.source_root)?;
-    let executable = executable_fingerprint(&options.source_root)?;
+    let executable = hash_file(&options.source_root, &std::env::current_exe()?)?;
     dotenvy::from_path(options.source_root.join(".env.local")).ok();
     dotenvy::from_path(options.source_root.join(".env")).ok();
     let base = std::env::var("DATABASE_URL")?;

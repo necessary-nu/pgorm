@@ -144,14 +144,6 @@ impl Error {
         Self::new(Kind::TursoWorker, Some(Box::new(cause)))
     }
 
-    /// Constructs a refusal for an unsupported experimental native operation.
-    ///
-    /// Connection factories can use this before opening a native client.
-    /// This driver-side refusal carries no database SQLSTATE.
-    pub fn turso_unsupported(operation: &'static str) -> Self {
-        Self::new(Kind::TursoUnsupported(operation), None)
-    }
-
     pub(crate) fn turso_unsupported_with<E>(operation: &'static str, cause: E) -> Self
     where
         E: StdError + Send + Sync + 'static,

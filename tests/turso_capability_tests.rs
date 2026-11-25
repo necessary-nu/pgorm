@@ -1,9 +1,7 @@
 //! Public capability boundaries for the pinned experimental native backend.
 #![cfg(feature = "turso")]
 
-use pgorm::{
-    Connection, CopyConnection, DatabaseTransaction, Error, Transact, connect_turso, notify,
-};
+use pgorm::{Connection, CopyConnection, DatabaseTransaction, Error, Transact, connect, notify};
 use pgorm_migration::{Migration, MigrationName, Migrator};
 use pgorm_query::{CopyBinary, CopyFromStatement, CopyText, CopyToStatement, Name};
 use std::{
@@ -79,7 +77,7 @@ async fn refuse_row_copy(db: &mut (impl CopyConnection + Send)) {
 // [spec:pgorm:req:conn.copy.rows+7/test]
 #[tokio::test]
 async fn dedicated_copy_refuses_without_poisoning_connection() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
+    let pool = connect(":memory:".parse()?);
     let mut db = pool.get().await?;
     db.batch_execute("CREATE TABLE capability_items(id INTEGER PRIMARY KEY)")
         .await?;
@@ -122,7 +120,7 @@ async fn dedicated_copy_refuses_without_poisoning_connection() -> Result<(), Err
 // [spec:pgorm:req:turso.capabilities/test]
 #[tokio::test]
 async fn generic_copy_refuses_before_any_script_effects() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
+    let pool = connect(":memory:".parse()?);
     let db = pool.get().await?;
     db.batch_execute("CREATE TABLE capability_items(id INTEGER)")
         .await?;
@@ -153,7 +151,7 @@ async fn generic_copy_refuses_before_any_script_effects() -> Result<(), Error> {
 // [spec:pgorm:req:turso.capabilities/test]
 #[tokio::test]
 async fn notification_refusals_identify_the_failing_layer() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
+    let pool = connect(":memory:".parse()?);
     let db = pool.get().await?;
     let listener = match pool.listener(NonZeroUsize::MIN).await {
         Ok(_) => panic!("native notifications cannot supply a listener"),
@@ -171,7 +169,7 @@ async fn notification_refusals_identify_the_failing_layer() -> Result<(), Error>
 // [spec:pgorm:req:turso.capabilities/test]
 #[tokio::test]
 async fn commands_hide_internal_rows_and_keep_effects() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
+    let pool = connect(":memory:".parse()?);
     let db = pool.get().await?;
     assert!(
         db.query_all("SET application_name = 'queried'", &[])
@@ -212,7 +210,7 @@ async fn commands_hide_internal_rows_and_keep_effects() -> Result<(), Error> {
 // [spec:pgorm:req:turso.errors/test]
 #[tokio::test]
 async fn supported_sql_keeps_native_constraint_diagnostics() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
+    let pool = connect(":memory:".parse()?);
     let db = pool.get().await?;
     db.batch_execute("CREATE TABLE capability_items(id INTEGER PRIMARY KEY); INSERT INTO capability_items VALUES(1)")
         .await?;
@@ -272,7 +270,7 @@ async fn migration_tables(db: &impl Connection) -> Result<Vec<String>, Error> {
 // [spec:pgorm:req:turso.capabilities/test]
 #[tokio::test]
 async fn migration_status_refuses_without_creating_tables() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
+    let pool = connect(":memory:".parse()?);
     let db = pool.get().await?;
     let calls = Arc::new(AtomicUsize::new(0));
     let migrator = ProbeMigrator(Arc::clone(&calls));
@@ -290,7 +288,7 @@ async fn migration_status_refuses_without_creating_tables() -> Result<(), Error>
 // [spec:pgorm:req:turso.capabilities/test]
 #[tokio::test]
 async fn migration_up_refuses_before_ledger_or_body() -> Result<(), Error> {
-    let pool = connect_turso(":memory:").await?;
+    let pool = connect(":memory:".parse()?);
     let calls = Arc::new(AtomicUsize::new(0));
     let migrator = ProbeMigrator(Arc::clone(&calls));
     let db = pool.get().await?;

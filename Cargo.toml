@@ -3,6 +3,8 @@ members = [".", "crates/pgorm-driver", "crates/pgorm-driver-rustls", "pgorm-case
 
 [package]
 name = "pgorm"
+# Native benchmarks have their own manifest and dependency graph.
+autobenches = false
 version = "0.2.0"
 authors = []
 edition = "2024"
@@ -180,6 +182,10 @@ with-jiff = []
 with-uuid = ["uuid"]
 postgres-array = []
 tests-cfg = []
+
+[[test]]
+name = "turso_compatibility_tests"
+required-features = ["turso"]
 
 [[bench]]
 name = "driver_baseline"

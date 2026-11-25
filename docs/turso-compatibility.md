@@ -39,26 +39,67 @@ columns or rows; native serial/identity prerequisites may change their compiled
 program while executing, after which the prepared handle is invalidated.
 There is no SQL translation layer and no emulated successful unsupported call.
 
+The [paired compatibility corpus](../tests/turso_compatibility_tests.rs) runs
+equivalent operations against real PostgreSQL, a fresh native file and isolated
+native memory. It checks values, metadata, counts, transactions, cancellation
+and concurrent pool borrowers; `metadata_mismatches_remain_explicit` records
+the serial, VARCHAR, NUMERIC and REAL differences. Run it with a PostgreSQL
+`DATABASE_URL` configured:
+
+```sh
+cargo test -p pgorm --features turso --test turso_compatibility_tests
+```
+
+The [experimental CI lane](../.github/workflows/turso.yml) runs the existing
+PostgreSQL suite in both feature states and the native suite with `turso` enabled.
+The native [worker tests](../crates/pgorm-driver/src/native/worker/tests.rs)
+also check row and byte backpressure, including oversized rows.
+
 ## Opening a pool
 
-With the experimental `turso` Cargo feature enabled,
-`pgorm::connect_turso(path).await` opens a file or `:memory:` and returns the
-existing `DatabasePool`. Opening, the first connection and its creation hooks
-finish before the constructor succeeds. Every connection in that pool shares
-one native database; separate `:memory:` opens are isolated.
+The existing Rust entry points accept a driver `Config` parsed from a
+PostgreSQL connection string, a file path or `:memory:`:
 
-`connect_turso_with(path, manager, build).await` accepts the existing
-`ManagerConfig` and pool-builder closure. It preserves hooks, tags, timeouts
-and statement-cache sizing. PostgreSQL Clean recycling and notification-based
-cache invalidation are rejected before opening the path. A zero maximum pool
-size is rejected because an eager constructor cannot establish a connection
-from a disabled pool. A creation hook must leave no open transaction or active
-native work. Native `pool.listener(...)` is explicitly unsupported.
+```rust,no_run
+use pgorm::Connection;
+
+# async fn example() -> Result<(), Box<dyn std::error::Error>> {
+let pool = pgorm::connect("./app.db".parse()?);
+let connection = pool.get().await?;
+let row = connection.query_one("SELECT 1", &[]).await?;
+assert_eq!(row.get::<_, i32>(0), 1);
+# Ok(())
+# }
+```
+
+File opening requires the experimental `turso` Cargo feature. Parsing and pool
+construction do no I/O; first acquisition opens the database, creates a client
+and runs its creation hooks. Opening failures are acquisition errors. All
+connections in one pool share the native database, including `:memory:`.
+Separately constructed memory pools are isolated, including when their configs
+were cloned. Repeated direct `Config::connect` calls on one retained native
+config share its database; cloning that config copies settings and creates an
+independent database owner. A cloned file configuration still names the same
+file; an in-memory clone starts with its own empty database when opened.
+
+`connect_with(config, NoTls, manager, build)` uses the existing `ManagerConfig`
+and builder closure for tags, hooks, timeouts and statement-cache sizing.
+PostgreSQL Clean recycling and notification-based cache invalidation are refused
+before opening. Zero-capacity pools retain the ordinary lazy builder semantics.
+A final native creation hook check refuses an open transaction, a closed client
+or retained active work before lending the connection. Native
+`pool.listener(...)` is explicitly unsupported.
+
+PostgreSQL URLs and libpq key/value strings retain their parsing rules. Malformed
+recognized PostgreSQL strings never fall back to creating a file. Explicit
+relative (`./app.db`) and absolute paths can contain spaces or `=`; use a path
+prefix when a filename resembles a libpq setting. `:memory:` selects an
+independent in-memory target, with no file. Feature-disabled builds recognize
+native targets and refuse them before opening.
 
 Pool close rejects new borrowers and discards idle connections. Already
 checked-out connections remain usable until released. Closing a pool does not
-await worker destruction; native cleanup follows the driver lifecycle. The
-PostgreSQL constructors retain their existing lazy connection behavior.
+await worker destruction; native cleanup follows the driver lifecycle.
 
 ## Scalar codecs
 

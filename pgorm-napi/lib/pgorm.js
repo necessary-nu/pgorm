@@ -28,6 +28,9 @@ install(native);
 installConnections(native);
 
 export { connect, Connection, Pool, Queryable, Transaction } from "./connections.js";
+/** Optional native features included in the loaded addon. */
+// [spec:pgorm:req:turso.javascript+1]
+export const features = Object.freeze([...native.features]);
 export { HookConnection } from "./hooks.js";
 export { MultiPool } from "./multi-pool.js";
 export { RowStream } from "./streams.js";

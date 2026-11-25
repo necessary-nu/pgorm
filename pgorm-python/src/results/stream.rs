@@ -124,8 +124,14 @@ pub(crate) fn open<'py>(
         let state = match source {
             Source::Connection(connection) => {
                 let operation = Operation::begin(connection).py()?;
-                pgorm_bindings::StreamState::on_connection(operation, compiled.sql, values, &never)
-                    .await
+                pgorm_bindings::StreamState::on_connection(
+                    operation,
+                    compiled.sql,
+                    values,
+                    |value| Some(&value.0),
+                    &never,
+                )
+                .await
             }
             Source::Transaction(state) => {
                 let lock = state.lock().py()?;
@@ -134,6 +140,7 @@ pub(crate) fn open<'py>(
                     lock,
                     compiled.sql,
                     values,
+                    |value| Some(&value.0),
                     &never,
                 )
                 .await

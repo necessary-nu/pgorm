@@ -35,7 +35,7 @@ class MultiPool:
         certfile: str | Path | None = None,
         key: str | bytes | None = None,
         keyfile: str | Path | None = None,
-        connect_timeout: float = 10.0,
+        connect_timeout: float | None = None,
         statement_cache_size: int = 128,
         recycle: Recycle | None = None,
         recycle_sql: str | None = None,
@@ -112,7 +112,7 @@ async def connect_listener(
     certfile: str | Path | None = None,
     key: str | bytes | None = None,
     keyfile: str | Path | None = None,
-    connect_timeout: float = 10.0,
+    connect_timeout: float = 10,
 ) -> Listener:
     """Open a listener on a connection of its own, belonging to no pool, as
     Rust's ``connect_listener`` does.

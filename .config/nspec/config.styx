@@ -22,6 +22,10 @@ specs ({
                 pgorm-test-support/src/**/*.rs
                 pgorm-guide-support/src/**/*.rs
                 pgorm-bindings/src/**/*.rs
+                .github/workflows/turso.yml
+                benches/native_baseline.rs
+                benches/native/**/*.rs
+                docs/performance/run.py
                 security/sqlmap/adapter/src/**/*.rs
                 .github/workflows/sqlmap*.yml
                 security/sqlmap/acceptance/*.md
