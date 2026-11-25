@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-25T12:45:24.142775Z
+last_sync_at 2026-11-25T13:29:27.339988Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -168,8 +168,8 @@ rule_versions (
     {id conn.database-ref, version 1}
     {id conn.driver-source, version 0}
     {id conn.driver-types, version 1}
-    {id conn.listen, version 1}
-    {id conn.pool, version 5}
+    {id conn.listen, version 2}
+    {id conn.pool, version 6}
     {id conn.pool.conn-trait, version 11}
     {id conn.pool.generic-client, version 1}
     {id conn.pool.get, version 1}
@@ -4088,6 +4088,16 @@ impl_evidence (
         {id turso.feature, version 0}
         {id turso.lifecycle, version 0}
     )}
+    {id turso.transactions, covered_rules (
+        turso.cleanup
+        turso.transactions
+    ), covered_claims (
+        {impl_name main, rule turso.cleanup}
+        {impl_name main, rule turso.transactions}
+    ), rule_versions_seen (
+        {id turso.cleanup, version 0}
+        {id turso.transactions, version 0}
+    )}
     {id turso.types, covered_rules (
         turso.errors
         turso.rows
@@ -4122,12 +4132,10 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
-    {id turso.transactions, covered_rules (
-        turso.cleanup
-        turso.transactions
+    {id turso.connect, covered_rules (
+        turso.pool
     ), covered_claims (
-        {impl_name main, rule turso.cleanup}
-        {impl_name main, rule turso.transactions}
+        {impl_name main, rule turso.pool}
     )}
 )
 

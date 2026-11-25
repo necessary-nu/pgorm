@@ -26,6 +26,8 @@ mod copy;
 mod generic_client;
 mod raw;
 mod transaction;
+#[cfg(feature = "turso")]
+mod turso;
 
 use std::{
     borrow::Cow,
@@ -68,6 +70,8 @@ pub use self::cache_listener::STATEMENT_CACHE_CHANNEL;
 pub use self::generic_client::GenericClient;
 pub use self::raw::{RawConnection, Unpooled};
 pub use self::transaction::{CommitError, Transaction, TransactionBuilder};
+#[cfg(feature = "turso")]
+pub use self::turso::TursoConnectImpl;
 
 pub use deadpool::managed::reexports::*;
 deadpool::managed_reexports!(
@@ -164,7 +168,10 @@ impl Manager {
     /// outside the pool: it is not counted against the pool's size, gets no
     /// statement cache and is never recycled, and its I/O half is returned
     /// undriven (see [`Connect::connect_raw`]).
-    // [spec:pgorm:req:conn.listen+1]    a pool's listener connects as its connections do
+    ///
+    /// Native Turso factories refuse this notification connection before
+    /// opening a client.
+    // [spec:pgorm:req:conn.listen+2]    a pool's listener connects as its connections do
     pub async fn connect_raw(&self) -> Result<Unpooled, Error> {
         self.connect.connect_raw(&self.pg_config).await
     }
@@ -291,8 +298,8 @@ impl managed::Manager for Manager {
     }
 }
 
-/// Describes a mechanism for establishing a connection to a PostgreSQL
-/// server via `pgorm_driver`.
+/// Describes a mechanism for establishing a database connection through
+/// `pgorm_driver`.
 pub trait Connect: Sync + Send {
     /// Establishes a new `pgorm_driver` connection, returning
     /// the associated `Client` and a `JoinHandle` to a tokio task
@@ -305,6 +312,9 @@ pub trait Connect: Sync + Send {
     /// Establishes a new `pgorm_driver` connection and returns its I/O half
     /// undriven, for an owner that polls it itself to see the asynchronous
     /// messages a spawned connection task discards.
+    ///
+    /// A factory without notification support returns an error before
+    /// opening a connection.
     fn connect_raw(&self, pg_config: &PgConfig) -> BoxFuture<'_, Result<Unpooled, Error>>;
 }
 

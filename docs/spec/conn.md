@@ -17,9 +17,9 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## Pool construction and access
 
-> [spec:pgorm:req:conn.pool+5]
-> `connect_with(config, tls, manager, build)` is the general pool constructor,
-> and the only one: every other entry point delegates to it. It takes the
+> [spec:pgorm:req:conn.pool+6]
+> `connect_with(config, tls, manager, build)` is the general PostgreSQL pool
+> constructor: every other PostgreSQL pool entry point delegates to it. It takes the
 > `pgorm_driver::Config`, a TLS connector bounded exactly as
 > `pgorm_pool::Manager::from_config` bounds its own (`T: MakeTlsConnect<Socket>
 > + Clone + Sync + Send + 'static`, plus `Send + Sync` on `T::Stream` and
@@ -28,9 +28,9 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > first three, applies `build` to the resulting `PoolBuilder`, and returns
 > `Result<DatabasePool, Error>`.
 >
-> It exists because `DatabasePool` wraps a crate-private `pgorm_pool::Pool` and
-> has no other constructor, which made two things unreachable rather than merely
-> inconvenient. `Pool` is TLS-erased (its `Manager` holds the connector as an
+> `DatabasePool` wraps a crate-private `pgorm_pool::Pool`, so its entry points
+> must expose the manager settings callers need. `Pool` is TLS-erased (its
+> `Manager` holds the connector as an
 > `Arc<dyn Connect>`), so a TLS pool was
 > always buildable inside `pgorm-pool` and never assignable to a `DatabasePool`
 > — leaving every managed PostgreSQL that requires TLS unusable through pgorm.
@@ -39,8 +39,11 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `StatementCacheSize::Bounded`/`Disabled` had no reachable setter at all:
 > `ManagerConfig` is private once the `Manager` holds it, and `PoolBuilder`
 > reaches only the pool. There is deliberately no `From<pgorm_pool::Pool> for
-> DatabasePool` beside it — construction stays funnelled through one function,
-> so a `DatabasePool` always holds a pool pgorm shaped.
+> DatabasePool` beside it: PostgreSQL construction stays funnelled through
+> `connect_with`, so a `DatabasePool` always holds a pool pgorm shaped. The
+> experimental async native constructors are defined by `turso.pool`; they
+> reuse the same pool with a native connection factory and eagerly verify
+> their first connection. PostgreSQL constructors remain lazy.
 >
 > `ManagerConfig`, `RecyclingMethod`, `StatementCacheSize` and `PoolBuilder`,
 > together with `NoTls`, `Socket`, `MakeTlsConnect` and `TlsConnect`, MUST be
@@ -1308,8 +1311,8 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 ## LISTEN and NOTIFY
 ## LISTEN and NOTIFY
 
-> [spec:pgorm:req:conn.listen+1]
-> A notification is delivered to the session that ran `LISTEN`, as an
+> [spec:pgorm:req:conn.listen+2]
+> On PostgreSQL, a notification is delivered to the session that ran `LISTEN`, as an
 > asynchronous message outside any statement's result, so no
 > `ConnectionTrait` method returns one (`sql.scope`), and a pooled connection
 > cannot receive one at all: pgorm-pool's task drives it and discards such
@@ -1323,6 +1326,10 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > undriven, as a `RawConnection`. That connection is not taken from the pool,
 > counts against no size, has no statement cache and is never recycled. Each
 > returns a pair, a `Listener` and its `Notifications`.
+>
+> Native Turso pools MUST reject listener construction as unsupported before
+> opening a native client or starting a notification task. The notification
+> protocol, ordering and bounds below describe PostgreSQL.
 >
 > `Listener` is the connection's `LISTEN` set: `listen(channel)`,
 > `unlisten(channel)` and `unlisten_all()`, each taking `&self` and sending

@@ -40,7 +40,7 @@ const CHANNEL_BYTES: usize = 63;
 /// it shares the connection with, and a transaction on it would hold back
 /// their delivery until it ended. [`notify`] sends from any connection or
 /// transaction instead.
-// [spec:pgorm:req:conn.listen+1]
+// [spec:pgorm:req:conn.listen+2]
 #[derive(Clone)]
 pub struct Listener {
     client: Arc<Client>,
@@ -69,7 +69,7 @@ pub struct Listener {
 /// replies behind the unread notifications, and its session would stop
 /// consuming PostgreSQL's notification queue, which every database in the
 /// cluster shares; once that fills, every `NOTIFY` fails at commit.
-// [spec:pgorm:req:conn.listen+1]
+// [spec:pgorm:req:conn.listen+2]
 pub struct Notifications {
     shared: Arc<Shared>,
     /// Keeps the connection open while the stream lives: the connection
@@ -203,7 +203,7 @@ fn listening(
 /// # Errors
 ///
 /// Returns [`Error::Postgres`] if the connection cannot be opened.
-// [spec:pgorm:req:conn.listen+1]
+// [spec:pgorm:req:conn.listen+2]
 pub async fn connect_listener<T>(
     config: Config,
     tls: T,
@@ -220,8 +220,8 @@ where
 }
 
 impl DatabasePool {
-    /// Open a dedicated listening connection with this pool's configuration
-    /// and TLS connector.
+    /// Open a dedicated PostgreSQL listening connection with this pool's
+    /// configuration and TLS connector.
     ///
     /// The connection is the listener's alone: it is not taken from the pool,
     /// does not count against its size, and is never returned to it.
@@ -229,8 +229,10 @@ impl DatabasePool {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Postgres`] if the connection cannot be opened.
-    // [spec:pgorm:req:conn.listen+1]
+    /// Returns [`Error::Postgres`] if the connection cannot be opened or this
+    /// is a native Turso pool, which does not support notification connections.
+    /// Native refusal opens no additional client.
+    // [spec:pgorm:req:conn.listen+2]
     pub async fn listener(
         &self,
         capacity: NonZeroUsize,
@@ -274,7 +276,7 @@ impl Listener {
     /// server would listen on the truncated name instead. Returns
     /// [`Error::Postgres`] if the server refuses the name, or the connection
     /// has closed.
-    // [spec:pgorm:req:conn.listen+1]
+    // [spec:pgorm:req:conn.listen+2]
     pub async fn listen(&self, channel: &str) -> Result<(), Error> {
         let sql = format!("LISTEN {}", identifier(channel)?);
         Ok(self.client.batch_execute(&sql).await?)
@@ -289,7 +291,7 @@ impl Listener {
     /// # Errors
     ///
     /// As [`listen`](Listener::listen).
-    // [spec:pgorm:req:conn.listen+1]
+    // [spec:pgorm:req:conn.listen+2]
     pub async fn unlisten(&self, channel: &str) -> Result<(), Error> {
         let sql = format!("UNLISTEN {}", identifier(channel)?);
         Ok(self.client.batch_execute(&sql).await?)
@@ -300,7 +302,7 @@ impl Listener {
     /// # Errors
     ///
     /// Returns [`Error::Postgres`] if the connection has closed.
-    // [spec:pgorm:req:conn.listen+1]
+    // [spec:pgorm:req:conn.listen+2]
     pub async fn unlisten_all(&self) -> Result<(), Error> {
         Ok(self.client.batch_execute("UNLISTEN *").await?)
     }
@@ -368,7 +370,7 @@ impl fmt::Debug for Notifications {
 /// Returns [`Error::Postgres`] for what the server refuses: an empty channel
 /// name or one longer than 63 bytes, and a payload of 8000 bytes or more
 /// (SQLSTATE `22023`).
-// [spec:pgorm:req:conn.listen+1]
+// [spec:pgorm:req:conn.listen+2]
 pub async fn notify<C>(db: &C, channel: &str, payload: &str) -> Result<(), Error>
 where
     C: ConnectionTrait,

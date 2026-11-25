@@ -5,6 +5,27 @@ The `turso` feature uses Turso's embedded API at
 the reference implementation. This matrix distinguishes the driver's codecs
 from type identities that the native compiler can preserve.
 
+## Opening a pool
+
+With the experimental `turso` Cargo feature enabled,
+`pgorm::connect_turso(path).await` opens a file or `:memory:` and returns the
+existing `DatabasePool`. Opening, the first connection and its creation hooks
+finish before the constructor succeeds. Every connection in that pool shares
+one native database; separate `:memory:` opens are isolated.
+
+`connect_turso_with(path, manager, build).await` accepts the existing
+`ManagerConfig` and pool-builder closure. It preserves hooks, tags, timeouts
+and statement-cache sizing. PostgreSQL Clean recycling and notification-based
+cache invalidation are rejected before opening the path. A zero maximum pool
+size is rejected because an eager constructor cannot establish a connection
+from a disabled pool. A creation hook must leave no open transaction or active
+native work. Native `pool.listener(...)` is explicitly unsupported.
+
+Pool close rejects new borrowers and discards idle connections. Already
+checked-out connections remain usable until released. Closing a pool does not
+await worker destruction; native cleanup follows the driver lifecycle. The
+PostgreSQL constructors retain their existing lazy connection behavior.
+
 ## Scalar codecs
 
 | PostgreSQL parameter type | Native value | Result representation |

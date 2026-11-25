@@ -171,7 +171,7 @@ pub enum VerifyError {
 
 /// Why a [`Listener`](crate::Listener) refused a channel name, or why its
 /// [`Notifications`](crate::Notifications) ended.
-// [spec:pgorm:req:conn.listen+1]
+// [spec:pgorm:req:conn.listen+2]
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ListenError {

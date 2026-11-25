@@ -363,6 +363,9 @@ platforms (
             transactions {
                 cmd "cargo test -p pgorm --features turso --lib database::turso_transaction_tests"
             }
+            pool {
+                cmd "cargo test -p pgorm --features turso --test turso_pool_tests"
+            }
         }
     }
 )

@@ -6,6 +6,8 @@ mod db_connection;
 mod lifecycle;
 mod listen;
 mod transaction;
+#[cfg(feature = "turso")]
+mod turso;
 #[cfg(all(test, feature = "turso"))]
 mod turso_transaction_tests;
 #[cfg(feature = "turso")]
@@ -20,11 +22,13 @@ pub use listen::{Listener, Notifications, connect_listener, notify};
 pub use transaction::{TransactionError, TransactionTrait};
 pub(crate) use transaction::{drive, rolled_back, sealed};
 #[cfg(feature = "turso")]
+pub use turso::{connect_turso, connect_turso_with};
+#[cfg(feature = "turso")]
 pub(crate) use value_sql::ValueSql;
 
 /// What a [`Notifications`] stream yields: the channel, the payload, and the
 /// process id of the session that sent it.
-// [spec:pgorm:req:conn.listen+1]
+// [spec:pgorm:req:conn.listen+2]
 pub use pgorm_driver::Notification;
 
 /// The chunk type COPY's data travels in, both ways, re-exported so writing a
@@ -145,10 +149,10 @@ fn check_statement_cache_channel(manager: &ManagerConfig) -> Result<(), Error> {
 /// Method to create a [DatabasePool] over every knob the pool has: the TLS
 /// connector, the [`ManagerConfig`], and the [`PoolBuilder`].
 ///
-/// This is the general entry point the other three are fixed-argument
-/// shorthands for, and the only route to a pool that speaks TLS, that recycles
-/// with anything but [`RecyclingMethod::Fast`], or that caches a number of
-/// statements other than the default.
+/// This is the general PostgreSQL entry point the other three are
+/// fixed-argument shorthands for. It accepts TLS, recycling and statement-cache
+/// settings. Experimental embedded Turso pools use `connect_turso_with` when
+/// the `turso` feature is enabled.
 ///
 /// `tls` is a `pgorm_driver` TLS connector: [`NoTls`], or
 /// `pgorm_driver_rustls::MakeRustlsConnect` for a PostgreSQL server requiring TLS.
@@ -184,7 +188,7 @@ fn check_statement_cache_channel(manager: &ManagerConfig) -> Result<(), Error> {
 /// pool — deadpool rejects a pool configured with timeouts but no runtime —
 /// or if `statement_cache_channel` is empty or longer than the 63 bytes of an
 /// identifier.
-// [spec:pgorm:req:conn.pool+5]    the general entry point
+// [spec:pgorm:req:conn.pool+6]    the general entry point
 #[doc(alias = "ConnectOptions")]
 pub fn connect_with<T>(
     config: Config,
@@ -225,7 +229,7 @@ where
 /// [`connect_with_builder`] for a fallible pool whose shape the caller chooses,
 /// or [`connect_with`] for one whose TLS and manager configuration it chooses
 /// too.
-// [spec:pgorm:req:conn.pool+5]
+// [spec:pgorm:req:conn.pool+6]
 #[doc(alias = "Database")]
 pub fn connect(config: Config) -> DatabasePool {
     connect_with(config, NoTls, simple_manager_config(None), identity)
@@ -239,7 +243,7 @@ pub fn connect(config: Config) -> DatabasePool {
 ///
 /// Returns [`Error::Custom`] if the builder produced by `build` cannot build a
 /// pool — deadpool rejects a pool configured with timeouts but no runtime.
-// [spec:pgorm:req:conn.pool+5]    builder customization
+// [spec:pgorm:req:conn.pool+6]    builder customization
 #[doc(alias = "ConnectOptions")]
 pub fn connect_with_builder(
     config: Config,

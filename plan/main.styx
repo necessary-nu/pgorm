@@ -22402,6 +22402,41 @@ children (
                         kind @note
                         text "Add the experimental Rust connection entry point, connect_turso(path) and only the configuration variants required by the agreed spec, backed by pgorm-pool's existing client/statement-cache/transaction surface. Make the pool's connection factory and raw-connection lifecycle support native clients with changes contained to connection construction; do not duplicate the ORM or its pool. Pool clients for one database share the intended native database handle, including in-memory databases, while separate databases stay isolated. Verify acquisition/recycling, hooks, statement-cache reuse/invalidation, close, concurrent borrowers, failed connections and persistence after pool reopen. PostgreSQL constructors and TLS retain their existing behavior. Propagate the optional feature across driver, pool and ORM without enabling Turso for ordinary builds."
                     }
+
+                    {
+                        at 2026-11-25T12:47:46.3909Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T12:47:46.809498Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the user-directed Turso dependency chain after f8a21623. Reuse the existing pool through a native connection factory sharing one TursoDatabase. Expose async connect_turso and connect_turso_with with eager connection/health validation, rejecting Clean and notification cache channels before opening the path. Refuse native raw listener connections immediately. Preserve PostgreSQL lazy constructors and TLS behavior. Keep unrelated scope-security work intact. Root owns public constructors/spec wording, driver_review owns the pool factory/refusal and listener reference review, and performance_baseline owns public pool integration tests; serialize Cargo."
+                    }
+
+                    {
+                        at 2026-11-25T13:12:38.357656Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Public constructor validation passes all 12 native pool tests plus 12 PostgreSQL notification and nine PostgreSQL pool-configuration regressions. Native cases establish eager startup/errors, unsupported-option refusal before file creation, shared/isolated memory ownership, typed cache and hook reuse/clear, timeout progress, zero-size and invalid builder refusal, immediate listener refusal, checked-out connection behavior after close, committed file reopen, and refusal of hooks leaving BEGIN or a retained active stream. The constructor checks cleanliness before queuing health to prevent that retained-stream deadlock. Required staged checks are running before delivery."
+                    }
+
+                    {
+                        at 2026-11-25T13:27:25.579527Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Delivery validation is green without source corrections: all 15 staged nplan checks passed, including native minimal builds, strict workspace/native Clippy, feature isolation, full native driver tests, nine ORM execution tests, 12 public native pool tests and 14 native ORM transaction tests. Separately ran 12 PostgreSQL listener and nine pool-configuration tests with Turso enabled. Public pool tests passed on their first run. Comment review and spec reference reconciliation are complete."
+                    }
+
+                    {
+                        at 2026-11-25T13:29:26.827381Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The final commit quality check required shortening two test names to the configured eight-word limit. Only those names changed; all 15 staged checks passed or were witnessed again. No gate bypass was used."
+                    }
                 )
             }
 
@@ -22418,6 +22453,13 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Attach backend identity/capability information to connection construction, not server-banner guessing. Determine actual support at the selected native revision for COPY, notifications, cancellation, isolation modes, metadata/catalog-dependent operations, migrations/codegen and other exposed operations. Provide actionable errors for unsupported operations at the layer that has reliable information, preserving real backend errors and avoiding an ORM-wide SQL parsing or translation layer. No silent no-ops, isolation downgrades or simulated success. Keep engine gaps, integration gaps and unverified behavior distinct; do not assert that the old frontend's LISTEN/MERGE/catalog restrictions necessarily apply to native execution. Test known refusal paths and ensure PostgreSQL connections remain unaffected."
+                    }
+
+                    {
+                        at 2026-11-25T12:59:46.978452Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Read-only review at pinned native revision found concrete probes for this item. StatementResultKind publicly distinguishes Command/Rows/CopyOut, but current driver ignores it: generic COPY TO STDOUT may bypass the dedicated COPY refusal, and Command placeholders may leak internal SELECT 0 columns. Native prerequisite execution can replace the compiled program (not ordinary deferred CREATE SCHEMA/RESET), so probe serial/identity DDL for false invalidation after effects. Native LOCK ACCESS SHARE source checks only transaction presence and ignores relation names: probe/document engine mismatch. Separate typed/literal probes for pg_notify, pg_advisory_xact_lock and to_regclass from the migrator's current raw-parameter typing refusal; test exact catalog queries rather than extrapolating broad catalog support. Codegen is offline DDL-to-model generation, not catalog introspection. These are source findings awaiting execution probes, not passing capability claims."
                     }
                 )
             }
