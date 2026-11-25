@@ -1886,8 +1886,10 @@ assertions (
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id turso.suite-gaps, kind @complete, author "brendan@necessary.nu", at 2026-11-25T17:47:26.405738Z}
     {id build-speed.debuginfo, kind @complete, author "brendan@necessary.nu", at 2026-11-25T18:45:15.263922Z}
-    {id build-speed.check-dedupe, kind @doing, author "brendan@necessary.nu", at 2026-11-25T18:45:45.87088Z}
-    {id build-speed.no-incremental, kind @doing, author "brendan@necessary.nu", at 2026-11-25T23:23:01.866954Z}
+    {id build-speed.check-dedupe, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:03.949446Z}
+    {id build-speed.no-incremental, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:04.865718Z}
+    {id turso.ci-gaps, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:01.940354Z}
+    {id rust-1-100, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:02.500195Z}
 )
 
 impl_evidence (

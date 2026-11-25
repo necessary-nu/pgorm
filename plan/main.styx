@@ -22757,6 +22757,15 @@ children (
                 id turso.ci-gaps
                 title "The Turso delivery passes CI: the Python sdist parses pgorm's manifest without its test files, the vendored driver resolves at the workspace's Rust 1.89 and drops its unused chrono and time support, and the supply-chain audit allows Turso's pinned git source with chrono's advisory ignored for turso_core alone"
                 kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T23:25:01.940354Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+                )
             }
         )
         log (
@@ -22798,12 +22807,20 @@ children (
             {
                 id build-speed.check-dedupe
                 title "nplan check runs no cargo check that a clippy of the same scope and features already covers"
+                sealed true
                 log (
                     {
                         at 2026-11-25T18:45:45.87088Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T23:25:03.949446Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
@@ -22824,6 +22841,7 @@ children (
             {
                 id build-speed.no-incremental
                 title "Debug builds in every workspace of the repository compile without incremental caches, which held 24 of a 29 GB target after one nplan check"
+                sealed true
                 log (
                     {
                         at 2026-11-25T22:44:54.546321Z
@@ -22838,6 +22856,13 @@ children (
                         kind @status
                         text "Todo → Doing (nplan start)"
                     }
+
+                    {
+                        at 2026-11-25T23:25:04.865718Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
                 )
             }
         )
@@ -22847,5 +22872,14 @@ children (
         id rust-1-100
         title "The compile-fail tests' expected output is Rust 1.100's, the stable CI runs and the local toolchain follows"
         kind @test
+        sealed true
+        log (
+            {
+                at 2026-11-25T23:25:02.500195Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Done (nplan complete)"
+            }
+        )
     }
 )
