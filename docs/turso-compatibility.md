@@ -6,6 +6,9 @@ the reference implementation. Backend identity comes from the connection
 constructor; the driver does not inspect a server banner. The evidence below
 applies to this exact native revision, independently of Turso's pgwire frontend.
 
+See the [setup guide](turso.md) for connection examples and build choices, and
+the [performance report](performance/turso-results.md) for measured costs.
+
 ## Operation matrix
 
 “Supported” means the stated cases are exercised, not that all PostgreSQL
@@ -97,9 +100,10 @@ prefix when a filename resembles a libpq setting. `:memory:` selects an
 independent in-memory target, with no file. Feature-disabled builds recognize
 native targets and refuse them before opening.
 
-Pool close rejects new borrowers and discards idle connections. Already
-checked-out connections remain usable until released. Closing a pool does not
-await worker destruction; native cleanup follows the driver lifecycle.
+Rust pool close rejects new borrowers and discards idle connections. Already
+checked-out Rust connections remain usable until released. Python and JavaScript
+pool close also cancels checked-out work and closes lent connections under the
+bindings' lifecycle. Native worker destruction follows the driver lifecycle.
 
 ## Scalar codecs
 

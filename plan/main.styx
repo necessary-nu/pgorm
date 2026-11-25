@@ -22727,6 +22727,13 @@ children (
                         kind @note
                         text "The native setup guide now documents existing connect/Pool path entry points, lazy construction, memory ownership, typing and refusal boundaries, companion files, exact engine provenance/licenses, measured-performance links and upgrade checks. Its Rust example is byte-identical to the executed README block (SHA-256 b72c54808eb95224518d4f803ff3f9a51240bbd7671288948b22778647f067b8), run successfully with turso in a fresh directory. The Python README bound INSERT/SELECT example passed unchanged in an installed native wheel (SHA-256 01c25a879ebc984ea373b0b5325175eb891076a263ae0d9c293b281d2e36e8c5). JavaScript README and distribution native examples passed unchanged in installed packages under both Node and Deno, each in a fresh directory. Local guide links were checked; package availability remains scoped to the locally validated platform."
                     }
+
+                    {
+                        at 2026-11-25T17:00:52.763873Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Documentation verification is linked to the existing default_constructor_waits_until_first_acquisition regression: it opens a fresh file with connect(path.parse()), acquires lazily and asserts the documented SELECT 1/i32 result. That test passed in the final native pool suite. This executable contract check complements the separately recorded verbatim Rust/Python/JavaScript documentation-example runs; it does not claim to automatically inspect all prose or validate every documented limitation."
+                    }
                 )
             }
         )
