@@ -506,6 +506,7 @@
     },
     "only": {
       "pgorm.Builder": "the base class every JavaScript builder extends; Python's classes define their methods each",
+      "pgorm.features": "the optional native features the loaded addon was built with, its package feature metadata (turso.javascript); Python records its build's in capabilities() (python.capabilities)",
       "pgorm.Queryable": "the base class of the JavaScript terminals; Python's Pool, Connection and Transaction define them each",
       "pgorm.Decimal": "JavaScript has no decimal type; Python uses decimal.Decimal (napi.values)",
       "pgorm.Uuid": "JavaScript has no UUID type; Python uses uuid.UUID (napi.values)",

@@ -177,7 +177,9 @@ notices inside the package:
   licence metadata also names;
 - `pgorm/DEPENDENCIES.json`, an inventory of every package in the locked
   Cargo graph, with its version, licence, source and the notices it ships,
-  and the native components compiled in, ring's bundled cryptography alone.
+  and the native components compiled in: ring's bundled cryptography, and,
+  under the optional `turso` feature, pg_query's bundled libpg_query and
+  PostgreSQL sources, which Turso's engine parses with.
 
 The parser's packages, pgsql-syntax and pgsql-parser with the `pg19-*`
 crates beneath them, are ordinary entries there. pgsql-syntax is MIT; the
@@ -200,9 +202,11 @@ package = files(pgorm)
 inventory = json.loads(package.joinpath("DEPENDENCIES.json").read_text())
 
 assert inventory["python_runtime_dependencies"] == []
-assert all(
-    component["owner"].startswith("ring@") for component in inventory["bundled_native_components"]
-)
+assert inventory["optional_features"] == ["turso"]
+assert {component["owner"].split("@")[0] for component in inventory["bundled_native_components"]} == {
+    "ring",
+    "pg_query",
+}
 
 parser = [entry for entry in inventory["packages"] if entry["name"].startswith(("pgsql-", "pg19-"))]
 assert {"pgsql-syntax", "pgsql-parser"} <= {entry["name"] for entry in parser}

@@ -39,6 +39,7 @@ pgorm needs Rust 1.89 or later. Its features are:
 | `with-uuid` | on | `uuid` columns as [`uuid::Uuid`](https://docs.rs/uuid) |
 | `postgres-array` | on | Array columns as `Vec<T>` |
 | `metrics-fingerprint` | off | Query fingerprints in the [metrics](crate::guide::metrics) layer |
+| `turso` | off | Experimental: a database file path or `:memory:`, given where a PostgreSQL connection string goes, opens a native Turso database in-process |
 
 pgorm targets PostgreSQL 19, and nothing older is supported
 ([PostgreSQL 19](crate::guide::postgres_releases)).

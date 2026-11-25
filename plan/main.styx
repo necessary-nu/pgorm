@@ -22744,6 +22744,20 @@ children (
                     }
                 )
             }
+
+            {
+                id turso.suite-gaps
+                title "The suites the Turso delivery left failing pass: the guide's feature table lists turso, the Python distribution chapter's inventory example admits pg_query's bundled sources under the optional feature, and the bindings surface declares JavaScript's features"
+                kind @fix
+                log (
+                    {
+                        at 2026-11-25T17:44:55.856089Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
+            }
         )
         log (
             {
