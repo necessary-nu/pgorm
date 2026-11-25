@@ -1,7 +1,7 @@
 platforms (
     {
         platform "native-performance"
-        files (benches/native/**/*.rs benches/support/**/*.rs benches/native/Cargo.toml benches/native/Cargo.lock)
+        files (benches/native_baseline.rs benches/native/**/*.rs benches/support/**/*.rs benches/native/Cargo.toml benches/native/Cargo.lock)
         checks {
             format {
                 cmd "cargo fmt --manifest-path benches/native/Cargo.toml -- --check"

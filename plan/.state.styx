@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-25T16:05:29.170749Z
+last_sync_at 2026-11-25T16:06:01.002115Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -4117,6 +4117,13 @@ impl_evidence (
     ), rule_versions_seen (
         {id turso.python, version 1}
     )}
+    {id turso.tests, covered_rules (
+        turso.compatibility
+    ), covered_claims (
+        {impl_name main, rule turso.compatibility}
+    ), rule_versions_seen (
+        {id turso.compatibility, version 0}
+    )}
     {id turso.transactions, covered_rules (
         turso.cleanup
         turso.transactions
@@ -4160,11 +4167,6 @@ impl_evidence (
         {impl_name main, rule exec.decode.decimal-exact}
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
-    )}
-    {id turso.tests, covered_rules (
-        turso.compatibility
-    ), covered_claims (
-        {impl_name main, rule turso.compatibility}
     )}
 )
 

@@ -23,6 +23,7 @@ specs ({
                 pgorm-guide-support/src/**/*.rs
                 pgorm-bindings/src/**/*.rs
                 .github/workflows/turso.yml
+                benches/native_baseline.rs
                 benches/native/**/*.rs
                 docs/performance/run.py
                 security/sqlmap/adapter/src/**/*.rs
