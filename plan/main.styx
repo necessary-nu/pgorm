@@ -22831,6 +22831,13 @@ children (
                         kind @decision
                         text "2026-11-25, operator (\"do it\"): after one nplan check on Rust 1.100, main's target was 29G, 24G of it debug/incremental. The incremental cache serves one crate's edit loop but is made per unit for every workspace member in every feature set nplan check builds, which never reuse it. The operator had deleted target/ twice that day for size. Traded: a small edit in pgorm recompiles the whole crate. Set in .cargo/config.toml so every run agrees; per-run CARGO_INCREMENTAL would churn fingerprints between runs that disagree."
                     }
+
+                    {
+                        at 2026-11-25T23:23:01.866954Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
                 )
             }
         )
