@@ -11,7 +11,7 @@ const CONNECTIONS: usize = 4;
 
 async fn insert_bakery<C>(db: &C, name: &str, profit_margin: f64) -> Result<(), Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     bakery::ActiveModel {
         name: set(name),
@@ -26,7 +26,7 @@ where
 
 async fn count_bakeries<C>(db: &C, search_name: &str) -> Result<usize, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     Ok(Bakery::find()
         .filter(bakery::Column::Name.contains(search_name))
@@ -36,7 +36,7 @@ where
 }
 
 // [spec:pgorm:sem:conn.pool.get+1/test]    N concurrent checkouts, status arithmetic, recovery on drop
-// [spec:pgorm:req:conn.pool.no-conn-trait/test]    every statement runs on an explicitly acquired connection
+// [spec:pgorm:req:conn.pool.no-conn-trait+1/test]    every statement runs on an explicitly acquired connection
 #[pgorm_macros::test]
 pub async fn pool_parallel_transactions_poolpar() -> Result<(), Error> {
     let ctx = TestContext::new("pool_parallel_transactions_poolpar").await;

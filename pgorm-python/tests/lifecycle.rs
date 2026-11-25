@@ -1,4 +1,4 @@
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 
 fn configuration() -> Result<pgorm::Config, Box<dyn std::error::Error>> {
     Ok(std::env::var("PGORM_TEST_DSN")?.parse()?)

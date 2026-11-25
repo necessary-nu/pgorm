@@ -18,7 +18,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ConditionalStatement, Expr, Func, Index, IndexColumn, IndexOrder, Name, Table,
 };
-use pgorm::{ConnectionTrait, entity::prelude::*};
+use pgorm::{Connection, entity::prelude::*};
 
 const SEED: &str = "
     CREATE TABLE doc (

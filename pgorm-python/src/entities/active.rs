@@ -32,7 +32,7 @@ pub struct PyActiveModel {
     pub(crate) inner: Active,
 }
 
-// [spec:pgorm:req:bindings.entity-writes+1]
+// [spec:pgorm:req:bindings.entity-writes+2]
 #[pymethods]
 impl PyActiveModel {
     #[getter]
@@ -68,7 +68,7 @@ impl PyActiveModel {
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-active-changes]
+    // [spec:pgorm:req:bindings.entity-active-changes+1]
     fn set_if_not_equals(
         &self,
         column: &Bound<'_, PyAny>,
@@ -81,7 +81,7 @@ impl PyActiveModel {
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-active-changes]
+    // [spec:pgorm:req:bindings.entity-active-changes+1]
     fn is_changed(&self) -> bool {
         self.inner.is_changed()
     }

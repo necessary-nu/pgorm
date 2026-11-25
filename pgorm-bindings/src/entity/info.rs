@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use pgorm::pgorm_query::{ArrayType, ConditionType, Deferrability, Enforcement, FromItem, Value};
 use pgorm::{
-    ColumnTrait, EntityTrait, FromQueryResult, Iterable, PrimaryKeyToColumn, PrimaryKeyTrait,
-    RelationDef, RelationTrait, RelationType, StaticName,
+    Column, Entity, FromQueryResult, Iterable, PrimaryKey, PrimaryKeyToColumn, Relation,
+    RelationDef, RelationType, StaticName,
 };
 use serde_json::{Map, Value as Json};
 
@@ -29,7 +29,7 @@ pub fn object<const N: usize>(dialect: Dialect, fields: [(&str, Json); N]) -> Js
 pub struct ColumnInfo {
     /// The column's name in its table.
     pub name: String,
-    /// The key the Rust field serializes under, `ColumnTrait::json_key`.
+    /// The key the Rust field serializes under, `Column::json_key`.
     pub json_key: String,
     /// The `ColumnType` it declares, as Rust's `Debug` writes it.
     pub sql_type: String,
@@ -149,7 +149,7 @@ impl EntityInfo {
     // [spec:pgorm:req:bindings.entities+6]
     pub fn of<E>(name: &str, entity: E) -> Result<Self, Failure>
     where
-        E: EntityTrait + Send + Sync + 'static,
+        E: Entity + Send + Sync + 'static,
     {
         registration_name(name)?;
         let table = entity.table_name().to_owned();
@@ -197,7 +197,7 @@ impl EntityInfo {
             table,
             columns,
             primary_key,
-            without_overlaps: <E::PrimaryKey as PrimaryKeyTrait>::without_overlaps(),
+            without_overlaps: <E::PrimaryKey as PrimaryKey>::without_overlaps(),
             unique_keys: entity.unique_keys(),
             relations: <E::Relation as Iterable>::iter()
                 .map(|relation| (format!("{relation:?}"), relation.def()))
@@ -215,7 +215,7 @@ impl EntityInfo {
     /// The entity value this registration's statements name their table by,
     /// refused for a type the registration was not made for.
     // [spec:pgorm:req:bindings.entities+6]
-    pub fn entity<E: EntityTrait>(&self) -> Result<E, pgorm::Error> {
+    pub fn entity<E: Entity>(&self) -> Result<E, pgorm::Error> {
         self.entity.downcast_ref::<E>().copied().ok_or_else(|| {
             pgorm::Error::Custom("the ActiveModel belongs to another registration".to_owned())
         })

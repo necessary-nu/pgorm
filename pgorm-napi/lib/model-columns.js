@@ -321,7 +321,7 @@ export function columnKey(column) {
  * Whether a model reads `column` from its text: a created multirange's, which
  * the driver reports with no subtype to read its binary form by, so a model
  * projects it cast to `text`, or an array of one to `text[]`, as pgorm's
- * `ColumnTrait::select_as` reads an entity's, and reads the value that text,
+ * `pgorm::Column::select_as` reads an entity's, and reads the value that text,
  * or each of the array's, spells as the declared kind.
  *
  * @param {Column} column
@@ -564,12 +564,12 @@ export function columnValue(column, field, input) {
 /**
  * A model's column as an expression, qualified as the model's table is
  * named. A value it is compared with converts to the column's declared kind,
- * as pgorm's `ColumnTrait` comparisons cast through the column's type, so an
+ * as `pgorm::Column` comparisons cast through the column's type, so an
  * enum's label binds cast to its type; an expression, and `any(..)` or
  * `all(..)`, are compared as written. A value any other operator takes
  * converts the same way.
  */
-// [spec:pgorm:req:bindings.column-operators+3]
+// [spec:pgorm:req:bindings.column-operators+4]
 export class ModelColumn extends Expr {
   /** @type {Column} */
   #column;

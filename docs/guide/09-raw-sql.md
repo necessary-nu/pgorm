@@ -11,20 +11,20 @@ macros.
 
 ## Running a statement
 
-Every [`ConnectionTrait`](crate::ConnectionTrait), a connection or a
+Every [`Connection`](crate::Connection), a connection or a
 transaction, runs SQL text. The statement is a `&str` or a `&String`, its
 parameters are written `$1`, `$2` and so on, and their values are passed
 beside it:
 
 | Method | Runs the statement and returns |
 | --- | --- |
-| [`execute`](crate::ConnectionTrait::execute) | the number of rows it changed |
-| [`query_one`](crate::ConnectionTrait::query_one) | its one row, and an error for any other number |
-| [`query_opt`](crate::ConnectionTrait::query_opt) | its row, if any, and an error for more than one |
-| [`query_all`](crate::ConnectionTrait::query_all) | all of its rows |
-| [`query_raw`](crate::ConnectionTrait::query_raw) | a stream of its rows, read as they arrive |
-| [`execute_raw`](crate::ConnectionTrait::execute_raw) | as `execute`, with the values as an iterator |
-| [`batch_execute`](crate::ConnectionTrait::batch_execute) | nothing: it runs a whole script of `;`-separated statements, with no parameters |
+| [`execute`](crate::Connection::execute) | the number of rows it changed |
+| [`query_one`](crate::Connection::query_one) | its one row, and an error for any other number |
+| [`query_opt`](crate::Connection::query_opt) | its row, if any, and an error for more than one |
+| [`query_all`](crate::Connection::query_all) | all of its rows |
+| [`query_raw`](crate::Connection::query_raw) | a stream of its rows, read as they arrive |
+| [`execute_raw`](crate::Connection::execute_raw) | as `execute`, with the values as an iterator |
+| [`batch_execute`](crate::Connection::batch_execute) | nothing: it runs a whole script of `;`-separated statements, with no parameters |
 
 The rows are pgorm-driver's [`Row`](crate::Row), which pgorm re-exports,
 whose `get` and `try_get` read a column by position or by name:
@@ -34,7 +34,7 @@ whose `get` and `try_get` read a column by position or by name:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_connection").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{ConnectionTrait, entity::prelude::Decimal};
+use pgorm::{Connection, entity::prelude::Decimal};
 
 let raised = db
     .execute(
@@ -81,7 +81,7 @@ large to hold at once. Its values are an iterator, as `execute_raw`'s are:
 # let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_stream").await;
 # let db = scratch.pool.get().await?;
 use futures::TryStreamExt;
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 
 let rows = db
     .query_raw("SELECT name FROM cake WHERE gluten_free = $1 ORDER BY name", [true])
@@ -335,7 +335,7 @@ literal unchanged, a `&'static str` that costs nothing at run time.
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_sql_macro").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{ConnectionTrait, sql};
+use pgorm::{Connection, sql};
 
 const BAKERS_AT: &str = sql!("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name");
 

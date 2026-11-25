@@ -5,7 +5,7 @@ use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, spann
 
 /// `#[derive(Scope)]`: the type is a scope, one value of which is a context
 /// of its own.
-// [spec:pgorm:def:scope.declare]
+// [spec:pgorm:def:scope.declare+1]
 pub fn expand_derive_scope(input: DeriveInput) -> syn::Result<TokenStream> {
     let ident = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -174,7 +174,7 @@ fn checking_trait(table_name: Option<&str>) -> Ident {
 /// marked, so rustc reports the entity's own trait, and its message, rather
 /// than the `Provides` a context lacks.
 // [spec:pgorm:req:scope.compile]
-// [spec:pgorm:def:scope.declare]
+// [spec:pgorm:def:scope.declare+1]
 pub(crate) fn expand_entity_scopes(
     scopes: &DeclaredScopes,
     table_name: Option<&str>,
@@ -289,10 +289,10 @@ pub(crate) fn expand_entity_scopes(
 
             fn fill_scopes(
                 cx: &dyn pgorm::ScopeContext,
-                row: &mut <Self as pgorm::EntityTrait>::ActiveModel,
+                row: &mut <Self as pgorm::Entity>::ActiveModel,
             ) -> ::std::result::Result<(), pgorm::ScopeError>
             where
-                Self: pgorm::EntityTrait,
+                Self: pgorm::Entity,
             {
                 pgorm::ScopeFill::<Self>::new(cx, row)
                     #( #column_fills )*

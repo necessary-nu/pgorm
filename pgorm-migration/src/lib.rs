@@ -32,15 +32,15 @@ pub trait MigrationName {
 /// Implement [`MigrationName`] for a migration, naming it for the file stem of
 /// the file it is written in. The derive and the trait share a name and live
 /// in different namespaces.
-// [spec:pgorm:req:macros.derive.names+3]
+// [spec:pgorm:req:macros.derive.names+4]
 pub use pgorm_macros::MigrationName;
 
 /// The migration definition
-// [spec:pgorm:def:migration.runner+5]    author-facing half
-// [spec:pgorm:req:migration.up-only]    `up` is the only direction
+// [spec:pgorm:def:migration.runner+6]    author-facing half
+// [spec:pgorm:req:migration.up-only+1]    `up` is the only direction
 #[async_trait::async_trait]
 #[doc(alias = "SchemaManager")]
-pub trait MigrationTrait: MigrationName + Send + Sync {
+pub trait Migration: MigrationName + Send + Sync {
     /// Define actions to perform when applying the migration
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error>;
 
@@ -54,12 +54,12 @@ pub trait MigrationTrait: MigrationName + Send + Sync {
     /// make a reformatted comment look like a schema change. Overriding this
     /// with a value the author controls — a hash of the DDL text, a version
     /// string bumped by hand — is what turns the check on.
-    // [spec:pgorm:req:migration.checksum+1]    opt-in by override, `None` by default
+    // [spec:pgorm:req:migration.checksum+2]    opt-in by override, `None` by default
     fn checksum(&self) -> Option<String> {
         None
     }
 
-    /// Whether [`up`](MigratorTrait::up) commits this migration, with its
+    /// Whether [`up`](Migrator::up) commits this migration, with its
     /// ledger row, before the next migration of the batch runs, `false` by
     /// default.
     ///

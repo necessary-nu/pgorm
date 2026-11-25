@@ -17,7 +17,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Expr, Keyword, Name, Order, OrderedStatement, Query, SelectStatement, SimpleExpr, Values,
 };
-use pgorm::{ConnectionTrait, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
 
 /// Four notes: two that arms will name, one NULL, and one no arm names.
 const SEED: &str = "
@@ -76,7 +76,7 @@ fn some(answers: [Option<&str>; 4]) -> Vec<Option<String>> {
 // [spec:pgorm:def:sql.ast.case+3/test]    against a live server: the simple form compares by
 // `=`, so a NULL operand matches no arm and takes the ELSE
 // [spec:pgorm:req:sql.render.case+2/test]
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn a_null_operand_matches_no_arm(db: &DatabaseConnection) -> Result<(), Error> {
     let simple = per_row(
         Expr::case_of(note())

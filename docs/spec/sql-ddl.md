@@ -1406,7 +1406,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 
 ## Views
 
-> [spec:pgorm:req:sql.ddl.view+1]
+> [spec:pgorm:req:sql.ddl.view+2]
 > `View` builds the statements a view takes: `create(name, body)`,
 > `create_recursive(name, column, body)` and `drop(name)`. A view is a
 > relation, so it is named as a table is — any `IntoTableName`, a bare name or
@@ -1417,7 +1417,7 @@ behaviour, including the leftovers from the multi-backend ancestry.
 > Name and body are constructor arguments with no setter, because `CREATE
 > VIEW  AS` and a view without a query are syntax errors, so neither husk
 > constructs (`[dec:pgorm:invalid-states-unrepresentable]`). A view of an
-> entity's query takes the statement `QueryTrait::into_query` gives.
+> entity's query takes the statement `Statement::into_query` gives.
 >
 > - `ViewCreateStatement` MUST render `CREATE [OR REPLACE ]VIEW <name>[
 >   (<columns>)][ WITH (<options>)] AS <query>[ WITH { LOCAL | CASCADED }

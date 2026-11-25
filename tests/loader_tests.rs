@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-use pgorm_query::ExprTrait;
+use pgorm_query::Expression;
 pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
@@ -8,7 +8,7 @@ use pgorm::alias;
 use pgorm::pgorm_query::{ConditionType, Expr, IntoCondition};
 use pgorm::{DatabaseConnection, Error, RuntimeError, Schema, entity::*, query::*, set};
 
-// [spec:pgorm:req:query.loader+1/test]    `load_one` over a `Vec<M>`, taking a
+// [spec:pgorm:req:query.loader+2/test]    `load_one` over a `Vec<M>`, taking a
 // bare entity through `EntityOrSelect`, returning `Vec<Option<R::Model>>`
 // positionally aligned with the input, and rejecting a `HasMany` relation
 // [spec:pgorm:sem:query.loader.regroup+6/test]    the belongs-to direction is
@@ -59,7 +59,7 @@ async fn loader_load_one() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:query.loader+1/test]    `load_many` returning `Vec<Vec<..>>`
+// [spec:pgorm:req:query.loader+2/test]    `load_many` returning `Vec<Vec<..>>`
 // aligned with the input, driven from both a bare entity and a pre-filtered
 // `Select<R>`
 // [spec:pgorm:sem:query.loader.regroup+6/test]    a bucket per input key in
@@ -172,7 +172,7 @@ async fn loader_load_many_multi() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:query.loader+1/test]    `load_many_via` across a junction,
+// [spec:pgorm:req:query.loader+2/test]    `load_many_via` across a junction,
 // from a bare entity and from a pre-filtered `Select<R>` — the junction entity
 // is never named by the caller
 // [spec:pgorm:sem:query.loader.many-to-many+3/test]    one join carries the
@@ -510,7 +510,7 @@ fn internal_message<T: std::fmt::Debug>(outcome: Result<T, Error>, context: &str
 
 async fn create_ledger_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Schema::new().create_table_from_entity(ledger::Entity)?;
     create_table_without_asserts(db, &stmt).await
@@ -518,7 +518,7 @@ where
 
 async fn create_padded_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Schema::new().create_table_from_entity(padded::Entity)?;
     create_table_without_asserts(db, &stmt).await
@@ -526,7 +526,7 @@ where
 
 async fn create_tagged_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Schema::new().create_table_from_entity(tagged::Entity)?;
     create_table_without_asserts(db, &stmt).await
@@ -569,7 +569,7 @@ async fn insert_ledger(
     .await
 }
 
-// [spec:pgorm:req:query.loader+1/test]    relation shape is validated up front:
+// [spec:pgorm:req:query.loader+2/test]    relation shape is validated up front:
 // `load_one` rejects a junction, `load_many` rejects a junction and a HasOne
 // target, and `load_many_via` rejects a missing junction and a non-HasOne
 // target. There is no longer a mismatched-junction case to reject: the
@@ -621,7 +621,7 @@ async fn loader_rejects_wrong_relation_shapes() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:query.loader+1/test]    an empty input short-circuits to an
+// [spec:pgorm:req:query.loader+2/test]    an empty input short-circuits to an
 // empty result without querying: every selector passed here would raise a
 // database error if it were ever sent
 #[pgorm_macros::test]
@@ -743,7 +743,7 @@ async fn loader_batches_composite_keys_as_tuples() -> Result<(), Error> {
 // inputs sharing a key — and when a relation declared `HasOne` matches two
 // distinct rows for one key it aborts with an `Err` naming how many rows, the
 // target table, the key and the key's column list, rather than discarding a row
-// [spec:pgorm:req:query.loader.table-ref-limitation+3/test]    the supported
+// [spec:pgorm:req:query.loader.table-ref-limitation+4/test]    the supported
 // `TableName::SchemaTable` target: it names the root and the load runs
 #[pgorm_macros::test]
 async fn loader_load_one_refuses_a_second_row() -> Result<(), Error> {
@@ -793,7 +793,7 @@ async fn loader_load_one_refuses_a_second_row() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:query.loader.table-ref-limitation+3/test]    a relation whose
+// [spec:pgorm:req:query.loader.table-ref-limitation+4/test]    a relation whose
 // target resolves to any other from item — an aliased table here — cannot have
 // its key column qualified, so the load returns an `Err` naming the column and
 // the offending from item

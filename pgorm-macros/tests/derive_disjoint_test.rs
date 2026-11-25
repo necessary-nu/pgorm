@@ -24,7 +24,7 @@ impl<D: Disjoint> KindVisitor<D> for Describe {
     type Output = Described;
 
     fn table<M: KindModel<D>>(self, kind: D::Kind) -> Described {
-        type Key<M> = <<M as ModelTrait>::Entity as EntityTrait>::PrimaryKey;
+        type Key<M> = <<M as Model>::Entity as Entity>::PrimaryKey;
         let key = Key::<M>::iter()
             .map(|key| {
                 let column = key.into_column();
@@ -141,8 +141,8 @@ fn kinds_reach_their_entities_in_order() {
 /// The kind's key is the base's key, as a type: a base key passes for a kind
 /// key with no conversion.
 fn kind_key<D: Disjoint, M: KindModel<D>>(
-    key: <<D::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType,
-) -> <<M::Entity as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType {
+    key: <<D::Base as Entity>::PrimaryKey as PrimaryKey>::ValueType,
+) -> <<M::Entity as Entity>::PrimaryKey as PrimaryKey>::ValueType {
     key
 }
 
@@ -188,9 +188,9 @@ impl<D: Disjoint> ActiveKindVisitor<D> for SetColumns {
     fn table<M: KindModel<D>>(
         self,
         kind: D::Kind,
-        active: <M::Entity as EntityTrait>::ActiveModel,
+        active: <M::Entity as Entity>::ActiveModel,
     ) -> Self::Output {
-        let set = <M::Entity as EntityTrait>::Column::iter()
+        let set = <M::Entity as Entity>::Column::iter()
             .filter(|column| !active.is_not_set(*column))
             .map(|column| column.as_str().to_owned())
             .collect();

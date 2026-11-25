@@ -1,8 +1,8 @@
 use crate::entity::{immutable_unset, scope_condition};
 use crate::{
-    ActiveEnum, ColumnDef, DisjointShape, DisjointValues, EntityName, EntityScopes, EntityTrait,
-    Error, FromQueryResult, IntoPrimaryKey, Iterable, ModelTrait, NoContext, PrimaryKeyTrait,
-    ScopeContext, ScopedIn, SelectDisjoint, WriteDisjoint,
+    ActiveEnum, ColumnDef, DisjointShape, DisjointValues, Entity, EntityName, EntityScopes, Error,
+    FromQueryResult, IntoPrimaryKey, Iterable, Model, NoContext, PrimaryKey, ScopeContext,
+    ScopedIn, SelectDisjoint, WriteDisjoint,
 };
 use pgorm_query::IntoValueTuple;
 use std::{fmt::Debug, hash::Hash};
@@ -34,7 +34,7 @@ use std::{fmt::Debug, hash::Hash};
 // [spec:pgorm:sem:disjoint.unkinded+1]
 pub trait Disjoint: Sized + Send {
     /// The entity each value has a row of.
-    type Base: EntityTrait;
+    type Base: Entity;
 
     /// `<Enum>Kind`, one value per variant, iterating in declaration order:
     /// for a kinded entity the kind type its kind column holds, a PostgreSQL
@@ -89,11 +89,11 @@ pub trait Disjoint: Sized + Send {
 
     /// [`find`](Self::find) narrowed to the base row of one key, composite
     /// keys included, their parts borrowed as
-    /// [`EntityTrait::find_by_id`] takes them.
+    /// [`Entity::find_by_id`] takes them.
     // [spec:pgorm:sem:disjoint.read+2]
     fn find_by_id<T>(key: T) -> SelectDisjoint<Self>
     where
-        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<<Self::Base as Entity>::PrimaryKey as PrimaryKey>::ValueType>,
         Self::Base: ScopedIn<NoContext>,
     {
         SelectDisjoint::of(Self::Base::find_by_id(key))
@@ -106,7 +106,7 @@ pub trait Disjoint: Sized + Send {
     fn find_by_id_for<Cx, T>(cx: &Cx, key: T) -> SelectDisjoint<Self>
     where
         Cx: ScopeContext,
-        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<<Self::Base as Entity>::PrimaryKey as PrimaryKey>::ValueType>,
         Self::Base: ScopedIn<Cx>,
     {
         SelectDisjoint::of(Self::Base::find_by_id_for(cx, key))
@@ -147,7 +147,7 @@ pub trait Disjoint: Sized + Send {
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     fn insert(
-        base: <Self::Base as EntityTrait>::ActiveModel,
+        base: <Self::Base as Entity>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
     ) -> Result<WriteDisjoint<Self>, Error>
     where
@@ -165,7 +165,7 @@ pub trait Disjoint: Sized + Send {
     // [spec:pgorm:sem:scope.insert]
     fn insert_for<Cx>(
         cx: &Cx,
-        base: <Self::Base as EntityTrait>::ActiveModel,
+        base: <Self::Base as Entity>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
     ) -> Result<WriteDisjoint<Self>, Error>
     where
@@ -179,7 +179,7 @@ pub trait Disjoint: Sized + Send {
     #[doc(hidden)]
     fn insert_under(
         cx: &dyn ScopeContext,
-        mut base: <Self::Base as EntityTrait>::ActiveModel,
+        mut base: <Self::Base as Entity>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
     ) -> Result<WriteDisjoint<Self>, Error>
     where
@@ -216,7 +216,7 @@ pub trait Disjoint: Sized + Send {
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
     fn update(
-        base: <Self::Base as EntityTrait>::ActiveModel,
+        base: <Self::Base as Entity>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
     ) -> Result<WriteDisjoint<Self>, Error>
     where
@@ -234,7 +234,7 @@ pub trait Disjoint: Sized + Send {
     // [spec:pgorm:sem:scope.write]
     fn update_for<Cx>(
         cx: &Cx,
-        base: <Self::Base as EntityTrait>::ActiveModel,
+        base: <Self::Base as Entity>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
     ) -> Result<WriteDisjoint<Self>, Error>
     where
@@ -248,7 +248,7 @@ pub trait Disjoint: Sized + Send {
     #[doc(hidden)]
     fn update_under(
         cx: &dyn ScopeContext,
-        base: <Self::Base as EntityTrait>::ActiveModel,
+        base: <Self::Base as Entity>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
     ) -> Result<WriteDisjoint<Self>, Error>
     where
@@ -289,7 +289,7 @@ pub trait Disjoint: Sized + Send {
     where
         Self: KindedDisjoint,
         Self::Base: ScopedIn<NoContext>,
-        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<<Self::Base as Entity>::PrimaryKey as PrimaryKey>::ValueType>,
     {
         Self::change_kind_under(&NoContext, key, kind)
     }
@@ -308,7 +308,7 @@ pub trait Disjoint: Sized + Send {
         Self: KindedDisjoint,
         Cx: ScopeContext,
         Self::Base: ScopedIn<Cx>,
-        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<<Self::Base as Entity>::PrimaryKey as PrimaryKey>::ValueType>,
     {
         Self::change_kind_under(cx, key, kind)
     }
@@ -321,7 +321,7 @@ pub trait Disjoint: Sized + Send {
     ) -> Result<WriteDisjoint<Self>, Error>
     where
         Self: KindedDisjoint,
-        T: IntoPrimaryKey<<<Self::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<<Self::Base as Entity>::PrimaryKey as PrimaryKey>::ValueType>,
     {
         let shape = DisjointShape::of::<Self>();
         shape.check()?;
@@ -346,7 +346,7 @@ pub trait Disjoint: Sized + Send {
 /// kind, and the kind type it holds.
 // [spec:pgorm:def:disjoint.declare+5]
 #[derive(Clone, Debug)]
-pub struct KindColumn<E: EntityTrait> {
+pub struct KindColumn<E: Entity> {
     /// The base's column, `NOT NULL` and of the kind type, which
     /// [`check_disjoint`] holds it to.
     pub column: E::Column,
@@ -412,7 +412,7 @@ impl<D: Disjoint> ActiveKindVisitor<D> for KindValues<'_> {
     fn table<M: KindModel<D>>(
         self,
         _: D::Kind,
-        mut active: <M::Entity as EntityTrait>::ActiveModel,
+        mut active: <M::Entity as Entity>::ActiveModel,
     ) -> Self::Output {
         match self.write {
             KindWrite::Insert => M::Entity::fill_scopes(self.cx, &mut active)?,
@@ -444,11 +444,11 @@ impl<D: Disjoint> ActiveKindVisitor<D> for KindValues<'_> {
     label = "a kind with a table holds its entity's `Model`"
 )]
 pub trait KindModel<D: Disjoint>:
-    ModelTrait<
-        Entity: EntityTrait<
+    Model<
+        Entity: Entity<
             Model = Self,
-            PrimaryKey: PrimaryKeyTrait<
-                ValueType = <<D::Base as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType,
+            PrimaryKey: PrimaryKey<
+                ValueType = <<D::Base as Entity>::PrimaryKey as PrimaryKey>::ValueType,
             >,
         >,
     > + FromQueryResult
@@ -502,7 +502,7 @@ pub trait ActiveKindVisitor<D: Disjoint> {
     fn table<M: KindModel<D>>(
         self,
         kind: D::Kind,
-        active: <M::Entity as EntityTrait>::ActiveModel,
+        active: <M::Entity as Entity>::ActiveModel,
     ) -> Self::Output;
 
     /// A kind with no table of its own.

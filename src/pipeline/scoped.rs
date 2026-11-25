@@ -12,11 +12,11 @@ use super::binder::Binder;
 use super::builder::{Pipeline, Source, table_source};
 use super::expr::{Expr, ExprOps, entity_column};
 use crate::entity::{default_alias, held_by};
-use crate::{ColumnTrait, EntityTrait, Held, Scope, ScopeContext, ScopeError, ScopeOn, ScopedIn};
+use crate::{Column, Entity, Held, Scope, ScopeContext, ScopeError, ScopeOn, ScopedIn};
 
 /// The table `entity` names as a source, held to no scope.
-// [spec:pgorm:sem:pipeline.qualify+4]
-pub(super) fn entity_source<E: EntityTrait>(entity: &E) -> Source {
+// [spec:pgorm:sem:pipeline.qualify+5]
+pub(super) fn entity_source<E: Entity>(entity: &E) -> Source {
     let mut source = table_source(match entity.schema_name() {
         Some(schema) => adapter::ident_in(vec![schema.to_owned()], entity.table_name().to_owned()),
         None => adapter::ident(entity.table_name()),
@@ -48,7 +48,7 @@ impl Pipeline {
     /// assert_eq!(values.0.len(), 2);
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
-    // [spec:pgorm:req:pipeline.surface+4]
+    // [spec:pgorm:req:pipeline.surface+5]
     // [spec:pgorm:sem:scope.read]
     pub fn from_for<Cx, E>(cx: &Cx, entity: E) -> Self
     where
@@ -95,7 +95,7 @@ impl<E> fmt::Debug for ScopeFilters<'_, '_, E> {
 }
 
 // [spec:pgorm:sem:scope.read]
-impl<'a, 'brand, E: EntityTrait> ScopeFilters<'a, 'brand, E> {
+impl<'a, 'brand, E: Entity> ScopeFilters<'a, 'brand, E> {
     /// No filter yet, over `E` read under `qualifier`.
     pub fn new(
         cx: &'a dyn ScopeContext,
@@ -116,7 +116,7 @@ impl<'a, 'brand, E: EntityTrait> ScopeFilters<'a, 'brand, E> {
     pub fn column<S, C>(mut self, scope: &'static str, column: C) -> Result<Self, ScopeError>
     where
         S: Scope + Into<Value>,
-        C: ColumnTrait,
+        C: Column,
     {
         if let Held::One(value) = held_by::<S, E>(self.cx, scope)? {
             let bound = self.binder.bind(value.clone().into());

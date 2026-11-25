@@ -13,7 +13,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ConstraintChange, Expr, Name, NotNullConstraint, Table, TableKey,
 };
-use pgorm::{ConnectionTrait, entity::prelude::*};
+use pgorm::{Connection, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 

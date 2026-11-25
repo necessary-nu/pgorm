@@ -17,7 +17,7 @@ pub mod pgorm_range_types;
 pub mod stock_line;
 
 use pgorm::pgorm_query::Name;
-use pgorm::{EntityTrait, Opt, RelationDef, Req, SelectGraph};
+use pgorm::{Entity, Opt, RelationDef, Req, SelectGraph};
 
 impl pgorm::Related<account::Entity> for note::Entity {
     fn to() -> RelationDef {

@@ -36,14 +36,14 @@ fn built_filter_matches_text_compilation() {
     assert_eq!(built, text);
 }
 
-// [spec:pgorm:sem:pipeline.qualify+4/test]
+// [spec:pgorm:sem:pipeline.qualify+5/test]
 #[test]
 fn schema_qualified_from_renders_both_parts() {
     let built = sql_of(Pipeline::from_schema(alias("archive"), INVOICE));
     assert_eq!(built, "SELECT * FROM archive.invoice");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+4/test]
+// [spec:pgorm:sem:pipeline.qualify+5/test]
 #[test]
 fn quoted_identifiers_survive_rendering() {
     let table = alias("User Order");
@@ -51,21 +51,21 @@ fn quoted_identifiers_survive_rendering() {
     assert_eq!(built, r#"SELECT "Total Price" FROM "User Order""#);
 }
 
-// [spec:pgorm:sem:pipeline.qualify+4/test]
+// [spec:pgorm:sem:pipeline.qualify+5/test]
 #[test]
 fn entity_source_uses_table_metadata() {
     let built = sql_of(Pipeline::from(cake::Entity));
     assert_eq!(built, "SELECT * FROM cake");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+4/test]
+// [spec:pgorm:sem:pipeline.qualify+5/test]
 #[test]
 fn entity_source_honours_schema_name() {
     let built = sql_of(Pipeline::from(cake_filling_price::Entity));
     assert_eq!(built, "SELECT * FROM public.cake_filling_price");
 }
 
-// [spec:pgorm:sem:pipeline.qualify+4/test]    a column carries its own table
+// [spec:pgorm:sem:pipeline.qualify+5/test]    a column carries its own table
 #[test]
 fn entity_columns_are_qualified_by_construction() {
     let built = sql_of(
@@ -84,14 +84,14 @@ fn entity_columns_are_qualified_by_construction() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn cast_renders_as_postgres_cast() {
     let built = sql_of(Pipeline::from(INVOICE).derive(total().cast(CastType::Integer).as_("t")));
     assert_eq!(built, "SELECT *, CAST(total AS integer) AS t FROM invoice");
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn in_array_of_bound_params_renders_in_list() {
     let built = sql_of(
@@ -101,21 +101,21 @@ fn in_array_of_bound_params_renders_in_list() {
     assert_eq!(built, "SELECT * FROM invoice WHERE total IN ($1, $2)");
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn in_array_of_literals_inlines_them() {
     let built = sql_of(Pipeline::from(INVOICE).filter(total().in_array([1, 2, 3])));
     assert_eq!(built, "SELECT * FROM invoice WHERE total IN (1, 2, 3)");
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn take_range_renders_limit_offset() {
     let built = sql_of(Pipeline::from(INVOICE).take_range(21..=30));
     assert_eq!(built, "SELECT * FROM invoice LIMIT 10 OFFSET 20");
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn case_renders_case_when() {
     let built = sql_of(
@@ -188,7 +188,7 @@ fn hostile_literals_stay_one_statement() {
     }
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn null_handling_renders_is_null_forms() {
     let built = sql_of(Pipeline::from(INVOICE).filter(total().is_null().or(total().is_not_null())));
@@ -198,7 +198,7 @@ fn null_handling_renders_is_null_forms() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn coalesce_and_arithmetic_render_inline() {
     let built = sql_of(Pipeline::from(INVOICE).derive([
@@ -214,7 +214,7 @@ fn coalesce_and_arithmetic_render_inline() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn aggregate_functions_render_expected_sql() {
     let built = sql_of(
@@ -375,7 +375,7 @@ fn counting_distinct_values_needs_no_rewrite() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn filter_after_aggregate_lands_in_having() {
     let spent = alias("total_spent");
@@ -397,7 +397,7 @@ fn filter_after_aggregate_lands_in_having() {
     assert!(parsed.having_clause.is_some());
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn filter_after_window_nests_through_cte() {
     let rn = alias("rn");
@@ -419,7 +419,7 @@ fn filter_after_window_nests_through_cte() {
     assert!(parsed.where_clause.is_some());
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn window_frame_renders_rows_between() {
     let built = sql_of(Pipeline::from(INVOICE).window(
@@ -432,7 +432,7 @@ fn window_frame_renders_rows_between() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn window_over_the_whole_relation_needs_no_keys() {
     let built = sql_of(Pipeline::from(INVOICE).window(sum(total()).as_(alias("grand")), over()));
@@ -657,7 +657,7 @@ fn a_filter_after_a_written_window_nests_it() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn lag_lead_first_last_render_window_calls() {
     let built = sql_of(Pipeline::from(INVOICE).window(
@@ -684,7 +684,7 @@ fn lag_lead_first_last_render_window_calls() {
     );
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn join_takes_an_explicit_condition() {
     let built = sql_of(Pipeline::from(INVOICE).join(
@@ -731,7 +731,7 @@ fn literals_inline_and_bound_values_do_not() {
     assert_eq!(values.0.len(), 1);
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]    one, a list, or a mix
+// [spec:pgorm:req:pipeline.surface+5/test]    one, a list, or a mix
 #[test]
 fn expression_lists_take_every_shape() {
     let one = sql_of(Pipeline::from(cake::Entity).select(cake::Column::Id));
@@ -752,7 +752,7 @@ fn expression_lists_take_every_shape() {
     assert_eq!(mixed, "SELECT name, id + 1 AS n, id * 2 FROM cake");
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]
+// [spec:pgorm:req:pipeline.surface+5/test]
 #[test]
 fn scopes_compose_as_pipeline_functions() {
     fn expensive(pipeline: Pipeline) -> Pipeline {
@@ -983,7 +983,7 @@ fn parsed_select(sql: &str) -> pgsql_syntax::protobuf::SelectStmt {
     }
 }
 
-// [spec:pgorm:sem:pipeline.qualify+4/test]
+// [spec:pgorm:sem:pipeline.qualify+5/test]
 #[test]
 fn reserved_word_table_is_quoted() {
     let order = alias("order");
@@ -1871,7 +1871,7 @@ mod read_casts {
 // and both spell the cast exactly as the SelectStatement writer does
 #[test]
 fn select_sources_writes_read_casts_by_type_policy() {
-    use crate::{EntityTrait, QueryTrait};
+    use crate::{Entity, Statement};
 
     let built =
         sources_sql_of(Pipeline::from(read_casts::Entity).select_sources(read_casts::Entity));
@@ -3150,7 +3150,7 @@ mod cheerful {
     entity!(temper, "temper", rank, label);
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18/test]    a pipeline
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    a pipeline
 // comparison casts each side that is an entity column whose domain is over an
 // enum to the enum — against a literal, a bound value, a list or another such
 // column — and so do coalesce, min and max, while sorting, grouping, count and
@@ -3217,12 +3217,12 @@ fn domain_enum_columns_compare_as_the_enum() {
     );
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18/test]    a named relation's
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    a named relation's
 // column compares as its entity's column through Named::col, and a col
 // reference or an alias token as the enum compares_as names, schema-qualified
 // and quoted by the type-name policy, while projecting and grouping keep each
 // bare and a col reference left unnamed compares as it is
-// [spec:pgorm:req:pipeline.surface+4/test]    compares_as casts the column and
+// [spec:pgorm:req:pipeline.surface+5/test]    compares_as casts the column and
 // each literal or bound value compared with it to the type it names, `money`
 // included, a bound value's placeholder pinned to its own type
 #[test]
@@ -3305,7 +3305,7 @@ fn untyped_columns_compare_as_the_named_type() {
     );
 }
 
-// [spec:pgorm:def:sql.value.created-range+10/test]    a bound built-in range
+// [spec:pgorm:def:sql.value.created-range+11/test]    a bound built-in range
 // or multirange compared under a column's cast goes through its text: pinned
 // to its own type, then cast to text and to the column's, by a comparison on
 // either side and by in_array, while one compared bare stays a placeholder
@@ -3364,9 +3364,9 @@ mod till {
     pub enum Relation {}
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18/test]    a literal or a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    a literal or a
 // bound value compared with an entity column, by a comparison, coalesce or
-// in_array, either side, is cast as the column's ColumnTrait casts a compared
+// in_array, either side, is cast as the column's Column casts a compared
 // value — money, an array of money, an enum, a save_as type — its placeholder
 // pinned to its own type, while arithmetic, a column on the other side, null
 // and a column whose values travel bare are left as written
@@ -3424,7 +3424,7 @@ fn model_sql_of<M: crate::FromQueryResult>(pipeline: Pipeline) -> String {
     sql
 }
 
-// [spec:pgorm:sem:pipeline.terminal+1/test]    a model reading an enum column
+// [spec:pgorm:sem:pipeline.terminal+2/test]    a model reading an enum column
 // ends the pipeline in its projection, the enum cast to text under its own name
 #[test]
 fn model_terminal_casts_what_the_model_reads() {
@@ -3441,7 +3441,7 @@ fn model_terminal_casts_what_the_model_reads() {
     );
 }
 
-// [spec:pgorm:sem:pipeline.terminal+1/test]    a model reading no column
+// [spec:pgorm:sem:pipeline.terminal+2/test]    a model reading no column
 // through a cast decodes the relation as the pipeline wrote it
 #[test]
 fn model_terminal_leaves_an_uncast_model_alone() {
@@ -3452,7 +3452,7 @@ fn model_terminal_leaves_an_uncast_model_alone() {
     );
 }
 
-// [spec:pgorm:sem:pipeline.terminal+1/test]    the projection reads through
+// [spec:pgorm:sem:pipeline.terminal+2/test]    the projection reads through
 // `this`, so a column named like one of PRQL's own resolves to the column, and
 // its alias ends the pipeline, so the reserved-alias screen does not apply to it
 #[test]
@@ -3482,7 +3482,7 @@ mod ledger {
     pub enum Relation {}
 }
 
-// [spec:pgorm:sem:pipeline.terminal+1/test]    the projection lists the
+// [spec:pgorm:sem:pipeline.terminal+2/test]    the projection lists the
 // model's columns bare, so a join of two relations sharing a name is refused
 // as ambiguous rather than decoding one relation's column as the other's
 #[test]

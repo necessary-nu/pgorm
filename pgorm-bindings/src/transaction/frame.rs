@@ -4,7 +4,7 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
 use futures_util::future::BoxFuture;
-use pgorm::{TransactionError, TransactionMode, TransactionTrait};
+use pgorm::{Transact, TransactionError, TransactionMode};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 

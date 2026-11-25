@@ -9,7 +9,7 @@
 use std::collections::HashSet;
 
 use pgorm::pgorm_query::{ArrayType, ColumnType, Name, SqlName, Value};
-use pgorm::{ColumnTrait, EntityTrait, Iterable, ModelTrait, StaticName};
+use pgorm::{Column, Entity, Iterable, Model, StaticName};
 use pgorm_driver::Row;
 use serde_json::{Value as Json, json};
 
@@ -111,12 +111,12 @@ pub fn record(row: &Row, entity: Option<&str>) -> Result<Json, FormatError> {
 /// value disagree, or when a payload is not a valid portable value.
 pub fn model<E>(value: &E::Model, entity: &str) -> Result<Json, FormatError>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     let mut fields = Vec::new();
     for column in E::Column::iter() {
-        let definition = ColumnTrait::def(&column);
-        let tagged = declared(definition.get_column_type(), ModelTrait::get(value, column))?;
+        let definition = Column::def(&column);
+        let tagged = declared(definition.get_column_type(), Model::get(value, column))?;
         fields.push(json!({
             "name": StaticName::as_str(&column),
             "value": tagged.encode_checked()?,
@@ -137,7 +137,7 @@ where
 /// Returns [`FormatError`] for the same reasons [`model`] does.
 pub fn maybe<E>(value: Option<&E::Model>, entity: &str) -> Result<Json, FormatError>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     match value {
         Some(value) => model::<E>(value, entity),

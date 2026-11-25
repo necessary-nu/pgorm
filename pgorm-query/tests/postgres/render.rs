@@ -260,7 +260,7 @@ fn a_display_only_ddl_statement_inlines_its_values() {
     );
 }
 
-// [spec:pgorm:sem:query.build.union/test]    each of PostgreSQL's three set operators renders in
+// [spec:pgorm:sem:query.build.union+1/test]    each of PostgreSQL's three set operators renders in
 // both its duplicate-eliminating and its duplicate-keeping spelling
 #[test]
 fn every_set_operation_renders_in_both_spellings() {

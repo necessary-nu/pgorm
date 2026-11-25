@@ -2,11 +2,11 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, type MigrationTrait, migrations } from "@necessary/pgorm";
+import { ConstructionError, type Migration, migrations } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const createDelivery = (revision: string): MigrationTrait => ({
+  const createDelivery = (revision: string): Migration => ({
     name: "m20260201_000001_create_delivery",
     checksum: revision,
     async up(tx) {

@@ -22,4 +22,4 @@ pub use select::*;
 pub use traits::*;
 pub use update::*;
 
-pub use crate::{ConnectionTrait, CursorTrait, TransactionTrait, Value};
+pub use crate::{Connection, CursorSource, Transact, Value};

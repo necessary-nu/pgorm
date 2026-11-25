@@ -43,13 +43,13 @@ impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         Self {
             serial: set(Uuid::new_v4()),
-            ..ActiveModelTrait::default()
+            ..pgorm::ActiveModel::default()
         }
     }
 
     async fn before_save<C>(self, _db: &C, insert: bool) -> Result<Self, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         if self.price.as_ref() == &rust_dec(0) {
             Err(Error::Custom(format!(
@@ -62,7 +62,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn after_save<C>(model: Model, _db: &C, insert: bool) -> Result<Model, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         if model.price < rust_dec(0) {
             Err(Error::Custom(format!(
@@ -75,7 +75,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn before_delete<C>(self, _db: &C) -> Result<Self, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         if self.name.as_ref().contains("(err_on_before_delete)") {
             Err(Error::Custom(
@@ -88,7 +88,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn after_delete<C>(self, _db: &C) -> Result<Self, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         if self.name.as_ref().contains("(err_on_after_delete)") {
             Err(Error::Custom("[after_delete] Cannot be deleted".to_owned()))

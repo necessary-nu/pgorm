@@ -10,8 +10,8 @@
 //! a graph cursor's alias tiebreak — which render only on execution.
 
 use pgorm::{
-    DeleteMany, EntityName, EntityTrait, JoinType, QueryFilter, QuerySelect, QueryTrait,
-    RelationTrait, Schema, Select,
+    DeleteMany, Entity, EntityName, JoinType, QueryFilter, QuerySelect, Relation, Schema, Select,
+    Statement,
     pgorm_query::{
         Expr, ForeignKeyCreateStatement, Func, IntoNamedTable, Name, Query, WindowStatement,
     },
@@ -20,7 +20,7 @@ use pgorm::{
     },
     tests_cfg::{cake, fruit},
 };
-use pgorm_query::ExprTrait;
+use pgorm_query::Expression;
 
 use super::{
     fixtures::{cast_named, dyn_named, range_named},
@@ -44,7 +44,7 @@ fn pipeline(compiled: Result<(String, pgorm::Values), PipelineError>) -> Rendere
 }
 
 /// A pgorm query's `build()` text.
-fn built<Q: QueryTrait>(query: &Q) -> Rendered {
+fn built<Q: Statement>(query: &Q) -> Rendered {
     Rendered::sql(query.build().0)
 }
 
@@ -283,7 +283,7 @@ fn pipeline_sites() -> Vec<Site> {
         // handed to prqlc: it is held to that policy, not the pipeline's.
         Site {
             id: "pgorm/pipeline.select-sources.read-cast",
-            api: "Pipeline::select_sources over a ColumnTrait::select_as cast to a runtime type",
+            api: "Pipeline::select_sources over a Column::select_as cast to a runtime type",
             kinds: &["TypeCast.type_name.names[0]"],
             policy: TypePart,
             render: |n| {
@@ -548,7 +548,7 @@ fn entity_sites() -> Vec<Site> {
         },
         Site {
             id: "pgorm/entity.schema-name.table-ref",
-            api: "EntityTrait::table_ref() with a runtime EntityName::schema_name",
+            api: "Entity::table_ref() with a runtime EntityName::schema_name",
             kinds: &["RangeVar.schemaname"],
             policy: Quoted,
             render: |n| {
@@ -660,12 +660,12 @@ fn entity_sites() -> Vec<Site> {
         },
         Site {
             id: "pgorm/column.save-as.created-range",
-            api: "ColumnTrait::eq on a ColumnType::CreatedRange { name: Name, .. } column",
+            api: "Column::eq on a ColumnType::CreatedRange { name: Name, .. } column",
             kinds: &["TypeCast.type_name.names[0]"],
             policy: TypePart,
             render: |n| {
                 range_named::with_type(false, None, n, || {
-                    built(&range_named::Entity::find().filter(pgorm::ColumnTrait::eq(
+                    built(&range_named::Entity::find().filter(pgorm::Column::eq(
                         &range_named::Column::Id,
                         pgorm::pgorm_query::Range::from(1..5),
                     )))
@@ -674,12 +674,12 @@ fn entity_sites() -> Vec<Site> {
         },
         Site {
             id: "pgorm/column.save-as.created-range-schema",
-            api: "ColumnTrait::eq on a ColumnType::CreatedRange { schema: Some(Name), .. } column",
+            api: "Column::eq on a ColumnType::CreatedRange { schema: Some(Name), .. } column",
             kinds: &["TypeCast.type_name.names[0]"],
             policy: TypePart,
             render: |n| {
                 range_named::with_type(false, Some(n), "ty", || {
-                    built(&range_named::Entity::find().filter(pgorm::ColumnTrait::eq(
+                    built(&range_named::Entity::find().filter(pgorm::Column::eq(
                         &range_named::Column::Id,
                         pgorm::pgorm_query::Range::from(1..5),
                     )))
@@ -688,12 +688,12 @@ fn entity_sites() -> Vec<Site> {
         },
         Site {
             id: "pgorm/column.save-as.created-multirange",
-            api: "ColumnTrait::eq on a ColumnType::CreatedMultirange { name: Name, .. } column",
+            api: "Column::eq on a ColumnType::CreatedMultirange { name: Name, .. } column",
             kinds: &["TypeCast.type_name.names[0]"],
             policy: TypePart,
             render: |n| {
                 range_named::with_type(true, None, n, || {
-                    built(&range_named::Entity::find().filter(pgorm::ColumnTrait::eq(
+                    built(&range_named::Entity::find().filter(pgorm::Column::eq(
                         &range_named::Column::Id,
                         pgorm::pgorm_query::Multirange::from(vec![
                             pgorm::pgorm_query::Range::from(1..5),
@@ -704,12 +704,12 @@ fn entity_sites() -> Vec<Site> {
         },
         Site {
             id: "pgorm/column.save-as.created-multirange-schema",
-            api: "ColumnTrait::eq on a ColumnType::CreatedMultirange { schema: Some(Name), .. } column",
+            api: "Column::eq on a ColumnType::CreatedMultirange { schema: Some(Name), .. } column",
             kinds: &["TypeCast.type_name.names[0]"],
             policy: TypePart,
             render: |n| {
                 range_named::with_type(true, Some(n), "ty", || {
-                    built(&range_named::Entity::find().filter(pgorm::ColumnTrait::eq(
+                    built(&range_named::Entity::find().filter(pgorm::Column::eq(
                         &range_named::Column::Id,
                         pgorm::pgorm_query::Multirange::from(vec![
                             pgorm::pgorm_query::Range::from(1..5),
@@ -720,7 +720,7 @@ fn entity_sites() -> Vec<Site> {
         },
         Site {
             id: "pgorm/entity.named-table.alias",
-            api: "EntityTrait::table_ref().alias(Name) through Query::select",
+            api: "Entity::table_ref().alias(Name) through Query::select",
             kinds: &["RangeVar.alias.aliasname"],
             policy: Quoted,
             render: |n| {

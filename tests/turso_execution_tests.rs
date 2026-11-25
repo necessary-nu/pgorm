@@ -1,7 +1,7 @@
 #![cfg(feature = "turso")]
 
 use futures::TryStreamExt;
-use pgorm::{ConnectionTrait, DecodeRaw, Error, HookConnection, entity::prelude::*, set};
+use pgorm::{Connection, DecodeRaw, Error, HookConnection, entity::prelude::*, set};
 use pgorm_driver::{TursoDatabase, types::Type};
 use pgorm_pool::ClientWrapper;
 use pgorm_query::{ArrayType, Value, Values};
@@ -339,7 +339,7 @@ async fn raw_parameters_require_explicit_typed_preparation() -> Result<(), Error
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+6/test]
 // [spec:pgorm:sem:turso.execution/test]
 #[tokio::test]
 async fn native_invalidation_evicts_without_replaying() -> Result<(), Error> {
@@ -388,7 +388,7 @@ async fn native_invalidation_evicts_without_replaying() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.pool.statement-cache.invalidate+5/test]
+// [spec:pgorm:req:conn.pool.statement-cache.invalidate+6/test]
 #[tokio::test]
 async fn cache_discards_a_flagged_native_statement() -> Result<(), Error> {
     let client = native().await?;

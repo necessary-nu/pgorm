@@ -1,14 +1,14 @@
 /// This modules contains types and traits for an  Entity, ActiveMode, Model, PrimaryKey, ForeignKey and Relations.
 ///
 /// // An Entity
-/// A unit struct implements [EntityTrait](crate::EntityTrait) representing a table in the database.
+/// A unit struct implements [Entity](crate::Entity) representing a table in the database.
 ///
 /// This trait contains the properties of an entity including
 ///
 /// - The Table Name which is implemented by [EntityName](crate::EntityName)
-/// - The Column which is implemented by [ColumnTrait](crate::ColumnTrait)
-/// - A Relation which is implemented by [RelationTrait](crate::RelationTrait)
-/// - The Primary Key which is implemented by [PrimaryKeyTrait](crate::PrimaryKeyTrait)
+/// - The Column which is implemented by [Column](crate::Column)
+/// - A Relation which is implemented by [Relation](crate::Relation)
+/// - The Primary Key which is implemented by [PrimaryKey](crate::PrimaryKey)
 ///   and [PrimaryKeyToColumn](crate::PrimaryKeyToColumn)
 ///
 /// This trait also provides an API for CRUD actions
@@ -85,7 +85,7 @@ pub use table_shape::*;
 /// cannot resolve; an explicit import shadows a glob's in the macro namespace
 /// alone, so these name the traits while pgorm-macros' derives, expanding to
 /// `pgorm::pgorm_query::..`, are the derives.
-// [spec:pgorm:req:macros.derive.names+3]
+// [spec:pgorm:req:macros.derive.names+4]
 // [spec:pgorm:sem:macros.derive.iden+3]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{SqlName, StaticName};

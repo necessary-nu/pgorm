@@ -17,7 +17,7 @@ fn select_1() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.expr+8/test]
+// [spec:pgorm:def:sql.ast.expr+9/test]
 #[test]
 fn select_2() {
     assert_eq!(
@@ -302,7 +302,7 @@ fn select_21() {
     );
 }
 
-// [spec:pgorm:def:sql.ast.condition+2/test]
+// [spec:pgorm:def:sql.ast.condition+3/test]
 #[test]
 fn select_22() {
     assert_eq!(
@@ -1077,7 +1077,7 @@ fn select_60() {
     assert_eq!(values, Values(vec![3i32.into(), 5u64.into()]));
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+7/test]
+// [spec:pgorm:req:sql.ast.expr.operators+8/test]
 #[test]
 fn select_61() {
     assert_eq!(
@@ -2165,7 +2165,7 @@ fn select_array_overlap_bin_oper() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+7/test]
+// [spec:pgorm:req:sql.ast.expr.operators+8/test]
 #[test]
 fn get_json_field_bin_oper() {
     assert_eq!(
@@ -2196,7 +2196,7 @@ fn cast_json_field_bin_oper() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+4/test]    a path of any depth is one `text[]`
+// [spec:pgorm:req:sql.ast.expr.json+5/test]    a path of any depth is one `text[]`
 // parameter, so the statement text does not vary with it
 #[test]
 fn json_path_operators_take_one_text_array() {
@@ -2224,7 +2224,7 @@ fn json_path_operators_take_one_text_array() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+4/test]    the existence family's three lexemes,
+// [spec:pgorm:req:sql.ast.expr.json+5/test]    the existence family's three lexemes,
 // and the single-key form's text operand
 #[test]
 fn json_key_existence_operators_render() {
@@ -2287,7 +2287,7 @@ fn json_existence_drops_parens_under_and() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+4/test]    an empty key list is not special-cased:
+// [spec:pgorm:req:sql.ast.expr.json+5/test]    an empty key list is not special-cased:
 // it is a typed empty array, and the statement text is the same at every cardinality
 #[test]
 fn empty_json_key_list_is_typed_array() {
@@ -2316,7 +2316,7 @@ fn empty_json_key_list_is_typed_array() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+7/test]    `@>`, `<@` and `||` are one
+// [spec:pgorm:req:sql.ast.expr.operators+8/test]    `@>`, `<@` and `||` are one
 // operator each across every type that has them, so the JSON family names no
 // duplicate: these are already the JSON containment and merge tests
 #[test]
@@ -2468,7 +2468,7 @@ fn test_pgvector_select() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.cast-shape+2/test]    every cast spelling — `cast_as`, `cast_as_raw`,
+// [spec:pgorm:req:sql.ast.cast-shape+3/test]    every cast spelling — `cast_as`, `cast_as_raw`,
 // `as_enum`, `cast_as_type` and `as_range` on `Expr`, `cast_as` and `cast_as_type` on
 // `SimpleExpr`, the quoted name and the verbatim type expression alike — is one `AsEnum`
 // node differing only in its `TypeName`, and `as_range` writing a range value as its
@@ -3220,7 +3220,7 @@ fn empty_in_2() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    `eq_any` spends one
+// [spec:pgorm:req:sql.ast.expr.eq-any+3/test]    `eq_any` spends one
 // placeholder whatever the list length, so the SQL text a statement cache keys
 // on no longer varies with cardinality the way `IN` makes it
 #[test]
@@ -3268,7 +3268,7 @@ fn eq_any_binds_one_array_parameter() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    the negation is spelled
+// [spec:pgorm:req:sql.ast.expr.eq-any+3/test]    the negation is spelled
 // `<> ALL`, the shape PostgreSQL's own parser gives `NOT IN`, rather than a
 // `NOT` wrapped around `= ANY`
 #[test]
@@ -3292,7 +3292,7 @@ fn ne_all_negates_with_one_parameter() {
     );
 }
 
-// [spec:pgorm:req:sql.ast.expr.eq-any+2/test]    an empty list needs no
+// [spec:pgorm:req:sql.ast.expr.eq-any+3/test]    an empty list needs no
 // constant fall-back: an empty array carries the vacuous truth of the predicate
 // natively, where an empty `IN` has to be rewritten
 #[test]

@@ -1,4 +1,4 @@
-//! `COPY … FROM STDIN` and `COPY … TO STDOUT` through `pgorm::CopyTrait`.
+//! `COPY … FROM STDIN` and `COPY … TO STDOUT` through `pgorm::CopyConnection`.
 //!
 //! Python chooses a statement's format with a string, so each option is
 //! checked against the format, and against the direction, before it reaches
@@ -148,8 +148,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 // [spec:pgorm:req:python.capabilities+2]
-// [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy+1]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(crate) fn capabilities() -> Map<String, Value> {
     let builders = [
         (
@@ -229,51 +229,51 @@ pub(crate) fn capabilities() -> Map<String, Value> {
     let execution = [
         (
             "connection.copy_in",
-            "pgorm::CopyTrait::copy_in for DatabaseConnection, CopyInSink::finish",
+            "pgorm::CopyConnection::copy_in for DatabaseConnection, CopyInSink::finish",
         ),
         (
             "connection.copy_out",
-            "pgorm::CopyTrait::copy_out for DatabaseConnection, CopyOutStream",
+            "pgorm::CopyConnection::copy_out for DatabaseConnection, CopyOutStream",
         ),
         (
             "transaction.copy_in",
-            "pgorm::CopyTrait::copy_in for DatabaseTransaction, CopyInSink::finish",
+            "pgorm::CopyConnection::copy_in for DatabaseTransaction, CopyInSink::finish",
         ),
         (
             "transaction.copy_out",
-            "pgorm::CopyTrait::copy_out for DatabaseTransaction, CopyOutStream",
+            "pgorm::CopyConnection::copy_out for DatabaseTransaction, CopyOutStream",
         ),
         (
             "connection.copy_in_rows",
-            "pgorm::CopyTrait::{copy_in_columns, copy_in} for DatabaseConnection, CopyRowEncoder",
+            "pgorm::CopyConnection::{copy_in_columns, copy_in} for DatabaseConnection, CopyRowEncoder",
         ),
         (
             "connection.copy_out_rows",
-            "pgorm::CopyTrait::{copy_out_columns, copy_out} for DatabaseConnection, CopyRowDecoder",
+            "pgorm::CopyConnection::{copy_out_columns, copy_out} for DatabaseConnection, CopyRowDecoder",
         ),
         (
             "transaction.copy_in_rows",
-            "pgorm::CopyTrait::{copy_in_columns, copy_in} for DatabaseTransaction, CopyRowEncoder",
+            "pgorm::CopyConnection::{copy_in_columns, copy_in} for DatabaseTransaction, CopyRowEncoder",
         ),
         (
             "transaction.copy_out_rows",
-            "pgorm::CopyTrait::{copy_out_columns, copy_out} for DatabaseTransaction, CopyRowDecoder",
+            "pgorm::CopyConnection::{copy_out_columns, copy_out} for DatabaseTransaction, CopyRowDecoder",
         ),
         (
             "connection.copy_in_columns",
-            "pgorm::CopyTrait::copy_in_columns for DatabaseConnection, CopyColumn",
+            "pgorm::CopyConnection::copy_in_columns for DatabaseConnection, CopyColumn",
         ),
         (
             "connection.copy_out_columns",
-            "pgorm::CopyTrait::copy_out_columns for DatabaseConnection, CopyColumn",
+            "pgorm::CopyConnection::copy_out_columns for DatabaseConnection, CopyColumn",
         ),
         (
             "transaction.copy_in_columns",
-            "pgorm::CopyTrait::copy_in_columns for DatabaseTransaction, CopyColumn",
+            "pgorm::CopyConnection::copy_in_columns for DatabaseTransaction, CopyColumn",
         ),
         (
             "transaction.copy_out_columns",
-            "pgorm::CopyTrait::copy_out_columns for DatabaseTransaction, CopyColumn",
+            "pgorm::CopyConnection::copy_out_columns for DatabaseTransaction, CopyColumn",
         ),
         (
             "copy_row_sink",

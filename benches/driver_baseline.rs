@@ -1,5 +1,5 @@
 use futures::TryStreamExt;
-use pgorm::{ConnectionTrait, DatabasePool, TransactionTrait, entity::prelude::*};
+use pgorm::{Connection, DatabasePool, Transact, entity::prelude::*};
 use pgorm_driver::{Client, NoTls, types::ToSql};
 use serde_json::{Value, json};
 use std::{

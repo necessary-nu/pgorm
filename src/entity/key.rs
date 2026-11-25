@@ -1,5 +1,5 @@
 use crate::entity::compared_enum;
-use crate::{ColumnTrait, EntityTrait};
+use crate::{Column, Entity};
 use pgorm_query::{IntoName, Name, TypeName};
 
 pub use pgorm_query::{IntoBoundary, IntoKey, Key};
@@ -19,8 +19,8 @@ pub use pgorm_query::{IntoBoundary, IntoKey, Key};
 /// A pair named by entity columns, as [`RelationBuilder`](crate::RelationBuilder)
 /// names them, also records the enum each side compares as when its column's
 /// domain is over one, which a pair named by bare names cannot know.
-// [spec:pgorm:def:entity.relation.def+12]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+// [spec:pgorm:def:entity.relation.def+13]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 #[derive(Debug, Clone)]
 pub struct ColumnPairs {
     first: (Name, Name),
@@ -31,7 +31,7 @@ pub struct ColumnPairs {
 
 /// The enums one pair's `from` and `to` sides compare as, each `None` unless
 /// that side's column is typed with a domain over an enum.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ComparedPair {
     pub(crate) from: Option<TypeName>,
@@ -39,7 +39,7 @@ pub(crate) struct ComparedPair {
 }
 
 impl ComparedPair {
-    fn of<F: ColumnTrait, T: ColumnTrait>(from: &F, to: &T) -> Self {
+    fn of<F: Column, T: Column>(from: &F, to: &T) -> Self {
         Self {
             from: compared_enum(from.def().get_column_type()),
             to: compared_enum(to.def().get_column_type()),
@@ -64,11 +64,11 @@ impl ColumnPairs {
 
     /// [`ColumnPairs::new`] over entity columns, recording the enum each side
     /// compares as.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     pub(crate) fn of_columns<F, T>(from: F, to: T) -> Self
     where
-        F: ColumnTrait,
-        T: ColumnTrait,
+        F: Column,
+        T: Column,
     {
         let compared = ComparedPair::of(&from, &to);
         let mut pairs = Self::new(from, to);
@@ -78,11 +78,11 @@ impl ColumnPairs {
 
     /// [`ColumnPairs::push`] over entity columns, recording the enum each
     /// side compares as.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     pub(crate) fn push_columns<F, T>(&mut self, from: F, to: T)
     where
-        F: ColumnTrait,
-        T: ColumnTrait,
+        F: Column,
+        T: Column,
     {
         let compared = ComparedPair::of(&from, &to);
         self.rest.push((from.into_name(), to.into_name()));
@@ -91,7 +91,7 @@ impl ColumnPairs {
 
     /// [`ColumnPairs::new`] with the enums each side compares as stated, for
     /// columns a disjoint shape describes at run time.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     pub(crate) fn of_compared(from: Name, to: Name, compared: ComparedPair) -> Self {
         let mut pairs = Self::new(from, to);
         pairs.compared = vec![compared];
@@ -99,7 +99,7 @@ impl ColumnPairs {
     }
 
     /// [`ColumnPairs::push`] with the enums each side compares as stated.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     pub(crate) fn push_compared(&mut self, from: Name, to: Name, compared: ComparedPair) {
         self.rest.push((from, to));
         self.compared.push(compared);
@@ -128,7 +128,7 @@ impl ColumnPairs {
 
     /// Match `from` to `to` as periods, replacing any period pair already
     /// set: the relation joins a row to each row whose period overlaps its own.
-    // [spec:pgorm:def:entity.relation.def+12]
+    // [spec:pgorm:def:entity.relation.def+13]
     pub fn set_period<F, T>(&mut self, from: F, to: T)
     where
         F: IntoName,
@@ -138,7 +138,7 @@ impl ColumnPairs {
     }
 
     /// The `(from, to)` period pair, if the relation is temporal.
-    // [spec:pgorm:def:entity.relation.def+12]
+    // [spec:pgorm:def:entity.relation.def+13]
     pub fn period(&self) -> Option<&(Name, Name)> {
         self.period.as_ref()
     }
@@ -151,7 +151,7 @@ impl ColumnPairs {
 
     /// The pairs matched for equality in declaration order, each beside the
     /// enums its sides compare as.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     pub(crate) fn compared_pairs(&self) -> impl Iterator<Item = (&(Name, Name), &ComparedPair)> {
         self.iter().zip(&self.compared)
     }
@@ -216,7 +216,7 @@ impl IntoIterator for ColumnPairs {
 /// Check the [Key] of an Entity
 pub trait KeyOf<E>: IntoKey
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Method to call to perform this check
     fn key_of(self) -> Key;
@@ -224,8 +224,8 @@ where
 
 impl<E, C> KeyOf<E> for C
 where
-    E: EntityTrait<Column = C>,
-    C: ColumnTrait,
+    E: Entity<Column = C>,
+    C: Column,
 {
     fn key_of(self) -> Key {
         self.into_key()
@@ -236,8 +236,8 @@ macro_rules! impl_key_of {
     ( $($T:ident),+ $(,)? ) => {
         impl<E, C> KeyOf<E> for ( $($T),+ )
         where
-            E: EntityTrait<Column = C>,
-            C: ColumnTrait,
+            E: Entity<Column = C>,
+            C: Column,
         {
             fn key_of(self) -> Key {
                 self.into_key()

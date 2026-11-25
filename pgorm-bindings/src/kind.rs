@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use pgorm::{
-    ColumnTypeTrait, CreatedRangeCodec, TableColumn,
+    ColumnTypeExt, CreatedRangeCodec, TableColumn,
     pgorm_query::{ArrayType, ColumnType, Name, SqlName, TypeName as QueryTypeName, Value},
 };
 
@@ -149,8 +149,8 @@ impl Tag {
     /// it, as a decoded column's is compared: a scalar's name, an enum's
     /// quoted type, a created range's type and subtype, and an array's
     /// element followed by `[]`.
-    // [spec:pgorm:req:bindings.models+6]
-    // [spec:pgorm:req:bindings.model-records+1]
+    // [spec:pgorm:req:bindings.models+7]
+    // [spec:pgorm:req:bindings.model-records+2]
     pub fn key(&self) -> String {
         match self {
             Self::Scalar(kind) => kind.kind_name().to_owned(),
@@ -324,7 +324,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:req:bindings.models+6/test]    a kind is spelled as a decoded column's is
+    // [spec:pgorm:req:bindings.models+7/test]    a kind is spelled as a decoded column's is
     // compared: a scalar's name, an enum's quoted type, a created range's type and subtype,
     // and an array's element followed by `[]`
     #[test]

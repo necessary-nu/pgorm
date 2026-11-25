@@ -2,7 +2,7 @@
 //! handles: each adapter holds the real `pgorm::Select<E>`, `E::Model` or
 //! `E::ActiveModel`, monomorphized when the application's module is built,
 //! and every operation calls the Rust API of the same meaning,
-//! `Select::all`, `ModelTrait::set`, `ActiveModelTrait::insert` with its
+//! `Select::all`, `Model::set`, `ActiveModel::insert` with its
 //! `ActiveModelBehavior` hooks, `UpdateOne::exec_returning_change`, so the
 //! language reaches the entity's own semantics rather than a
 //! reimplementation of them.
@@ -52,21 +52,21 @@ pub type Active = Arc<dyn ActiveBackend>;
 /// A registered entity's query behind its type-erased handle.
 pub type Select = Arc<dyn SelectBackend>;
 
-/// A comparison through a column's `ColumnTrait` method, which writes the
+/// A comparison through a column's `Column` method, which writes the
 /// value through the column's `save_as`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Comparison {
-    /// `=`, `ColumnTrait::eq`.
+    /// `=`, `Column::eq`.
     Eq,
-    /// `<>`, `ColumnTrait::ne`.
+    /// `<>`, `Column::ne`.
     Ne,
-    /// `>`, `ColumnTrait::gt`.
+    /// `>`, `Column::gt`.
     Gt,
-    /// `>=`, `ColumnTrait::gte`.
+    /// `>=`, `Column::gte`.
     Ge,
-    /// `<`, `ColumnTrait::lt`.
+    /// `<`, `Column::lt`.
     Lt,
-    /// `<=`, `ColumnTrait::lte`.
+    /// `<=`, `Column::lte`.
     Le,
     /// `IS DISTINCT FROM`: unequal, null comparing as a value.
     IsDistinctFrom,
@@ -122,7 +122,7 @@ impl Comparison {
 }
 
 /// Which of `[NOT] BETWEEN [SYMMETRIC]` a column is tested by, through its
-/// `ColumnTrait` method of that meaning.
+/// `Column` method of that meaning.
 #[derive(Clone, Copy, Debug)]
 pub struct Between {
     /// `NOT BETWEEN`: the rows outside the bounds.
@@ -152,14 +152,14 @@ pub enum Read {
     Optional,
 }
 
-/// A write of an ActiveModel, through `ActiveModelTrait` and its hooks.
+/// A write of an ActiveModel, through `ActiveModel` and its hooks.
 #[derive(Clone, Copy, Debug)]
 pub enum Write {
-    /// `ActiveModelTrait::insert`.
+    /// `ActiveModel::insert`.
     Insert,
-    /// `ActiveModelTrait::update`.
+    /// `ActiveModel::update`.
     Update,
-    /// `ActiveModelTrait::delete`.
+    /// `ActiveModel::delete`.
     Delete,
 }
 
@@ -256,7 +256,7 @@ pub trait EntityBackend: Debug + Send + Sync {
     fn schema(&self) -> Result<EntitySchema, Error>;
     /// The entity as a pipeline source, by its own `IntoSource`.
     fn source(&self) -> pgorm::pipeline::Source;
-    /// `EntityTrait::find_in` of the registered entity value.
+    /// `Entity::find_in` of the registered entity value.
     fn select(&self) -> Select;
     /// `ActiveModelBehavior::new`: an ActiveModel no column of which is set
     /// but what the entity's hooks set.
@@ -265,7 +265,7 @@ pub trait EntityBackend: Debug + Send + Sync {
     fn relation(&self, name: &str) -> Result<RelationDef, Failure>;
     /// The column as an expression, qualified by the entity's table.
     fn column(&self, column: &str) -> Result<SimpleExpr, Failure>;
-    /// `column <comparison> value` through the column's `ColumnTrait`
+    /// `column <comparison> value` through the column's `Column`
     /// method, the value written through its `save_as`.
     fn compare(
         &self,
@@ -274,7 +274,7 @@ pub trait EntityBackend: Debug + Send + Sync {
         value: Value,
     ) -> Result<SimpleExpr, Failure>;
     /// `column [NOT] BETWEEN [SYMMETRIC] lower AND upper` through
-    /// `ColumnTrait::between` and its kin, each bound through `save_as`.
+    /// `Column::between` and its kin, each bound through `save_as`.
     fn between(
         &self,
         column: &str,
@@ -283,7 +283,7 @@ pub trait EntityBackend: Debug + Send + Sync {
         upper: Value,
     ) -> Result<SimpleExpr, Failure>;
     /// `column <comparison> ANY (array)`, or `ALL` with `all`, through the
-    /// column's `ColumnTrait::compare_any` / `compare_all`.
+    /// column's `Column::compare_any` / `compare_all`.
     fn quantified(
         &self,
         column: &str,
@@ -291,7 +291,7 @@ pub trait EntityBackend: Debug + Send + Sync {
         all: bool,
         array: Value,
     ) -> Result<SimpleExpr, Failure>;
-    /// `column [NOT] IN (members)` through `ColumnTrait::is_in` /
+    /// `column [NOT] IN (members)` through `Column::is_in` /
     /// `is_not_in` or `in_subquery` / `not_in_subquery`.
     fn membership(
         &self,
@@ -335,7 +335,7 @@ pub trait SelectBackend: Debug + Send + Sync {
     /// The statement of `select_only` and `columns` over `columns`, `one` and
     /// `optional` narrowed to one row.
     fn projected(&self, columns: &[String], read: Read) -> Result<SelectStatement, Failure>;
-    /// The query's `SELECT`, as `QueryTrait::as_query` gives it.
+    /// The query's `SELECT`, as `Statement::as_query` gives it.
     fn statement(&self) -> SelectStatement;
     /// The query's pages, through pgorm's erased paginator.
     fn pages(&self) -> Arc<Pages>;
@@ -358,11 +358,11 @@ pub trait SelectBackend: Debug + Send + Sync {
 pub trait ModelBackend: Debug + Send + Sync {
     /// What the model's entity is.
     fn info(&self) -> &Arc<EntityInfo>;
-    /// `ModelTrait::get` of the column.
+    /// `Model::get` of the column.
     fn get(&self, column: &str) -> Result<Value, Failure>;
-    /// `ModelTrait::set` on a copy.
+    /// `Model::set` on a copy.
     fn set(&self, column: &str, value: Value) -> Result<Model, Failure>;
-    /// `ModelTrait::into_active`: every column set unchanged.
+    /// `Model::into_active`: every column set unchanged.
     fn active(&self) -> Active;
 }
 
@@ -370,17 +370,17 @@ pub trait ModelBackend: Debug + Send + Sync {
 pub trait ActiveBackend: Debug + Send + Sync {
     /// What the ActiveModel's entity is.
     fn info(&self) -> &Arc<EntityInfo>;
-    /// `ActiveModelTrait::get` of the column: set, unchanged or not set.
+    /// `ActiveModel::get` of the column: set, unchanged or not set.
     fn get(&self, column: &str) -> Result<ActiveValue<Value>, Failure>;
-    /// `ActiveModelTrait::set` on a copy.
+    /// `ActiveModel::set` on a copy.
     fn set(&self, column: &str, value: Value) -> Result<Active, Failure>;
-    /// `ActiveModelTrait::not_set` on a copy.
+    /// `ActiveModel::not_set` on a copy.
     fn not_set(&self, column: &str) -> Result<Active, Failure>;
-    /// `ActiveModelTrait::reset` on a copy: the column's value marked set.
+    /// `ActiveModel::reset` on a copy: the column's value marked set.
     fn reset(&self, column: &str) -> Result<Active, Failure>;
-    /// `ActiveModelTrait::set_if_not_equals` on a copy.
+    /// `ActiveModel::set_if_not_equals` on a copy.
     fn set_if_not_equals(&self, column: &str, value: Value) -> Result<Active, Failure>;
-    /// `ActiveModelTrait::is_changed`: whether any column is set.
+    /// `ActiveModel::is_changed`: whether any column is set.
     fn is_changed(&self) -> bool;
     /// The write `write` names, through the entity's `ActiveModelBehavior`
     /// hooks.

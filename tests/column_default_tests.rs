@@ -9,11 +9,11 @@
 //! back from a row written without the column, so a default the server
 //! parsed as something else would show in the value.
 
-use pgorm_query::ExprTrait;
+use pgorm_query::Expression;
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ColumnDef, ColumnType, Expr, Func, Name, SimpleExpr, Table};
-use pgorm::{ConnectionTrait, Error};
+use pgorm::{Connection, Error};
 
 fn n(name: &str) -> Name {
     Name::runtime(name)

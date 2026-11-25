@@ -36,7 +36,7 @@ use pgorm::pgorm_query::{
     SampleMethod, Search, SearchOrder, SqlTemplate, TableFunction, TableSample, TypeName,
     WindowStatement, WithClause,
 };
-use pgorm_query::ExprTrait;
+use pgorm_query::Expression;
 
 use super::oracle::{
     Policy::{FunctionName, Quoted, TypePart},

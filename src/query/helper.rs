@@ -2,11 +2,11 @@ use super::join::{Joined, join_side};
 use crate::entity::{compared_column, compared_value};
 use crate::executor::result_name::bounded_identifier;
 use crate::{
-    ColumnTrait, EntityTrait, IntoKey, IntoSimpleExpr, Iterable, ModelTrait, PrimaryKeyToColumn,
-    QueryTrait, RelationDef, RelationTrait, ScopeContext, ScopeError,
+    Column, Entity, IntoKey, IntoSimpleExpr, Iterable, Model, PrimaryKeyToColumn, Relation,
+    RelationDef, ScopeContext, ScopeError, Statement,
 };
 use pgorm_query::{
-    AnyWithClause, Expr, ExprTrait, FromItem, FunctionCall, GroupingElement, IntoCondition,
+    AnyWithClause, Expr, Expression, FromItem, FunctionCall, GroupingElement, IntoCondition,
     IntoName, LockBehavior, LockType, NullOrdering, SelectExpr, SelectStatement, SimpleExpr,
     UnionType, WindowDefinition,
 };
@@ -18,7 +18,7 @@ use pgorm_query::IntoColumnRef;
 // LINT: when there is a group by clause, but some columns don't have aggregate functions
 // LINT: when the join table or column does not exists
 /// Abstract API for performing queries
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 pub trait QuerySelect: Sized {
     #[allow(missing_docs)]
     type QueryStatement;
@@ -78,7 +78,7 @@ pub trait QuerySelect: Sized {
     /// ```
     fn column<C>(mut self, col: C) -> Self::Projected
     where
-        C: ColumnTrait,
+        C: Column,
     {
         self.query().expr(col.select_as(col.into_expr()));
         self.into_projected()
@@ -162,7 +162,7 @@ pub trait QuerySelect: Sized {
     /// documented on [`QuerySelect`] is what catches that.
     fn columns<C, I>(mut self, cols: I) -> Self::Projected
     where
-        C: ColumnTrait,
+        C: Column,
         I: IntoIterator<Item = C>,
     {
         for col in cols.into_iter() {
@@ -294,7 +294,7 @@ pub trait QuerySelect: Sized {
     /// to the GROUP BY list, after anything [`group_by`](Self::group_by)
     /// already put there
     /// ```
-    /// use pgorm::{entity::*, pgorm_query::{ExprTrait, Func, GroupingElement}, query::*, tests_cfg::cake};
+    /// use pgorm::{entity::*, pgorm_query::{Expression, Func, GroupingElement}, query::*, tests_cfg::cake};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -318,7 +318,7 @@ pub trait QuerySelect: Sized {
 
     /// Add an AND HAVING expression
     /// ```
-    /// use pgorm::{alias, pgorm_query::{Expr, ExprTrait}, entity::*, query::*, tests_cfg::cake};
+    /// use pgorm::{alias, pgorm_query::{Expr, Expression}, entity::*, query::*, tests_cfg::cake};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -500,7 +500,7 @@ pub trait QuerySelect: Sized {
     /// spelled at the call site.
     ///
     /// ```
-    /// use pgorm::{EntityTrait, QuerySelect, QueryTrait, tests_cfg::cake};
+    /// use pgorm::{Entity, QuerySelect, Statement, tests_cfg::cake};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -514,10 +514,10 @@ pub trait QuerySelect: Sized {
     ///     .join(" ")
     /// );
     /// ```
-    // [spec:pgorm:sem:query.build.join.rel]
+    // [spec:pgorm:sem:query.build.join.rel+1]
     fn left_join_rel<R>(self, rel: R) -> Self
     where
-        R: RelationTrait,
+        R: Relation,
     {
         self.join(JoinType::LeftJoin, rel.def())
     }
@@ -525,7 +525,7 @@ pub trait QuerySelect: Sized {
     /// `INNER JOIN` the entity a relation points at.
     ///
     /// ```
-    /// use pgorm::{EntityTrait, QuerySelect, QueryTrait, tests_cfg::cake};
+    /// use pgorm::{Entity, QuerySelect, Statement, tests_cfg::cake};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -541,7 +541,7 @@ pub trait QuerySelect: Sized {
     /// ```
     fn inner_join_rel<R>(self, rel: R) -> Self
     where
-        R: RelationTrait,
+        R: Relation,
     {
         self.join(JoinType::InnerJoin, rel.def())
     }
@@ -549,7 +549,7 @@ pub trait QuerySelect: Sized {
     /// `RIGHT JOIN` the entity a relation points at.
     fn right_join_rel<R>(self, rel: R) -> Self
     where
-        R: RelationTrait,
+        R: Relation,
     {
         self.join(JoinType::RightJoin, rel.def())
     }
@@ -560,7 +560,7 @@ pub trait QuerySelect: Sized {
     /// given a relation A to B, they join A while selecting from B.
     ///
     /// ```
-    /// use pgorm::{EntityTrait, QuerySelect, QueryTrait, tests_cfg::{cake, fruit}};
+    /// use pgorm::{Entity, QuerySelect, Statement, tests_cfg::{cake, fruit}};
     ///
     /// assert_eq!(
     ///     fruit::Entity::find()
@@ -576,7 +576,7 @@ pub trait QuerySelect: Sized {
     /// ```
     fn left_join_rel_rev<R>(self, rel: R) -> Self
     where
-        R: RelationTrait,
+        R: Relation,
     {
         self.join_rev(JoinType::LeftJoin, rel.def())
     }
@@ -584,7 +584,7 @@ pub trait QuerySelect: Sized {
     /// `INNER JOIN` the entity a relation points *from*.
     fn inner_join_rel_rev<R>(self, rel: R) -> Self
     where
-        R: RelationTrait,
+        R: Relation,
     {
         self.join_rev(JoinType::InnerJoin, rel.def())
     }
@@ -592,7 +592,7 @@ pub trait QuerySelect: Sized {
     /// `RIGHT JOIN` the entity a relation points *from*.
     fn right_join_rel_rev<R>(self, rel: R) -> Self
     where
-        R: RelationTrait,
+        R: Relation,
     {
         self.join_rev(JoinType::RightJoin, rel.def())
     }
@@ -626,7 +626,7 @@ pub trait QuerySelect: Sized {
     /// Add an expression to the select expression list.
     /// ```
     /// use pgorm::pgorm_query::Expr;
-    /// use pgorm::{entity::*, tests_cfg::cake, QuerySelect, QueryTrait};
+    /// use pgorm::{entity::*, tests_cfg::cake, QuerySelect, Statement};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -648,7 +648,7 @@ pub trait QuerySelect: Sized {
     /// Add select expressions from vector of [`SelectExpr`].
     /// ```
     /// use pgorm::pgorm_query::Expr;
-    /// use pgorm::{entity::*, tests_cfg::cake, QuerySelect, QueryTrait};
+    /// use pgorm::{entity::*, tests_cfg::cake, QuerySelect, Statement};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -675,8 +675,8 @@ pub trait QuerySelect: Sized {
 
     /// Select column.
     /// ```
-    /// use pgorm::pgorm_query::{Expr, ExprTrait, Func};
-    /// use pgorm::{alias, entity::*, tests_cfg::cake, QuerySelect, QueryTrait};
+    /// use pgorm::pgorm_query::{Expr, Expression, Func};
+    /// use pgorm::{alias, entity::*, tests_cfg::cake, QuerySelect, Statement};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -701,8 +701,8 @@ pub trait QuerySelect: Sized {
     /// Shorthand of `expr_as(Expr::col((T, C)), A)`.
     ///
     /// ```
-    /// use pgorm::pgorm_query::{Expr, ExprTrait, Func};
-    /// use pgorm::{alias, entity::*, tests_cfg::cake, QuerySelect, QueryTrait};
+    /// use pgorm::pgorm_query::{Expr, Expression, Func};
+    /// use pgorm::{alias, entity::*, tests_cfg::cake, QuerySelect, Statement};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -736,7 +736,7 @@ pub trait QuerySelect: Sized {
     ///
     /// A recursive CTE takes its column types from the anchor arm, where an
     /// unannotated `$n` placeholder resolves to `text`. Annotate any literal in
-    /// that arm with [`cast_as`](pgorm_query::ExprTrait::cast_as) — see
+    /// that arm with [`cast_as`](pgorm_query::Expression::cast_as) — see
     /// `[spec:pgorm:sem:sql.render.placeholder-typing+2]`.
     ///
     /// ```
@@ -850,10 +850,10 @@ pub trait QuerySelect: Sized {
     ///     )
     /// );
     /// ```
-    // [spec:pgorm:sem:query.build.union]
+    // [spec:pgorm:sem:query.build.union+1]
     fn union(mut self, union_type: UnionType, other: Self) -> Self
     where
-        Self: QueryTrait<QueryStatement = SelectStatement>,
+        Self: Statement<QueryStatement = SelectStatement>,
     {
         let other = other.into_query();
         QuerySelect::query(&mut self).union(union_type, other);
@@ -863,7 +863,7 @@ pub trait QuerySelect: Sized {
 
 // LINT: when the column does not appear in tables selected from
 /// Performs ORDER BY operations
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 pub trait QueryOrder: Sized {
     #[allow(missing_docs)]
     type QueryStatement: OrderedStatement;
@@ -959,7 +959,7 @@ pub trait QueryOrder: Sized {
 
 // LINT: when the column does not appear in tables selected from
 /// Perform a FILTER opertation on a statement
-// [spec:pgorm:sem:query.build.filter+2]
+// [spec:pgorm:sem:query.build.filter+3]
 pub trait QueryFilter: Sized {
     #[allow(missing_docs)]
     type QueryStatement: ConditionalStatement;
@@ -1016,7 +1016,7 @@ pub trait QueryFilter: Sized {
     /// a single array parameter instead of one placeholder per element.
     ///
     /// ```
-    /// use pgorm::pgorm_query::{Expr, ExprTrait, Func};
+    /// use pgorm::pgorm_query::{Expr, Expression, Func};
     /// use pgorm::{entity::*, query::*, tests_cfg::cake};
     ///
     /// assert_eq!(
@@ -1075,7 +1075,7 @@ pub trait QueryFilter: Sized {
     ///
     /// A slightly more complex example.
     /// ```
-    /// use pgorm::{entity::*, query::*, tests_cfg::cake, pgorm_query::{Expr, ExprTrait}};
+    /// use pgorm::{entity::*, query::*, tests_cfg::cake, pgorm_query::{Expr, Expression}};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -1100,7 +1100,7 @@ pub trait QueryFilter: Sized {
     /// ```
     /// Use a pgorm_query expression
     /// ```
-    /// use pgorm::{entity::*, query::*, pgorm_query::{Expr, ExprTrait}, tests_cfg::fruit};
+    /// use pgorm::{entity::*, query::*, pgorm_query::{Expr, Expression}, tests_cfg::fruit};
     ///
     /// assert_eq!(
     ///     fruit::Entity::find()
@@ -1121,9 +1121,9 @@ pub trait QueryFilter: Sized {
     /// Apply a where condition using the model's primary key
     fn belongs_to<M>(mut self, model: &M) -> Self
     where
-        M: ModelTrait,
+        M: Model,
     {
-        for key in <M::Entity as EntityTrait>::PrimaryKey::iter() {
+        for key in <M::Entity as Entity>::PrimaryKey::iter() {
             let col = key.into_column();
             self = self.filter(col.eq(model.get(col)));
         }
@@ -1134,13 +1134,13 @@ pub trait QueryFilter: Sized {
     ///
     /// Each key column is compared as [`belongs_to`](QueryFilter::belongs_to)
     /// compares it, under the alias instead of the entity's own name.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     fn belongs_to_tbl_alias<M>(mut self, model: &M, tbl_alias: impl IntoName) -> Self
     where
-        M: ModelTrait,
+        M: Model,
     {
         let tbl_alias = tbl_alias.into_name();
-        for key in <M::Entity as EntityTrait>::PrimaryKey::iter() {
+        for key in <M::Entity as Entity>::PrimaryKey::iter() {
             let col = key.into_column();
             let column = compared_column(&col, Expr::col((Name::clone(&tbl_alias), col)));
             let expr = column.eq(compared_value(&col, Expr::val(model.get(col))));
@@ -1153,7 +1153,7 @@ pub trait QueryFilter: Sized {
 /// The full table name a [`FromItem`] contributes to a foreign key: schema
 /// qualification included, so a `REFERENCES` clause names the table the
 /// relation actually points at rather than whatever `search_path` resolves.
-// [spec:pgorm:sem:schema.from-entity+12]
+// [spec:pgorm:sem:schema.from-entity+13]
 pub(crate) fn unpack_table_name(from_item: &FromItem) -> pgorm_query::TableName {
     match from_item.table_name() {
         Some(name) => name.clone(),

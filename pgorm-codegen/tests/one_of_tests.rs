@@ -16,7 +16,7 @@ mod common;
 use common::runtime_name as n;
 use common::*;
 use pgorm_query::{
-    Check, ColumnDef, Enforcement, Expr, ExprTrait, ForeignKey, Func, SimpleExpr, Table,
+    Check, ColumnDef, Enforcement, Expr, Expression, ForeignKey, Func, SimpleExpr, Table,
     TableCreateStatement,
 };
 

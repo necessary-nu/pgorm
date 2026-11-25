@@ -44,18 +44,18 @@ assert!(muffin.is_changed());
 ```
 
 A model read from the database becomes an active model with
-[`into_active`](crate::ModelTrait::into_active). Each of its columns starts
+[`into_active`](crate::Model::into_active). Each of its columns starts
 `Unchanged`, so writing it back changes only the columns you then `set`.
 [`set_if_not_equals`](crate::ActiveValue::set_if_not_equals) sets a column
 only when the value differs from the one read, so
-[`is_changed`](crate::ActiveModelTrait::is_changed) then says whether there
+[`is_changed`](crate::ActiveModel::is_changed) then says whether there
 is anything to write. [`reset`](crate::ActiveValue::reset) turns an
 `Unchanged` column into a `Set` one, to write it although its value is the
 same.
 
 ## Inserting a row
 
-[`insert`](crate::ActiveModelTrait::insert) on an active model writes it and
+[`insert`](crate::ActiveModel::insert) on an active model writes it and
 returns the row as the database stored it, generated `id` and defaults
 included. It also runs the entity's [hooks](crate::guide::entities#hooks).
 
@@ -183,7 +183,7 @@ assert_eq!(Insert::many(nothing).exec(&db).await?, 0);
 ## Updating rows
 
 To change a row you have read, turn it into an active model, set the columns
-that change, and [`update`](crate::ActiveModelTrait::update) it. The statement
+that change, and [`update`](crate::ActiveModel::update) it. The statement
 writes only those columns, finds the row by its primary key, and returns it
 as it now is:
 
@@ -316,7 +316,7 @@ A model, or an active model with its key set, deletes its own row with
 [`Delete::one`](crate::Delete::one) builds the same statement and, like
 `Update::one`, refuses a model without its key.
 [`Delete::many`](crate::Delete::many) deletes what its filter matches, and
-[`delete_by_id`](crate::EntityTrait::delete_by_id) deletes by key.
+[`delete_by_id`](crate::Entity::delete_by_id) deletes by key.
 
 ```rust
 # use pgorm_guide_support::{cake, cake_baker};

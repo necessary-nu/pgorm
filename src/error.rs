@@ -1,7 +1,7 @@
 use pgorm_driver::error::SqlState;
 
 /// An error from unsuccessful database operations
-// [spec:pgorm:def:error.model+15]
+// [spec:pgorm:def:error.model+16]
 #[derive(thiserror::Error, Debug)]
 #[doc(alias = "DbErr")]
 #[non_exhaustive]
@@ -94,10 +94,10 @@ pub enum Error {
     TransactionAborted(#[source] pgorm_driver::Error),
     /// SQL text holding a `COPY` was given to a statement method, which runs
     /// what it is given as a statement; a `COPY`'s data flows beside it, so it
-    /// runs only through [`CopyTrait`](crate::CopyTrait)'s `copy_in` and
+    /// runs only through [`CopyConnection`](crate::CopyConnection)'s `copy_in` and
     /// `copy_out`. Nothing was sent.
     #[error(
-        "a COPY runs through CopyTrait's copy_in or copy_out, which carry its data, not as a statement"
+        "a COPY runs through CopyConnection's copy_in or copy_out, which carry its data, not as a statement"
     )]
     CopyStatement,
     /// A statement on a scoped table that its context does not cover: a join
@@ -171,7 +171,7 @@ pub enum VerifyError {
 
 /// Why a [`Listener`](crate::Listener) refused a channel name, or why its
 /// [`Notifications`](crate::Notifications) ended.
-// [spec:pgorm:req:conn.listen+2]
+// [spec:pgorm:req:conn.listen+3]
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ListenError {
@@ -209,7 +209,7 @@ pub enum ListenError {
 ///
 /// assert!(first_cake_id().is_err());
 /// ```
-// [spec:pgorm:def:error.model+15]    crate-root Result alias
+// [spec:pgorm:def:error.model+16]    crate-root Result alias
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Runtime error
@@ -221,7 +221,7 @@ pub enum RuntimeError {
     Internal(String),
 }
 
-// [spec:pgorm:def:error.model+15]    Display-string equality
+// [spec:pgorm:def:error.model+16]    Display-string equality
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         self.to_string() == other.to_string()

@@ -1,8 +1,8 @@
 use crate::entity::entity_table;
 use crate::entity::scope_condition;
 use crate::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, IntoActiveModel, Iterable,
-    NoContext, PrimaryKeyToColumn, QueryFilter, QueryTrait, ScopeContext, ScopeError, ScopedIn,
+    ActiveModel, ActiveValue, Column, Entity, Error, IntoActiveModel, Iterable, NoContext,
+    PrimaryKeyToColumn, QueryFilter, ScopeContext, ScopeError, ScopedIn, Statement,
 };
 use core::marker::PhantomData;
 use pgorm_query::{DeleteStatement, IntoFromItem};
@@ -15,7 +15,7 @@ pub struct Delete;
 #[derive(Clone, Debug)]
 pub struct DeleteOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     pub(crate) query: DeleteStatement,
     pub(crate) model: A,
@@ -25,7 +25,7 @@ where
 #[derive(Clone, Debug)]
 pub struct DeleteMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     pub(crate) query: DeleteStatement,
     pub(crate) entity: PhantomData<E>,
@@ -87,8 +87,8 @@ impl Delete {
     /// ```
     pub fn one<E, A, M>(model: M) -> Result<DeleteOne<A>, Error>
     where
-        E: EntityTrait + ScopedIn<NoContext>,
-        A: ActiveModelTrait<Entity = E>,
+        E: Entity + ScopedIn<NoContext>,
+        A: ActiveModel<Entity = E>,
         M: IntoActiveModel<A>,
     {
         Self::one_in(E::default(), model)
@@ -102,8 +102,8 @@ impl Delete {
     pub fn one_for<Cx, E, A, M>(cx: &Cx, model: M) -> Result<DeleteOne<A>, Error>
     where
         Cx: ScopeContext,
-        E: EntityTrait + ScopedIn<Cx>,
-        A: ActiveModelTrait<Entity = E>,
+        E: Entity + ScopedIn<Cx>,
+        A: ActiveModel<Entity = E>,
         M: IntoActiveModel<A>,
     {
         let mut one = Self::one_unscoped(E::default(), model)?;
@@ -138,8 +138,8 @@ impl Delete {
     // [spec:pgorm:sem:query.build.delete+4]
     pub fn one_in<E, A, M>(entity: E, model: M) -> Result<DeleteOne<A>, Error>
     where
-        E: EntityTrait + ScopedIn<NoContext>,
-        A: ActiveModelTrait<Entity = E>,
+        E: Entity + ScopedIn<NoContext>,
+        A: ActiveModel<Entity = E>,
         M: IntoActiveModel<A>,
     {
         Self::one_unscoped(entity, model)
@@ -150,8 +150,8 @@ impl Delete {
     // [spec:pgorm:sem:query.build.delete+4]
     fn one_unscoped<E, A, M>(entity: E, model: M) -> Result<DeleteOne<A>, Error>
     where
-        E: EntityTrait,
-        A: ActiveModelTrait<Entity = E>,
+        E: Entity,
+        A: ActiveModel<Entity = E>,
         M: IntoActiveModel<A>,
     {
         let myself = DeleteOne {
@@ -179,7 +179,7 @@ impl Delete {
     #[doc(alias = "delete_many")]
     pub fn many<E>(entity: E) -> DeleteMany<E>
     where
-        E: EntityTrait + ScopedIn<NoContext>,
+        E: Entity + ScopedIn<NoContext>,
     {
         Self::many_unscoped(&entity)
     }
@@ -191,7 +191,7 @@ impl Delete {
     pub fn many_for<Cx, E>(cx: &Cx, entity: E) -> DeleteMany<E>
     where
         Cx: ScopeContext,
-        E: EntityTrait + ScopedIn<Cx>,
+        E: Entity + ScopedIn<Cx>,
     {
         let mut many = Self::many_unscoped(&entity);
         match scope_condition::<E>(cx) {
@@ -206,7 +206,7 @@ impl Delete {
 
     fn many_unscoped<E>(entity: &E) -> DeleteMany<E>
     where
-        E: EntityTrait,
+        E: Entity,
     {
         DeleteMany {
             query: DeleteStatement::new()
@@ -221,10 +221,10 @@ impl Delete {
 // [spec:pgorm:sem:query.build.delete+4]
 impl<A> DeleteOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     fn prepare_filters(mut self) -> Result<Self, Error> {
-        for key in <A::Entity as EntityTrait>::PrimaryKey::iter() {
+        for key in <A::Entity as Entity>::PrimaryKey::iter() {
             let col = key.into_column();
             match self.model.get(col)? {
                 ActiveValue::Set(value) | ActiveValue::Unchanged(value) => {
@@ -239,7 +239,7 @@ where
 
 impl<A> QueryFilter for DeleteOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     type QueryStatement = DeleteStatement;
 
@@ -250,7 +250,7 @@ where
 
 impl<E> QueryFilter for DeleteMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     type QueryStatement = DeleteStatement;
 
@@ -259,9 +259,9 @@ where
     }
 }
 
-impl<A> QueryTrait for DeleteOne<A>
+impl<A> Statement for DeleteOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     type QueryStatement = DeleteStatement;
 
@@ -278,9 +278,9 @@ where
     }
 }
 
-impl<E> QueryTrait for DeleteMany<E>
+impl<E> Statement for DeleteMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     type QueryStatement = DeleteStatement;
 
@@ -300,7 +300,7 @@ where
 // [spec:pgorm:sem:query.build.delete+4]
 impl<E> DeleteMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// What every execution path asks before sending anything: a context
     /// refused for its scopes.

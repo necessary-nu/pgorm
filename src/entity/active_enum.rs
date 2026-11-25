@@ -1,6 +1,6 @@
 use crate::{ColumnDef, Error, Iterable, QueryResult, TryGetError, TryGetable};
 use pgorm_driver::row::RowIndex;
-use pgorm_query::{Expr, ExprTrait, Name, Nullable, SimpleExpr, Value, ValueType};
+use pgorm_query::{Expr, Expression, Name, Nullable, SimpleExpr, Value, ValueType};
 
 /// A Rust representation of enum defined in database.
 ///
@@ -143,7 +143,7 @@ pub trait ActiveEnum: Sized + Iterable {
     }
 
     /// Construct a enum expression with casting
-    // [spec:pgorm:req:sql.ast.cast-shape+2]
+    // [spec:pgorm:req:sql.ast.cast-shape+3]
     fn as_enum(&self) -> SimpleExpr {
         Expr::val(Self::to_value(self)).as_enum(Self::name())
     }

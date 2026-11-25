@@ -229,7 +229,7 @@ class PipelineDatabase(unittest.IsolatedAsyncioTestCase):
         await self.pool.close()
 
     # [spec:pgorm:req:bindings.pipeline+1/test]
-    # [spec:pgorm:req:bindings.pipeline-terminals/test]
+    # [spec:pgorm:req:bindings.pipeline-terminals+1/test]
     # [spec:pgorm:req:bindings.row-count/test]
     async def test_terminals_models_and_dynamic_streams(self):
         model = p.Model(
@@ -258,7 +258,7 @@ class PipelineDatabase(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             query.all(object())
 
-    # [spec:pgorm:req:bindings.pipeline-terminals/test]
+    # [spec:pgorm:req:bindings.pipeline-terminals+1/test]
     async def test_terminals_run_on_a_pool(self):
         name = pl.col("pg_type", "typname")
         int4 = pl.from_(p.Table("pg_type", schema="pg_catalog")).filter(name == "int4").select(name)

@@ -36,7 +36,7 @@ Its `#[neon::main]` fills a `Registry` and installs it:
 
 ```rust
 use neon::prelude::*;
-use pgorm::{EntityTrait, RelationTrait, pgorm_query::Name};
+use pgorm::{Entity, Relation, pgorm_query::Name};
 use pgorm_napi::{RegistrationError, Registry};
 use my_entities::{account, note};
 
@@ -61,7 +61,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
 }
 ```
 
-Registration takes an `E: EntityTrait + Send + Sync + 'static` whose model
+Registration takes an `E: pgorm::Entity + Send + Sync + 'static` whose model
 converts into its ActiveModel. A name or a Rust entity registered twice, a
 name outside 1–255 bytes, and a graph whose source entities are not
 registered first are refused with a `RegistrationError`.
@@ -175,10 +175,10 @@ assert.equal(first?.id, 3);
 A record is a frozen plain object keyed by SQL column name, `display name`
 included, as Rust's model serializes it. The module keeps the Rust model
 behind it, so `intoActive(record)` is the real `IntoActiveModel`,
-`withValue(record, column, value)` is `ModelTrait::set` on a copy, and
+`withValue(record, column, value)` is `pgorm::Model::set` on a copy, and
 `tagged(record, column)` gives a column as a `Value` of its declared kind.
 
-`col(name)` names a column as the entity's `ColumnTrait` does, and its
+`col(name)` names a column as the entity's `pgorm::Column` does, and its
 comparisons are that trait's: a value converts to the column's declared kind
 and is written through its `save_as`, so an enum's label is cast to its type
 and a `money` column's bound to `money`; `any(..)` and `all(..)` over a list
@@ -199,8 +199,8 @@ and under `rust` the Rust types behind it. These are the keys Python's
 ### Counts, pages, cursors, streams, joins and projections
 
 A query has the rest of Rust's `Select<E>` reads. `count(db)` is
-`PaginatorTrait::count`, and `inspect("count")` shows its statement.
-`paginate(pageSize)` is `PaginatorTrait::paginate`: its paginator holds no
+`pgorm::Paginate::count`, and `inspect("count")` shows its statement.
+`paginate(pageSize)` is `pgorm::Paginate::paginate`: its paginator holds no
 database and no current page, so `fetchPage(db, n)`, `numItems(db)`,
 `numPages(db)` and `numItemsAndPages(db)` each take the one they run on, and
 `pages(db)` is the loop over every page, as a model query's paginator's is
@@ -268,7 +268,7 @@ reports a column as `notSet`, `set` or `unchanged` with its value.
 `setIfNotEquals(column, value)` sets a column only when the value differs
 from the one it holds, as Rust's `set_if_not_equals` does, so `isChanged()`
 then says whether there is anything to write. `insert`,
-`update` and `delete` are `ActiveModelTrait`'s, with the application's hooks
+`update` and `delete` are `pgorm::ActiveModel`'s, with the application's hooks
 around them; a hook's refusal is a `ConstructionError` carrying its message.
 The fixture's account appends `|before` to a new account's name, bumps its
 version on each update, and refuses an account named `reject_before`:

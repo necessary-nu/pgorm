@@ -4,7 +4,7 @@
 // qualified, and its fields in declaration order. Held apart from the Model
 // class so the query, relation and graph modules read it without importing
 // the class that builds on them.
-// [spec:pgorm:req:bindings.models+6]
+// [spec:pgorm:req:bindings.models+7]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
 import { ConstructionError } from "./errors.js";

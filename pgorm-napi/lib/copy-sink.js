@@ -4,7 +4,7 @@
 // program writes a row at a time, each checked against the columns the
 // server described before the COPY started, a row refused leaving nothing of
 // it written and the sink still taking rows.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 
 import { describedColumns } from "./copy-columns.js";
 import { write } from "./copy-feed.js";

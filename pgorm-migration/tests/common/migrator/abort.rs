@@ -4,8 +4,8 @@ use pgorm_migration::prelude::*;
 pub struct Migrator;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(m20220118_000001_create_cake_table::Migration),
             Box::new(m20220118_000002_create_fruit_table::Migration),

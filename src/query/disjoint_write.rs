@@ -24,7 +24,7 @@ use super::join::join_condition;
 use crate::entity::KindedBy;
 use crate::{
     ActiveValue, Disjoint, DisjointKind, DisjointShape, DisjointTable, DisjointValues, Error,
-    QueryTrait,
+    Statement,
 };
 
 /// A write to a disjoint entity `D`, built by [`Disjoint::insert`],
@@ -42,7 +42,7 @@ use crate::{
 /// Building one sends nothing. Its construction has already run
 /// [`check_disjoint`](crate::check_disjoint) and refused what the write must
 /// not be given, so a value of this type is a statement that can be sent;
-/// [`QueryTrait::build`] renders it.
+/// [`Statement::build`] renders it.
 // [spec:pgorm:sem:disjoint.write+2]
 pub struct WriteDisjoint<D: Disjoint> {
     pub(crate) query: SelectStatement,
@@ -598,7 +598,7 @@ impl DisjointShape {
 }
 
 // [spec:pgorm:sem:disjoint.write+2]
-impl<D: Disjoint> QueryTrait for WriteDisjoint<D> {
+impl<D: Disjoint> Statement for WriteDisjoint<D> {
     type QueryStatement = SelectStatement;
 
     fn query(&mut self) -> &mut SelectStatement {
@@ -624,7 +624,7 @@ mod tests {
         truck,
         vehicle::{self, Vehicle, VehicleActiveModel},
     };
-    use crate::{ActiveValue, Disjoint, QueryTrait, set};
+    use crate::{ActiveValue, Disjoint, Statement, set};
     use pgorm_query::{Value, Values};
     use pretty_assertions::assert_eq;
 
@@ -645,7 +645,7 @@ mod tests {
         r#"RETURNING "truck"."vehicle_id", "truck"."axles", "truck"."payload_kg")"#;
 
     #[track_caller]
-    fn assert_sql(write: &impl QueryTrait, parts: &[&str], values: Vec<Value>) {
+    fn assert_sql(write: &impl Statement, parts: &[&str], values: Vec<Value>) {
         let (sql, bound) = write.build();
         assert_eq!(sql, parts.join(" "));
         assert_eq!(bound, Values(values));

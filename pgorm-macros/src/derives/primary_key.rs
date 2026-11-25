@@ -5,7 +5,7 @@ use quote::quote;
 /// generates, one variant per key column: its name, and the `Column` variant
 /// of the same name it maps to and from. `keys` pairs each variant with its
 /// column's SQL name.
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+8]
 pub fn expand_primary_key(keys: &[(Ident, String)]) -> TokenStream {
     let variant: Vec<&Ident> = keys.iter().map(|(variant, _)| variant).collect();
     let name: Vec<&String> = keys.iter().map(|(_, name)| name).collect();

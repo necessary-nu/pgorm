@@ -15,8 +15,8 @@ async def fetch(query, mode, connection, p):
         (p.EntityGraphCursor, "pgorm::Cursor"),
         (Pipeline, "pgorm::pipeline::Pipeline"),
         (SelectedSources, "pgorm::pipeline::SelectedSources"),
-        (ModelQuery, "pgorm::ConnectionTrait::query_raw"),
-        (ModelRows, "pgorm::ConnectionTrait::query_raw"),
+        (ModelQuery, "pgorm::Connection::query_raw"),
+        (ModelRows, "pgorm::Connection::query_raw"),
     ):
         if isinstance(query, category):
             if not hasattr(query, mode):
@@ -31,7 +31,7 @@ async def fetch(query, mode, connection, p):
             break
     else:
         value = await getattr(connection, "query" if mode == "all" else mode)(query)
-        path = "pgorm::ConnectionTrait::query_raw"
+        path = "pgorm::Connection::query_raw"
     rows = value if mode == "all" else ([] if value is None else [value])
     return rows, [path]
 
@@ -167,7 +167,7 @@ class Effects:
             block = parent.transaction(mode=d["mode"], isolation=isolation)
             path = "pgorm::DatabaseConnection::transaction_with"
         else:
-            block, path = parent.transaction(), "pgorm::TransactionTrait::transaction"
+            block, path = parent.transaction(), "pgorm::Transact::transaction"
         closed = event
         try:
             async with block as child:
@@ -191,7 +191,7 @@ class Effects:
             closed.update(
                 status="observed",
                 observation={"kind": "unit"},
-                native_paths=["pgorm::TransactionTrait::transaction"],
+                native_paths=["pgorm::Transact::transaction"],
             )
 
     async def perform(self, step):
@@ -228,7 +228,7 @@ class Effects:
                     else await connection.execute(query)
                 )
                 return {"kind": "count", "value": value}, [
-                    "pgorm::ConnectionTrait::execute_raw"
+                    "pgorm::Connection::execute_raw"
                 ]
             case "active.write":
                 value = await getattr(inputs["model"], d["method"])(connection)
@@ -240,7 +240,7 @@ class Effects:
                 self.resolution.results[step["id"]] = (
                     [] if d["method"] == "delete" else [value]
                 )
-                return result, ["pgorm::ActiveModelTrait::" + d["method"]]
+                return result, ["pgorm::ActiveModel::" + d["method"]]
             case "entity.change" | "entity.changes" | "entity.upsert":
                 rows, paths = await versions(name, inputs, d, connection, self.p)
                 self.resolution.results[step["id"]] = rows
@@ -255,7 +255,7 @@ class Effects:
                     "kind": "rows",
                     "rows": [observations.row(row) for row in rows],
                     "stream": state,
-                }, ["pgorm::ConnectionTrait::query_raw", "pgorm_driver::RowStream"]
+                }, ["pgorm::Connection::query_raw", "pgorm_driver::RowStream"]
             case "inspect":
                 if not hasattr(query, "inspect"):
                     raise self.p.UnsupportedCapabilityError(

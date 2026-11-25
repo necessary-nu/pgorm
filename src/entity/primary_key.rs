@@ -1,4 +1,4 @@
-use super::{ColumnTrait, Iterable, StaticName};
+use super::{Column, Iterable, StaticName};
 use crate::TryGetableMany;
 use pgorm_query::{IntoValueTuple, TryFromValueTuple};
 use std::fmt::Debug;
@@ -9,8 +9,8 @@ use std::fmt::Debug;
 /// variant per `#[pgorm(primary_key)]` field.
 ///
 /// See module level docs [crate::entity] for a full example
-// [spec:pgorm:def:entity.traits.primary-key+8]
-pub trait PrimaryKeyTrait: StaticName + Iterable {
+// [spec:pgorm:def:entity.traits.primary-key+9]
+pub trait PrimaryKey: StaticName + Iterable {
     #[allow(missing_docs)]
     type ValueType: Sized
         + Send
@@ -44,7 +44,7 @@ pub trait PrimaryKeyTrait: StaticName + Iterable {
     /// a given value of the key, and `find_by_id`, an update or a delete by key
     /// names one version of a row. Which version covers a moment is a filter
     /// on the period (`contains`), not a key lookup.
-    // [spec:pgorm:def:entity.traits.primary-key+8]
+    // [spec:pgorm:def:entity.traits.primary-key+9]
     fn without_overlaps() -> bool {
         false
     }
@@ -53,7 +53,7 @@ pub trait PrimaryKeyTrait: StaticName + Iterable {
 /// How to map a Primary Key to a column
 pub trait PrimaryKeyToColumn {
     #[allow(missing_docs)]
-    type Column: ColumnTrait;
+    type Column: Column;
 
     /// Method to map a primary key to a column in an Entity
     fn into_column(self) -> Self::Column;
@@ -65,7 +65,7 @@ pub trait PrimaryKeyToColumn {
 }
 
 /// A value that converts into a primary key's
-/// [`ValueType`](PrimaryKeyTrait::ValueType) part by part.
+/// [`ValueType`](PrimaryKey::ValueType) part by part.
 ///
 /// A one-column key takes anything that converts into its type, as `Into`
 /// would: `find_by_id("x")` against a `String` key. A composite key takes a
@@ -80,7 +80,7 @@ pub trait PrimaryKeyToColumn {
 /// // `cake_filling`'s key is `(i32, i32)`.
 /// cake_filling::Entity::find_by_id((1, 2, 3));
 /// ```
-// [spec:pgorm:def:entity.traits.primary-key+8]
+// [spec:pgorm:def:entity.traits.primary-key+9]
 pub trait IntoPrimaryKey<V> {
     /// The key value, converted part by part.
     fn into_primary_key(self) -> V;
@@ -199,7 +199,7 @@ impl_into_pk!(
 );
 
 /// How many columns this Primary Key comprises
-// [spec:pgorm:def:entity.traits.primary-key+8]
+// [spec:pgorm:def:entity.traits.primary-key+9]
 pub trait PrimaryKeyArity {
     /// Arity of the Primary Key
     const ARITY: usize;

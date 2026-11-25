@@ -688,7 +688,7 @@ Python values:
 | `Disjoint` | `pgorm.Disjoint` ([Disjoint enums](15-disjoint.md)) |
 | `OneOf` | `pgorm.OneOf` ([One-of references](16-one-of.md)) |
 | `Column` | `pgorm.col(name, table=...)` names any column |
-| `EntityTrait` | a model is built at run time ([below](#names-computed-at-run-time)) |
+| `Entity`, on a hand-written `Entity` | a model is built at run time ([below](#names-computed-at-run-time)) |
 | `SqlName`, `StaticName` | the [query builder](11-query-builder.md) names tables and columns by strings: `pgorm.Table("cake")`, `pgorm.col("name")` |
 
 A model need not declare every column of its table. One that declares some

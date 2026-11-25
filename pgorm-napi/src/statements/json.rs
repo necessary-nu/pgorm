@@ -5,7 +5,7 @@
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{
-    Expr, ExprTrait, Func, JsonExistsBehavior, JsonInput, JsonKind, JsonQueryBehavior, JsonTest,
+    Expr, Expression, Func, JsonExistsBehavior, JsonInput, JsonKind, JsonQueryBehavior, JsonTest,
     JsonValueBehavior, JsonValueType, Name,
 };
 

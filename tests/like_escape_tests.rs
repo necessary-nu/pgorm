@@ -7,18 +7,18 @@
 //! backslash under the default escape, a chosen one, and none, where the
 //! three disagree.
 
-use pgorm_query::ExprTrait;
+use pgorm_query::Expression;
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, LikeExpr, Name, Query, SimpleExpr};
-use pgorm::{ConnectionTrait, Error, SelectGetableTuple, Selector};
+use pgorm::{Connection, Error, SelectGetableTuple, Selector};
 
 fn text(value: &str) -> SimpleExpr {
     Expr::val(value).cast_as(Name::runtime("text"))
 }
 
 /// Each predicate's answer, read in one row.
-async fn answers<C: ConnectionTrait>(
+async fn answers<C: Connection>(
     db: &C,
     predicates: [SimpleExpr; 3],
 ) -> Result<(bool, bool, bool), Error> {
@@ -32,7 +32,7 @@ async fn answers<C: ConnectionTrait>(
     Ok(rows[0])
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    against a live server: `no_escape` turns
+// [spec:pgorm:req:sql.ast.expr.similar-to+4/test]    against a live server: `no_escape` turns
 // escaping off for LIKE, ILIKE and SIMILAR TO, a backslash then matching itself
 #[pgorm_macros::test]
 async fn no_escape_reads_a_backslash_as_itself() -> Result<(), Error> {
@@ -86,7 +86,7 @@ async fn no_escape_reads_a_backslash_as_itself() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    against a live server: a
+// [spec:pgorm:req:sql.ast.expr.similar-to+4/test]    against a live server: a
 // pattern built from text matches that text and nothing its `%`, `_` or
 // escape character would otherwise widen it to, under the default escape and
 // a chosen one; with escaping off its wildcards are wildcards

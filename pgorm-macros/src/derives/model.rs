@@ -10,7 +10,7 @@ use syn::Ident;
 /// The entity a further model belongs to, from its container's `entity`:
 /// the one key `Model` reads there. Under the composite the entity is
 /// always `Entity`, and the composite reads the container itself.
-// [spec:pgorm:sem:macros.derive.model+7]
+// [spec:pgorm:sem:macros.derive.model+8]
 // [spec:pgorm:req:macros.derive.code-values+4]
 fn model_entity(attrs: &[syn::Attribute], reader: Reader) -> syn::Result<Option<Ident>> {
     let mut entity = None;
@@ -112,7 +112,7 @@ impl Model {
     /// `ColumnField` for each field reading a column, keyed by the column's
     /// discriminant: the field's type reachable from a column named as a
     /// value, which `OneOf` holds to its target's key.
-    // [spec:pgorm:sem:macros.derive.model+7]
+    // [spec:pgorm:sem:macros.derive.model+8]
     // [spec:pgorm:def:disjoint.one-of+4]
     fn impl_column_fields(&self) -> TokenStream {
         let ident = &self.ident;
@@ -127,7 +127,7 @@ impl Model {
             .map(|(((field, field_type), column), _)| {
                 quote! {
                     #[automatically_derived]
-                    impl pgorm::ColumnField<{ <#entity_ident as pgorm::entity::EntityTrait>::Column::#column as usize }> for #ident {
+                    impl pgorm::ColumnField<{ <#entity_ident as pgorm::entity::Entity>::Column::#column as usize }> for #ident {
                         type Value = #field_type;
 
                         fn field(&self) -> &#field_type {
@@ -153,13 +153,13 @@ impl Model {
                     }
                 } else {
                     quote! {
-                        row.try_get(pre, pgorm::StaticName::as_str(&<<Self as pgorm::ModelTrait>::Entity as pgorm::entity::EntityTrait>::Column::#column_ident).into())?
+                        row.try_get(pre, pgorm::StaticName::as_str(&<<Self as pgorm::Model>::Entity as pgorm::entity::Entity>::Column::#column_ident).into())?
                     }
                 }
             })
             .collect();
 
-        // [spec:pgorm:sem:macros.derive.model+7]    the reflected column shape
+        // [spec:pgorm:sem:macros.derive.model+8]    the reflected column shape
         let expected_columns: Vec<TokenStream> = column_idents
             .iter()
             .zip(&self.field_types)
@@ -169,11 +169,11 @@ impl Model {
                 let rust_type = spell_type(field_type);
                 quote! {
                     pgorm::ExpectedColumn::new(
-                        pgorm::StaticName::as_str(&<<Self as pgorm::ModelTrait>::Entity as pgorm::entity::EntityTrait>::Column::#column_ident),
+                        pgorm::StaticName::as_str(&<<Self as pgorm::Model>::Entity as pgorm::entity::Entity>::Column::#column_ident),
                         #rust_type,
                         <#field_type as pgorm::TryGetable>::accepts,
                     )
-                    .selected_as(&<<Self as pgorm::ModelTrait>::Entity as pgorm::entity::EntityTrait>::Column::#column_ident)
+                    .selected_as(&<<Self as pgorm::Model>::Entity as pgorm::entity::Entity>::Column::#column_ident)
                 }
             })
             .collect();
@@ -224,19 +224,19 @@ impl Model {
 
         quote!(
             #[automatically_derived]
-            impl pgorm::ModelTrait for #ident {
+            impl pgorm::Model for #ident {
                 type Entity = #entity_ident;
 
-                fn get(&self, c: <Self::Entity as pgorm::entity::EntityTrait>::Column) -> pgorm::Value {
+                fn get(&self, c: <Self::Entity as pgorm::entity::Entity>::Column) -> pgorm::Value {
                     match c {
-                        #(<Self::Entity as pgorm::entity::EntityTrait>::Column::#column_idents => self.#field_idents.clone().into(),)*
+                        #(<Self::Entity as pgorm::entity::Entity>::Column::#column_idents => self.#field_idents.clone().into(),)*
                         _ => panic!(#missing_field_msg),
                     }
                 }
 
-                fn set(&mut self, c: <Self::Entity as pgorm::entity::EntityTrait>::Column, v: pgorm::Value) -> std::result::Result<(), pgorm::Error> {
+                fn set(&mut self, c: <Self::Entity as pgorm::entity::Entity>::Column, v: pgorm::Value) -> std::result::Result<(), pgorm::Error> {
                     match c {
-                        #(<Self::Entity as pgorm::entity::EntityTrait>::Column::#column_idents => {
+                        #(<Self::Entity as pgorm::entity::Entity>::Column::#column_idents => {
                             self.#field_idents = pgorm::pgorm_query::ValueType::from_value(v)
                                 .map_err(|_| pgorm::Error::Type(#mismatch_msgs.to_owned()))?;
                             Ok(())
@@ -249,10 +249,10 @@ impl Model {
     }
 }
 
-/// `ModelTrait` and `FromQueryResult` for a model, as `reader` reads its
+/// `Model` and `FromQueryResult` for a model, as `reader` reads its
 /// keys: every key under the composite, which validated them, and only
 /// `entity`, `variant` and `ignore` under `Model` itself.
-// [spec:pgorm:sem:macros.derive.model+7]
+// [spec:pgorm:sem:macros.derive.model+8]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]    the field-key vocabulary this
 // derive shares with the `Entity` derive
 pub fn expand_derive_model(input: syn::DeriveInput, reader: Reader) -> syn::Result<TokenStream> {

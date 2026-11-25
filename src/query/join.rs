@@ -1,20 +1,20 @@
 use crate::query::helper::unpack_table_name;
 use crate::{
-    ColumnPairs, EntityTrait, NoContext, QuerySelect, Related, RelationDef, ScopeContext,
-    ScopeError, ScopedIn, Select,
+    ColumnPairs, Entity, NoContext, QuerySelect, Related, RelationDef, ScopeContext, ScopeError,
+    ScopedIn, Select,
 };
 pub use pgorm_query::JoinType;
-use pgorm_query::{Condition, ConditionType, Expr, ExprTrait, Name, TypeName};
+use pgorm_query::{Condition, ConditionType, Expr, Expression, Name, TypeName};
 
 // [spec:pgorm:sem:query.build.join+5]
 impl<E> Select<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Left Join with a Related Entity.
     pub fn left_join<R>(self, _: R) -> Self
     where
-        R: EntityTrait + ScopedIn<NoContext>,
+        R: Entity + ScopedIn<NoContext>,
         E: Related<R>,
     {
         join_related(self, None, JoinType::LeftJoin, E::to(), E::via())
@@ -35,7 +35,7 @@ where
     /// Right Join with a Related Entity.
     pub fn right_join<R>(self, _: R) -> Self
     where
-        R: EntityTrait + ScopedIn<NoContext>,
+        R: Entity + ScopedIn<NoContext>,
         E: Related<R>,
     {
         join_related(self, None, JoinType::RightJoin, E::to(), E::via())
@@ -56,7 +56,7 @@ where
     /// Inner Join with a Related Entity.
     pub fn inner_join<R>(self, _: R) -> Self
     where
-        R: EntityTrait + ScopedIn<NoContext>,
+        R: Entity + ScopedIn<NoContext>,
         E: Related<R>,
     {
         join_related(self, None, JoinType::InnerJoin, E::to(), E::via())
@@ -77,7 +77,7 @@ where
     /// Join with an Entity Related to me.
     pub fn reverse_join<R>(self, _: R) -> Self
     where
-        R: EntityTrait + Related<E> + ScopedIn<NoContext>,
+        R: Entity + Related<E> + ScopedIn<NoContext>,
     {
         join_side(self, None, JoinType::InnerJoin, R::to(), Joined::From)
     }
@@ -199,7 +199,7 @@ pub(crate) fn join_condition(mut rel: RelationDef) -> Condition {
 }
 
 // [spec:pgorm:sem:query.build.join+5]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> Condition {
     let mut cond = Condition::all();
     for ((owner_key, foreign_key), compared) in columns.compared_pairs() {
@@ -225,7 +225,7 @@ fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> 
 /// One side of a join pair as the equality compares it: cast to the enum when
 /// its column's domain is over one, which is the only way PostgreSQL compares
 /// such a column with anything.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
     match enum_type {
         Some(enum_type) => Expr::expr(column.cast_as_type(enum_type.clone())),
@@ -236,10 +236,8 @@ fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
 #[cfg(test)]
 mod tests {
     use crate::tests_cfg::{cake, cake_filling, cake_filling_price, entity_linked, filling, fruit};
-    use crate::{
-        ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QuerySelect, QueryTrait, RelationTrait,
-    };
-    use pgorm_query::{ConditionType, Expr, ExprTrait, IntoCondition, JoinType, Name, alias};
+    use crate::{Column, Entity, Model, QueryFilter, QuerySelect, Relation, Statement};
+    use pgorm_query::{ConditionType, Expr, Expression, IntoCondition, JoinType, Name, alias};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -548,7 +546,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:def:entity.relation.def+12/test]    a condition attached
+    // [spec:pgorm:def:entity.relation.def+13/test]    a condition attached
     // before `rev` keeps its authored roles — the closure's `left` still
     // receives the side it was written against — and a double `rev` renders
     // the same join as the unreversed def

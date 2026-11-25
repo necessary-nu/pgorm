@@ -35,7 +35,7 @@ use std::fmt;
 pub use pgorm_driver::Row;
 pub use report::Report;
 
-use pgorm::{Config, ConnectionTrait, DatabasePool};
+use pgorm::{Config, Connection, DatabasePool};
 
 /// The environment variable consulted when no URL is given on the command line.
 pub const URL_VARIABLE: &str = "DATABASE_URL";

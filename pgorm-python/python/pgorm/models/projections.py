@@ -266,7 +266,7 @@ class ModelSelector[T]:
         raise p.ConstructionError("model selectors cannot be tested as Python booleans")
 
 
-# [spec:pgorm:req:bindings.partial-models]
+# [spec:pgorm:req:bindings.partial-models+1]
 @dataclass(frozen=True, slots=True, init=False)
 class FromExpr:
     """A partial model's field read from an expression, decoded as its
@@ -282,7 +282,7 @@ class FromExpr:
         object.__setattr__(self, "declaration", _expression_declaration(declaration))
 
 
-# [spec:pgorm:req:bindings.partial-models]
+# [spec:pgorm:req:bindings.partial-models+1]
 @dataclass(frozen=True, slots=True)
 class Skip:
     """A partial model's field read from no column, holding ``default`` in
@@ -291,7 +291,7 @@ class Skip:
     default: Any = None
 
 
-# [spec:pgorm:req:bindings.partial-models]
+# [spec:pgorm:req:bindings.partial-models+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class PartialModel:
     """A read shape over a model: each field one of the model's columns (Rust's

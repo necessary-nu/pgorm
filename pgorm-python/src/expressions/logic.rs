@@ -1,7 +1,7 @@
 //! `Expr`'s logic: `&`, `|` and `~` as SQL's AND, OR and NOT, and the
 //! refusal of Python truth testing.
 
-use pgorm::pgorm_query::ExprTrait;
+use pgorm::pgorm_query::Expression;
 use pyo3::prelude::*;
 
 use super::{PyExpr, require_expr};

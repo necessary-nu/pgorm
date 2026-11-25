@@ -1,6 +1,6 @@
 pub use super::*;
 use pgorm::set;
-use pgorm::{Error, PaginatorTrait, query::*};
+use pgorm::{Error, Paginate, query::*};
 use uuid::Uuid;
 
 pub async fn test_update_cake(db: &DatabaseConnection) {

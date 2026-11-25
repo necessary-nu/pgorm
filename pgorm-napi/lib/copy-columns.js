@@ -4,7 +4,7 @@
 // `CopyColumn` the server describes, of any type, or one a program names, of
 // a built-in type; and pgorm's `CopyRowEncoder` and `CopyRowDecoder`, for a
 // program that moves a COPY's bytes itself.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 
 import { native } from "./operations.js";
 import { TypeName } from "./values.js";

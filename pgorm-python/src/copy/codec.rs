@@ -27,7 +27,7 @@ fn columns(columns: Vec<PyRef<'_, PyCopyColumn>>) -> Vec<pgorm::CopyColumn> {
 /// The binary format's writing side over `columns`: the header, each row,
 /// each value read as a parameter is and checked against its column's type,
 /// and the trailer, each as bytes.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 #[pyclass(name = "CopyRowEncoder", module = "pgorm", frozen)]
 pub(crate) struct PyCopyRowEncoder {
     encoder: CopyRowEncoder,
@@ -93,7 +93,7 @@ impl PyCopyRowEncoder {
 /// The binary format's reading side over `columns`: data pushed in chunks
 /// split anywhere, each row given once all of it has arrived, each field
 /// decoded by its column's type as `copy_out_rows` decodes it.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 #[pyclass(name = "CopyRowDecoder", module = "pgorm", frozen)]
 pub(crate) struct PyCopyRowDecoder {
     decoder: Mutex<CopyRowDecoder>,

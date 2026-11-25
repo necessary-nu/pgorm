@@ -83,7 +83,7 @@ function refusedWith(pattern: RegExp): (error: unknown) => true {
   };
 }
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a COPY's columns are described in any format, an enum's type qualified by its schema and money's places learned
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a COPY's columns are described in any format, an enum's type qualified by its schema and money's places learned
 test("copyInColumns and copyOutColumns describe a COPY's columns and types without starting it", async () => {
   same(described(await pool().copyInColumns(copyFrom("item", "binary"))), [
     ["id", "pg_catalog.int4", null],
@@ -110,7 +110,7 @@ test("copyInColumns and copyOutColumns describe a COPY's columns and types witho
   await assert.rejects(pool().copyOutColumns(copyFrom("item", "text") as never), TypeError);
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a refused description is the server's DatabaseError and leaves the connection usable
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a refused description is the server's DatabaseError and leaves the connection usable
 test("a description the server refuses rejects with its DatabaseError and keeps the connection", async () => {
   await using connection = await pool().acquire();
   await assert.rejects(connection.copyInColumns(copyFrom("missing", "text")), (error: unknown) => {
@@ -125,7 +125,7 @@ test("a description the server refuses rejects with its DatabaseError and keeps 
   ]);
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a transaction and a savepoint describe a COPY, and a refused description fails the transaction as a statement does
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a transaction and a savepoint describe a COPY, and a refused description fails the transaction as a statement does
 test("a transaction and its savepoint describe a COPY, holding the transaction while they do", async () => {
   const rolledBack = new Error("roll the table back");
   const outcome = pool().transaction(async (tx) => {
@@ -147,7 +147,7 @@ test("a transaction and its savepoint describe a COPY, holding the transaction w
   await assert.rejects(pool().copyInColumns(copyFrom("fleeting", "binary")), DatabaseError);
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a sink writes a row at a time on a pool, a connection and a transaction, and finish gives the count
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a sink writes a row at a time on a pool, a connection and a transaction, and finish gives the count
 test("copyInRows with no rows gives a sink that writes each row sent and counts them at its finish", async () => {
   const copy = copyFrom("item", "binary").columns(["id", "name", "mood"]);
   const sink = await pool().copyInRows(copy);
@@ -176,7 +176,7 @@ test("copyInRows with no rows gives a sink that writes each row sent and counts 
   await pool().execute("TRUNCATE item");
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a row the columns refuse is a ConstructionError, nothing of it written, and the sink goes on
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a row the columns refuse is a ConstructionError, nothing of it written, and the sink goes on
 // [spec:pgorm:req:napi.typing+1/test]
 test("a sink refuses a row of the wrong width or type and goes on taking rows", async () => {
   const sink = await pool().copyInRows(copyFrom("item", "binary").columns(["id", "name"]));
@@ -195,7 +195,7 @@ test("a sink refuses a row of the wrong width or type and goes on taking rows", 
   await pool().execute("TRUNCATE item");
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a sink closed, disposed or aborted before its finish writes nothing and frees its connection
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a sink closed, disposed or aborted before its finish writes nothing and frees its connection
 test("a sink left unfinished abandons its COPY, so nothing is written", async () => {
   const copy = copyFrom("item", "binary").columns(["id"]);
   const sink = await pool().copyInRows(copy);
@@ -219,7 +219,7 @@ test("a sink left unfinished abandons its COPY, so nothing is written", async ()
   assert.equal(await count("item"), 0);
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a model's records are read out of a COPY and written back through sendModel, each column from the field whose column it is
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a model's records are read out of a COPY and written back through sendModel, each column from the field whose column it is
 test("models() reads a COPY's rows as records, and sendModel writes records back", async () => {
   const sink = await pool().copyInRows(copyFrom("item", "binary").columns(["id", "name", "mood", "tags"]));
   await sink.sendModel({ id: 1, name: "one", mood: "calm", tags: ["a", "b"] }, Item);
@@ -261,7 +261,7 @@ test("models() reads a COPY's rows as records, and sendModel writes records back
   await pool().execute("TRUNCATE item, copied");
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a COPY lacking a model's column, or holding a column of another kind, is a DecodeError that closes the stream
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a COPY lacking a model's column, or holding a column of another kind, is a DecodeError that closes the stream
 test("models() refuses a COPY lacking a field's column or holding it in another kind", async () => {
   await pool().execute("INSERT INTO item (id, name) VALUES (1, 'one')");
   const narrow = await pool().copyOutRows(copyTo(select(items.col("id"), items.col("name")).from(items), "binary"));
@@ -294,7 +294,7 @@ function concatenated(chunks: readonly Uint8Array[]): Uint8Array {
   return data;
 }
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    the encoder's bytes are a COPY's data, and the decoder reads a COPY's data split at any byte
+// [spec:pgorm:req:bindings.copy-rows+3/test]    the encoder's bytes are a COPY's data, and the decoder reads a COPY's data split at any byte
 test("CopyRowEncoder writes the bytes copyIn takes and CopyRowDecoder reads copyOut's, split anywhere", async () => {
   const columns = [new CopyColumn("id", "int4"), new CopyColumn("name", "varchar"), new CopyColumn("tags", "text[]")];
   const encoder = new CopyRowEncoder(columns);
@@ -328,7 +328,7 @@ test("CopyRowEncoder writes the bytes copyIn takes and CopyRowDecoder reads copy
   await pool().execute("TRUNCATE item");
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    the decoder refuses data that ends part way through a row or before the trailer, and data that is not the format
+// [spec:pgorm:req:bindings.copy-rows+3/test]    the decoder refuses data that ends part way through a row or before the trailer, and data that is not the format
 test("CopyRowDecoder refuses data that ends early or is not the binary format", () => {
   const columns = [new CopyColumn("id", "int4")];
   const encoder = new CopyRowEncoder(columns);
@@ -352,7 +352,7 @@ test("CopyRowDecoder refuses data that ends early or is not the binary format", 
   assert.throws(() => foreign.push("id"), TypeError);
 });
 
-// [spec:pgorm:req:bindings.copy-rows+2/test]    a program names a built-in type by pg_type's name, an element's name and [], or a TypeName in pg_catalog, and nothing else
+// [spec:pgorm:req:bindings.copy-rows+3/test]    a program names a built-in type by pg_type's name, an element's name and [], or a TypeName in pg_catalog, and nothing else
 // [spec:pgorm:req:napi.typing+1/test]
 test("a CopyColumn a program makes is of a built-in type, and money takes its places", () => {
   same(described([new CopyColumn("tags", "_text"), new CopyColumn("tags", "text[]")]), [

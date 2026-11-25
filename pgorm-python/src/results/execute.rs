@@ -14,7 +14,7 @@ use crate::{
     transactions::work::{Output, Work},
 };
 
-// [spec:pgorm:req:bindings.results+2]
+// [spec:pgorm:req:bindings.results+3]
 pub(crate) fn execute<'py>(
     py: Python<'py>,
     target: Target,

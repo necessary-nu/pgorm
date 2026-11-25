@@ -443,10 +443,10 @@ These rules capture what the code does today, including known gaps.
 
 ## CRUD execution (`exec.crud`)
 
-> [spec:pgorm:def:exec.crud+2]
+> [spec:pgorm:def:exec.crud+3]
 > Statement execution is mediated by selector types: `Selector<S>` holds
-> a `SelectStatement` plus a `SelectorTrait` implementor, and
-> `SelectorRaw<S>` holds a raw SQL string plus `Values`. `SelectorTrait`
+> a `SelectStatement` plus a `DecodeRow` implementor, and
+> `SelectorRaw<S>` holds a raw SQL string plus `Values`. `DecodeRow`
 > has a single method, `from_raw_query_result`, turning one `QueryResult`
 > into an item. Implementors: `SelectModel<M>` (one `FromQueryResult`
 > model, empty prefix), `SelectGetableValue<T, C>` (tuple by named columns
@@ -462,13 +462,13 @@ These rules capture what the code does today, including known gaps.
 > `ValueHolder` `ToSql` adapter (see `exec.cursor.binding`).
 >
 > A `Selector` renders its statement as the builder it came from does: it
-> implements `QueryTrait` (`query.build.query-trait`), so `build`,
+> implements `Statement` (`query.build.query-trait`), so `build`,
 > `as_query` and `into_query` answer the statement a decoded selector will
 > run, and a test or a log reads it without rebuilding the projection by
 > hand. What `build` answers is what `all` and `stream` send; `one` narrows
 > the limit first (`exec.crud.select`).
 
-> [spec:pgorm:sem:exec.crud.selector-entry+3]
+> [spec:pgorm:sem:exec.crud.selector-entry+4]
 > A caller who has built a `SelectStatement` outside the entity builders —
 > a CTE used as the driving table has no entity behind it at all — MUST
 > still be able to name a decode target without collapsing the statement to
@@ -485,7 +485,7 @@ These rules capture what the code does today, including known gaps.
 > names goes unused.
 >
 > Every raw entry point takes the statement in one shape, the one
-> `ConnectionTrait` takes its text in (`[spec:pgorm:def:conn.sql-text]`):
+> `Connection` takes its text in (`[spec:pgorm:def:conn.sql-text]`):
 > `sql: &T` where `T: ?Sized + SqlText` — a `&str` or a `&String` — and the
 > statement's `Values`. That is the three `SelectorRaw` constructors,
 > `Select::from_raw_sql`, `FromQueryResult::find_by_statement` and
@@ -535,7 +535,7 @@ These rules capture what the code does today, including known gaps.
 > source graph's terminals through its own selector
 > (`[spec:pgorm:sem:query.graph.terminals]`).
 
-> [spec:pgorm:req:exec.tie-limit+1]
+> [spec:pgorm:req:exec.tie-limit+2]
 > Every ORM path that sends a SELECT built from a `SelectStatement` MUST
 > call `check_tie_limit` before it renders (`sql.ast.select.tie-limit`),
 > beside the empty-projection guard those paths share, so a tie limit with no
@@ -543,7 +543,7 @@ These rules capture what the code does today, including known gaps.
 > naming it rather than as SQL the server refuses: a `Selector`'s and a
 > `Select`'s terminals and streams, a graph's, a paginator's pages and count,
 > and a cursor's executions. A tie limit reaches an ORM builder through
-> `QueryTrait::query`, which hands out the statement.
+> `Statement::query`, which hands out the statement.
 >
 > Where the ORM writes a row limit of its own, it MUST NOT replace a tie
 > limit without a word. A paginator's `fetch_page` and `num_items` and a
@@ -751,7 +751,7 @@ These rules capture what the code does today, including known gaps.
 > skipped only in part is `Inserted` of the rows written. Success becomes
 > `TryInsertResult::Inserted(..)`; every other error propagates.
 
-> [spec:pgorm:sem:exec.crud.update+7]
+> [spec:pgorm:sem:exec.crud.update+8]
 > `UpdateMany::exec` executes the statement and returns the rows-affected
 > count as `u64`.
 >
@@ -786,7 +786,7 @@ These rules capture what the code does today, including known gaps.
 > NOT provided. `TryInsert` exists because a conflict clause makes "no row
 > written" a routine result of a statement that was sent; nothing to set is
 > a property of the statement the caller built, testable before executing it
-> through `QueryTrait::as_query().get_values()`, so the valve would wrap a
+> through `Statement::as_query().get_values()`, so the valve would wrap a
 > question the caller can already ask.
 >
 > `UpdateOne::exec_returning_model` returns the updated model: it appends a
@@ -830,8 +830,8 @@ These rules capture what the code does today, including known gaps.
 
 ## Streaming (`exec.stream`)
 
-> [spec:pgorm:def:exec.stream+3]
-> Row-level streaming is exposed through `ConnectionTrait::query_raw`, which
+> [spec:pgorm:def:exec.stream+4]
+> Row-level streaming is exposed through `Connection::query_raw`, which
 > takes the same `BorrowToSql` `ExactSizeIterator` params as `execute_raw`
 > and returns a `pgorm_driver::RowStream`: rows are read from the
 > connection as they arrive instead of being buffered into a `Vec` the way

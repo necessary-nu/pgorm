@@ -8,7 +8,7 @@ use common::runtime_name as n;
 use common::*;
 use pgorm_codegen::parse_schema;
 use pgorm_query::{
-    ColumnDef, ColumnSpec, Expr, ExprTrait, Func, GeneratedKind, Query, TableCreateStatement,
+    ColumnDef, ColumnSpec, Expr, Expression, Func, GeneratedKind, Query, TableCreateStatement,
 };
 
 const SCHEMA: &str = include_str!("sql/expressions/schema.sql");
@@ -96,13 +96,13 @@ fn schema_expressions_reach_the_entity() {
     assert_eq!(expressions(&tables[2]).len(), 1);
 }
 
-// [spec:pgorm:sem:codegen.entity.pk+5/test]    a key whose every column is generated is the
+// [spec:pgorm:sem:codegen.entity.pk+6/test]    a key whose every column is generated is the
 // database's to fill: the key carries no `auto_increment = false`
 // [spec:pgorm:sem:codegen.entity.expressions+3/test]    and a VIRTUAL generated column in a key,
 // which PostgreSQL does not support (0A000), is refused
 #[test]
 fn a_generated_key_is_the_databases() {
-    assert!(<stock_code::PrimaryKey as pgorm::PrimaryKeyTrait>::auto_increment());
+    assert!(<stock_code::PrimaryKey as pgorm::PrimaryKey>::auto_increment());
     for key in ["PRIMARY KEY", "UNIQUE"] {
         assert_eq!(
             refused(&format!(

@@ -40,9 +40,9 @@ migrations the database has not had yet:
 
 ```ts
 import assert from "node:assert/strict";
-import { ColumnDef, createTable, type MigrationTrait, migrations, Table } from "@necessary/pgorm";
+import { ColumnDef, createTable, type Migration, migrations, Table } from "@necessary/pgorm";
 
-const createDelivery: MigrationTrait = {
+const createDelivery: Migration = {
   name: "m20260201_000001_create_delivery",
   async up(tx) {
     await tx.execute(
@@ -86,9 +86,9 @@ applying the new name a second time.
 
 ```ts
 import assert from "node:assert/strict";
-import { ConstructionError, type MigrationTrait, migrations } from "@necessary/pgorm";
+import { ConstructionError, type Migration, migrations } from "@necessary/pgorm";
 
-const noop = (name: string): MigrationTrait => ({ name, async up() {} });
+const noop = (name: string): Migration => ({ name, async up() {} });
 
 await assert.rejects(
   migrations([noop("m20260201_000001_noop"), noop("m20260201_000001_noop")]).up(pool),
@@ -151,16 +151,16 @@ nothing left to apply.
 
 ```ts
 import assert from "node:assert/strict";
-import { DatabaseError, type MigrationTrait, migrations } from "@necessary/pgorm";
+import { DatabaseError, type Migration, migrations } from "@necessary/pgorm";
 
-const createNote: MigrationTrait = {
+const createNote: Migration = {
   name: "m20260201_000001_create_customer_note",
   async up(tx) {
     await tx.execute("CREATE TABLE customer_note (id serial PRIMARY KEY, note text NOT NULL)");
   },
 };
 // A migration that cannot succeed: the bakery has a customer table.
-const createCustomerAgain: MigrationTrait = {
+const createCustomerAgain: Migration = {
   name: "m20260201_000002_create_customer_again",
   async up(tx) {
     await tx.execute("CREATE TABLE customer (id serial PRIMARY KEY)");
@@ -198,16 +198,16 @@ stay applied, and the next `up` resumes after them.
 
 ```ts
 import assert from "node:assert/strict";
-import { alterType, type MigrationTrait, migrations } from "@necessary/pgorm";
+import { alterType, type Migration, migrations } from "@necessary/pgorm";
 
-const addAlmond: MigrationTrait = {
+const addAlmond: Migration = {
   name: "m20260401_000001_add_almond",
   commitsAfter: true,
   async up(tx) {
     await tx.execute(alterType(flavor).addValue("almond"));
   },
 };
-const addAlmondCake: MigrationTrait = {
+const addAlmondCake: Migration = {
   name: "m20260401_000002_add_almond_cake",
   async up(tx) {
     await tx.execute(
@@ -316,9 +316,9 @@ the schema.
 
 ```ts
 import assert from "node:assert/strict";
-import { type MigrationTrait, migrations } from "@necessary/pgorm";
+import { type Migration, migrations } from "@necessary/pgorm";
 
-const create = (name: string, table: string): MigrationTrait => ({
+const create = (name: string, table: string): Migration => ({
   name,
   async up(tx) {
     await tx.execute(`CREATE TABLE ${table} (id serial PRIMARY KEY)`);
@@ -362,9 +362,9 @@ always reports one.
 
 ```ts
 import assert from "node:assert/strict";
-import { ConstructionError, type MigrationTrait, migrations } from "@necessary/pgorm";
+import { ConstructionError, type Migration, migrations } from "@necessary/pgorm";
 
-const createDelivery = (revision: string): MigrationTrait => ({
+const createDelivery = (revision: string): Migration => ({
   name: "m20260201_000001_create_delivery",
   checksum: revision,
   async up(tx) {
@@ -409,9 +409,9 @@ any other value is a `TypeError`.
 
 ```ts
 import assert from "node:assert/strict";
-import { ConstructionError, type MigrationTrait, migrations } from "@necessary/pgorm";
+import { ConstructionError, type Migration, migrations } from "@necessary/pgorm";
 
-const create = (name: string, table: string): MigrationTrait => ({
+const create = (name: string, table: string): Migration => ({
   name,
   async up(tx) {
     await tx.execute(`CREATE TABLE ${table} (id serial PRIMARY KEY)`);
@@ -525,7 +525,7 @@ by voucher:
 <!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { type MigrationTrait, migrations, SqlMigration } from "@necessary/pgorm";
+import { type Migration, migrations, SqlMigration } from "@necessary/pgorm";
 
 const frozen = SqlMigration.readDir("guide/migrations");
 assert.deepEqual(frozen.map((file) => file.name), [
@@ -536,7 +536,7 @@ assert.deepEqual(frozen.map((file) => file.name), [
 ]);
 assert.deepEqual(frozen.map((file) => file.commitsAfter), [false, false, true, false]);
 
-const firstVoucher: MigrationTrait = {
+const firstVoucher: Migration = {
   name: "m20260301_000002_first_voucher",
   async up(tx) {
     // The base row and its kind's row reference each other, so the keys are

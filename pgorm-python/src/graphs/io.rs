@@ -11,7 +11,7 @@ pub(crate) enum Read {
     Optional,
 }
 
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 pub(crate) fn read<'py>(
     py: Python<'py>,
     connection: &Bound<'_, PyAny>,

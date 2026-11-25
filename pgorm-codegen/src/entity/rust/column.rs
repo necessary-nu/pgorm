@@ -115,7 +115,7 @@ impl Column {
 
     /// The field attribute declaring the column's identity, if it is one.
     // [spec:pgorm:sem:codegen.entity.compact.attrs+14]
-    // [spec:pgorm:sem:codegen.entity.pk+5]
+    // [spec:pgorm:sem:codegen.entity.pk+6]
     pub fn get_identity_attr(&self) -> Option<TokenStream> {
         self.identity.map(|identity| match identity {
             IdentityGeneration::Always => quote! { identity },
@@ -348,7 +348,7 @@ fn domain_tokens(
 /// quote characters, so a name holding a `"` comes back out of the derive as
 /// the name it went in as. `validate_col_type` has already refused any
 /// `Named` shape the one-name spelling could not carry.
-// [spec:pgorm:req:macros.derive.one-form]
+// [spec:pgorm:req:macros.derive.one-form+1]
 // [spec:pgorm:sem:codegen.entity.compact.attrs+14]
 fn col_type_attr(col_type: &ColumnType, home: Option<&EnumHome>) -> Option<TokenStream> {
     let stated = matches!(

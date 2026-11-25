@@ -5,10 +5,10 @@ use std::fmt::Write;
 use std::io;
 use std::path::Path;
 
-use pgorm::{ConnectionTrait, DatabaseTransaction, MigrationFile};
+use pgorm::{Connection, DatabaseTransaction, MigrationFile};
 use sha2::{Digest, Sha256};
 
-use crate::{Error, MigrationName, MigrationTrait};
+use crate::{Error, Migration, MigrationName};
 
 /// A migration written as a `.sql` file: named after the file, checksummed by
 /// its contents, its grammar checked at compile time.
@@ -35,8 +35,8 @@ use crate::{Error, MigrationName, MigrationTrait};
 /// pub struct Migrator;
 ///
 /// #[async_trait::async_trait]
-/// impl MigratorTrait for Migrator {
-///     fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+/// impl pgorm_migration::Migrator for Migrator {
+///     fn migrations(&self) -> Vec<Box<dyn Migration>> {
 ///         vec![
 ///             Box::new(sql_migration!("tests/sql/m20260101_000001_create_note.sql")),
 ///             Box::new(sql_migration!("tests/sql/m20260101_000002_seed_note.sql")),
@@ -64,7 +64,7 @@ use crate::{Error, MigrationName, MigrationTrait};
 ///
 /// A file whose first line is [`MigrationFile::COMMITS_AFTER`],
 /// `-- pgorm: commits-after`, answers `true` from
-/// [`commits_after`](MigrationTrait::commits_after), so the batch commits
+/// [`commits_after`](Migration::commits_after), so the batch commits
 /// once it has run. That is how a change PostgreSQL will not let one
 /// transaction finish, which [`MigrationFile`] freezes into several files,
 /// runs from them:
@@ -92,15 +92,15 @@ use crate::{Error, MigrationName, MigrationTrait};
 /// pub struct Migrator;
 ///
 /// #[async_trait::async_trait]
-/// impl MigratorTrait for Migrator {
-///     fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+/// impl pgorm_migration::Migrator for Migrator {
+///     fn migrations(&self) -> Vec<Box<dyn Migration>> {
 ///         vec![Box::new(CREATE_NOTE), Box::new(SEED_NOTE.clone())]
 ///     }
 /// }
 ///
 /// assert_eq!(SEED_NOTE.name(), "m20260101_000002_seed_note");
 /// ```
-// [spec:pgorm:def:migration.sql-file+1]
+// [spec:pgorm:def:migration.sql-file+2]
 // [spec:pgorm:req:migration.sql-file.const]    the expansion is a constant expression
 // [spec:pgorm:req:migration.sql-file.compile+2]    a refusal is a compile error
 #[macro_export]
@@ -114,7 +114,7 @@ macro_rules! sql_migration {
 /// builds from a `.sql` file while the crate compiles, and what
 /// [`SqlMigration::read`] and [`SqlMigration::read_dir`] read from files as
 /// the program runs.
-// [spec:pgorm:def:migration.sql-file+1]
+// [spec:pgorm:def:migration.sql-file+2]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SqlMigration {
     name: Cow<'static, str>,
@@ -167,7 +167,7 @@ impl SqlMigration {
     /// );
     /// ```
     ///
-    /// It answers [`commits_after`](MigrationTrait::commits_after) as
+    /// It answers [`commits_after`](Migration::commits_after) as
     /// [`new`](SqlMigration::new) does, both asking
     /// [`MigrationFile::opens_with_commits_after`] of the text.
     // [spec:pgorm:req:migration.sql-file.const]
@@ -268,8 +268,8 @@ impl MigrationName for SqlMigration {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for SqlMigration {
-    // [spec:pgorm:def:migration.sql-file+1]    the script runs whole, in the batch's transaction
+impl Migration for SqlMigration {
+    // [spec:pgorm:def:migration.sql-file+2]    the script runs whole, in the batch's transaction
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute(&self.sql).await
     }

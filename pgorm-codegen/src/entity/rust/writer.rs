@@ -301,7 +301,7 @@ impl EntityWriter {
         }
     }
 
-    // [spec:pgorm:req:macros.derive.one-form]
+    // [spec:pgorm:req:macros.derive.one-form+1]
     // [spec:pgorm:def:codegen.entity.compact+8]
     // [spec:pgorm:def:disjoint.one-of+4]
     #[allow(clippy::too_many_arguments)]
@@ -460,7 +460,7 @@ impl EntityWriter {
 
     // [spec:pgorm:sem:codegen.entity.compact.attrs+14]
     // [spec:pgorm:sem:codegen.entity.compact.model+3]
-    // [spec:pgorm:sem:codegen.entity.pk+5]
+    // [spec:pgorm:sem:codegen.entity.pk+6]
     #[allow(clippy::too_many_arguments)]
     pub fn gen_compact_model_struct(
         entity: &Entity,

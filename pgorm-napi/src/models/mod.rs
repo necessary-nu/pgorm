@@ -63,11 +63,11 @@ fn kind_key_of_value(mut cx: FunctionContext) -> JsResult<JsString> {
 /// `modelReadText(kind, text)`: the value `text` spells as a created
 /// multirange `kind`. The driver reports a created multirange with no
 /// subtype to read its binary form by, so a model projects such a column
-/// cast to `text`, as pgorm's `ColumnTrait::select_as` reads an entity's,
+/// cast to `text`, as pgorm's `Column::select_as` reads an entity's,
 /// and its record reads the text through the declared subtype, as a decoded
 /// created range's is read: text the subtype does not read is a
 /// `DecodeError`, never a value of another type.
-// [spec:pgorm:req:bindings.model-records+1]
+// [spec:pgorm:req:bindings.model-records+2]
 // [spec:pgorm:req:bindings.created-ranges+5]
 fn read_text(mut cx: FunctionContext) -> JsResult<JsValue> {
     let kind = cx.argument::<JsValue>(0)?;

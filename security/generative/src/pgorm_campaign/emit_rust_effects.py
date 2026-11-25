@@ -46,9 +46,9 @@ class EffectEmitter:
             self.helpers.add("compiled")
             return f"compiled({query}.into_sql())?"
         if kind in ("entity_query", "graph_query"):
-            # `QueryTrait::build` is what the binding's `inspect` reaches for a
+            # `Statement::build` is what the binding's `inspect` reaches for a
             # compiled query, and it takes the query by reference.
-            return f"pgorm::QueryTrait::build(&{query})"
+            return f"pgorm::Statement::build(&{query})"
         if kind == "cursor":
             raise UnsupportedInstruction(
                 "pgorm::Cursor exposes no statement builder, so it cannot be inspected"
@@ -144,11 +144,11 @@ class EffectEmitter:
     def fetch_paths(self, reference, mode):
         kind = self.types[reference]
         if kind == "pipeline":
-            return [f"{PL}::Pipeline::into_sql", "pgorm::ConnectionTrait::query_raw"]
+            return [f"{PL}::Pipeline::into_sql", "pgorm::Connection::query_raw"]
         if kind in FETCH_PREFIX:
             method = "one_opt" if mode == "optional" else mode
             return [FETCH_PREFIX[kind] + "::" + method]
-        return ["pgorm::ConnectionTrait::query_raw"]
+        return ["pgorm::Connection::query_raw"]
 
     def effect(self, step, lines, indent):
         name, d, i = step["op"], step["data"], step["inputs"]
@@ -174,7 +174,7 @@ class EffectEmitter:
                     f"{pad}    let (sql, values) = {self.compile_query(i['query'])};",
                     f"{pad}    let held = holders(&values);",
                     (
-                        f"{pad}    let rows = pgorm::ConnectionTrait::{method}("
+                        f"{pad}    let rows = pgorm::Connection::{method}("
                         f"&{connection}, &sql, &params(&held)).await?;"
                     ),
                 ]
@@ -196,7 +196,7 @@ class EffectEmitter:
                 f"{pad}    let (sql, values) = {self.compile_query(i['query'])};",
                 f"{pad}    let held = holders(&values);",
                 (
-                    f"{pad}    let opened = pgorm::ConnectionTrait::query_raw("
+                    f"{pad}    let opened = pgorm::Connection::query_raw("
                     f"&{connection}, &sql, params(&held)).await?;"
                 ),
                 (
@@ -221,7 +221,7 @@ class EffectEmitter:
             if d["method"] == "delete":
                 body = [
                     (
-                        f"{pad}    let count = pgorm::ActiveModelTrait::delete("
+                        f"{pad}    let count = pgorm::ActiveModel::delete("
                         f"{model}, &{connection}).await?;"
                     ),
                     f"{pad}    Ok({REPLAY}::observe::count(count))",
@@ -232,7 +232,7 @@ class EffectEmitter:
                 entity = self.entity_type(registration)
                 body = [
                     (
-                        f"{pad}    let written = pgorm::ActiveModelTrait::{d['method']}("
+                        f"{pad}    let written = pgorm::ActiveModel::{d['method']}("
                         f"{model}, &{connection}).await?;"
                     ),
                     f"{pad}    let observation = {REPLAY}::observe::collected(vec![",
@@ -256,7 +256,7 @@ class EffectEmitter:
                 f"{pad}    let (sql, values) = {self.compile_query(i['query'])};",
                 f"{pad}    let held = holders(&values);",
                 (
-                    f"{pad}    let count = pgorm::ConnectionTrait::execute("
+                    f"{pad}    let count = pgorm::Connection::execute("
                     f"&{connection}, &sql, &params(&held)).await?;"
                 ),
                 f"{pad}    Ok({REPLAY}::observe::count(count))",
@@ -302,7 +302,7 @@ class EffectEmitter:
                     f"{pad}    let column = {self.entity_column(registration, column)};"
                 )
                 body.append(
-                    f"{pad}    update = update.col_expr(column, pgorm::ColumnTrait::save_as("
+                    f"{pad}    update = update.col_expr(column, pgorm::Column::save_as("
                     f"&column, {Q}::Expr::val({self.use(value)})));"
                 )
             body.extend(
@@ -397,11 +397,11 @@ class EffectEmitter:
         if name == "fetch":
             return self.fetch_paths(i["query"], d["mode"])
         if name == "execute":
-            return ["pgorm::ConnectionTrait::execute_raw"]
+            return ["pgorm::Connection::execute_raw"]
         if name == "stream":
-            return ["pgorm::ConnectionTrait::query_raw", "pgorm_driver::RowStream"]
+            return ["pgorm::Connection::query_raw", "pgorm_driver::RowStream"]
         if name == "active.write":
-            return ["pgorm::ActiveModelTrait::" + d["method"]]
+            return ["pgorm::ActiveModel::" + d["method"]]
         if name == "entity.change":
             return ["pgorm::UpdateOne::exec_returning_change"]
         if name == "entity.changes":
@@ -417,10 +417,10 @@ class EffectEmitter:
             return [
                 "pgorm::DatabaseConnection::transaction_with"
                 if step["scope"] == "root"
-                else "pgorm::TransactionTrait::transaction"
+                else "pgorm::Transact::transaction"
             ]
         if name in ("commit", "rollback"):
-            return ["pgorm::TransactionTrait::transaction"]
+            return ["pgorm::Transact::transaction"]
         raise UnsupportedInstruction("no standalone Rust source for " + name)
 
     def transaction_mode(self, data):
@@ -460,7 +460,7 @@ class EffectEmitter:
             )
         else:
             call = (
-                f"pgorm::TransactionTrait::transaction(&mut *"
+                f"pgorm::Transact::transaction(&mut *"
                 f"{self.connection(step['scope'])}, async |{child}| {{"
             )
         lines.append(f"{pad}{{")

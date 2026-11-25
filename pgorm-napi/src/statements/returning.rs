@@ -3,7 +3,7 @@
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{
-    Asterisk, BinOper, Expr, ExprTrait, Query, ReturningClause, ReturningRow,
+    Asterisk, BinOper, Expr, Expression, Query, ReturningClause, ReturningRow,
 };
 
 use super::{

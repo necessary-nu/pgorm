@@ -59,7 +59,7 @@ def reject_execution_mismatch(project, output, environment):
 
 
 # [spec:pgorm:req:bindings.entities+6/test]
-# [spec:pgorm:req:bindings.entity-graphs+4/test]
+# [spec:pgorm:req:bindings.entity-graphs+5/test]
 # [spec:pgorm:req:bindings.pipeline-sources+3/test]
 # [spec:pgorm:req:bindings.surface+2/test]
 # [spec:pgorm:req:bindings.disjoint+2/test]

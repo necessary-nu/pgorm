@@ -9,7 +9,7 @@ use pretty_assertions::assert_eq;
 
 async fn insert_bakery<C>(db: &C, name: &str, profit_margin: f64) -> Result<(), Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     bakery::ActiveModel {
         name: set(name),
@@ -24,7 +24,7 @@ where
 
 async fn count_bakeries<C>(db: &C, search_name: &str) -> Result<usize, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     Ok(Bakery::find()
         .filter(bakery::Column::Name.contains(search_name))
@@ -35,7 +35,7 @@ where
 
 async fn show<C>(db: &C, setting: &str) -> Result<String, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let row = db
         .query_one(format!("SHOW {setting}").as_str(), &[])
@@ -371,7 +371,7 @@ pub async fn transaction_commit_failure_maps_error() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+4/test]    ReadOnly emits both clauses, and the server enforces the access mode
+// [spec:pgorm:req:conn.tx+5/test]    ReadOnly emits both clauses, and the server enforces the access mode
 #[pgorm_macros::test]
 pub async fn transaction_read_only_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_read_only_txconfig").await;
@@ -408,7 +408,7 @@ pub async fn transaction_read_only_txconfig() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+4/test]    ReadWrite carries the isolation level, and still commits
+// [spec:pgorm:req:conn.tx+5/test]    ReadWrite carries the isolation level, and still commits
 #[pgorm_macros::test]
 pub async fn transaction_serializable_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_serializable_txconfig").await;
@@ -436,7 +436,7 @@ pub async fn transaction_serializable_txconfig() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+4/test]    Default appends no clause, so the session default stands
+// [spec:pgorm:req:conn.tx+5/test]    Default appends no clause, so the session default stands
 #[pgorm_macros::test]
 pub async fn transaction_default_inherits_session_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_default_inherits_session_txconfig").await;
@@ -473,7 +473,7 @@ pub async fn transaction_default_inherits_session_txconfig() -> Result<(), Error
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+4/test]    ReadWrite overrides a read-only session default
+// [spec:pgorm:req:conn.tx+5/test]    ReadWrite overrides a read-only session default
 #[pgorm_macros::test]
 pub async fn transaction_read_write_overrides_default_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_read_write_overrides_default_txconfig").await;
@@ -702,7 +702,7 @@ pub async fn transaction_nested() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    a savepoint nested in a connection transaction, both plain closures, runs in a spawned task and commits
+// [spec:pgorm:sem:conn.tx.closure+7/test]    a savepoint nested in a connection transaction, both plain closures, runs in a spawned task and commits
 #[pgorm_macros::test]
 pub async fn transaction_nested_in_spawned_task() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_nested_in_spawned_task").await;
@@ -740,7 +740,7 @@ fn serializable() -> TransactionMode {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    Ok commits, and the value is returned
+// [spec:pgorm:sem:conn.tx.closure+7/test]    Ok commits, and the value is returned
 #[pgorm_macros::test]
 pub async fn transaction_closure_commit_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_closure_commit_txclosure").await;
@@ -774,7 +774,7 @@ pub async fn transaction_closure_commit_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    each closure form's future is Send, so it runs in a spawned task
+// [spec:pgorm:sem:conn.tx.closure+7/test]    each closure form's future is Send, so it runs in a spawned task
 #[pgorm_macros::test]
 pub async fn transaction_closures_run_in_spawned_tasks() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_closures_run_in_spawned_tasks").await;
@@ -821,7 +821,7 @@ pub async fn transaction_closures_run_in_spawned_tasks() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    Err rolls back and is wrapped, not swallowed
+// [spec:pgorm:sem:conn.tx.closure+7/test]    Err rolls back and is wrapped, not swallowed
 #[pgorm_macros::test]
 pub async fn transaction_closure_error_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_closure_error_txclosure").await;
@@ -855,7 +855,7 @@ pub async fn transaction_closure_error_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    a ROLLBACK that fails after the closure's error is reported beside it
+// [spec:pgorm:sem:conn.tx.closure+7/test]    a ROLLBACK that fails after the closure's error is reported beside it
 #[pgorm_macros::test]
 pub async fn transaction_failed_rollback_is_reported() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_failed_rollback_is_reported").await;
@@ -1129,7 +1129,7 @@ pub async fn transaction_retry_non_retryable_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+4/test]    a savepoint under a configured outer transaction
+// [spec:pgorm:req:conn.tx+5/test]    a savepoint under a configured outer transaction
 #[pgorm_macros::test]
 pub async fn transaction_nested_under_config_txtests() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_nested_under_config_txtests").await;
@@ -1177,7 +1177,7 @@ pub async fn transaction_nested_under_config_txtests() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+4/test]    DeferrableSnapshot carries serializable + read only, the one combination DEFERRABLE needs
+// [spec:pgorm:req:conn.tx+5/test]    DeferrableSnapshot carries serializable + read only, the one combination DEFERRABLE needs
 #[pgorm_macros::test]
 pub async fn transaction_deferrable_txtests() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_deferrable_txtests").await;

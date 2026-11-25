@@ -1,6 +1,6 @@
 //! pgorm-migration's runner over a list a binding's program wrote: its
 //! `SqlMigration`s are the crate's own, and a migration written in the
-//! language is a `MigrationTrait` whose `up` hands the batch's transaction to
+//! language is a `Migration` whose `up` hands the batch's transaction to
 //! the language for as long as the object's `up` runs. The list is a
 //! `pgorm_migration::Migrations`, so the ledger, the lock, the checksums,
 //! `commits_after`, the statement-cache clear and notification and the
@@ -13,7 +13,7 @@ use std::{
 
 use pgorm::{DatabaseTransaction, Error, Name};
 use pgorm_migration::{
-    MigrationName, MigrationTrait, Migrations, MigratorTrait, SqlMigration, UnknownMigrations,
+    Migration, MigrationName, Migrations, Migrator as _, SqlMigration, UnknownMigrations,
 };
 
 use crate::{
@@ -96,8 +96,8 @@ impl<H: Host> MigrationName for Hosted<H> {
 }
 
 #[pgorm_migration::async_trait::async_trait]
-impl<H: Host> MigrationTrait for Hosted<H> {
-    // [spec:pgorm:req:bindings.migrations]    `up` awaited in the batch's transaction
+impl<H: Host> Migration for Hosted<H> {
+    // [spec:pgorm:req:bindings.migrations+1]    `up` awaited in the batch's transaction
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let name = &self.written.name;
         let Some(run) = &self.run else {
@@ -146,7 +146,7 @@ pub const UNKNOWN_MIGRATIONS: [(&str, UnknownMigrations); 2] = [
 /// A binding's list of migrations, its ledger placed, its channel named and
 /// a migration it does not know refused or warned of as the program gave
 /// them.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 #[derive(Debug)]
 pub struct Listed<T> {
     entries: Vec<Entry<T>>,
@@ -190,7 +190,7 @@ impl<T: Send + Sync + 'static> Listed<T> {
     /// `run` when there is one.
     fn migrator<H: Host<Object = T>>(&self, run: Option<&Arc<Run<H>>>) -> Migrator {
         let migrations = self.entries.iter().map(|entry| match entry {
-            Entry::Sql(migration) => Box::new(migration.clone()) as Box<dyn MigrationTrait>,
+            Entry::Sql(migration) => Box::new(migration.clone()) as Box<dyn Migration>,
             Entry::Written(written) => Box::new(Hosted {
                 written: written.clone(),
                 run: run.cloned(),
@@ -222,7 +222,7 @@ impl<T: Send + Sync + 'static> Listed<T> {
     /// with in the language when one did, which the binding fails with in
     /// place of the runner's account of it, and otherwise the warnings the
     /// run gave.
-    // [spec:pgorm:req:bindings.migrations]
+    // [spec:pgorm:req:bindings.migrations+1]
     // [spec:pgorm:req:bindings.migrations.unknown-applied]    a run's warnings reach the binding
     pub fn up<H: Host<Object = T>>(
         &self,
@@ -279,8 +279,8 @@ impl Migrator {
 }
 
 #[pgorm_migration::async_trait::async_trait]
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         self.migrations.migrations()
     }
 
@@ -325,7 +325,7 @@ pub struct Statuses {
 /// Each migration's name and whether the ledger records it applied, as
 /// `migrator` reads them on `db`, and the warnings the read gave.
 // [spec:pgorm:req:bindings.migrations.unknown-applied]    a read's warnings reach the binding
-pub async fn statuses<C: pgorm::ConnectionTrait>(
+pub async fn statuses<C: pgorm::Connection>(
     migrator: &Migrator,
     db: &C,
 ) -> Result<Statuses, Error> {
@@ -369,7 +369,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:req:bindings.migrations/test]    name, checksum and commits_after read once
+    // [spec:pgorm:req:bindings.migrations+1/test]    name, checksum and commits_after read once
     #[test]
     fn a_written_migration_keeps_what_was_read() {
         let written = Arc::new(Written {

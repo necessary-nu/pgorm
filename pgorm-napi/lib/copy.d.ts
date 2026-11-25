@@ -14,8 +14,8 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy+1]
+// [spec:pgorm:req:bindings.copy-rows+3]
 
 import type { Builder, Expr, Predicate } from "./expressions.d.ts";
 import type { Param, PlainValue, TypeName } from "./index.d.ts";

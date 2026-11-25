@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use pgorm::{
-    EntityTrait, ErasedCursor, ErasedPages, Error, IntoActiveModel, PagedRead, QueryResult,
+    Entity, ErasedCursor, ErasedPages, Error, IntoActiveModel, PagedRead, QueryResult,
     pgorm_query::Name, select_cursor,
 };
 use pgorm::{NoContext, ScopedIn};
@@ -65,7 +65,7 @@ pub struct Keyset {
 /// paginator.
 pub(super) fn pages<E>(select: &SelectAdapter<E>) -> Arc<Pages>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -80,13 +80,13 @@ where
 
 /// `Select::cursor_by` over `columns`, pgorm's `select_cursor`: a plain read
 /// has no tiebreak, so its whole key is its order columns.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 pub(super) fn cursor<E>(
     select: &SelectAdapter<E>,
     columns: &[String],
 ) -> Result<Arc<Keyset>, Failure>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {

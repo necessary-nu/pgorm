@@ -1,6 +1,6 @@
 use crate::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, IntoActiveModel, Iterable,
-    QueryFilter, SelectModel, SelectorRaw, UpdateMany, UpdateOne, error::*,
+    ActiveModel, Column, Connection, Entity, IntoActiveModel, Iterable, QueryFilter, SelectModel,
+    SelectorRaw, UpdateMany, UpdateOne, error::*,
 };
 use pgorm_driver::types::ToSql;
 use pgorm_query::{Query, UpdateStatement};
@@ -9,7 +9,7 @@ use super::ValueHolder;
 
 impl<A> UpdateOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the update and return the updated row as a model.
     ///
@@ -22,20 +22,20 @@ where
     /// still be read under the statement's own `WHERE`. The many-row terminals
     /// have no such row to fall back to and report
     /// [`Error::NothingToSet`](crate::Error::NothingToSet) instead.
-    // [spec:pgorm:sem:exec.crud.update+7]
+    // [spec:pgorm:sem:exec.crud.update+8]
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     pub async fn exec_returning_model<C>(
         mut self,
         db: &C,
-    ) -> Result<<A::Entity as EntityTrait>::Model, Error>
+    ) -> Result<<A::Entity as Entity>::Model, Error>
     where
-        <A::Entity as EntityTrait>::Model: IntoActiveModel<A>,
-        C: ConnectionTrait,
+        <A::Entity as Entity>::Model: IntoActiveModel<A>,
+        C: Connection,
     {
         self.refusal()?;
-        type Entity<A> = <A as ActiveModelTrait>::Entity;
-        type Model<A> = <Entity<A> as EntityTrait>::Model;
-        type Column<A> = <Entity<A> as EntityTrait>::Column;
+        type Entity<A> = <A as ActiveModel>::Entity;
+        type Model<A> = <Entity<A> as crate::Entity>::Model;
+        type Column<A> = <Entity<A> as crate::Entity>::Column;
 
         if self.query.get_values().is_empty() {
             return find_unchanged_model::<A, C>(self.entity, &self.query, db).await;
@@ -57,7 +57,7 @@ where
 
 impl<E> UpdateMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Execute the update and report how many rows it changed.
     ///
@@ -71,12 +71,12 @@ where
     /// [`UpdateMany::set`](crate::UpdateMany::set) skips `Unchanged` and
     /// `NotSet` fields, so a model read back from the database and handed
     /// straight to `set` contributes nothing.
-    // [spec:pgorm:sem:exec.crud.update+7]
+    // [spec:pgorm:sem:exec.crud.update+8]
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     #[doc(alias = "UpdateResult")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         if self.query.get_values().is_empty() {
@@ -100,12 +100,12 @@ where
     /// same terms as [`Self::exec`]: the two terminals of one builder answer
     /// that input identically, so which terminal you reach for cannot change
     /// whether the statement was sent.
-    // [spec:pgorm:sem:exec.crud.update+7]
+    // [spec:pgorm:sem:exec.crud.update+8]
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     #[doc(alias = "exec_with_returning")]
     pub async fn exec_returning_models<C>(mut self, db: &C) -> Result<Vec<E::Model>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         if self.query.get_values().is_empty() {
@@ -128,15 +128,15 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.crud.update+7]
+// [spec:pgorm:sem:exec.crud.update+8]
 pub(super) async fn find_unchanged_model<A, C>(
     entity: A::Entity,
     query: &UpdateStatement,
     db: &C,
-) -> Result<<A::Entity as EntityTrait>::Model, Error>
+) -> Result<<A::Entity as Entity>::Model, Error>
 where
-    A: ActiveModelTrait,
-    C: ConnectionTrait,
+    A: ActiveModel,
+    C: Connection,
 {
     let condition = query
         .where_condition()

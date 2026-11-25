@@ -19,7 +19,7 @@ def inspection(expression):
 # [spec:pgorm:req:bindings.identifiers+3/test]
 # [spec:pgorm:req:bindings.operands/test]
 # [spec:pgorm:req:bindings.statements/test]
-# [spec:pgorm:req:bindings.delegation/test]
+# [spec:pgorm:req:bindings.delegation+1/test]
 class ExpressionTests(unittest.TestCase):
     def test_identifiers_and_values_have_separate_paths(self):
         name = 'A"雪.%\\'

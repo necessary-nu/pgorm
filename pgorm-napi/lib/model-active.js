@@ -1,11 +1,11 @@
 // @ts-check
 
 // A declared model's record writes and the hooks around them, the dialect of
-// Rust's `ActiveModelTrait` and `ActiveModelBehavior`: `Model.active(values)`
+// Rust's `pgorm::ActiveModel` and `ActiveModelBehavior`: `Model.active(values)`
 // holds the fields a write sets, and its `insert`, `update` and `delete`
 // write one record through the model's own statement builders, each between
 // the model's `before*` and `after*` hooks.
-// [spec:pgorm:req:bindings.model-hooks]
+// [spec:pgorm:req:bindings.model-hooks+1]
 
 import { ConstructionError, DecodeError } from "./errors.js";
 import { fieldOf, shapeOf } from "./model-shape.js";
@@ -41,7 +41,7 @@ export function hooksOf(hooks) {
 /**
  * The fields one record write sets, as a Rust `ActiveModel` holds them:
  * `insert`, `update` and `delete` write the record and run the model's hooks
- * around the write, as `ActiveModelTrait` does. A model's statement builders,
+ * around the write, as `pgorm::ActiveModel` does. A model's statement builders,
  * `insert`, `update` and `delete` on the model itself, run none, as Rust's
  * `Insert`, `Update` and `Delete` run none.
  */
@@ -115,7 +115,7 @@ export class ModelActive {
   }
 
   /**
-   * `ActiveModelTrait::insert`: `beforeSave(values, true)`, the row inserted
+   * `pgorm::ActiveModel::insert`: `beforeSave(values, true)`, the row inserted
    * and read back, then `afterSave(record, true)`.
    *
    * @param {unknown} db
@@ -128,7 +128,7 @@ export class ModelActive {
   }
 
   /**
-   * `ActiveModelTrait::update`: `beforeSave(values, false)`, the row the key
+   * `pgorm::ActiveModel::update`: `beforeSave(values, false)`, the row the key
    * names updated with the other fields set and read back, then
    * `afterSave(record, false)`. A key no row has is a `DecodeError`, as
    * Rust's `RecordNotUpdated` is an error.
@@ -146,7 +146,7 @@ export class ModelActive {
   }
 
   /**
-   * `ActiveModelTrait::delete`: `beforeDelete(values)`, the row the key
+   * `pgorm::ActiveModel::delete`: `beforeDelete(values)`, the row the key
    * names deleted, then `afterDelete(values)`; the rows deleted.
    *
    * @param {unknown} db

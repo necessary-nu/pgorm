@@ -1,7 +1,7 @@
 //! Compare installed Python cursor rows against independent Rust graph cursors.
 
 use _native::{account, graphs};
-use pgorm::{ConnectionTrait, DatabaseConnection};
+use pgorm::{Connection, DatabaseConnection};
 use serde_json::{Value, json};
 
 type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -69,7 +69,7 @@ async fn compare(db: &DatabaseConnection, report: &Value) -> Result {
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.entity-graphs+4/test]
+// [spec:pgorm:req:bindings.entity-graphs+5/test]
 async fn run() -> Result {
     let report: Value =
         serde_json::from_slice(&std::fs::read(std::env::var("PGORM_GRAPH_REPORT")?)?)?;

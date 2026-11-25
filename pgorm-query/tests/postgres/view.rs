@@ -49,7 +49,7 @@ fn view_body() -> SelectStatement {
 const ACTIVE_ACCOUNTS: &str =
     r#"SELECT "id", "name" FROM "account" WHERE "active" = TRUE AND "name" <> E'it\'s'"#;
 
-// [spec:pgorm:req:sql.ddl.view+1/test]    the name and the body are all a view needs, and the
+// [spec:pgorm:req:sql.ddl.view+2/test]    the name and the body are all a view needs, and the
 // body's values are written into it as literals, there being nothing to bind them to
 #[test]
 fn a_view_writes_its_body_with_values_inlined() -> error::Result<()> {
@@ -78,7 +78,7 @@ fn a_view_writes_its_body_with_values_inlined() -> error::Result<()> {
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ddl.view+1/test]    every clause of a plain view, read back by the grammar
+// [spec:pgorm:req:sql.ddl.view+2/test]    every clause of a plain view, read back by the grammar
 // as the clause it was written as
 #[test]
 fn every_view_clause_renders_in_one_order() -> error::Result<()> {
@@ -123,7 +123,7 @@ fn every_view_clause_renders_in_one_order() -> error::Result<()> {
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ddl.view+1/test]    the check option is one slot, LOCAL or CASCADED, the
+// [spec:pgorm:req:sql.ddl.view+2/test]    the check option is one slot, LOCAL or CASCADED, the
 // later replacing the earlier
 #[test]
 fn a_check_option_is_local_or_cascaded() -> error::Result<()> {
@@ -177,7 +177,7 @@ fn counting() -> SelectStatement {
         .take()
 }
 
-// [spec:pgorm:req:sql.ddl.view+1/test]    a recursive view always names its columns, which the
+// [spec:pgorm:req:sql.ddl.view+2/test]    a recursive view always names its columns, which the
 // grammar turns into the WITH RECURSIVE query it defines the view as
 #[test]
 fn a_recursive_view_names_its_columns() -> error::Result<()> {
@@ -212,7 +212,7 @@ fn a_recursive_view_names_its_columns() -> error::Result<()> {
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ddl.view+1/test]    what the grammar refuses the builder has no method or
+// [spec:pgorm:req:sql.ddl.view+2/test]    what the grammar refuses the builder has no method or
 // constructor for: a recursive view without columns or with a check option, and a view IF
 // NOT EXISTS
 #[test]
@@ -229,7 +229,7 @@ fn the_grammar_refuses_what_a_view_cannot_build() {
     assert_rejected(r#"CREATE VIEW "v" () AS SELECT 1"#);
 }
 
-// [spec:pgorm:req:sql.ddl.view+1/test]    a view drop names every view it drops, and one behavior
+// [spec:pgorm:req:sql.ddl.view+2/test]    a view drop names every view it drops, and one behavior
 #[test]
 fn a_view_drop_names_one_or_more_views() {
     assert_eq!(View::drop(n("a")).to_string(), r#"DROP VIEW "a""#);
@@ -433,7 +433,7 @@ fn assert_body_checked<S: ToString>(create: impl Fn(SelectStatement) -> error::R
     }
 }
 
-// [spec:pgorm:req:sql.ddl.view+1/test]    both view constructors refuse a body whose tie limit
+// [spec:pgorm:req:sql.ddl.view+2/test]    both view constructors refuse a body whose tie limit
 // or WINDOW clause the grammar refuses, before any statement exists
 #[test]
 fn a_view_refuses_a_body_the_grammar_refuses() {

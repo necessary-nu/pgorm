@@ -12,13 +12,13 @@
 use std::fmt;
 
 use pgorm_query::{
-    Check, Expr, ExprTrait, Func, Name, SimpleExpr, Table, TableAlterStatement, TableName, Value,
+    Check, Expr, Expression, Func, Name, SimpleExpr, Table, TableAlterStatement, TableName, Value,
 };
 
 use super::{column_casts::ColumnCasts, disjoint_shape::types};
 use crate::{
-    DisjointTable, EntityName, EntityTrait, Error, Iterable, OneOf, OneOfTarget,
-    PrimaryKeyToColumn, Related, StaticName, TargetVisitor, error::query_err,
+    DisjointTable, Entity, EntityName, Error, Iterable, OneOf, OneOfTarget, PrimaryKeyToColumn,
+    Related, StaticName, TargetVisitor, error::query_err,
     executor::result_name::bounded_identifier, table_label,
 };
 
@@ -123,7 +123,7 @@ impl OneOfShape {
             name: O::name().to_owned(),
             table: entity.table_ref(),
             label: table_label(&entity),
-            row_key: <<O::Entity as EntityTrait>::PrimaryKey as Iterable>::iter()
+            row_key: <<O::Entity as Entity>::PrimaryKey as Iterable>::iter()
                 .map(|key| key.into_column().as_str().to_owned())
                 .collect(),
             targets: described.0,

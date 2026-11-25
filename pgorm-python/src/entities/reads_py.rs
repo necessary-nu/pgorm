@@ -106,7 +106,7 @@ pub(crate) fn stream<'py>(
 
 /// A registered read's pages, Rust's `Paginator`, which holds no database
 /// and no current page: each terminal takes the database it runs on.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 #[pyclass(
     name = "EntityPaginator",
     module = "pgorm",
@@ -393,7 +393,7 @@ impl CursorState {
 }
 
 /// A registered `Select<E>`'s keyset cursor, `Select::cursor_by`.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 #[pyclass(name = "EntityCursor", module = "pgorm", frozen, skip_from_py_object)]
 #[derive(Clone, Debug)]
 pub struct PyEntityCursor {

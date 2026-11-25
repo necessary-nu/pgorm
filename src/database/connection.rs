@@ -18,7 +18,7 @@ pub(super) mod private {
     impl Sealed for String {}
 }
 
-/// SQL text accepted by a [`ConnectionTrait`] statement method.
+/// SQL text accepted by a [`Connection`] statement method.
 ///
 /// Callers supply `str` or `String`. The sealed trait also admits an internal
 /// wrapper that retains ORM parameter types for experimental native execution.
@@ -35,14 +35,14 @@ pub(super) mod private {
 /// (`conn.pool.conn-trait`) and the metrics fingerprint (`metric.fingerprint`)
 /// — are therefore total: neither has a case where the SQL it is looking at has
 /// gone missing.
-// [spec:pgorm:def:conn.sql-text+4]
-#[doc(alias("Statement", "StatementBuilder", "from_sql_and_values", "from_string"))]
+// [spec:pgorm:def:conn.sql-text+5]
+#[doc(alias("StatementBuilder", "from_sql_and_values", "from_string"))]
 pub trait SqlText: private::Sealed {
     /// The statement's SQL text.
     fn sql_text(&self) -> &str;
 }
 
-// [spec:pgorm:def:conn.sql-text+4]    the two spellings of a statement
+// [spec:pgorm:def:conn.sql-text+5]    the two spellings of a statement
 impl SqlText for str {
     fn sql_text(&self) -> &str {
         self
@@ -68,24 +68,24 @@ impl SqlText for String {
 /// something a call site can reach for:
 ///
 /// ```compile_fail,E0277
-/// # use pgorm::{ConnectionTrait, DatabaseConnection, Error};
+/// # use pgorm::{Connection, DatabaseConnection, Error};
 /// # use pgorm_driver::Statement;
 /// async fn run(db: &DatabaseConnection, prepared: &Statement) -> Result<u64, Error> {
 ///     db.execute(prepared, &[]).await
 /// }
 /// ```
 ///
-/// [`batch_execute`]: ConnectionTrait::batch_execute
-// [spec:pgorm:def:conn.pool.conn-trait+11]
+/// [`batch_execute`]: Connection::batch_execute
+// [spec:pgorm:def:conn.pool.conn-trait+12]
 #[async_trait::async_trait]
-pub trait ConnectionTrait: Sync {
+pub trait Connection: Sync {
     /// Execute a SQL statement with its bound parameters, returning the number
     /// of rows it affected
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync;
 
-    /// [`ConnectionTrait::execute`] over parameters supplied as an iterator of
+    /// [`Connection::execute`] over parameters supplied as an iterator of
     /// individually-typed values rather than a slice of one trait object type
     async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
@@ -126,7 +126,7 @@ pub trait ConnectionTrait: Sync {
 
     /// Execute a statement and return its rows as a stream, without buffering
     /// the whole result set
-    // [spec:pgorm:def:exec.stream+3]
+    // [spec:pgorm:def:exec.stream+4]
     #[doc(alias = "StreamTrait")]
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
@@ -156,7 +156,7 @@ pub trait ConnectionTrait: Sync {
     ///
     /// Because there is no parameter binding, any value has to be interpolated
     /// into `sql` by the caller — build these strings from trusted input only,
-    /// and reach for [`ConnectionTrait::execute`] the moment user data is
+    /// and reach for [`Connection::execute`] the moment user data is
     /// involved.
     #[doc(alias = "execute_unprepared")]
     async fn batch_execute(&self, sql: &str) -> Result<(), Error>;
@@ -170,9 +170,9 @@ pub trait ConnectionTrait: Sync {
 /// variable `C`. Forwarding through the exclusive borrow, for every
 /// implementor at once, makes each closure's handle spell a connection the way
 /// the transaction it borrows does.
-// [spec:pgorm:def:conn.pool.conn-trait+11]    the closure's handle is itself a connection
+// [spec:pgorm:def:conn.pool.conn-trait+12]    the closure's handle is itself a connection
 #[async_trait::async_trait]
-impl<C: ConnectionTrait> ConnectionTrait for &mut C {
+impl<C: Connection> Connection for &mut C {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,

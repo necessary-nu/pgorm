@@ -31,7 +31,7 @@ pub(crate) fn operations() -> serde_json::Map<String, serde_json::Value> {
         ("pipeline.inspect", "Pipeline::into_sql"),
         (
             "pipeline.records",
-            "Pipeline::into_sql / ConnectionTrait::query_all / native Record decode",
+            "Pipeline::into_sql / Connection::query_all / native Record decode",
         ),
         (
             "pipeline.select_sources",
@@ -44,11 +44,11 @@ pub(crate) fn operations() -> serde_json::Map<String, serde_json::Value> {
         ),
         (
             "pipeline.into_model",
-            "Pipeline::into_sql / ConnectionTrait::query_all / native Record decode",
+            "Pipeline::into_sql / Connection::query_all / native Record decode",
         ),
         (
             "pipeline.into_tuple",
-            "Pipeline::into_sql / ConnectionTrait::query_all / positional decode",
+            "Pipeline::into_sql / Connection::query_all / positional decode",
         ),
     ]
     .into_iter()

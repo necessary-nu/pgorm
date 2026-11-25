@@ -154,7 +154,7 @@ server sent, a [`DbError`](crate::DbError):
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("errors_sqlstate").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{ConnectionTrait, Error, SqlState};
+use pgorm::{Connection, Error, SqlState};
 
 let missing = db.query_all("SELECT * FROM pastry", &[]).await;
 let Err(Error::Postgres(error)) = missing else {
@@ -199,7 +199,7 @@ has a classifier:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("errors_refusals").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{ConnectionTrait, DecodeRaw, Values};
+use pgorm::{Connection, DecodeRaw, Values};
 
 // The parameter is a smallint, and an i32 is not one.
 let too_wide = db

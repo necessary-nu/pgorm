@@ -6,7 +6,7 @@ use super::*;
 use crate::view::{RefreshMode, RelationDrop, ViewDefinition};
 
 impl QueryBuilder {
-    // [spec:pgorm:req:sql.ddl.view+1]
+    // [spec:pgorm:req:sql.ddl.view+2]
     pub(crate) fn prepare_view_create_statement(
         &self,
         create: &ViewCreateStatement,
@@ -18,7 +18,7 @@ impl QueryBuilder {
         }
     }
 
-    // [spec:pgorm:req:sql.ddl.view+1]
+    // [spec:pgorm:req:sql.ddl.view+2]
     pub(crate) fn prepare_recursive_view_create_statement(
         &self,
         create: &RecursiveViewCreateStatement,
@@ -30,7 +30,7 @@ impl QueryBuilder {
     /// `CREATE [OR REPLACE ]<recursive>VIEW <name>[ (<columns>)][ WITH
     /// (<options>)] AS <query>`: everything a view statement writes before
     /// its check option.
-    // [spec:pgorm:req:sql.ddl.view+1]
+    // [spec:pgorm:req:sql.ddl.view+2]
     fn prepare_view_definition(
         &self,
         definition: &ViewDefinition,
@@ -61,7 +61,7 @@ impl QueryBuilder {
         self.prepare_relation_body(&definition.body, sql);
     }
 
-    // [spec:pgorm:req:sql.ddl.view+1]
+    // [spec:pgorm:req:sql.ddl.view+2]
     pub(crate) fn prepare_view_drop_statement(
         &self,
         drop: &ViewDropStatement,

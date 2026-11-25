@@ -3,7 +3,7 @@
 `COPY` moves rows between a table and the client in bulk. It is the fastest
 way to load many rows into PostgreSQL, or to read many out: the rows stream
 over the connection as one data flow, with no statement per row. pgorm runs
-it through [`CopyTrait`](crate::CopyTrait), implemented for a
+it through [`CopyConnection`](crate::CopyConnection), implemented for a
 [`DatabaseConnection`](crate::DatabaseConnection), a
 [`DatabaseTransaction`](crate::DatabaseTransaction) (and so a savepoint), and
 the [metrics](crate::guide::metrics) wrappers.
@@ -27,7 +27,7 @@ and a binary COPY has no delimiter, header or NULL string to set. A COPY takes
 no bound parameters, so a statement has one rendering, its `Display`, with any
 value in it written as an escaped literal.
 
-`CopyTrait` is the only way a COPY runs. Its data flows beside the statement,
+`CopyConnection` is the only way a COPY runs. Its data flows beside the statement,
 which `execute`, `query_all` and the other statement methods have no route
 for, so SQL text holding a `COPY` given to one of them, `batch_execute`
 included, is refused with
@@ -38,7 +38,7 @@ included, is refused with
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("copy_as_statement").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{ConnectionTrait, Error};
+use pgorm::{Connection, Error};
 
 let refused = db.query_all("COPY cake TO STDOUT", &[]).await;
 assert!(matches!(refused, Err(Error::CopyStatement)));
@@ -50,7 +50,7 @@ assert!(matches!(refused, Err(Error::CopyStatement)));
 
 ## Loading rows
 
-[`copy_in`](crate::CopyTrait::copy_in) starts a `COPY .. FROM STDIN` and
+[`copy_in`](crate::CopyConnection::copy_in) starts a `COPY .. FROM STDIN` and
 returns a [`CopyInSink`](crate::CopyInSink), a `futures` `Sink` of
 [`Bytes`](crate::Bytes). What you send is the format's own encoding of the
 rows, split anywhere: a chunk need not end at a row. The sink sends the data
@@ -72,7 +72,7 @@ assigns each cake its id:
 use futures::SinkExt;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{CopyFromStatement, CopyText};
-use pgorm::{Bytes, CopyTrait};
+use pgorm::{Bytes, CopyConnection};
 
 let copy = CopyFromStatement::new(cake::Entity, CopyText)
     .columns([
@@ -112,7 +112,7 @@ than a hang:
 use futures::SinkExt;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{CopyFromStatement, CopyText};
-use pgorm::{Bytes, CopyTrait};
+use pgorm::{Bytes, CopyConnection};
 use pgorm_guide_support::cake;
 
 async fn interleaved(db: &mut DatabaseConnection) -> Result<(), Error> {
@@ -135,7 +135,7 @@ either one aborts the transaction, as any failed statement does.
 
 ## Reading rows
 
-[`copy_out`](crate::CopyTrait::copy_out) starts a `COPY .. TO STDOUT` and
+[`copy_out`](crate::CopyConnection::copy_out) starts a `COPY .. TO STDOUT` and
 returns a [`CopyOutStream`](crate::CopyOutStream), a `Stream` of `Bytes`
 chunks in the statement's format. The server sends rows as the stream is
 read, so a slow reader holds the server back rather than filling memory.
@@ -153,7 +153,7 @@ Sunrise bakery's price list is written as CSV with a header line:
 use futures::TryStreamExt;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{CopyCsv, CopyToStatement, Query};
-use pgorm::CopyTrait;
+use pgorm::CopyConnection;
 
 let price_list = Query::select()
     .columns([cake::Column::Name, cake::Column::Price])
@@ -206,7 +206,7 @@ same limit with no order is refused:
 use futures::TryStreamExt;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{CopyCsv, CopyToStatement, Order, Query};
-use pgorm::CopyTrait;
+use pgorm::CopyConnection;
 
 let mut cheapest = Query::select()
     .column(cake::Column::Name)
@@ -268,7 +268,7 @@ number, and the COPY loads the others:
 use futures::SinkExt;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{CopyCsv, CopyFromStatement, CopyIgnore};
-use pgorm::{Bytes, CopyTrait};
+use pgorm::{Bytes, CopyConnection};
 
 let copy = CopyFromStatement::new(cake::Entity, CopyCsv)
     .columns([
@@ -315,13 +315,13 @@ The binary format sends each field in its type's binary form, the form a
 bound parameter travels in, so a binary COPY can carry rows of pgorm
 [`Value`](crate::Value)s with no text to write or parse. The format itself
 names no column types, so pgorm asks the server:
-[`copy_in_columns`](crate::CopyTrait::copy_in_columns) and
-[`copy_out_columns`](crate::CopyTrait::copy_out_columns) describe a COPY's
+[`copy_in_columns`](crate::CopyConnection::copy_in_columns) and
+[`copy_out_columns`](crate::CopyConnection::copy_out_columns) describe a COPY's
 columns, in order, each a [`CopyColumn`](crate::CopyColumn) with its name and
 type, by preparing a `SELECT` of them and running nothing.
 
-[`copy_in_rows`](crate::CopyTrait::copy_in_rows) and
-[`copy_out_rows`](crate::CopyTrait::copy_out_rows) do that, then start the
+[`copy_in_rows`](crate::CopyConnection::copy_in_rows) and
+[`copy_out_rows`](crate::CopyConnection::copy_out_rows) do that, then start the
 COPY:
 
 - A [`CopyRowSink`](crate::CopyRowSink) takes each row with
@@ -350,7 +350,7 @@ ids:
 use futures::TryStreamExt;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{CopyBinary, CopyFromStatement, CopyToStatement, Query};
-use pgorm::CopyTrait;
+use pgorm::CopyConnection;
 
 let mut db = pool.get().await?;
 let sunrise = CopyToStatement::new(
@@ -410,7 +410,7 @@ row's values are checked against the column types before any of it is sent:
 use futures::TryStreamExt;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{CopyBinary, CopyFromStatement, CopyToStatement};
-use pgorm::CopyTrait;
+use pgorm::CopyConnection;
 
 let mut db = pool.get().await?;
 let bakeries = CopyFromStatement::new(pgorm_guide_support::bakery::Entity, CopyBinary)
@@ -470,7 +470,7 @@ all of it has arrived:
 use futures::{SinkExt, TryStreamExt};
 use pgorm::pgorm_query::{CopyBinary, CopyFromStatement, CopyToStatement, Query};
 use pgorm::types::Type;
-use pgorm::{Bytes, BytesMut, CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyTrait, Value};
+use pgorm::{Bytes, BytesMut, CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyConnection, Value};
 use pgorm_guide_support::bakery;
 
 let columns = vec![
@@ -544,7 +544,7 @@ compute them.
 # let scratch = pgorm_guide_support::Scratch::bakery("copy_refused").await;
 # let pool = scratch.pool.clone();
 use pgorm::pgorm_query::{CopyFromStatement, CopyText, Name};
-use pgorm::{ConnectionTrait, CopyTrait, Error};
+use pgorm::{Connection, CopyConnection, Error};
 
 let mut db = pool.get().await?;
 let missing = CopyFromStatement::new(Name::runtime("pastry"), CopyText);

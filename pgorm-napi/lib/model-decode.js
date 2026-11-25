@@ -10,7 +10,7 @@
 // optional source its row does not carry. A field read from its text, a
 // created multirange's, is held to the text its projection casts it to and
 // read as the value that text spells.
-// [spec:pgorm:req:bindings.model-records+1]
+// [spec:pgorm:req:bindings.model-records+2]
 
 import { runStatement } from "./runs.js";
 import { DecodeError } from "./errors.js";

@@ -1,6 +1,5 @@
 use pgorm_migration::pgorm::{
-    ConnectionTrait, DatabasePool, Error, ManagerConfig, NoTls, STATEMENT_CACHE_CHANNEL,
-    types::ToSql,
+    Connection, DatabasePool, Error, ManagerConfig, NoTls, STATEMENT_CACHE_CHANNEL, types::ToSql,
 };
 
 use pgorm_test_support::{config, create_database, drop_database, scoped_name};

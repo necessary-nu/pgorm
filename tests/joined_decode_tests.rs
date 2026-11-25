@@ -13,8 +13,8 @@ pub mod common;
 use futures::StreamExt;
 use pgorm::tests_cfg::{cake, cake_filling, filling, fruit, vendor};
 use pgorm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Error, FromQueryResult,
-    QueryFilter, QueryResult, QuerySelect, RelationTrait, Value, Values, alias,
+    Column, Connection, DatabaseConnection, Entity, Error, FromQueryResult, QueryFilter,
+    QueryResult, QuerySelect, Relation, Value, Values, alias,
 };
 use pretty_assertions::assert_eq;
 
@@ -302,7 +302,7 @@ mod tea {
 
 impl pgorm::Related<tea::Entity> for cake::Entity {
     fn to() -> pgorm::RelationDef {
-        use pgorm::RelationTrait;
+        use pgorm::Relation;
 
         tea::Relation::Cake.def().rev()
     }
@@ -312,7 +312,7 @@ impl pgorm::Related<tea::Entity> for cake::Entity {
 // present related row is reported, not read as an absent row
 #[pgorm_macros::test]
 async fn enum_payload_decode_errors() -> Result<(), Error> {
-    use pgorm::RelationTrait;
+    use pgorm::Relation;
 
     let ctx = TestContext::new("joined_decode_enum").await;
     let db = ctx.db.get().await?;

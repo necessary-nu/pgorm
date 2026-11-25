@@ -66,7 +66,7 @@ async function fresh(): Promise<void> {
   );
 }
 
-// [spec:pgorm:req:bindings.batch-execute/test]
+// [spec:pgorm:req:bindings.batch-execute+1/test]
 test("a script runs unprepared on a pool, a connection and a transaction", async () => {
   await fresh();
   await pool().connection(async (connection) => {

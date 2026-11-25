@@ -45,7 +45,7 @@ fn page_size(size: u64) -> NonZeroU64 {
 
 const RAW_ALL: &str = r#"SELECT "id", "name", "profit_margin" FROM "bakery" ORDER BY "id" ASC"#;
 
-// [spec:pgorm:def:exec.paginator+3/test]    `PaginatorTrait::paginate` is
+// [spec:pgorm:def:exec.paginator+4/test]    `Paginate::paginate` is
 // reachable from every builder-backed selector shape and returns no `Result`
 // on any of them, and `count` pages at `NonZeroU64::MIN`
 // [spec:pgorm:sem:exec.paginator.fetch+3/test]    zero-indexed pages, an
@@ -93,7 +93,7 @@ async fn paginator_fetch_page() -> Result<(), Error> {
     assert_eq!(paginator.cur_page(), 3);
     assert!(paginator.fetch().await?.is_empty());
 
-    // `PaginatorTrait` is implemented for `Selector<S>` too.
+    // `Paginate` is implemented for `Selector<S>` too.
     let names_only: Vec<String> = Bakery::find()
         .select(bakery::Column::Name)
         .order_by_asc(bakery::Column::Id)
@@ -264,9 +264,9 @@ async fn paginator_iterate() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:exec.crud+2/test]    `Select::from_raw_sql` builds a
+// [spec:pgorm:def:exec.crud+3/test]    `Select::from_raw_sql` builds a
 // `SelectorRaw` from a raw statement plus `Values`
-// [spec:pgorm:sem:exec.paginator.raw+8/test]    a parsed single `SELECT` is
+// [spec:pgorm:sem:exec.paginator.raw+9/test]    a parsed single `SELECT` is
 // wrapped whole as a subquery, so its own clauses survive paging
 #[pgorm_macros::test]
 async fn paginator_raw() -> Result<(), Error> {
@@ -343,7 +343,7 @@ async fn paginator_raw() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.paginator.raw+8/test]    markers the caller did not
+// [spec:pgorm:sem:exec.paginator.raw+9/test]    markers the caller did not
 // number in first-reference order still read the values the caller meant,
 // because the wrapper renumbers them into its own parameter space instead of
 // requiring the caller's numbering to be usable where the fragment lands
@@ -427,10 +427,10 @@ async fn paginator_raw_renumbers_markers() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.paginator.raw+8/test]    anything that is not one
+// [spec:pgorm:sem:exec.paginator.raw+9/test]    anything that is not one
 // row-returning `SELECT` is an `Error::Query` from `paginate` itself, naming
 // what it parsed as — so no paginator over it is ever handed back
-// [spec:pgorm:def:exec.paginator+3/test]    `SelectorRaw::paginate` is the
+// [spec:pgorm:def:exec.paginator+4/test]    `SelectorRaw::paginate` is the
 // fallible one; `count` on the same source reports the same refusal
 #[pgorm_macros::test]
 async fn paginator_raw_rejects_non_select() -> Result<(), Error> {
@@ -522,7 +522,7 @@ fn token_forms() -> Vec<(&'static str, Values)> {
     ]
 }
 
-// [spec:pgorm:sem:exec.paginator.raw+8/test]    the caller's statement is sent
+// [spec:pgorm:sem:exec.paginator.raw+9/test]    the caller's statement is sent
 // whole, so comments, dollar quotes, string literals and subscripts read the
 // same paginated as they do direct, and the markers keep their values
 #[pgorm_macros::test]
@@ -588,7 +588,7 @@ async fn paginator_raw_token_forms() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.paginator.raw+8/test]    a marker with no value behind
+// [spec:pgorm:sem:exec.paginator.raw+9/test]    a marker with no value behind
 // it is an `Error::Query` naming it, returned by `paginate` rather than an
 // index past the end of the values — and rather than a paginator that exists
 // but cannot page

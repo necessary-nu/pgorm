@@ -155,7 +155,7 @@ function operands(registered: Entity<Booked>): Expr[] {
 }
 
 // [spec:pgorm:req:napi.typing+1/test]
-// [spec:pgorm:req:bindings.column-operators+3/test]
+// [spec:pgorm:req:bindings.column-operators+4/test]
 test("the declarations take a range or multirange column's Range or Multirange as its kind converts it", () => {
   assert.equal(typeof operands, "function");
   assert.equal(Booking.col("seats").isIn([seats]).inspect().values[0]?.kind, "int4range");

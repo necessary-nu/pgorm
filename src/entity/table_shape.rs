@@ -9,15 +9,17 @@
 
 use std::fmt;
 
-use pgorm_query::{Expr, ExprTrait, GeneratedKind, Name, SimpleExpr, SqlName, TableName, TypeName};
+use pgorm_query::{
+    Expr, Expression, GeneratedKind, Name, SimpleExpr, SqlName, TableName, TypeName,
+};
 
 use super::{
     ColumnDefault, cast_of, compared_enum, compared_value_as, save_array_cast, save_cast,
     select_cast,
 };
 use crate::{
-    ColumnDef, ColumnTrait, DisjointTable, EntityTrait, Error, Iterable, PrimaryKeyToColumn,
-    PrimaryKeyTrait, RelationDef, RelationTrait, executor::result_name::derived_name,
+    Column, ColumnDef, DisjointTable, Entity, Error, Iterable, PrimaryKey, PrimaryKeyToColumn,
+    Relation, RelationDef, executor::result_name::derived_name,
 };
 
 /// One column of a [`TableShape`]: its name and its definition, which says
@@ -68,7 +70,7 @@ impl TableColumn {
         self
     }
 
-    fn typed<C: ColumnTrait>(column: C) -> Self {
+    fn typed<C: Column>(column: C) -> Self {
         Self {
             name: Name::new(column),
             def: column.def(),
@@ -104,7 +106,7 @@ impl TableColumn {
 
     /// `expr`, a read of the column, as a projection reads a column of its
     /// type: what an entity's column's
-    /// [`select_as`](crate::ColumnTrait::select_as) does by default, `money`
+    /// [`select_as`](crate::Column::select_as) does by default, `money`
     /// read as `numeric`, an enum and a domain over one as its text, a
     /// created multirange as its text. `None` where the column is read as it
     /// stands, so a projection can name it with no alias.
@@ -119,7 +121,7 @@ impl TableColumn {
     }
 
     /// `value` as it is written to the column: what an entity's column's
-    /// [`save_as`](crate::ColumnTrait::save_as) does by default, cast to
+    /// [`save_as`](crate::Column::save_as) does by default, cast to
     /// `money`, to an enum or a domain, or to a created range's type through
     /// its text, and as it is otherwise.
     // [spec:pgorm:sem:schema.shape-casts+1]
@@ -292,7 +294,7 @@ impl TableShape {
     /// [`create_table_from_entity`](crate::Schema::create_table_from_entity)
     /// reads them.
     // [spec:pgorm:sem:schema.from-shape]
-    pub fn of<E: EntityTrait>() -> Self {
+    pub fn of<E: Entity>() -> Self {
         Self::of_entity(E::default())
     }
 
@@ -300,7 +302,7 @@ impl TableShape {
     /// comment and unique keys read from this value of `E`, as an entity
     /// whose names are computed gives them.
     // [spec:pgorm:sem:schema.from-shape]
-    pub fn of_entity<E: EntityTrait>(entity: E) -> Self {
+    pub fn of_entity<E: Entity>(entity: E) -> Self {
         let columns: Vec<TableColumn> = E::Column::iter().map(TableColumn::typed).collect();
         // Every key column is one of `E::Column`'s, which `columns` lists.
         let key = E::PrimaryKey::iter()
@@ -387,7 +389,7 @@ impl TableShape {
     /// The table, a one-column key of which is drawn from the serial family
     /// (`serial`, `bigserial`, `smallserial`) unless its column fills itself,
     /// as an entity's is when
-    /// [`auto_increment`](crate::PrimaryKeyTrait::auto_increment) is true. A
+    /// [`auto_increment`](crate::PrimaryKey::auto_increment) is true. A
     /// key of several columns is never drawn from it.
     #[must_use]
     // [spec:pgorm:sem:schema.from-shape]
@@ -398,7 +400,7 @@ impl TableShape {
 
     /// The table, whose key's last column is its period, written `WITHOUT
     /// OVERLAPS`: a PostgreSQL 18 temporal key, as an entity's is when
-    /// [`without_overlaps`](crate::PrimaryKeyTrait::without_overlaps) is
+    /// [`without_overlaps`](crate::PrimaryKey::without_overlaps) is
     /// true.
     #[must_use]
     // [spec:pgorm:sem:schema.from-shape]

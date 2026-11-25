@@ -20,7 +20,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, Expr, Func, Name, Order, OrderedStatement, Query, SimpleExpr, Table,
 };
-use pgorm::{ConnectionTrait, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
@@ -91,10 +91,10 @@ fn word() -> Expr {
 /// Under `"C"` text sorts by byte, so every upper-case letter comes before
 /// every lower-case one; a linguistic collation puts both spellings of `a`
 /// before both spellings of `b`. Same rows, same statement shape, two orders.
-// [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: ORDER BY sorts by the
+// [spec:pgorm:req:sql.ast.expr.collate+3/test]    against a live server: ORDER BY sorts by the
 // collation its key names
 // [spec:pgorm:req:sql.render.collate+2/test]
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn the_same_values_sort_by_the_collation_named(
     db: &DatabaseConnection,
     linguistic: &str,
@@ -133,9 +133,9 @@ async fn the_same_values_sort_by_the_collation_named(
 /// equal: under ICU's secondary strength `a` and `A` are one string, so an
 /// equality finds both rows where the control finds one. Without ICU the
 /// server cannot create one, and says so.
-// [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: equality answers by a
+// [spec:pgorm:req:sql.ast.expr.collate+3/test]    against a live server: equality answers by a
 // nondeterministic collation
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn a_nondeterministic_collation_equates_distinct_bytes(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -179,7 +179,7 @@ async fn a_nondeterministic_collation_equates_distinct_bytes(
 // [spec:pgorm:req:sql.ddl.column-def+14/test]    against a live server: a column compares by the
 // collation it was declared with
 // [spec:pgorm:req:sql.ddl.alter-table+16/test]    the retype carries the collation
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn a_collated_column_compares_by_its_collation(
     db: &DatabaseConnection,
     linguistic: &str,
@@ -242,9 +242,9 @@ async fn a_collated_column_compares_by_its_collation(
 /// A collation the server does not have is refused as an undefined object
 /// (`42704`). The name is quoted, so its case is the caller's: `c` is not
 /// `"C"`, as an unquoted `C` would not be either.
-// [spec:pgorm:req:sql.ast.expr.collate+2/test]    against a live server: an unknown collation is
+// [spec:pgorm:req:sql.ast.expr.collate+3/test]    against a live server: an unknown collation is
 // refused, and the name is matched case-sensitively
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn an_unknown_collation_is_refused(db: &DatabaseConnection) -> Result<(), Error> {
     for name in ["no_such_collation", "c"] {
         let query = Query::select()

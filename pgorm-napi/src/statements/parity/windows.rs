@@ -3,7 +3,7 @@
 use std::ops::Bound;
 
 use pgorm::pgorm_query::{
-    ArrayType, BinOper, Expr, ExprTrait, ExtendedWindow, FrameClause, FrameExclusion, FrameType,
+    ArrayType, BinOper, Expr, Expression, ExtendedWindow, FrameClause, FrameExclusion, FrameType,
     FromItem, Func, Multirange, NamedTable, Order, OverStatement, Query, Range, RangeType,
     SelectStatement, SimpleExpr, TableName, TypeName, Value, Values, WindowStatement,
 };

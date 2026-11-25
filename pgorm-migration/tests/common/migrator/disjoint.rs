@@ -96,7 +96,7 @@ impl MigrationName for Statements {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for Statements {
+impl Migration for Statements {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         for statement in (self.statements)()? {
             tx.execute(&statement.to_string(), &[]).await?;
@@ -128,8 +128,8 @@ const CREATED: Statements = Statements {
 pub struct Created;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Created {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Created {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CREATED)]
     }
 }
@@ -140,8 +140,8 @@ impl MigratorTrait for Created {
 pub struct Vanned;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Vanned {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Vanned {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(CREATED),
             Box::new(Statements {
@@ -164,8 +164,8 @@ impl MigratorTrait for Vanned {
 pub struct Frozen;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Frozen {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Frozen {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(sql_migration!(
                 "tests/sql/frozen/m20240401_000001_create_fleet.sql"
@@ -187,8 +187,8 @@ impl MigratorTrait for Frozen {
 pub struct Recomputed;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Recomputed {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Recomputed {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(Statements {
                 name: "m20240401_000001_create_fleet",

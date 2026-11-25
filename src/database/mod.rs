@@ -14,12 +14,12 @@ mod turso_transaction_tests;
 mod value_sql;
 
 pub use connection::*;
-pub use copy::{CopyInSink, CopyOutStream, CopyTrait};
+pub use copy::{CopyConnection, CopyInSink, CopyOutStream};
 pub use copy_rows::{CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyRowSink, CopyRowStream};
 pub use database_ref::DatabaseRef;
 pub use db_connection::*;
 pub use listen::{Listener, Notifications, connect_listener, notify};
-pub use transaction::{TransactionError, TransactionTrait};
+pub use transaction::{Transact, TransactionError};
 pub(crate) use transaction::{drive, rolled_back, sealed};
 #[cfg(feature = "turso")]
 pub use turso::{connect_turso, connect_turso_with};
@@ -28,23 +28,23 @@ pub(crate) use value_sql::ValueSql;
 
 /// What a [`Notifications`] stream yields: the channel, the payload, and the
 /// process id of the session that sent it.
-// [spec:pgorm:req:conn.listen+2]
+// [spec:pgorm:req:conn.listen+3]
 pub use pgorm_driver::Notification;
 
 /// The chunk type COPY's data travels in, both ways, re-exported so writing a
 /// [`CopyInSink`] needs no direct dependency on `bytes`.
-// [spec:pgorm:req:conn.copy+4]
+// [spec:pgorm:req:conn.copy+5]
 pub use bytes::Bytes;
 
 /// The buffer [`CopyRowEncoder`] writes a binary COPY's header, rows and
 /// trailer into.
-// [spec:pgorm:req:conn.driver-types+1]
+// [spec:pgorm:req:conn.driver-types+2]
 pub use bytes::BytesMut;
 
 /// The traits [`CopyInSink`] and the streams pgorm returns implement, for
 /// code that names them in a signature of its own. Reading a stream or
 /// writing a sink still takes the extension traits of the `futures` crate.
-// [spec:pgorm:req:conn.driver-types+1]
+// [spec:pgorm:req:conn.driver-types+2]
 pub use futures::{Sink, Stream};
 
 pub use pgorm_driver::{Config, IsolationLevel};
@@ -52,25 +52,25 @@ pub use pgorm_driver::{Config, IsolationLevel};
 /// The row [`query_one`], [`query_opt`] and [`query_all`] return, and the
 /// stream of them [`query_raw`] returns.
 ///
-/// [`query_one`]: ConnectionTrait::query_one
-/// [`query_opt`]: ConnectionTrait::query_opt
-/// [`query_all`]: ConnectionTrait::query_all
-/// [`query_raw`]: ConnectionTrait::query_raw
-// [spec:pgorm:req:conn.driver-types+1]
+/// [`query_one`]: Connection::query_one
+/// [`query_opt`]: Connection::query_opt
+/// [`query_all`]: Connection::query_all
+/// [`query_raw`]: Connection::query_raw
+// [spec:pgorm:req:conn.driver-types+2]
 pub use pgorm_driver::{Row, RowStream};
 
 /// The driver's error, which [`Error::Postgres`] carries, renamed so that it
 /// does not collide with pgorm's own [`Error`].
-// [spec:pgorm:req:conn.driver-types+1]
+// [spec:pgorm:req:conn.driver-types+2]
 pub use pgorm_driver::Error as PostgresError;
 
 /// What the driver's error reports of a refusal the server sent: the
 /// server's error, and the SQLSTATE that [`PostgresError::code`] returns.
-// [spec:pgorm:req:conn.driver-types+1]
+// [spec:pgorm:req:conn.driver-types+2]
 pub use pgorm_driver::error::{DbError, SqlState};
 
 /// What [`Config`]'s setters take and its getters return.
-// [spec:pgorm:req:conn.driver-types+1]
+// [spec:pgorm:req:conn.driver-types+2]
 pub use pgorm_driver::config::{
     ChannelBinding, Host, LoadBalanceHosts, SslMode, SslNegotiation, TargetSessionAttrs,
 };
@@ -81,7 +81,7 @@ pub use pgorm_pool::{ManagerConfig, PoolBuilder, RecyclingMethod, StatementCache
 
 /// What [`PoolBuilder`]'s setters take, what [`DatabasePool::status`] returns,
 /// and the error [`Error::Pool`] carries, with what its variants hold.
-// [spec:pgorm:req:conn.driver-types+1]
+// [spec:pgorm:req:conn.driver-types+2]
 pub use pgorm_pool::{
     Hook, HookError, PoolConfig, PoolError, QueueMode, Runtime, Status, TimeoutType, Timeouts,
 };

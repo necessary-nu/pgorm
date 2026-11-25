@@ -11,7 +11,8 @@ use crate::{
     executor::result_name::{bounded_identifier, derived_name},
 };
 use pgorm_query::{
-    Check, ColumnDef, ColumnType, Expr, ExprTrait, IntoTableName, Name, Table, TableName, TypeName,
+    Check, ColumnDef, ColumnType, Expr, Expression, IntoTableName, Name, Table, TableName,
+    TypeName,
     extension::{IntoTypeRef, Type, TypeRef},
 };
 use std::fmt;

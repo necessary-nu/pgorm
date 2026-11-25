@@ -89,7 +89,7 @@ async def _pieces(items: AsyncIterator[memoryview]) -> AsyncGenerator[Buffer]:
         yield gathered
 
 
-# [spec:pgorm:req:bindings.copy]
+# [spec:pgorm:req:bindings.copy+1]
 # [spec:pgorm:req:bindings.cancellation]
 # [spec:pgorm:req:python.cancellation+1]
 async def copy_in(
@@ -115,7 +115,7 @@ async def copy_in(
     return await copy.finish()
 
 
-# [spec:pgorm:req:bindings.copy]
+# [spec:pgorm:req:bindings.copy+1]
 class CopyOutStream:
     """COPY TO's data as an async iterator of ``bytes`` chunks.
 
@@ -211,7 +211,7 @@ def _row_source(rows: object) -> AsyncGenerator[object]:
     return _rows_of(rows)
 
 
-# [spec:pgorm:req:bindings.copy-rows+2]
+# [spec:pgorm:req:bindings.copy-rows+3]
 async def copy_in_rows(
     native: _native._Connection | _native._Transaction,
     statement: _native.CopyFrom[Literal["binary"]],
@@ -244,7 +244,7 @@ async def copy_in_rows(
     return await copy.finish()
 
 
-# [spec:pgorm:req:bindings.copy-rows+2]
+# [spec:pgorm:req:bindings.copy-rows+3]
 class CopyRowStream:
     """A binary COPY TO's rows as an async iterator of tuples of values.
 
@@ -295,7 +295,7 @@ class CopyRowStream:
         self._rows = rows
         return self._rows.pop()
 
-    # [spec:pgorm:req:bindings.copy-rows+2]
+    # [spec:pgorm:req:bindings.copy-rows+3]
     async def models(self, model: Model) -> AsyncGenerator[ModelRecord]:
         """Read the stream's rows as ``model``'s records instead of tuples, each
         field found by its column among the COPY's and held to its kind as a

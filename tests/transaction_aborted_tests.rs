@@ -13,7 +13,7 @@ use pretty_assertions::assert_eq;
 
 async fn insert_bakery<C>(db: &C, name: &str) -> Result<(), Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     bakery::ActiveModel {
         name: set(name),
@@ -27,7 +27,7 @@ where
 
 async fn bakeries<C>(db: &C) -> Result<Vec<String>, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     Ok(Bakery::find()
         .order_by_asc(bakery::Column::Name)
@@ -42,7 +42,7 @@ where
 /// catches it does.
 async fn fail_and_catch<C>(db: &C)
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let refused = db.batch_execute("SELECT 1 / 0").await;
     assert!(refused.is_err(), "the division fails");
@@ -50,7 +50,7 @@ where
 
 /// The `TransactionAborted` a transaction's outcome must be, holding the
 /// server's `25P02` as its source.
-// [spec:pgorm:def:error.model+15/test]    TransactionAborted renders pgorm's account and sources the server's refusal
+// [spec:pgorm:def:error.model+16/test]    TransactionAborted renders pgorm's account and sources the server's refusal
 fn assert_aborted<T: std::fmt::Debug>(outcome: Result<T, TransactionError<Error>>) {
     match outcome {
         Err(TransactionError::Connection(error @ Error::TransactionAborted(_))) => {
@@ -136,7 +136,7 @@ pub async fn an_aborted_configured_transaction_reports_its_rollback() -> Result<
 #[pgorm_macros::test]
 pub async fn an_aborted_instrumented_transaction_reports_its_rollback() -> Result<(), Error> {
     use pgorm::{
-        TransactionTrait,
+        Transact,
         metric::{InstrumentedPool, NoOpMetrics},
     };
 

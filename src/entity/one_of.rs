@@ -1,6 +1,6 @@
 use crate::{
-    ConnectionTrait, EntityTrait, Error, Iterable, ModelTrait, NoContext, OneOfShape,
-    PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter, Related, ScopeContext, Select, StaticName,
+    Connection, Entity, Error, Iterable, Model, NoContext, OneOfShape, PrimaryKey,
+    PrimaryKeyToColumn, QueryFilter, Related, ScopeContext, Select, StaticName,
     entity::disjoint::table_label, error::query_err,
 };
 use async_trait::async_trait;
@@ -9,7 +9,7 @@ use std::{fmt::Debug, future::Future, pin::Pin};
 
 /// The key a target entity's rows are keyed by: what its variant of
 /// `<Enum>Key` holds and its column in the referencing entity holds.
-pub type TargetKey<T> = <<T as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType;
+pub type TargetKey<T> = <<T as Entity>::PrimaryKey as PrimaryKey>::ValueType;
 
 /// A reference from one entity to exactly one of several others, stored as
 /// one nullable column per target, each a foreign key the entity's own
@@ -46,7 +46,7 @@ pub type TargetKey<T> = <<T as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::Val
 #[async_trait]
 pub trait OneOf: Sized + Send + Sync + 'static {
     /// The entity whose rows hold the reference.
-    type Entity: EntityTrait<Model: Sync>;
+    type Entity: Entity<Model: Sync>;
 
     /// `<Enum>Key`: each variant naming a target holds its key, and the unit
     /// variant holds nothing.
@@ -70,7 +70,7 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     fn visit_targets<V: TargetVisitor<Self>>(visitor: &mut V);
 
     /// The entity's columns holding the targets' keys, in declaration order.
-    fn columns() -> Vec<<Self::Entity as EntityTrait>::Column> {
+    fn columns() -> Vec<<Self::Entity as Entity>::Column> {
         let mut columns = Columns(Vec::new());
         Self::visit_targets(&mut columns);
         columns.0
@@ -84,7 +84,7 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// unit variant, contradicts the declaration, and is [`Error::Query`]
     /// naming its table, its key and the columns.
     // [spec:pgorm:def:disjoint.one-of+4]
-    fn key(model: &<Self::Entity as EntityTrait>::Model) -> Result<Self::Key, Error> {
+    fn key(model: &<Self::Entity as Entity>::Model) -> Result<Self::Key, Error> {
         let mut read = Read {
             model,
             keys: Vec::new(),
@@ -103,11 +103,11 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// and every other column to null; for the unit variant, every column to
     /// null, as [`OneOfShape::assigned`] assigns them.
     ///
-    /// An `ActiveModel` refusing a column is its [`ActiveModelTrait::set`](crate::ActiveModelTrait::set)'s
+    /// An `ActiveModel` refusing a column is its [`ActiveModel::set`](crate::ActiveModel::set)'s
     /// error.
     // [spec:pgorm:def:disjoint.one-of+4]
     fn set(
-        active: &mut <Self::Entity as EntityTrait>::ActiveModel,
+        active: &mut <Self::Entity as Entity>::ActiveModel,
         key: Self::Key,
     ) -> Result<(), Error> {
         let mut variant = Variant {
@@ -147,11 +147,11 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// anything is sent; [`load_for`](Self::load_for) reads it under one.
     // [spec:pgorm:def:disjoint.one-of+4]
     async fn load<C>(
-        models: &[<Self::Entity as EntityTrait>::Model],
+        models: &[<Self::Entity as Entity>::Model],
         db: &C,
     ) -> Result<Vec<Self::Model>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         Self::load_under(&NoContext, models, db).await
     }
@@ -164,12 +164,12 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     // [spec:pgorm:sem:scope.read]
     async fn load_for<Cx, C>(
         cx: &Cx,
-        models: &[<Self::Entity as EntityTrait>::Model],
+        models: &[<Self::Entity as Entity>::Model],
         db: &C,
     ) -> Result<Vec<Self::Model>, Error>
     where
         Cx: ScopeContext + Sync,
-        C: ConnectionTrait,
+        C: Connection,
     {
         Self::load_under(cx, models, db).await
     }
@@ -177,11 +177,11 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     #[doc(hidden)]
     async fn load_under<C>(
         cx: &(dyn ScopeContext + Sync),
-        models: &[<Self::Entity as EntityTrait>::Model],
+        models: &[<Self::Entity as Entity>::Model],
         db: &C,
     ) -> Result<Vec<Self::Model>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         let keys = models
             .iter()
@@ -367,21 +367,21 @@ pub trait TargetVisitor<O: OneOf> {
     message = "`{Self}` is not a target of `{O}`",
     label = "a `OneOf` variant names its target entity, `Post(post::Entity)`"
 )]
-pub trait OneOfTarget<O: OneOf>: EntityTrait<Model: Sync> {
+pub trait OneOfTarget<O: OneOf>: Entity<Model: Sync> {
     /// The target's name in `O`: its variant's name in snake_case, which a
     /// [`OneOfShape`](crate::OneOfShape) names it by.
     const NAME: &'static str;
 
     /// The column of `O`'s entity holding this target's key: nullable, and
     /// of the target's key type, which the derive holds it to.
-    const COLUMN: <O::Entity as EntityTrait>::Column;
+    const COLUMN: <O::Entity as Entity>::Column;
 
     /// The key `model`'s column holds, `None` where it is null.
-    fn read(model: &<O::Entity as EntityTrait>::Model) -> Option<TargetKey<Self>>;
+    fn read(model: &<O::Entity as Entity>::Model) -> Option<TargetKey<Self>>;
 
     /// Set the column in `active` to `key`, null for `None`.
     fn write(
-        active: &mut <O::Entity as EntityTrait>::ActiveModel,
+        active: &mut <O::Entity as Entity>::ActiveModel,
         key: Option<&TargetKey<Self>>,
     ) -> Result<(), Error>;
 
@@ -396,13 +396,13 @@ pub trait OneOfTarget<O: OneOf>: EntityTrait<Model: Sync> {
 }
 
 /// A row's key values, in its entity's key order.
-fn row_key<M: ModelTrait>(model: &M) -> Vec<Value> {
-    <<M::Entity as EntityTrait>::PrimaryKey as Iterable>::iter()
+fn row_key<M: Model>(model: &M) -> Vec<Value> {
+    <<M::Entity as Entity>::PrimaryKey as Iterable>::iter()
         .map(|key| model.get(key.into_column()))
         .collect()
 }
 
-struct Columns<O: OneOf>(Vec<<O::Entity as EntityTrait>::Column>);
+struct Columns<O: OneOf>(Vec<<O::Entity as Entity>::Column>);
 
 impl<O: OneOf> TargetVisitor<O> for Columns<O> {
     fn target<T: OneOfTarget<O>>(&mut self)
@@ -416,7 +416,7 @@ impl<O: OneOf> TargetVisitor<O> for Columns<O> {
 /// Each variant's key a row holds, `None` where its column is null, in
 /// declaration order.
 struct Read<'a, O: OneOf> {
-    model: &'a <O::Entity as EntityTrait>::Model,
+    model: &'a <O::Entity as Entity>::Model,
     keys: Vec<Option<O::Key>>,
 }
 
@@ -452,7 +452,7 @@ impl<O: OneOf> TargetVisitor<O> for Variant<'_, O> {
 /// Each variant's column written: `key` where `assigned` says so, null
 /// otherwise, until one is refused.
 struct Write<'a, O: OneOf> {
-    active: &'a mut <O::Entity as EntityTrait>::ActiveModel,
+    active: &'a mut <O::Entity as Entity>::ActiveModel,
     key: &'a O::Key,
     assigned: &'a [bool],
     index: usize,
@@ -483,7 +483,7 @@ type TargetLoad<'a, M> = Pin<Box<dyn Future<Output = Result<Vec<(usize, M)>, Err
 /// any is sent so that a relation refused refuses the whole load.
 struct Load<'a, O: OneOf, C> {
     shape: &'a OneOfShape,
-    models: &'a [<O::Entity as EntityTrait>::Model],
+    models: &'a [<O::Entity as Entity>::Model],
     keys: &'a [O::Key],
     cx: &'a (dyn ScopeContext + Sync),
     db: &'a C,
@@ -492,7 +492,7 @@ struct Load<'a, O: OneOf, C> {
     refused: Result<(), Error>,
 }
 
-impl<'a, O: OneOf, C: ConnectionTrait> TargetVisitor<O> for Load<'a, O, C> {
+impl<'a, O: OneOf, C: Connection> TargetVisitor<O> for Load<'a, O, C> {
     fn target<T: OneOfTarget<O>>(&mut self)
     where
         O::Entity: Related<T>,

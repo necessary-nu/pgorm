@@ -1,6 +1,6 @@
 use crate::{
-    ConnectionTrait, EntityTrait, FromQueryResult, PartialModelTrait, QueryResult, QueryTrait,
-    ScopeError, Select, SelectProjected, SqlText, TryGetableMany, error::*,
+    Connection, Entity, FromQueryResult, PartialModel, QueryResult, ScopeError, Select,
+    SelectProjected, SqlText, Statement, TryGetableMany, error::*,
 };
 use futures::{Stream, StreamExt};
 use pgorm_driver::types::ToSql;
@@ -14,7 +14,7 @@ use super::ValueHolder;
 ///
 /// Unlike [`PinBoxStream`](crate::PinBoxStream) this is `Send`, so it can be
 /// consumed from a spawned task.
-// [spec:pgorm:def:exec.stream+3]
+// [spec:pgorm:def:exec.stream+4]
 pub type PinBoxSendStream<'db, Item> = Pin<Box<dyn Stream<Item = Item> + Send + 'db>>;
 
 /// The guard every ORM path that sends a `SELECT` passes through: a statement
@@ -26,8 +26,8 @@ pub type PinBoxSendStream<'db, Item> = Pin<Box<dyn Stream<Item = Item> + Send + 
 /// The `select_only` typestate keeps the ORM's own builders out of this state,
 /// but an empty `columns([])` / `exprs([])` iterator and a hand-rolled
 /// [`SelectStatement`] both still reach it.
-// [spec:pgorm:sem:query.build.modifiers+11]
-// [spec:pgorm:req:exec.tie-limit+1]
+// [spec:pgorm:sem:query.build.modifiers+12]
+// [spec:pgorm:req:exec.tie-limit+2]
 // [spec:pgorm:def:sql.ast.window-statement+8]
 // [spec:pgorm:req:sql.ast.select.tie-limit+2]
 pub(crate) fn ensure_select_list(query: &SelectStatement) -> Result<(), Error> {
@@ -43,7 +43,7 @@ pub(crate) fn ensure_select_list(query: &SelectStatement) -> Result<(), Error> {
 /// Refuse a tie limit where the ORM writes a row limit of its own: a
 /// paginator's pages and a cursor's window are counted in rows, so replacing
 /// a `FETCH FIRST .. WITH TIES` with them would drop its ties without a word.
-// [spec:pgorm:req:exec.tie-limit+1]
+// [spec:pgorm:req:exec.tie-limit+2]
 pub(crate) fn refuse_tie_limit(query: &SelectStatement, reader: &str) -> Result<(), Error> {
     if query.has_tie_limit() {
         return Err(Error::Query(RuntimeError::Internal(format!(
@@ -56,7 +56,7 @@ pub(crate) fn refuse_tie_limit(query: &SelectStatement, reader: &str) -> Result<
 
 /// A `SELECT` statement and the decode target its rows are read into.
 ///
-/// It renders as the [`Select`] it came from does, through [`QueryTrait`]:
+/// It renders as the [`Select`] it came from does, through [`Statement`]:
 /// what [`into_partial_model`](Select::into_partial_model),
 /// [`into_model`](SelectProjected::into_model),
 /// [`into_tuple`](SelectProjected::into_tuple) or
@@ -76,11 +76,11 @@ pub(crate) fn refuse_tie_limit(query: &SelectStatement, reader: &str) -> Result<
 ///     r#"SELECT "cake"."name" FROM "cake" WHERE "cake"."id" > $1"#
 /// );
 /// ```
-// [spec:pgorm:def:exec.crud+2]
+// [spec:pgorm:def:exec.crud+3]
 #[derive(Clone, Debug)]
 pub struct Selector<S>
 where
-    S: SelectorTrait,
+    S: DecodeRow,
 {
     pub(crate) query: SelectStatement,
     pub(crate) selector: S,
@@ -93,7 +93,7 @@ where
 #[derive(Clone, Debug)]
 pub struct SelectorRaw<S>
 where
-    S: SelectorTrait,
+    S: DecodeRow,
 {
     pub(crate) stmt: String,
     pub(crate) values: Values,
@@ -102,8 +102,8 @@ where
 }
 
 /// A Trait for any type that can perform SELECT queries
-// [spec:pgorm:def:exec.crud+2]
-pub trait SelectorTrait {
+// [spec:pgorm:def:exec.crud+3]
+pub trait DecodeRow {
     #[allow(missing_docs)]
     type Item: Sized;
 
@@ -140,7 +140,7 @@ where
     model: PhantomData<M>,
 }
 
-impl<T, C> SelectorTrait for SelectGetableValue<T, C>
+impl<T, C> DecodeRow for SelectGetableValue<T, C>
 where
     T: TryGetableMany,
     C: strum::IntoEnumIterator + pgorm_query::SqlName,
@@ -153,7 +153,7 @@ where
     }
 }
 
-impl<T> SelectorTrait for SelectGetableTuple<T>
+impl<T> DecodeRow for SelectGetableTuple<T>
 where
     T: TryGetableMany,
 {
@@ -164,7 +164,7 @@ where
     }
 }
 
-impl<M> SelectorTrait for SelectModel<M>
+impl<M> DecodeRow for SelectModel<M>
 where
     M: FromQueryResult + Sized,
 {
@@ -178,11 +178,11 @@ where
 
 impl<E> Select<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Read the entity's models from a raw statement, its SQL text and the
     /// values bound into it, in place of the query built so far.
-    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    // [spec:pgorm:sem:exec.crud.selector-entry+4]
     #[allow(clippy::wrong_self_convention)]
     pub fn from_raw_sql<T>(self, sql: &T, values: Values) -> SelectorRaw<SelectModel<E::Model>>
     where
@@ -203,7 +203,7 @@ where
         }
     }
 
-    /// Return a [Selector] from `Self` that wraps a [SelectModel] with a [PartialModel](PartialModelTrait)
+    /// Return a [Selector] from `Self` that wraps a [SelectModel] with a [PartialModel](PartialModel)
     ///
     /// ```
     /// # #[cfg(feature = "macros")]
@@ -270,7 +270,7 @@ where
     /// ```
     pub fn into_partial_model<M>(self) -> Selector<SelectModel<M>>
     where
-        M: PartialModelTrait,
+        M: PartialModel,
     {
         M::select_cols(self.select_only()).into_model::<M>()
     }
@@ -409,7 +409,7 @@ where
     /// Get one Model from the SELECT query
     pub async fn one<C>(self, db: &C) -> Result<E::Model, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.into_model().one(db).await
     }
@@ -417,7 +417,7 @@ where
     /// Get one Model from the SELECT query
     pub async fn one_opt<C>(self, db: &C) -> Result<Option<E::Model>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.into_model().one_opt(db).await
     }
@@ -425,42 +425,42 @@ where
     /// Get all Models from the SELECT query
     pub async fn all<C>(self, db: &C) -> Result<Vec<E::Model>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.into_model().all(db).await
     }
 
     /// Stream the results of a SELECT operation on a Model
-    // [spec:pgorm:def:exec.stream+3]
+    // [spec:pgorm:def:exec.stream+4]
     pub async fn stream<'b, C>(
         self,
         db: &C,
     ) -> Result<PinBoxSendStream<'b, Result<E::Model, Error>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
         E::Model: 'b,
     {
         self.into_model().stream(db).await
     }
 
     /// Stream the result of the operation with PartialModel
-    // [spec:pgorm:def:exec.stream+3]
+    // [spec:pgorm:def:exec.stream+4]
     pub async fn stream_partial_model<'b, C, M>(
         self,
         db: &C,
     ) -> Result<PinBoxSendStream<'b, Result<M, Error>>, Error>
     where
-        C: ConnectionTrait,
-        M: PartialModelTrait + 'b,
+        C: Connection,
+        M: PartialModel + 'b,
     {
         self.into_partial_model::<M>().stream(db).await
     }
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 impl<E> SelectProjected<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Name the type the custom projection decodes into.
     ///
@@ -524,16 +524,16 @@ where
     /// discarded, while filters, joins and ordering are kept.
     pub fn into_partial_model<M>(self) -> Selector<SelectModel<M>>
     where
-        M: PartialModelTrait,
+        M: PartialModel,
     {
         M::select_cols(self.select_only()).into_model::<M>()
     }
 }
 
-// [spec:pgorm:def:exec.crud+2]
-impl<S> QueryTrait for Selector<S>
+// [spec:pgorm:def:exec.crud+3]
+impl<S> Statement for Selector<S>
 where
-    S: SelectorTrait,
+    S: DecodeRow,
 {
     type QueryStatement = SelectStatement;
 
@@ -550,7 +550,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3]
+// [spec:pgorm:sem:exec.crud.selector-entry+4]
 impl<M> Selector<SelectModel<M>>
 where
     M: FromQueryResult,
@@ -589,7 +589,7 @@ where
     /// # }
     /// # }
     /// ```
-    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    // [spec:pgorm:sem:exec.crud.selector-entry+4]
     pub fn from_select(query: SelectStatement) -> Self {
         Selector {
             query,
@@ -599,7 +599,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3]
+// [spec:pgorm:sem:exec.crud.selector-entry+4]
 impl<T> Selector<SelectGetableTuple<T>>
 where
     T: TryGetableMany,
@@ -615,7 +615,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3]
+// [spec:pgorm:sem:exec.crud.selector-entry+4]
 impl<T, C> Selector<SelectGetableValue<T, C>>
 where
     T: TryGetableMany,
@@ -637,7 +637,7 @@ where
 
 impl<S> Selector<S>
 where
-    S: SelectorTrait,
+    S: DecodeRow,
 {
     /// The selector holding `refused` until it would run.
     pub(crate) fn holding(mut self, refused: Option<ScopeError>) -> Self {
@@ -668,7 +668,7 @@ where
     // [spec:pgorm:sem:exec.crud.select+4]
     pub async fn one<C>(mut self, db: &C) -> Result<S::Item, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.query.narrow_limit_to_one();
         self.into_selector_raw()?.one(db).await
@@ -679,7 +679,7 @@ where
     // [spec:pgorm:sem:exec.crud.select+4]
     pub async fn one_opt<C>(mut self, db: &C) -> Result<Option<S::Item>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.query.narrow_limit_to_one();
         self.into_selector_raw()?.one_opt(db).await
@@ -688,33 +688,33 @@ where
     /// Get all items from the Select query
     pub async fn all<C>(self, db: &C) -> Result<Vec<S::Item>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.into_selector_raw()?.all(db).await
     }
 
     /// Stream the results of the Select operation
-    // [spec:pgorm:def:exec.stream+3]
+    // [spec:pgorm:def:exec.stream+4]
     pub async fn stream<'b, C>(
         self,
         db: &C,
     ) -> Result<PinBoxSendStream<'b, Result<S::Item, Error>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
         S: 'b,
     {
         self.into_selector_raw()?.stream(db).await
     }
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3]
+// [spec:pgorm:sem:exec.crud.selector-entry+4]
 impl<M> SelectorRaw<SelectModel<M>>
 where
     M: FromQueryResult,
 {
     /// Decode a raw statement's rows into a [`FromQueryResult`] type: the
     /// SQL text and the values bound into it, as a
-    /// [`ConnectionTrait`] method takes them.
+    /// [`Connection`] method takes them.
     ///
     /// ```no_run
     /// # use pgorm::{DatabasePool, Error, SelectModel, SelectorRaw, tests_cfg::cake};
@@ -732,7 +732,7 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    // [spec:pgorm:sem:exec.crud.selector-entry+4]
     pub fn from_statement<T>(sql: &T, values: Values) -> Self
     where
         T: ?Sized + SqlText,
@@ -745,7 +745,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3]
+// [spec:pgorm:sem:exec.crud.selector-entry+4]
 impl<T> SelectorRaw<SelectGetableTuple<T>>
 where
     T: TryGetableMany,
@@ -772,7 +772,7 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    // [spec:pgorm:sem:exec.crud.selector-entry+4]
     pub fn into_tuple<Q>(sql: &Q, values: Values) -> Self
     where
         Q: ?Sized + SqlText,
@@ -785,7 +785,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3]
+// [spec:pgorm:sem:exec.crud.selector-entry+4]
 impl<T, C> SelectorRaw<SelectGetableValue<T, C>>
 where
     T: TryGetableMany,
@@ -793,7 +793,7 @@ where
 {
     /// Decode a raw statement's rows into a tuple, by the column names of the
     /// column enum `C`.
-    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    // [spec:pgorm:sem:exec.crud.selector-entry+4]
     pub fn with_columns<Q>(sql: &Q, values: Values) -> Self
     where
         Q: ?Sized + SqlText,
@@ -811,7 +811,7 @@ where
 
 impl<S> SelectorRaw<S>
 where
-    S: SelectorTrait,
+    S: DecodeRow,
 {
     /// Decode the raw statement's rows into a custom `FromQueryResult` type.
     ///
@@ -879,7 +879,7 @@ where
     // [spec:pgorm:sem:exec.crud.select+4]
     pub async fn one<C>(self, db: &C) -> Result<S::Item, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         let values = self
             .values
@@ -920,7 +920,7 @@ where
     /// ```
     pub async fn one_opt<C>(self, db: &C) -> Result<Option<S::Item>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         let values = self
             .values
@@ -961,7 +961,7 @@ where
     /// ```
     pub async fn all<C>(self, db: &C) -> Result<Vec<S::Item>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         // tracing::warn!("Querying all");
         let values = self
@@ -993,7 +993,7 @@ where
         db: &C,
     ) -> Result<PinBoxSendStream<'b, Result<S::Item, Error>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
         S: 'b,
     {
         let values = self

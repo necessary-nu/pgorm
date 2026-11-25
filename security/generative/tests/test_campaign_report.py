@@ -10,7 +10,7 @@ def records(plan):
         {
             **item.data(),
             "verdict": item.expected,
-            "native_paths": ["pgorm::ConnectionTrait::query_raw"]
+            "native_paths": ["pgorm::Connection::query_raw"]
             if item.run_class in ("runtime", "invalid", "control")
             else [],
         }

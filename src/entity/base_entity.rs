@@ -1,8 +1,7 @@
 use crate::{
-    ActiveModelBehavior, ColumnTrait, Delete, DeleteMany, EntityScopes, FromQueryResult,
-    IntoPrimaryKey, ModelTrait, NoColumns, NoContext, PrimaryKeyToColumn, PrimaryKeyTrait,
-    QueryFilter, Related, RelationBuilder, RelationTrait, RelationType, ScopeContext, ScopedIn,
-    Select, SelectGraph, Unsliced,
+    ActiveModelBehavior, Column, Delete, DeleteMany, EntityScopes, FromQueryResult, IntoPrimaryKey,
+    Model, NoColumns, NoContext, PrimaryKey, PrimaryKeyToColumn, QueryFilter, Related, Relation,
+    RelationBuilder, RelationType, ScopeContext, ScopedIn, Select, SelectGraph, Unsliced,
 };
 use pgorm_query::{
     IntoName, IntoNamedTable, IntoTableName, IntoValueTuple, Name, NamedTable, TableName,
@@ -17,7 +16,7 @@ pub use strum::IntoEnumIterator as Iterable;
 /// a second trait of its own with the same method, which meant two traits with
 /// the same shape could be in scope at once and neither call site could say
 /// which it meant.
-// [spec:pgorm:def:entity.traits+4]
+// [spec:pgorm:def:entity.traits+5]
 // [spec:pgorm:sem:query.build.alias+2]    AliasName is a StaticName in pgorm-query, so a
 // query-introduced name reaches the key positions that key on it
 pub use pgorm_query::StaticName;
@@ -28,7 +27,7 @@ pub use pgorm_query::StaticName;
 pub use pgorm_query::SqlName;
 
 /// A Trait for mapping an Entity to a database table
-// [spec:pgorm:req:entity.traits.entity-name+6]
+// [spec:pgorm:req:entity.traits.entity-name+7]
 pub trait EntityName: StaticName + Default {
     /// Method to get the name for the schema, defaults to [Option::None] if not set
     fn schema_name(&self) -> Option<&str> {
@@ -69,11 +68,11 @@ pub trait EntityName: StaticName + Default {
 /// and table, under `E`'s default table name where the instance's differs.
 ///
 /// Every column reference a statement over `E` writes is qualified by the
-/// default's name ([`ColumnTrait::entity_name`]), so a table read under any
+/// default's name ([`Column::entity_name`]), so a table read under any
 /// other name is read under that one, as `FROM "acme"."cake_2026" AS "cake"`.
 /// A schema alone needs no alias: `FROM "acme"."cake"` answers to `cake`. A
 /// default naming no table, an empty name, has no name to read one under.
-// [spec:pgorm:req:entity.traits.entity-name+6]
+// [spec:pgorm:req:entity.traits.entity-name+7]
 pub(crate) fn entity_table<E: EntityName>(entity: &E) -> NamedTable {
     let table = entity.table_ref().into_named_table();
     match default_alias(entity) {
@@ -84,7 +83,7 @@ pub(crate) fn entity_table<E: EntityName>(entity: &E) -> NamedTable {
 
 /// The name a statement over `entity` reads its table under: the default's
 /// table name, where it is one and the instance's differs from it.
-// [spec:pgorm:req:entity.traits.entity-name+6]
+// [spec:pgorm:req:entity.traits.entity-name+7]
 pub(crate) fn default_alias<E: EntityName>(entity: &E) -> Option<Name> {
     let default = E::default();
     let named = !default.table_name().is_empty();
@@ -98,7 +97,7 @@ pub(crate) fn default_alias<E: EntityName>(entity: &E) -> Option<Name> {
 ///
 /// It is static data, as the table's name is, so the derive writes it as a
 /// constant and nothing is built until a statement is.
-// [spec:pgorm:req:entity.traits.entity-name+6]
+// [spec:pgorm:req:entity.traits.entity-name+7]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UniqueKey {
     /// The constraint's name, or `None` for PostgreSQL to choose one.
@@ -112,43 +111,43 @@ pub struct UniqueKey {
 /// An abstract base class for defining Entities.
 ///
 /// This trait provides an API for you to inspect it's properties
-/// - Column (implemented [`ColumnTrait`])
-/// - Relation (implemented [`RelationTrait`])
-/// - Primary Key (implemented [`PrimaryKeyTrait`] and [`PrimaryKeyToColumn`])
+/// - Column (implemented [`Column`])
+/// - Relation (implemented [`Relation`])
+/// - Primary Key (implemented [`PrimaryKey`] and [`PrimaryKeyToColumn`])
 ///
-/// It builds the reads [`find`](EntityTrait::find),
-/// [`graph`](EntityTrait::graph) and [`find_by_id`](EntityTrait::find_by_id),
-/// and one delete, [`delete_by_id`](EntityTrait::delete_by_id). Inserts and
+/// It builds the reads [`find`](Entity::find),
+/// [`graph`](Entity::graph) and [`find_by_id`](Entity::find_by_id),
+/// and one delete, [`delete_by_id`](Entity::delete_by_id). Inserts and
 /// updates start from [`Insert`](crate::Insert) and [`Update`](crate::Update),
 /// and other deletes from [`Delete`].
 ///
 /// Each has a `_for` form taking a [`ScopeContext`] first, which is how a
-/// scoped entity's statements start: [`find_for`](EntityTrait::find_for)
+/// scoped entity's statements start: [`find_for`](Entity::find_for)
 /// reads the rows the context's scopes hold, and the forms taking no context
 /// are compile errors for a scoped entity, naming it and its scopes.
-// [spec:pgorm:def:entity.traits+4]
-// [spec:pgorm:req:entity.traits.crud+5]
+// [spec:pgorm:def:entity.traits+5]
+// [spec:pgorm:req:entity.traits.crud+6]
 // [spec:pgorm:req:scope.compile]
-pub trait EntityTrait: EntityName + EntityScopes {
+pub trait Entity: EntityName + EntityScopes {
     #[allow(missing_docs)]
-    type Model: ModelTrait<Entity = Self> + FromQueryResult;
+    type Model: Model<Entity = Self> + FromQueryResult;
 
     #[allow(missing_docs)]
     type ActiveModel: ActiveModelBehavior<Entity = Self>;
 
     #[allow(missing_docs)]
-    type Column: ColumnTrait;
+    type Column: Column;
 
     #[allow(missing_docs)]
-    type Relation: RelationTrait;
+    type Relation: Relation;
 
     #[allow(missing_docs)]
-    type PrimaryKey: PrimaryKeyTrait + PrimaryKeyToColumn<Column = Self::Column>;
+    type PrimaryKey: PrimaryKey + PrimaryKeyToColumn<Column = Self::Column>;
 
     /// Check if the relation belongs to an Entity
     fn belongs_to<R>(related: R) -> RelationBuilder<Self, R, NoColumns>
     where
-        R: EntityTrait,
+        R: Entity,
     {
         RelationBuilder::new(RelationType::HasOne, Self::default(), related, false)
     }
@@ -156,7 +155,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
     /// Check if the entity has at least one relation
     fn has_one<R>(_: R) -> RelationBuilder<Self, R>
     where
-        R: EntityTrait + Related<Self>,
+        R: Entity + Related<Self>,
     {
         RelationBuilder::from_rel(RelationType::HasOne, R::to().rev(), true)
     }
@@ -164,7 +163,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
     /// Check if the Entity has many relations
     fn has_many<R>(_: R) -> RelationBuilder<Self, R>
     where
-        R: EntityTrait + Related<Self>,
+        R: Entity + Related<Self>,
     {
         RelationBuilder::from_rel(RelationType::HasMany, R::to().rev(), true)
     }
@@ -210,7 +209,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
         Select::new()
     }
 
-    /// [`find`](EntityTrait::find) under the context `cx`: every scope `cx`
+    /// [`find`](Entity::find) under the context `cx`: every scope `cx`
     /// holds the value of puts its condition in the `WHERE`, so a scoped
     /// entity's rows are read only where they are `cx`'s.
     ///
@@ -229,7 +228,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
     /// ```
     ///
     /// A context that does not hold every scope the entity declares does not
-    /// compile, and neither does [`find`](EntityTrait::find), whose context
+    /// compile, and neither does [`find`](Entity::find), whose context
     /// is [`NoContext`]:
     ///
     /// ```compile_fail,E0277
@@ -237,7 +236,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
     ///
     /// let _ = note::Entity::find_for(&CompanyId(7));
     /// ```
-    // [spec:pgorm:req:entity.traits.crud+5]
+    // [spec:pgorm:req:entity.traits.crud+6]
     // [spec:pgorm:sem:scope.read]
     fn find_for<Cx>(cx: &Cx) -> Select<Self>
     where
@@ -247,7 +246,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
         Select::scoped(&Self::default(), cx)
     }
 
-    /// [`find`](EntityTrait::find) over the table `entity` names: the
+    /// [`find`](Entity::find) over the table `entity` names: the
     /// instance's schema and table rather than [`Default`]'s, for an entity
     /// whose names are computed at run time, such as a schema per tenant.
     ///
@@ -264,7 +263,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
     /// Columns are qualified by the default's table name, so an instance
     /// naming another table is read under that name:
     /// `FROM "acme"."cake_2026" AS "cake"`.
-    // [spec:pgorm:req:entity.traits.crud+5]
+    // [spec:pgorm:req:entity.traits.crud+6]
     fn find_in(entity: Self) -> Select<Self>
     where
         Self: ScopedIn<NoContext>,
@@ -274,7 +273,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
 
     /// Construct an N-ary relational read rooted at this entity.
     ///
-    /// Where [`find`](EntityTrait::find) produces a
+    /// Where [`find`](Entity::find) produces a
     /// [`Select<E>`](crate::Select), this produces a
     /// [`SelectGraph<E>`](crate::SelectGraph): a root plus a typed list of
     /// joined, decoded sources, each declared with the join type its decode
@@ -301,7 +300,7 @@ pub trait EntityTrait: EntityName + EntityScopes {
     /// either direction: a graph's projection is generated from its
     /// declaration, never inherited from a builder whose select list a caller
     /// may have edited.
-    // [spec:pgorm:def:query.graph+2]
+    // [spec:pgorm:def:query.graph+3]
     #[doc(alias(
         "find_also_related",
         "find_with_related",
@@ -315,11 +314,11 @@ pub trait EntityTrait: EntityName + EntityScopes {
         SelectGraph::new()
     }
 
-    /// [`graph`](EntityTrait::graph) under the context `cx`, which the graph
+    /// [`graph`](Entity::graph) under the context `cx`, which the graph
     /// keeps: the root's scopes go in the `WHERE`, and each slot and hop
     /// joined after puts its own table's scopes in its `ON`, so a slot of an
     /// entity `cx` does not hold the scopes of does not compile.
-    // [spec:pgorm:def:query.graph+2]
+    // [spec:pgorm:def:query.graph+3]
     // [spec:pgorm:sem:scope.join]
     fn graph_for<Cx>(cx: &Cx) -> SelectGraph<Self, (), Unsliced, Cx>
     where
@@ -329,10 +328,10 @@ pub trait EntityTrait: EntityName + EntityScopes {
         SelectGraph::rooted_under(&Self::default(), cx.clone())
     }
 
-    /// [`graph`](EntityTrait::graph) rooted at the table `entity` names, as
-    /// [`find_in`](EntityTrait::find_in) reads it. The slots join the tables
+    /// [`graph`](Entity::graph) rooted at the table `entity` names, as
+    /// [`find_in`](Entity::find_in) reads it. The slots join the tables
     /// their relations name.
-    // [spec:pgorm:def:query.graph+2]
+    // [spec:pgorm:def:query.graph+3]
     fn graph_in(entity: Self) -> SelectGraph<Self>
     where
         Self: ScopedIn<NoContext>,
@@ -380,43 +379,43 @@ pub trait EntityTrait: EntityName + EntityScopes {
     /// # Panics
     ///
     /// Panics if arity of input values don't match arity of primary key
-    // [spec:pgorm:req:entity.traits.crud+5]
+    // [spec:pgorm:req:entity.traits.crud+6]
     fn find_by_id<T>(values: T) -> Select<Self>
     where
-        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKey>::ValueType>,
         Self: ScopedIn<NoContext>,
     {
         filter_by_key::<Self, _, _>(Self::find(), values)
     }
 
-    /// [`find_by_id`](EntityTrait::find_by_id) under the context `cx`, as
-    /// [`find_for`](EntityTrait::find_for) reads it: the key and the scopes
+    /// [`find_by_id`](Entity::find_by_id) under the context `cx`, as
+    /// [`find_for`](Entity::find_for) reads it: the key and the scopes
     /// side by side, so a key of a row outside `cx`'s scopes finds nothing.
     ///
     /// # Panics
     ///
     /// Panics if arity of input values don't match arity of primary key
-    // [spec:pgorm:req:entity.traits.crud+5]
+    // [spec:pgorm:req:entity.traits.crud+6]
     // [spec:pgorm:sem:scope.read]
     fn find_by_id_for<Cx, T>(cx: &Cx, values: T) -> Select<Self>
     where
         Cx: ScopeContext,
-        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKey>::ValueType>,
         Self: ScopedIn<Cx>,
     {
         filter_by_key::<Self, _, _>(Self::find_for(cx), values)
     }
 
-    /// [`find_by_id`](EntityTrait::find_by_id) over the table `entity`
-    /// names, as [`find_in`](EntityTrait::find_in) reads it.
+    /// [`find_by_id`](Entity::find_by_id) over the table `entity`
+    /// names, as [`find_in`](Entity::find_in) reads it.
     ///
     /// # Panics
     ///
     /// Panics if arity of input values don't match arity of primary key
-    // [spec:pgorm:req:entity.traits.crud+5]
+    // [spec:pgorm:req:entity.traits.crud+6]
     fn find_by_id_in<T>(entity: Self, values: T) -> Select<Self>
     where
-        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKey>::ValueType>,
         Self: ScopedIn<NoContext>,
     {
         filter_by_key::<Self, _, _>(Self::find_in(entity), values)
@@ -464,40 +463,40 @@ pub trait EntityTrait: EntityName + EntityScopes {
     /// Panics if arity of input values don't match arity of primary key
     fn delete_by_id<T>(values: T) -> DeleteMany<Self>
     where
-        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKey>::ValueType>,
         Self: ScopedIn<NoContext>,
     {
         filter_by_key::<Self, _, _>(Delete::many(Self::default()), values)
     }
 
-    /// [`delete_by_id`](EntityTrait::delete_by_id) under the context `cx`,
+    /// [`delete_by_id`](Entity::delete_by_id) under the context `cx`,
     /// as [`Delete::many_for`] deletes: the key and the scopes side by side,
     /// so a key of a row outside `cx`'s scopes deletes nothing.
     ///
     /// # Panics
     ///
     /// Panics if arity of input values don't match arity of primary key
-    // [spec:pgorm:req:entity.traits.crud+5]
+    // [spec:pgorm:req:entity.traits.crud+6]
     // [spec:pgorm:sem:scope.write]
     fn delete_by_id_for<Cx, T>(cx: &Cx, values: T) -> DeleteMany<Self>
     where
         Cx: ScopeContext,
-        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKey>::ValueType>,
         Self: ScopedIn<Cx>,
     {
         filter_by_key::<Self, _, _>(Delete::many_for(cx, Self::default()), values)
     }
 
-    /// [`delete_by_id`](EntityTrait::delete_by_id) from the table `entity`
+    /// [`delete_by_id`](Entity::delete_by_id) from the table `entity`
     /// names, as [`Delete::many`] deletes from it.
     ///
     /// # Panics
     ///
     /// Panics if arity of input values don't match arity of primary key
-    // [spec:pgorm:req:entity.traits.crud+5]
+    // [spec:pgorm:req:entity.traits.crud+6]
     fn delete_by_id_in<T>(entity: Self, values: T) -> DeleteMany<Self>
     where
-        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+        T: IntoPrimaryKey<<Self::PrimaryKey as PrimaryKey>::ValueType>,
         Self: ScopedIn<NoContext>,
     {
         filter_by_key::<Self, _, _>(Delete::many(entity), values)
@@ -506,18 +505,18 @@ pub trait EntityTrait: EntityName + EntityScopes {
 
 /// `query` narrowed to the row of one primary key of `E`, each part of
 /// `values` compared with its key column under the column's casts: what
-/// [`EntityTrait::find_by_id`] and [`EntityTrait::delete_by_id`] narrow by,
+/// [`Entity::find_by_id`] and [`Entity::delete_by_id`] narrow by,
 /// and a disjoint entity's `change_kind`.
 ///
 /// # Panics
 ///
 /// Panics if the arity of `values` does not match the arity of the primary key
-// [spec:pgorm:req:entity.traits.crud+5]
+// [spec:pgorm:req:entity.traits.crud+6]
 pub(crate) fn filter_by_key<E, Q, T>(mut query: Q, values: T) -> Q
 where
-    E: EntityTrait,
+    E: Entity,
     Q: QueryFilter,
-    T: IntoPrimaryKey<<E::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+    T: IntoPrimaryKey<<E::PrimaryKey as PrimaryKey>::ValueType>,
 {
     let mut keys = E::PrimaryKey::iter();
     for v in values.into_primary_key().into_value_tuple() {
@@ -631,9 +630,7 @@ mod tests {
 
         fn delete_by_id<T>(value: T)
         where
-            T: IntoPrimaryKey<
-                <<hello::Entity as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType,
-            >,
+            T: IntoPrimaryKey<<<hello::Entity as Entity>::PrimaryKey as PrimaryKey>::ValueType>,
         {
             assert_eq!(
                 hello::Entity::delete_by_id(value).as_query().to_string(),

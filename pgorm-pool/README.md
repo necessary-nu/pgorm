@@ -17,7 +17,7 @@ fork tracks pgorm's requirements, not upstream deadpool's release cadence.
 
 - Tokio only: the `async-std` runtime support and its feature flags are gone.
 - Native targets only: the wasm32 target support is gone.
-- The pool does not implement pgorm's `ConnectionTrait` — you must `get()` a
+- The pool does not implement pgorm's `Connection` — you must `get()` a
   connection first, so pool acquisition is always explicit.
 
 ## Example

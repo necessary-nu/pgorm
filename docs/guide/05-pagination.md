@@ -3,7 +3,7 @@
 A query whose result is too long to read at once can be read a piece at a
 time, three ways:
 
-- *Pages* by number, with [`paginate`](crate::PaginatorTrait::paginate): page
+- *Pages* by number, with [`paginate`](crate::Paginate::paginate): page
   3 of 20, the shape of a list with numbered pages. Each page is a
   `LIMIT`/`OFFSET`, so a deep page costs the database every row before it.
 - *Cursors*, with [`cursor_by`](crate::Select::cursor_by): the rows after (or
@@ -17,7 +17,7 @@ The examples page through the bakery's five cakes.
 
 ## Pages
 
-[`paginate`](crate::PaginatorTrait::paginate) turns a query into a
+[`paginate`](crate::Paginate::paginate) turns a query into a
 [`Paginator`](crate::Paginator) with a page size, a
 [`NonZeroU64`](std::num::NonZeroU64), so a page size of zero does not
 compile. Pages are numbered from zero.
@@ -110,7 +110,7 @@ assert_eq!(all_pages.len(), 3);
 A projection decoded with `into_tuple` or `into_model` paginates the same
 way, and so does a [graph](crate::guide::relations) of related rows; a read of a
 [disjoint enum](crate::guide::disjoint) has its own `paginate`.
-[`count`](crate::PaginatorTrait::count) is the paginator's count without the
+[`count`](crate::Paginate::count) is the paginator's count without the
 pages.
 
 ## Cursors
@@ -345,7 +345,7 @@ assert_eq!(names, ["Carrot Cake", "Vanilla Sponge"]);
 # }
 ```
 
-Underneath, [`ConnectionTrait::query_raw`](crate::ConnectionTrait::query_raw)
+Underneath, [`Connection::query_raw`](crate::Connection::query_raw)
 streams the rows of any SQL statement as pgorm-driver
 [`Row`](crate::Row)s, undecoded:
 
@@ -355,7 +355,7 @@ streams the rows of any SQL statement as pgorm-driver
 # let scratch = pgorm_guide_support::Scratch::bakery("pagination_query_raw").await;
 # let db = scratch.pool.get().await?;
 use futures::TryStreamExt;
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 
 let rows: Vec<String> = db
     .query_raw("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name", [1_i32])

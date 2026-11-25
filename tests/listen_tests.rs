@@ -13,8 +13,8 @@ use std::{
 use async_trait::async_trait;
 use futures::StreamExt;
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, Error, ListenError, Listener, NoTls, Notification,
-    Notifications, TransactionTrait, connect_listener,
+    Connection, DatabaseConnection, Error, ListenError, Listener, NoTls, Notification,
+    Notifications, Transact, connect_listener,
     metric::{InstrumentedPool, MetricsCollector, QueryContext},
     notify,
 };
@@ -61,7 +61,7 @@ async fn backend_pid(db: &DatabaseConnection) -> Result<i32, Error> {
     Ok(db.query_one("SELECT pg_backend_pid()", &[]).await?.get(0))
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    a pooled transaction's notification arrives at commit, with its sender's pid
+// [spec:pgorm:req:conn.listen+3/test]    a pooled transaction's notification arrives at commit, with its sender's pid
 #[pgorm_macros::test]
 async fn committed_notification_arrives_with_sender() -> Result<(), Error> {
     let ctx = TestContext::new("committed_notification_arrives").await;
@@ -89,7 +89,7 @@ async fn committed_notification_arrives_with_sender() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    a rolled-back transaction's notification is never delivered
+// [spec:pgorm:req:conn.listen+3/test]    a rolled-back transaction's notification is never delivered
 #[pgorm_macros::test]
 async fn rolled_back_notification_never_arrives() -> Result<(), Error> {
     let ctx = TestContext::new("rolled_back_notification").await;
@@ -113,7 +113,7 @@ async fn rolled_back_notification_never_arrives() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    commit order across transactions, send order within one, duplicates folded
+// [spec:pgorm:req:conn.listen+3/test]    commit order across transactions, send order within one, duplicates folded
 #[pgorm_macros::test]
 async fn notifications_arrive_in_commit_order() -> Result<(), Error> {
     let ctx = TestContext::new("notifications_commit_order").await;
@@ -162,7 +162,7 @@ async fn notifications_arrive_in_commit_order() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    unlisten and unlisten_all stop delivery; a repeated listen is one subscription
+// [spec:pgorm:req:conn.listen+3/test]    unlisten and unlisten_all stop delivery; a repeated listen is one subscription
 #[pgorm_macros::test]
 async fn unlisten_stops_delivery() -> Result<(), Error> {
     let ctx = TestContext::new("unlisten_stops_delivery").await;
@@ -194,7 +194,7 @@ async fn unlisten_stops_delivery() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    a channel name is exact: case, spaces and quotes kept, a case variant another channel
+// [spec:pgorm:req:conn.listen+3/test]    a channel name is exact: case, spaces and quotes kept, a case variant another channel
 #[pgorm_macros::test]
 async fn quoted_channel_names_are_exact() -> Result<(), Error> {
     let ctx = TestContext::new("quoted_channel_names").await;
@@ -227,8 +227,8 @@ async fn quoted_channel_names_are_exact() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    a name past 63 bytes is refused before it is sent; 63 bytes works end to end; an empty one is the server's error
-// [spec:pgorm:def:error.model+15/test]    a listener's refusal converts into Error::Listen
+// [spec:pgorm:req:conn.listen+3/test]    a name past 63 bytes is refused before it is sent; 63 bytes works end to end; an empty one is the server's error
+// [spec:pgorm:def:error.model+16/test]    a listener's refusal converts into Error::Listen
 #[pgorm_macros::test]
 async fn channel_name_past_63_bytes_is_refused() -> Result<(), Error> {
     let ctx = TestContext::new("channel_name_past_63_bytes").await;
@@ -272,7 +272,7 @@ async fn channel_name_past_63_bytes_is_refused() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    the payload bound is the server's: 7999 bytes arrive, 8000 are refused with 22023
+// [spec:pgorm:req:conn.listen+3/test]    the payload bound is the server's: 7999 bytes arrive, 8000 are refused with 22023
 #[pgorm_macros::test]
 async fn payload_limit_is_the_servers_error() -> Result<(), Error> {
     let ctx = TestContext::new("payload_limit_servers_error").await;
@@ -304,7 +304,7 @@ async fn payload_limit_is_the_servers_error() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    a terminated backend ends the stream with its error, after what had arrived
+// [spec:pgorm:req:conn.listen+3/test]    a terminated backend ends the stream with its error, after what had arrived
 #[pgorm_macros::test]
 async fn terminated_connection_ends_the_stream() -> Result<(), Error> {
     let ctx = TestContext::new("terminated_connection_ends").await;
@@ -363,8 +363,8 @@ async fn terminated_connection_ends_the_stream() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    past its capacity the listener closes and the stream ends with Overflow
-// [spec:pgorm:def:error.model+15/test]    the overflow that ends a listener's stream is Error::Listen
+// [spec:pgorm:req:conn.listen+3/test]    past its capacity the listener closes and the stream ends with Overflow
+// [spec:pgorm:def:error.model+16/test]    the overflow that ends a listener's stream is Error::Listen
 #[pgorm_macros::test]
 async fn overflow_closes_the_listener() -> Result<(), Error> {
     let ctx = TestContext::new("overflow_closes_the_listener").await;
@@ -407,7 +407,7 @@ async fn overflow_closes_the_listener() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    dropping the stream closes the connection; a clone listens while another task reads
+// [spec:pgorm:req:conn.listen+3/test]    dropping the stream closes the connection; a clone listens while another task reads
 #[pgorm_macros::test]
 async fn dropped_stream_closes_the_connection() -> Result<(), Error> {
     let ctx = TestContext::new("dropped_stream_closes").await;
@@ -460,7 +460,7 @@ async fn dropped_stream_closes_the_connection() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    connect_listener opens a listener from a config and a TLS connector
+// [spec:pgorm:req:conn.listen+3/test]    connect_listener opens a listener from a config and a TLS connector
 #[pgorm_macros::test]
 async fn connect_listener_from_config() -> Result<(), Error> {
     let ctx = TestContext::new("connect_listener_from_config").await;
@@ -520,7 +520,7 @@ impl MetricsCollector for Operations {
     async fn record_transaction_rollback(&self, _duration: Duration) {}
 }
 
-// [spec:pgorm:req:conn.listen+2/test]    notify through an instrumented connection is reported as its execute
+// [spec:pgorm:req:conn.listen+3/test]    notify through an instrumented connection is reported as its execute
 #[pgorm_macros::test]
 async fn instrumented_notify_is_an_execute() -> Result<(), Error> {
     let ctx = TestContext::new("instrumented_notify_execute").await;

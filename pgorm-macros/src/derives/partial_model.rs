@@ -31,12 +31,10 @@ enum ColumnAs {
 impl ColumnAs {
     /// The entity column the field reads, whose read cast the field's
     /// reported column carries, or `None` for an expression.
-    // [spec:pgorm:sem:macros.derive.partial-model+7]
+    // [spec:pgorm:sem:macros.derive.partial-model+8]
     fn column(&self) -> Option<TokenStream> {
         match self {
-            ColumnAs::Col { entity, col } => {
-                Some(quote!(<#entity as pgorm::EntityTrait>::Column::#col))
-            }
+            ColumnAs::Col { entity, col } => Some(quote!(<#entity as pgorm::Entity>::Column::#col)),
             ColumnAs::ColAlias { col, .. } => Some(quote!(#col)),
             ColumnAs::Expr { .. } => None,
         }
@@ -185,11 +183,11 @@ impl PartialModel {
         let PartialModel { ident, fields, .. } = self;
         let select_col_code_gen = fields.iter().map(|col_as| match col_as {
             ColumnAs::Col { entity, col: ident } => {
-                let col_value = quote!( <#entity as pgorm::EntityTrait>::Column:: #ident);
+                let col_value = quote!( <#entity as pgorm::Entity>::Column:: #ident);
                 quote!(let #select_ident =  pgorm::QuerySelect::column(#select_ident, #col_value);)
             },
             ColumnAs::ColAlias { col, field } => {
-                quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, pgorm::ColumnTrait::select_as(&#col, pgorm::ColumnTrait::into_expr(#col)), pgorm::pgorm_query::alias(#field));)
+                quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, pgorm::Column::select_as(&#col, pgorm::Column::into_expr(#col)), pgorm::pgorm_query::alias(#field));)
             },
             ColumnAs::Expr { expr, field_name } => {
                 quote!(let #select_ident =  pgorm::QuerySelect::column_as(#select_ident, #expr, pgorm::pgorm_query::alias(#field_name));)
@@ -198,7 +196,7 @@ impl PartialModel {
 
         quote! {
             #[automatically_derived]
-            impl pgorm::PartialModelTrait for #ident{
+            impl pgorm::PartialModel for #ident{
                 fn select_cols<S: pgorm::QuerySelect>(#select_ident: S) -> S::Projected {
                     #(#select_col_code_gen)*
                     #select_ident
@@ -208,7 +206,7 @@ impl PartialModel {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.partial-model+7]
+// [spec:pgorm:sem:macros.derive.partial-model+8]
 // [spec:pgorm:req:macros.derive.code-values+4]
 pub fn expand_derive_partial_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
@@ -254,7 +252,7 @@ struct PartialModel{
     expr_field : i32
 }
 "#;
-    // [spec:pgorm:sem:macros.derive.partial-model+7/test]
+    // [spec:pgorm:sem:macros.derive.partial-model+8/test]
     #[test]
     fn test_load_macro_input() -> StdResult<()> {
         let input = parse_str::<DeriveInput>(CODE_SNIPPET)?;

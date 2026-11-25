@@ -2,13 +2,13 @@
 
 use crate::{execution::Database, expressions::Compiled};
 use futures_util::future::BoxFuture;
-use pgorm::{ConnectionTrait, Error, ValueHolder};
+use pgorm::{Connection, Error, ValueHolder};
 use pgorm_bindings::entity::{
     Active, EntityBackend, GraphQuery, Insertion, Insertions, Model, Read as Terminal,
     Row as GraphRow, Select, Selected, VersionWrite, Versions, Write, Written,
 };
 use pgorm_driver::{Row, types::ToSql};
-use pgorm_migration::MigratorTrait;
+use pgorm_migration::Migrator;
 
 pub(crate) enum Work {
     Execute(Compiled),
@@ -98,7 +98,7 @@ impl Work {
             Self::Describe(sql) => pgorm_bindings::describe(db, &sql)
                 .await
                 .map(Output::Described),
-            // [spec:pgorm:req:bindings.migrations]    the runner's own install and reads
+            // [spec:pgorm:req:bindings.migrations+1]    the runner's own install and reads
             Self::Ledger(migrations, Ledger::Install) => {
                 migrations.install(&db).await.map(|()| Output::Finished)
             }

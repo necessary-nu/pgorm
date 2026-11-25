@@ -83,7 +83,7 @@ export declare function entity<N extends EntityName>(name: N): Entity<TypesOf<N>
 declare const operands: unique symbol;
 
 /**
- * A registered entity's column, its comparisons the column's own `ColumnTrait`
+ * A registered entity's column, its comparisons the column's own `pgorm::Column`
  * methods, each taking `I` ({@link ComparisonOperand}).
  *
  * `eq`, `ne`, `gt`, `gte`, `lt` and `lte` compare with a value of the
@@ -97,7 +97,7 @@ declare const operands: unique symbol;
  * `containedBy`, `overlaps` and the range positions their value; a bound that
  * is an expression takes the whole test as written. `isIn` and `isNotIn` test
  * membership in a list of values, each read as the column's declared kind as
- * a compared value is, or in a subquery's rows, by the column's `ColumnTrait`:
+ * a compared value is, or in a subquery's rows, by the column's `pgorm::Column`:
  * a column whose domain is over an enum is a member as the enum. A list
  * holding an expression is a member as written.
  */
@@ -177,7 +177,7 @@ export declare class Entity<T extends EntityTypes<any, any> = EntityTypes> {
   /** The SQL column names its records are keyed by, in column order. */
   readonly columns: readonly EntityColumnName<T>[];
   describe(): EntityDescription;
-  /** A column as its `ColumnTrait` names it. */
+  /** A column as its `pgorm::Column` names it. */
   col<C extends EntityColumnName<T>>(column: C): EntityColumn<ColumnOperand<T, C>>;
   /** `E::find()`. */
   find(): EntityQuery<EntityRecordOf<T>>;
@@ -187,7 +187,7 @@ export declare class Entity<T extends EntityTypes<any, any> = EntityTypes> {
   active(): ActiveModel<T>;
   /** The record's ActiveModel by the real `IntoActiveModel`, every column `unchanged`. */
   intoActive(record: EntityRecordOf<T>): ActiveModel<T>;
-  /** A copy of the record with `ModelTrait::set` applied; nothing is written. */
+  /** A copy of the record with `pgorm::Model::set` applied; nothing is written. */
   withValue<C extends EntityColumnName<T>>(record: EntityRecordOf<T>, column: C, value: EntityInputOf<T, C> | Value): EntityRecordOf<T>;
   /** One column of a record as a `Value`, its kind as the entity declares it. */
   tagged(record: EntityRecordOf<T>, column: EntityColumnName<T>): Value;
@@ -222,7 +222,7 @@ export declare class EntityQuery<R = EntityRecord> {
   join(relation: EntityRelation, options?: { readonly kind?: "inner" | "left" | "right" | "full" }): EntityQuery<R>;
   /** The query projected onto `columns`, by `select_only` and `columns`, read as plain records. */
   select(...columns: string[]): EntitySelection;
-  /** How many rows the query reads, its limit, offset and ordering aside, by `PaginatorTrait::count`. */
+  /** How many rows the query reads, its limit, offset and ordering aside, by `pgorm::Paginate::count`. */
   count(db: Queryable, options?: OperationOptions): Promise<number>;
   paginate(pageSize: number): EntityPaginator<R>;
   /** A keyset cursor ordered by `columns`, by `Select::cursor_by`. */
@@ -286,7 +286,7 @@ export type ActiveState<V = PlainValue> =
 
 /**
  * A registered entity's ActiveModel. Every change returns a new one; its
- * writes are `ActiveModelTrait`'s, the application's `ActiveModelBehavior`
+ * writes are `pgorm::ActiveModel`'s, the application's `ActiveModelBehavior`
  * hooks around them, a hook's refusal a {@link ConstructionError}.
  */
 export declare class ActiveModel<T extends EntityTypes<any, any> = EntityTypes> {
@@ -302,16 +302,16 @@ export declare class ActiveModel<T extends EntityTypes<any, any> = EntityTypes> 
    * whether there is anything to write.
    */
   setIfNotEquals<C extends EntityColumnName<T>>(column: C, value: EntityInputOf<T, C> | Value): ActiveModel<T>;
-  /** Whether any column is set, `ActiveModelTrait::is_changed`. */
+  /** Whether any column is set, `pgorm::ActiveModel::is_changed`. */
   isChanged(): boolean;
   notSet(column: EntityColumnName<T>): ActiveModel<T>;
   /** The column back to `unchanged`, if it held a value. */
   reset(column: EntityColumnName<T>): ActiveModel<T>;
-  /** `ActiveModelTrait::insert`: the inserted record. */
+  /** `pgorm::ActiveModel::insert`: the inserted record. */
   insert(db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>>;
-  /** `ActiveModelTrait::update`: the updated record. */
+  /** `pgorm::ActiveModel::update`: the updated record. */
   update(db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>>;
-  /** `ActiveModelTrait::delete`: the rows deleted. */
+  /** `pgorm::ActiveModel::delete`: the rows deleted. */
   delete(db: Queryable, options?: OperationOptions): Promise<number>;
 }
 
@@ -455,7 +455,7 @@ export declare class EntityGraphQuery<Row = EntityRecord | (EntityRecord | null)
   cursor(...columns: string[]): EntityGraphCursor<Row>;
   /** A keyset cursor ordered by columns of decoded source `source`, the first slot 1, by `cursor_by_on`. */
   cursorOn(source: number, ...columns: string[]): EntityGraphCursor<Row>;
-  /** How many rows the graph reads, by `PaginatorTrait::count`. */
+  /** How many rows the graph reads, by `pgorm::Paginate::count`. */
   count(db: Queryable, options?: OperationOptions): Promise<number>;
   /** Pages whose boundaries fall between rows of the join, not between roots. */
   paginate(pageSize: number): EntityPaginator<Row>;

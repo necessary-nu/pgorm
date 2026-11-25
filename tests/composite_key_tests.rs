@@ -10,7 +10,7 @@ pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::OnConflict;
-use pgorm::{ConnectionTrait, Error, QueryTrait, Schema, TryInsertResult, entity::prelude::*};
+use pgorm::{Connection, Error, Schema, Statement, TryInsertResult, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::borrow::Cow;
@@ -197,8 +197,8 @@ mod placement {
 
 async fn create_from_entity<C, E>(db: &C, entity: E) -> Result<(), Error>
 where
-    C: ConnectionTrait,
-    E: EntityTrait,
+    C: Connection,
+    E: Entity,
 {
     let stmt = Schema::new().create_table_from_entity(entity)?;
     db.execute(&stmt.to_string(), &[]).await?;
@@ -220,7 +220,7 @@ fn new_ticket(tenant_id: i32, title: &str) -> ticket::ActiveModel {
     }
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    the generated part of a
+// [spec:pgorm:sem:schema.from-entity+13/test]    the generated part of a
 // composite key gets its identity in the table schema-gen builds, and nothing
 // else in the key does
 // [spec:pgorm:sem:exec.crud.insert+6/test]    an insert leaving the generated
@@ -308,7 +308,7 @@ async fn many_rows_each_get_a_generated_key_part() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7/test]    `identity`
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+8/test]    `identity`
 // is `GENERATED ALWAYS`: a number the insert supplies is refused by the server
 // (428C9), so the generated part cannot be claimed by accident;
 // `identity_by_default` keeps a supplied number and generates an omitted one
@@ -360,7 +360,7 @@ async fn identity_forms_answer_a_supplied_key_part() -> Result<(), Error> {
 /// one tenant.
 async fn seed_library<C>(db: &C) -> Result<Library, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     for entity_stmt in [
         Schema::new().create_table_from_entity(shelf::Entity)?,
@@ -426,9 +426,9 @@ struct Library {
     books: Vec<book::Model>,
 }
 
-// [spec:pgorm:def:entity.traits.primary-key+8/test]    a composite key takes
+// [spec:pgorm:def:entity.traits.primary-key+9/test]    a composite key takes
 // its parts borrowed, each converted into the key's part in its position
-// [spec:pgorm:req:entity.traits.crud+5/test]    find_by_id and delete_by_id
+// [spec:pgorm:req:entity.traits.crud+6/test]    find_by_id and delete_by_id
 // filter on every key column, so a key differing only in its tenant names
 // another row
 #[pgorm_macros::test]
@@ -471,10 +471,10 @@ async fn key_lookups_take_borrowed_parts() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:entity.traits.primary-key+8/test]    a key of three columns
+// [spec:pgorm:def:entity.traits.primary-key+9/test]    a key of three columns
 // takes its text parts borrowed, as &str, &String or Cow, in any position, each
 // converted into the key's part in its position
-// [spec:pgorm:req:entity.traits.crud+5/test]    find_by_id and delete_by_id
+// [spec:pgorm:req:entity.traits.crud+6/test]    find_by_id and delete_by_id
 // filter on all three columns, so keys differing in one part name other rows
 #[pgorm_macros::test]
 async fn three_part_lookups_take_borrowed_parts() -> Result<(), Error> {
@@ -603,7 +603,7 @@ async fn batch_returns_every_key_in_order() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.persistence+3/test]    an ActiveModel
+// [spec:pgorm:req:entity.active-model.persistence+4/test]    an ActiveModel
 // over a composite key updates and deletes the one row its whole key names, and
 // a key with a part NotSet is refused before any SQL
 #[pgorm_macros::test]
@@ -709,7 +709,7 @@ async fn upsert_on_the_whole_key() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:query.loader+1/test]    the loaders batch a composite foreign
+// [spec:pgorm:req:query.loader+2/test]    the loaders batch a composite foreign
 // key and a composite junction, each bucket keeping to its own tenant, and an
 // input with nothing related gets an empty bucket
 #[pgorm_macros::test]
@@ -802,9 +802,9 @@ impl Linked for ShelfAuthors {
     }
 }
 
-// [spec:pgorm:req:macros.derive.one-form/test]    composite foreign keys and a junction
-// written as the relation derive's `from` / `to` tuples, with no `RelationTrait` by hand
-// [spec:pgorm:def:entity.traits.model+3/test]    find_related walks a composite
+// [spec:pgorm:req:macros.derive.one-form+1/test]    composite foreign keys and a junction
+// written as the relation derive's `from` / `to` tuples, with no `Relation` by hand
+// [spec:pgorm:def:entity.traits.model+4/test]    find_related walks a composite
 // foreign key both ways and find_linked over two and three hops, each join
 // comparing every key column, so tenant 2's rows never reach tenant 1's
 #[pgorm_macros::test]

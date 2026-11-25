@@ -50,7 +50,7 @@ export class Handle {
   }
 }
 
-// [spec:pgorm:req:bindings.delegation]
+// [spec:pgorm:req:bindings.delegation+1]
 /** The base of every builder class that can be inspected. */
 export class Builder extends Handle {
   /**

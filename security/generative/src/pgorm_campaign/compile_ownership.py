@@ -14,8 +14,8 @@ from .compile_entities import entity_module
 OBLIGATION = "rust-ownership"
 
 CONN_PRELUDE = (
-    "    use pgorm::{ConnectionTrait, DatabaseConnection, DatabasePool, "
-    "DatabaseTransaction, Error, TransactionError, TransactionTrait};"
+    "    use pgorm::{Connection, DatabaseConnection, DatabasePool, "
+    "DatabaseTransaction, Error, TransactionError, Transact};"
 )
 
 PIPELINE_ENTITIES = "\n\n".join(

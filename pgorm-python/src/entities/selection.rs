@@ -43,7 +43,7 @@ impl PyEntityRelation {
 /// A registered `Select<E>` projected onto some of its columns, through
 /// `select_only` and `columns`: its rows are records of those columns, each
 /// read through the column's `select_as`, rather than models.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 #[pyclass(
     name = "EntitySelection",
     module = "pgorm",

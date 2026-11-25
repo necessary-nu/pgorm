@@ -4,8 +4,8 @@
 //! only use the ones compiled in.
 
 use pgorm::{
-    Disjoint, EntityTrait, GraphItem, GraphRow, IntoActiveModel, NoContext, OneOf, ScopedIn,
-    SelectGraph, SelectorTrait, pipeline::SourceList,
+    DecodeRow, Disjoint, Entity, GraphItem, GraphRow, IntoActiveModel, NoContext, OneOf, ScopedIn,
+    SelectGraph, pipeline::SourceList,
 };
 use pgorm_bindings::{
     Failure,
@@ -47,7 +47,7 @@ impl Default for Registry {
 }
 
 impl Registry {
-    /// Register an entity's real `EntityTrait`, model, columns and
+    /// Register an entity's real `Entity`, model, columns and
     /// ActiveModel under `name`, its statements naming `E::default()`'s
     /// table. A name or a Rust type registered twice is refused, and nothing
     /// is added.
@@ -55,7 +55,7 @@ impl Registry {
     // [spec:pgorm:req:napi.application+2]
     pub fn entity<E>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
     where
-        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -70,7 +70,7 @@ impl Registry {
     // [spec:pgorm:req:bindings.entities+6]
     pub fn entity_in<E>(&mut self, name: &str, entity: E) -> Result<&mut Self, RegistrationError>
     where
-        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -82,16 +82,16 @@ impl Registry {
     /// factory receives one alias per joined slot, in tuple order, and must
     /// join each slot under its alias; every source entity is registered
     /// first.
-    // [spec:pgorm:req:bindings.entity-graphs+4]
+    // [spec:pgorm:req:bindings.entity-graphs+5]
     pub fn graph<E, S, Build>(
         &mut self,
         name: &str,
         build: Build,
     ) -> Result<&mut Self, RegistrationError>
     where
-        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         S: GraphSlots<E>,
-        GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
+        GraphRow<E, S>: DecodeRow + Send + Sync + 'static,
         GraphItem<E, S>: Send + 'static,
         Build: Fn(&[String]) -> SelectGraph<E, S> + Send + Sync + 'static,
     {

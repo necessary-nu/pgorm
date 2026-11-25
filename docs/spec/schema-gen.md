@@ -1,6 +1,6 @@
 # Schema Generation from Entities
 
-`src/schema/` projects compile-time entity definitions (`EntityTrait`) into
+`src/schema/` projects compile-time entity definitions (`Entity`) into
 `pgorm_query` DDL statements. `Schema` is a stateless helper — `Schema::new()`
 takes no backend argument because pgorm is PostgreSQL-only. The statements are
 returned to the caller (typically migrations or test setup); nothing here
@@ -8,11 +8,11 @@ executes SQL.
 
 ## Table projection
 
-> [spec:pgorm:sem:schema.from-entity+12]
+> [spec:pgorm:sem:schema.from-entity+13]
 > `Schema::create_table_from_entity::<E>()` returns one `TableCreateStatement`
 > for `E`, or the refusal below: the table ref from `entity.table_ref()`, the
 > entity comment if any,
-> and one column per `E::Column` variant projected from `ColumnTrait::def()` —
+> and one column per `E::Column` variant projected from `Column::def()` —
 > the declared `ColumnType` (with `Enum { name, .. }` rewritten to a named
 > type reference naming the Postgres enum), `NOT NULL` unless the column is
 > nullable, plus the column's default — a

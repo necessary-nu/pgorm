@@ -404,7 +404,7 @@ def behaviour_cases():
             "        fn new() -> Self {\n"
             "            Self {\n"
             '                label: pgorm::set("untitled"),\n'
-            "                ..ActiveModelTrait::default()\n"
+            "                ..pgorm::ActiveModel::default()\n"
             "            }\n        }\n    }",
             "under `hooks` the entity's module implements the behaviour",
         ),
@@ -645,7 +645,7 @@ def disjoint_cases():
             ("Car(car::Model)", "Note(String)"),
             {},
             rejects("E0277"),
-            "a payload that is not an entity's Model implements no ModelTrait",
+            "a payload that is not an entity's Model implements no pgorm::Model",
         ),
         (
             "disjoint-payload-further-model",

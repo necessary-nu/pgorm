@@ -14,7 +14,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, Range};
-use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
+use pgorm::{Connection, Schema, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::ops::Bound::{Excluded, Included};
@@ -38,7 +38,7 @@ const SCHEMA: &str = include_str!("../pgorm-codegen/tests/sql/domain/schema.sql"
 
 /// The schema the file's one qualified domain lives in, which the file
 /// itself does not create.
-async fn schema(db: &impl ConnectionTrait) -> Result<(), Error> {
+async fn schema(db: &impl Connection) -> Result<(), Error> {
     db.batch_execute(&pgorm::pgorm_query::Schema::create(Name::runtime("billing")).to_string())
         .await?;
     db.batch_execute(SCHEMA).await
@@ -46,7 +46,7 @@ async fn schema(db: &impl ConnectionTrait) -> Result<(), Error> {
 
 /// Each column of `stock_line` with its type as the server prints it and
 /// whether it is `NOT NULL`.
-async fn columns_of(db: &impl ConnectionTrait) -> Result<Vec<(String, String, bool)>, Error> {
+async fn columns_of(db: &impl Connection) -> Result<Vec<(String, String, bool)>, Error> {
     let rows = db
         .query_all(
             "SELECT attname::text, format_type(atttypid, atttypmod), attnotnull \

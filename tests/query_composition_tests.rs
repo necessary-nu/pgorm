@@ -28,7 +28,7 @@ use pgorm::{
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
-async fn seed(db: &impl ConnectionTrait) -> Result<(i32, i32), Error> {
+async fn seed(db: &impl Connection) -> Result<(i32, i32), Error> {
     let alpha = bakery::ActiveModel {
         name: set("Alpha"),
         profit_margin: set(10.0),
@@ -130,7 +130,7 @@ struct PriceBracket {
 // [spec:pgorm:def:query.build.with+2/test]    a recursive CTE drives the query and the rows land in a
 // `FromQueryResult` struct through every terminal the ORM owns
 // [spec:pgorm:sem:query.build.with.attach+1/test]
-// [spec:pgorm:sem:exec.crud.selector-entry+3/test]
+// [spec:pgorm:sem:exec.crud.selector-entry+4/test]
 // [spec:pgorm:sem:sql.render.placeholder-typing+2/test]    the anchor's cast is what makes the
 // recursion typecheck at all
 #[pgorm_macros::test]
@@ -369,7 +369,7 @@ pub async fn lateral_top_n_decodes_into_struct() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3/test]    the very same statement decodes ordinally
+// [spec:pgorm:sem:exec.crud.selector-entry+4/test]    the very same statement decodes ordinally
 // through `Selector::into_tuple`, and its raw counterpart through `SelectorRaw::into_tuple`
 #[pgorm_macros::test]
 pub async fn lateral_top_n_decodes_into_tuple() -> Result<(), Error> {
@@ -401,7 +401,7 @@ pub async fn lateral_top_n_decodes_into_tuple() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3/test]    every raw entry point takes the statement
+// [spec:pgorm:sem:exec.crud.selector-entry+4/test]    every raw entry point takes the statement
 // in the shape a connection takes it, the text as a `&str` or a `&String` beside its `Values`, and
 // each decodes the same rows
 #[pgorm_macros::test]
@@ -708,7 +708,7 @@ pub async fn inline_window_builds_on_a_named_one() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:query.build.union/test]    both arms are the same builder type, so the combined
+// [spec:pgorm:sem:query.build.union+1/test]    both arms are the same builder type, so the combined
 // result still decodes as `E::Model`
 #[pgorm_macros::test]
 pub async fn union_and_intersect_of_typed_selects() -> Result<(), Error> {
@@ -749,9 +749,9 @@ fn sorted_names(cakes: &[cake::Model]) -> Vec<String> {
     names
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3/test]    the new constructor is a `Selector`, so it
+// [spec:pgorm:sem:exec.crud.selector-entry+4/test]    the new constructor is a `Selector`, so it
 // inherits the empty-projection guard rather than sending `SELECT  FROM …`
-// [spec:pgorm:sem:query.build.modifiers+11/test]
+// [spec:pgorm:sem:query.build.modifiers+12/test]
 #[pgorm_macros::test]
 pub async fn from_select_guards_an_empty_projection() -> Result<(), Error> {
     let ctx = TestContext::new("from_select_guards_an_empty_projection").await;

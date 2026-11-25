@@ -34,7 +34,7 @@ class Written:
 
 
 class SqlMigrations(unittest.TestCase):
-    # [spec:pgorm:req:bindings.migrations/test]    a file reads as pgorm-migration reads it: name, digest, directive
+    # [spec:pgorm:req:bindings.migrations+1/test]    a file reads as pgorm-migration reads it: name, digest, directive
     def test_a_file_reads_as_the_runner_does(self):
         note = s.SqlMigration.read(NOTE)
         self.assertEqual(note.name, "m20260101_000001_create_note")
@@ -64,7 +64,7 @@ class SqlMigrations(unittest.TestCase):
         with self.assertRaisesRegex(p.ConstructionError, "PostgreSQL rejected this SQL: syntax error"):
             s.SqlMigration.read(SQL / "broken" / "m20260101_000001_create_note.sql")
 
-    # [spec:pgorm:req:bindings.migrations/test]    a migration is a SqlMigration or an object with a name and an up
+    # [spec:pgorm:req:bindings.migrations+1/test]    a migration is a SqlMigration or an object with a name and an up
     # [spec:pgorm:req:python.truth-testing+5/test]    a migrator, a SQL migration and a status are no booleans
     def test_a_migrator_refuses_what_is_no_migration(self):
         with self.assertRaises(TypeError):
@@ -98,7 +98,7 @@ class Running(unittest.IsolatedAsyncioTestCase):
     async def scalar(self, sql):
         return (await self.pool.one(p.RawSQL(sql)))["value"]
 
-    # [spec:pgorm:req:bindings.migrations/test]    files and Python migrations run in order, once, through the runner
+    # [spec:pgorm:req:bindings.migrations+1/test]    files and Python migrations run in order, once, through the runner
     async def test_a_frozen_history_and_python_migrations_replay(self):
         schema = self.schema
         mood = p.TypeName("mood", schema=schema)
@@ -136,7 +136,7 @@ class Running(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(seed.runs, 1)
         self.assertEqual(
             await migrations.get_applied_migrations(self.pool),
-            [s.Migration(migration.name, s.MigrationStatus.Applied) for migration in pending],
+            [s.MigrationWithStatus(migration.name, s.MigrationStatus.Applied) for migration in pending],
         )
         self.assertEqual(await migrations.get_pending_migrations(self.pool), [])
         self.assertEqual(await self.scalar(f'SELECT count(*) AS value FROM "{schema}_ops".ledger'), 3)
@@ -160,7 +160,7 @@ class Running(unittest.IsolatedAsyncioTestCase):
             await migrations.status(self.pool)
         self.assertIn(f"INFO:pgorm.migration:Migration '{seed.name}'... Applied", logged.output)
 
-    # [spec:pgorm:req:bindings.migrations/test]    a migration's exception rolls the batch back and is raised as itself
+    # [spec:pgorm:req:bindings.migrations+1/test]    a migration's exception rolls the batch back and is raised as itself
     async def test_a_raising_migration_rolls_the_batch_back(self):
         class Refused(Exception):
             pass
@@ -182,7 +182,7 @@ class Running(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             await self.migrator([first, Written(first.name, [])]).up(self.pool)
 
-    # [spec:pgorm:req:bindings.migrations/test]    up's transaction takes savepoints and statements, commits_after commits
+    # [spec:pgorm:req:bindings.migrations+1/test]    up's transaction takes savepoints and statements, commits_after commits
     async def test_the_lent_transaction_is_a_transaction(self):
         schema = self.schema
         held = []
@@ -215,7 +215,7 @@ class Running(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.LifecycleError):
             await held[0].execute(p.RawSQL("SELECT 1"))
 
-    # [spec:pgorm:req:bindings.migrations/test]    the runner clears the pool's statement caches after a batch
+    # [spec:pgorm:req:bindings.migrations+1/test]    the runner clears the pool's statement caches after a batch
     async def test_up_clears_the_pools_statement_caches(self):
         schema = self.schema
         async with p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1) as pool:
@@ -268,7 +268,7 @@ class Running(unittest.IsolatedAsyncioTestCase):
 
         with self.assertLogs("pgorm.migration", "WARNING") as logged:
             self.assertEqual(
-                await older.get_migration_with_status(self.pool), [s.Migration(a.name, s.MigrationStatus.Applied)]
+                await older.get_migration_with_status(self.pool), [s.MigrationWithStatus(a.name, s.MigrationStatus.Applied)]
             )
             self.assertEqual(await older.get_pending_migrations(self.pool), [])
             self.assertEqual(len(await older.get_applied_migrations(self.pool)), 1)
@@ -308,7 +308,7 @@ class Running(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.ledger_rows(), 2)
         with self.assertLogs("pgorm.migration", "WARNING"):
             pending = await diverged.get_pending_migrations(self.pool)
-        self.assertEqual(pending, [s.Migration(c.name, s.MigrationStatus.Pending)])
+        self.assertEqual(pending, [s.MigrationWithStatus(c.name, s.MigrationStatus.Pending)])
 
     # [spec:pgorm:req:bindings.migrations.unknown-applied/test]    a changed checksum is refused under "warn" too
     async def test_a_changed_checksum_is_refused_under_warn(self):

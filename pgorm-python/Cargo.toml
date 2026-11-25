@@ -27,7 +27,7 @@ extension-module = ["pyo3/extension-module"]
 # the parser is linked into every pgorm build, and a fingerprint is parsed
 # only when a hook asks for one.
 pgorm = { version = "0.2.0", path = "..", features = ["metrics-fingerprint"] }
-# The migration runner Python's migrations run through ([spec:pgorm:req:bindings.migrations]).
+# The migration runner Python's migrations run through ([spec:pgorm:req:bindings.migrations+1]).
 pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
 # What pgorm-napi needs too: a pool and its TLS built from the binding's
 # options, and its hooks' statements served.

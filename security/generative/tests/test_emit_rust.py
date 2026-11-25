@@ -189,7 +189,7 @@ class EmitRustTests(unittest.TestCase):
         source = emit_rust.render(streaming_program())
         self.assertIn("::stream::drain(opened,", source)
         self.assertIn("::observe::stream(", source)
-        self.assertIn("ConnectionTrait::query_raw(", source)
+        self.assertIn("Connection::query_raw(", source)
 
     def test_result_reads_follow_their_producing_step(self):
         source = emit_rust.render(supported("active"))
@@ -328,7 +328,7 @@ class EmitRustTests(unittest.TestCase):
         self.assertIn("::observe::tuple(vec![", found["entity.change"])
         changes = found["entity.changes"]
         self.assertIn("pgorm::Update::many(", changes)
-        self.assertIn("pgorm::ColumnTrait::save_as(", changes)
+        self.assertIn("pgorm::Column::save_as(", changes)
         self.assertIn(".exec_returning_changes(&", changes)
         upsert = found["entity.upsert"]
         self.assertIn(".on_conflict(", upsert)

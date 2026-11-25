@@ -3,7 +3,7 @@
 // A registered read's relations, partial projections, pages and keyset
 // cursors: the values a registered `Select<E>` and `SelectGraph<E, S>` hand
 // out beside their own terminals, each running one of pgorm's.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 
 import { TRUSTED } from "./builder.js";
 import { runJob } from "./runs.js";

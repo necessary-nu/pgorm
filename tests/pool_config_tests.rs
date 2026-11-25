@@ -26,7 +26,7 @@ fn maintenance_config() -> pgorm::Config {
 
 async fn session_setting<C>(db: &C, name: &str) -> Result<String, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     Ok(db
         .query_one("SELECT current_setting($1)", &[&name])
@@ -338,8 +338,8 @@ pub async fn connect_multi_with_shares_the_manager() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.database-ref+1/test]    a DatabaseRef over a hook's connection
-// [spec:pgorm:def:conn.pool.hook-connection+1/test]    a hook runs pgorm statements on its
+// [spec:pgorm:def:conn.database-ref+2/test]    a DatabaseRef over a hook's connection
+// [spec:pgorm:def:conn.pool.hook-connection+2/test]    a hook runs pgorm statements on its
 // connection, through that connection's statement cache
 #[pgorm_macros::test]
 pub async fn a_hook_runs_statements_through_its_connection() -> Result<(), Error> {

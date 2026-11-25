@@ -15,7 +15,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, extension::Extension};
-use pgorm::{ConnectionTrait, LoaderTrait, Schema, entity::prelude::*};
+use pgorm::{Connection, LoadRelated, Schema, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
@@ -114,9 +114,9 @@ async fn rooms(db: &DatabaseConnection) -> Result<Vec<room::Model>, Error> {
 /// one that only touches it. A lookup by key is by equality, period included:
 /// it names one version, and a period that only overlaps a version names none.
 /// An update and a delete by key reach that version alone.
-// [spec:pgorm:def:entity.traits.primary-key+8/test]    against a live server: a temporal key is
+// [spec:pgorm:def:entity.traits.primary-key+9/test]    against a live server: a temporal key is
 // generated WITHOUT OVERLAPS, and looked up, updated and deleted by equality, period included
-// [spec:pgorm:sem:schema.from-entity+12/test]
+// [spec:pgorm:sem:schema.from-entity+13/test]
 #[pgorm_macros::test]
 async fn a_temporal_key_names_one_version() -> Result<(), Error> {
     let ctx = TestContext::new("temporal_entity_key").await;
@@ -185,7 +185,7 @@ async fn a_temporal_key_names_one_version() -> Result<(), Error> {
 /// related row, and the room's versions' `load_many` gives each version the
 /// bookings it covers. Bookings of one room in different periods keep their
 /// own versions, the period being part of the key a loader files them under.
-// [spec:pgorm:def:entity.relation.def+12/test]    against a live server: a PERIOD relation
+// [spec:pgorm:def:entity.relation.def+13/test]    against a live server: a PERIOD relation
 // creates the temporal foreign key and joins a row to each version its period overlaps
 // [spec:pgorm:req:entity.relation.fk+6/test]
 // [spec:pgorm:sem:query.loader.regroup+6/test]

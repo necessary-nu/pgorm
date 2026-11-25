@@ -8,75 +8,75 @@ the data-loader API (`loader.rs`). Rules are grouped under
 
 ## Query building
 
-> [spec:pgorm:req:query.build+2]
+> [spec:pgorm:req:query.build+3]
 > The query layer MUST provide fluent, owned-`self` builders for SELECT
 > (`Select<E>` and the projection typestates it moves through,
 > `query.build.modifiers`), INSERT (`Insert<A, R>`, `TryInsert<A, R>`), UPDATE
 > (`Update`, `UpdateOne<A>`, `UpdateMany<E>`) and DELETE (`Delete`,
 > `DeleteOne<A>`, `DeleteMany<E>`). Each builder wraps exactly one
 > pgorm-query statement (`SelectStatement`, `InsertStatement`,
-> `UpdateStatement`, `DeleteStatement`) and exposes it through `QueryTrait`;
+> `UpdateStatement`, `DeleteStatement`) and exposes it through `Statement`;
 > the shared query-modification surface is provided by the blanket traits
 > `QuerySelect`, `QueryOrder` and `QueryFilter` over a `query()` accessor
 > returning the underlying statement.
 >
 > A relational read over more than one entity is NOT a builder of this
 > family: `SelectGraph<E, S>` (`[spec:pgorm:def:query.graph]`) is declared
-> rather than modified, wraps its `SelectStatement` through `QueryTrait` and
+> rather than modified, wraps its `SelectStatement` through `Statement` and
 > `QueryFilter` / `QueryOrder` like the rest, and deliberately implements no
 > `QuerySelect` at all.
 
 Construction of a plain selector happens in `Select::new` (`select.rs`), which
-is what `EntityTrait::find()` produces.
+is what `Entity::find()` produces.
 
-> [spec:pgorm:sem:query.build.select-defaults+1]
+> [spec:pgorm:sem:query.build.select-defaults+2]
 > `Select<E>::new` initialises the statement with exactly two clauses: a select
 > list containing every variant of `E::Column` in iteration order, each mapped
 > through `col.select_as(col.into_expr())` (so enum-typed columns are cast to
-> text on selection), and a FROM clause of `E::default().table_ref()`. `EntityTrait::find_in`
+> text on selection), and a FROM clause of `E::default().table_ref()`. `Entity::find_in`
 > writes the same select list over the instance's table instead, under the
 > default's table name where the two differ (`entity.traits.entity-name`).
 >
 > No default WHERE, ORDER BY, GROUP BY, LIMIT or OFFSET is applied; a freshly
 > constructed `Select<E>` renders as `SELECT <all columns> FROM <table>`.
 
-> [spec:pgorm:def:query.build.query-trait+2]
-> `QueryTrait` is the common build surface: `query()` (mutable access),
+> [spec:pgorm:def:query.build.query-trait+3]
+> `Statement` is the common build surface: `query()` (mutable access),
 > `as_query()` (shared access), `into_query()` (ownership) and
 > `build()`, which renders the statement to a `(String, Values)` pair via
 > `pgorm_query::QueryBuilder` — there is no backend parameter; only PostgreSQL
-> syntax is produced. `QueryTrait::apply_if(Option<T>, f)` applies `f` to the
+> syntax is produced. `Statement::apply_if(Option<T>, f)` applies `f` to the
 > builder only when the option is `Some`, enabling conditional query
 > construction without breaking the fluent chain.
 >
 > `IntoSimpleExpr` (in `select.rs`) is the conversion bound used by column
-> positions: it is implemented for every `ColumnTrait` type (producing a
+> positions: it is implemented for every `Column` type (producing a
 > column reference) and for every expression type, the implementors of
-> `ExprTrait` (`sql.ast.expr.operators`), so a function call, an aggregate
+> `Expression` (`sql.ast.expr.operators`), so a function call, an aggregate
 > or a cast stands in `column_as`, `group_by` and `order_by` as an `Expr`
 > does, and a partial model's `from_expr = Func::upper(..)` needs no wrapper.
 
-> [spec:pgorm:sem:query.build.filter+2]
+> [spec:pgorm:sem:query.build.filter+3]
 > `QueryFilter::filter` converts its argument through `IntoCondition` and adds
 > it with `cond_where`; repeated `filter` calls accumulate as AND-ed
 > conditions. Condition trees (`Condition::any()` / `Condition::all()`,
 > including `add_option` for runtime-optional predicates) and raw
 > pgorm-query expressions are accepted through the same entry point, and
-> `ColumnTrait` operators (`eq`, `is_in`, `contains`, ...) are the usual
+> `Column` operators (`eq`, `is_in`, `contains`, ...) are the usual
 > operand source.
 >
 > `QueryFilter::belongs_to(model)` adds one equality filter per primary-key
 > column of the model's entity (`col.eq(model.get(col))`);
 > `belongs_to_tbl_alias` does the same but qualifies the columns with a given
 > table alias. That alias is taken as `impl IntoName`, not as a `&str`: its
-> in-tree caller is `ModelTrait::find_linked`, which has a `LinkedAlias`
+> in-tree caller is `Model::find_linked`, which has a `LinkedAlias`
 > (`[spec:pgorm:req:entity.relation.linked]`) in hand and would otherwise
 > have to render it back to a string for the callee to parse into an
 > identifier again. A computed name passes as `Name::runtime(..)`: there is
 > no `IntoName for &str` (`[spec:pgorm:def:sql.types]`), so the conversion
 > is written rather than inferred.
 
-> [spec:pgorm:sem:query.build.modifiers+11]
+> [spec:pgorm:sem:query.build.modifiers+12]
 > `QuerySelect` mutates the select statement in place: `column` appends a
 > column through `col.select_as(col.into_expr())` (same enum-cast rule as the
 > default list); `columns` iterates it; `column_as` / `expr_as` /
@@ -100,7 +100,7 @@ is what `EntityTrait::find()` produces.
 > nothing) is deleted, and so is the `SelectColumns` trait, which re-exposed
 > `column`/`column_as` as `select_column`/`select_column_as` through a blanket
 > impl over `QuerySelect` with an identical `Projected` fixpoint. It added a
-> second vocabulary and no capability; `PartialModelTrait::select_cols` is
+> second vocabulary and no capability; `PartialModel::select_cols` is
 > generic over `QuerySelect` directly, and the typestate proof that a
 > field-less `PartialModel` struct cannot compile is unchanged because the
 > fixpoint bound it relies on is `QuerySelect`'s own.
@@ -131,8 +131,8 @@ is what `EntityTrait::find()` produces.
 > item needs no wrapper, a homogeneous list is an array or a `Vec`, and a
 > mixed list is a tuple of up to twelve items, because two entities' column
 > enums have no common array element type. An item is a `SelectItem` — a
-> `ColumnTrait` column, projected through `col.select_as(col.into_expr())` so
-> the enum cast is the one `column` applies; any expression, an `ExprTrait`
+> `Column` column, projected through `col.select_as(col.into_expr())` so
+> the enum cast is the one `column` applies; any expression, an `Expression`
 > type, a function call included; a
 > `SelectExpr`, which carries its own alias; or an `AliasName`, a bare
 > reference to a name an earlier clause bound. A list computed at run time is
@@ -149,7 +149,7 @@ is what `EntityTrait::find()` produces.
 > `Projected: QuerySelect<Projected = Self::Projected>`. `Select<E>`,
 > `Cursor<S, K>` and `SelectProjected<E>` project onto themselves;
 > `SelectCustom<E>` projects onto `SelectProjected<E>`. This associated
-> type is what lets `PartialModelTrait::select_cols<S: QuerySelect>` return
+> type is what lets `PartialModel::select_cols<S: QuerySelect>` return
 > `S::Projected` (`entity.traits.from-query-result`).
 >
 > `SelectCustom<E>` has no execution path at all: no `all` / `one` /
@@ -160,10 +160,10 @@ is what `EntityTrait::find()` produces.
 > re-clears the list, so the partial model owns the whole projection), and
 > `cursor_by` — but not the `E::Model`-typed ones: a caller's projection is
 > not `E::Model`'s shape. `SelectProjected::cursor_by` accordingly yields
-> `Cursor<SelectUndecoded, K>`, which is not a `SelectorTrait` and so has no
+> `Cursor<SelectUndecoded, K>`, which is not a `DecodeRow` and so has no
 > `all` until `Cursor::into_model` or `into_partial_model` names one.
 >
-> Both `Custom` states keep the whole of `QueryTrait`, `QueryFilter` and
+> Both `Custom` states keep the whole of `Statement`, `QueryFilter` and
 > `QueryOrder`: a cleared select list still renders as `SELECT  FROM "tbl"`,
 > and `to_string` / `build` have no `Result` channel, so rendering is not
 > where the mistake is caught. The typestate keeps the ORM's own builders out
@@ -182,7 +182,7 @@ is what `EntityTrait::find()` produces.
 > `into_stream`), `Paginator::num_items` — which checks the *inner* query it is
 > about to wrap in `SELECT COUNT(*) FROM (…)`, since the wrapper's own
 > projection is never empty — and so `num_pages`, `num_items_and_pages` and
-> `PaginatorTrait::count`, and `Cursor::all`. `SelectorRaw` is exempt: its
+> `Paginate::count`, and `Cursor::all`. `SelectorRaw` is exempt: its
 > statement is a caller-supplied string, not a projection list. A statement
 > with a non-empty projection is unaffected.
 >
@@ -251,12 +251,12 @@ Joins are derived from `RelationDef` (`helper.rs` bottom half plus
 > direction. The relation-named forms of `join` / `join_rev` are
 > `[spec:pgorm:sem:query.build.join.rel]`.
 
-> [spec:pgorm:sem:query.build.join.rel]
+> [spec:pgorm:sem:query.build.join.rel+1]
 > `QuerySelect` MUST also carry the join type in the method name and take the
 > relation rather than its `RelationDef`: `left_join_rel`, `inner_join_rel` and
 > `right_join_rel` are `join(JoinType::{Left,Inner,Right}Join, rel.def())`, and
 > `left_join_rel_rev`, `inner_join_rel_rev`, `right_join_rel_rev` the same over
-> `join_rev`. They are provided methods over any `R: RelationTrait`, so they
+> `join_rev`. They are provided methods over any `R: Relation`, so they
 > reach every builder `join` does and emit the identical SQL — including
 > whatever `on_condition` and `condition_type` the relation's own def carries.
 >
@@ -360,7 +360,7 @@ builder is or what its rows decode into.
 > level, ahead of the set operations and the ORDER BY/LIMIT tail
 > (`sql.render.select-order`).
 
-> [spec:pgorm:sem:query.build.union]
+> [spec:pgorm:sem:query.build.union+1]
 > `QuerySelect::union(union_type, other)` appends a set-operation arm, where
 > `other` is of the *same builder type* as the receiver. That is the whole of the
 > static guarantee available at this layer and it is exactly the right one: both
@@ -369,7 +369,7 @@ builder is or what its rows decode into.
 > whatever the first arm decoded as, which is also the arm PostgreSQL takes the
 > result column names from.
 >
-> The method carries `where Self: QueryTrait<QueryStatement = SelectStatement>`
+> The method carries `where Self: Statement<QueryStatement = SelectStatement>`
 > so it can take the other arm's statement by value; a builder that is not one
 > simply does not have it. `UnionType::All` / `Distinct` / `Intersect` / `Except`
 > select the operator (`sql.ast.select.union`), and the arms accumulate rather
@@ -538,8 +538,8 @@ what makes it total over partially-set models.
 
 ## Batched loading
 
-> [spec:pgorm:req:query.loader+1]
-> The loader layer MUST provide `LoaderTrait`, implemented for `Vec<M>` and
+> [spec:pgorm:req:query.loader+2]
+> The loader layer MUST provide `LoadRelated`, implemented for `Vec<M>` and
 > `&[M]` (the `Vec` impl delegating to the slice impl), with three batched
 > eager-loading operations: `load_one` for has-one relations
 > (`Vec<Option<R::Model>>`), `load_many` for has-many relations
@@ -707,7 +707,7 @@ what makes it total over partially-set models.
 > key map, an `order_by` on the caller's `Select` orders every bucket. Without
 > one the order within a bucket is the join's, hence unspecified.
 
-> [spec:pgorm:req:query.loader.table-ref-limitation+3]
+> [spec:pgorm:req:query.loader.table-ref-limitation+4]
 > Loader key predicates can only qualify columns for an unaliased
 > `FromItem::Table` relation target: `table_column` matches exactly that
 > shape, over either `TableName` form, and MUST return `Err(Error::Query)`
@@ -715,5 +715,5 @@ what makes it total over partially-set models.
 > a function call), naming the key column it could not qualify and the
 > offending from item. `prepare_condition` propagates that error, so the load
 > aborts with an `Err` and not a panic. Entities whose relations resolve to
-> such from items still cannot be loaded through `LoaderTrait`; the
+> such from items still cannot be loaded through `LoadRelated`; the
 > limitation is unchanged, only its reporting.

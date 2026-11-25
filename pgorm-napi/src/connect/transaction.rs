@@ -227,7 +227,7 @@ fn transaction_job(mut cx: FunctionContext) -> JsResult<JsPromise> {
 /// `transactionCopyColumns(transaction, copy, abort)`: a COPY's columns,
 /// described in the transaction, holding its lock as a statement does; a
 /// refused description fails the transaction as a refused statement does.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn transaction_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
     let copy = Box::new(copy_at(&mut cx, 1)?);
@@ -258,7 +258,7 @@ fn transaction_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
 /// `transactionCopyIn(transaction, copy, abort, rows)`: a COPY FROM in the
 /// transaction, holding its lock as a statement does until the COPY ends.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 fn transaction_copy_in(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
     let (copy, rows) = copy::copy_from_rows_at(&mut cx, 1, 3)?;
@@ -291,7 +291,7 @@ fn transaction_copy_in(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
 /// `transactionCopyOut(transaction, copy, abort, rows)`: a COPY TO in the
 /// transaction, which refuses other work until the stream ends or closes.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 fn transaction_copy_out(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
     let (copy, rows) = copy::copy_to_rows_at(&mut cx, 1, 3)?;
@@ -332,7 +332,7 @@ fn copy_stop(state: &State, abort: Abort) -> copy::Stop {
 /// statement JavaScript runs as the COPY settles finds it free. A COPY whose
 /// connection is discarded ends the whole transaction, nothing in it
 /// committed, as an aborted statement does.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 fn after_copy(state: &State, settle: Settle, lock: OwnedMutexGuard<()>, release: Release) -> Flow {
     drop(lock);
     let flow = state.copy_ended(settle == Settle::Discard);

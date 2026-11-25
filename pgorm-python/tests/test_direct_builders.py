@@ -137,7 +137,7 @@ class DirectBuilderTests(unittest.IsolatedAsyncioTestCase):
         run["verified"] = {"inserted_accounts": 3, "inserted_events": 3, "selected": len(expected), "updated_visits": 15 + variant, "deleted": [1, 0], "missing": True, "merged": len(merged), "copied": copied}
         return run
 
-    # [spec:pgorm:req:bindings.copy/test]
+    # [spec:pgorm:req:bindings.copy+1/test]
     async def copy_cases(self, pool, record, operand, term, e):
         """COPY each way in each format, over a table, a SELECT and a DELETE's RETURNING."""
         columns = ("id", "account_id", "kind", "points")

@@ -14,7 +14,7 @@ use core::marker::PhantomData;
 use std::fmt;
 
 use pgorm_query::{
-    BinOper, Condition, ConditionType, Expr, ExprTrait, FromItem, IntoCondition, JoinType, Key,
+    BinOper, Condition, ConditionType, Expr, Expression, FromItem, IntoCondition, JoinType, Key,
     Name, SelectExpr, SelectStatement, SimpleExpr, TableName, Value, ValueTuple,
 };
 
@@ -24,8 +24,8 @@ use crate::entity::KindedBy;
 use crate::executor::BoundaryCast;
 use crate::{
     ColumnPairs, Cursor, Disjoint, DisjointColumn, DisjointShape, DisjointTable, Error, Iterable,
-    KindModel, QueryFilter, QueryOrder, QueryTrait, RelationDef, RelationType, ScopeError, Select,
-    SelectUndecoded, result_column_name,
+    KindModel, QueryFilter, QueryOrder, RelationDef, RelationType, ScopeError, Select,
+    SelectUndecoded, Statement, result_column_name,
 };
 
 /// A read of a disjoint entity `D`: each base row with its kind's row, decoded
@@ -70,7 +70,7 @@ use crate::{
 /// let _ = Vehicle::find().column(vehicle::Column::Name);
 /// ```
 ///
-/// [`QueryTrait::query`] remains the raw escape hatch it is on every builder:
+/// [`Statement::query`] remains the raw escape hatch it is on every builder:
 /// a projection edited through it stands outside the decode.
 // [spec:pgorm:sem:disjoint.read+2]
 pub struct SelectDisjoint<D: Disjoint> {
@@ -310,7 +310,7 @@ fn project_table(
 }
 
 /// Each key column of `table` compared with the value `key` gives it, in key
-/// order, as `EntityTrait::find_by_id` compares a key: the column and the
+/// order, as `Entity::find_by_id` compares a key: the column and the
 /// value each under the column's casts.
 // [spec:pgorm:sem:disjoint.read+2]
 // [spec:pgorm:sem:disjoint.write+2]
@@ -635,7 +635,7 @@ impl<D: Disjoint> QueryOrder for SelectDisjoint<D> {
 }
 
 // [spec:pgorm:sem:disjoint.read+2]
-impl<D: Disjoint> QueryTrait for SelectDisjoint<D> {
+impl<D: Disjoint> Statement for SelectDisjoint<D> {
     type QueryStatement = SelectStatement;
 
     fn query(&mut self) -> &mut SelectStatement {
@@ -664,7 +664,7 @@ mod tests {
         storefront, truck,
         vehicle::{self, Vehicle, VehicleKind},
     };
-    use crate::{ColumnTrait, Disjoint, QueryFilter, QueryOrder, QueryTrait};
+    use crate::{Column, Disjoint, QueryFilter, QueryOrder, Statement};
     use pgorm_query::{Value, Values};
     use pretty_assertions::assert_eq;
 

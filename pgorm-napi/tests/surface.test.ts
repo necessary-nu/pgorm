@@ -227,7 +227,7 @@ function assertDeclared(owner: string, descriptions: readonly unknown[]) {
 }
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.models+6/test]
+// [spec:pgorm:req:bindings.models+7/test]
 // [spec:pgorm:req:bindings.model-unique-keys+2/test]
 test("a model's describe() reports exactly the keys the surface declares", () => {
   const declared = pgorm.model("accounts", {
@@ -296,7 +296,7 @@ test("a registered entity's describe() reports exactly the keys the surface decl
 });
 
 // [spec:pgorm:req:bindings.surface+2/test]
-// [spec:pgorm:req:bindings.entity-graphs+4/test]
+// [spec:pgorm:req:bindings.entity-graphs+5/test]
 test("a registered graph's describe() reports exactly the keys the surface declares", {
   skip: pgorm.graphs().length === 0 && "the module registers no graph; checks/entities.js runs this against an application's",
 }, () => {

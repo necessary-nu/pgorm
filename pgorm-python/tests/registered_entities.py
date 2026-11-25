@@ -136,7 +136,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         finally:
             await self.pool.execute(p.RawSQL('DROP SCHEMA python_acme CASCADE'))
 
-    # [spec:pgorm:req:bindings.entity-writes+1/test]
+    # [spec:pgorm:req:bindings.entity-writes+2/test]
     async def test_active_values_and_hooks_use_rust_states(self):
         initial = self.account.active()
         self.assertEqual(initial.get("id").state, p.ActiveState.NotSet)
@@ -153,7 +153,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             loaded = model.into_active()
             self.assertEqual(loaded.get("id").state, p.ActiveState.Unchanged)
             self.assertEqual(loaded.get("note").state, p.ActiveState.Unchanged)
-            # [spec:pgorm:req:bindings.entity-active-changes/test]    set_if_not_equals sets only a different value
+            # [spec:pgorm:req:bindings.entity-active-changes+1/test]    set_if_not_equals sets only a different value
             self.assertFalse(loaded.is_changed())
             same = loaded.set_if_not_equals("display name", "Nora|before").set_if_not_equals("mood", "busy")
             self.assertEqual(same.get("display name").state, p.ActiveState.Unchanged)
@@ -175,7 +175,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(await self.account.find().optional(connection))
         self.assertEqual(model.tagged("mood").type_name, p.TypeName("Mood", schema="python_entities"))
 
-    # [spec:pgorm:req:bindings.entity-writes+1/test]
+    # [spec:pgorm:req:bindings.entity-writes+2/test]
     # [spec:pgorm:req:bindings.created-ranges+5/test]
     async def test_created_ranges_round_trip_through_an_entity(self):
         booking = p.entity("app.Booking")
@@ -249,8 +249,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             booking.active().set("spares", p.Value.array(p.CreatedRange("floatrange", "f64"), []))
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]
-    # [spec:pgorm:req:bindings.column-operators+3/test]    a registered column is its own expression,
+    # [spec:pgorm:req:bindings.entity-reads+5/test]
+    # [spec:pgorm:req:bindings.column-operators+4/test]    a registered column is its own expression,
     # every Expr method reading it as written, and describes nothing itself
     async def test_typed_select_reuses_real_entity_projection(self):
         async with self.pool.connection() as connection:
@@ -280,8 +280,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertNotEqual(query.inspect().sql, query.inspect(terminal="one").sql)
             self.assertEqual(query.inspect().params[0].kind, "i32")
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]    a registered column is a member of values and of
-    # a Select's rows through its ColumnTrait, a column whose domain is over an enum as the enum,
+    # [spec:pgorm:req:bindings.entity-reads+5/test]    a registered column is a member of values and of
+    # a Select's rows through its pgorm::Column, a column whose domain is over an enum as the enum,
     # where the column's plain expression is refused with 42883
     async def test_column_membership_runs_through_column_trait(self):
         await self.pool.execute(p.RawSQL('CREATE DOMAIN python_entities.temper AS python_entities."Mood"'))
@@ -313,7 +313,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             mood.is_in("busy")
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]    a registered column compares with an expression, or
+    # [spec:pgorm:req:bindings.entity-reads+5/test]    a registered column compares with an expression, or
     # any_(..) / all_(..) over one, as written, and a list holding an expression is a member as written
     async def test_expression_operands_compare_as_written(self):
         identifier, version = self.account.col("id"), self.account.col("version")
@@ -381,8 +381,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 await piped(pl.from_(till).filter(pl.col("tills", "takings") > Decimal("5")))
 
-    # [spec:pgorm:req:bindings.column-operators+3/test]    a registered column's between, symmetric or
-    # not, and its distinctness tests run through its ColumnTrait: a money column's bounds cast to money,
+    # [spec:pgorm:req:bindings.column-operators+4/test]    a registered column's between, symmetric or
+    # not, and its distinctness tests run through its pgorm::Column: a money column's bounds cast to money,
     # an enum's labels to the enum, and a column whose domain is over an enum tested as the enum, where
     # the column's plain expression is refused; an expression bound is taken as written, null never
     async def test_between_and_distinctness_take_the_column_casts(self):
@@ -438,8 +438,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             takings.eq(None)
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]    any_(..) / all_(..) over a list compares through the
-    # column's ColumnTrait, the list one array of its declared kind cast as eq_any's is: money as money[],
+    # [spec:pgorm:req:bindings.entity-reads+5/test]    any_(..) / all_(..) over a list compares through the
+    # column's pgorm::Column, the list one array of its declared kind cast as eq_any's is: money as money[],
     # a column whose domain is over an enum as the enum, where the plain expression is refused
     # [spec:pgorm:req:bindings.quantifiers+4/test]    an empty list is typed by the registered column, = ANY
     # of it false and <> ALL true, and refused as it is used where no registered column types it
@@ -481,8 +481,8 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             takings.expr() == p.all_([])
 
-    # [spec:pgorm:req:bindings.column-operators+3/test]    a registered range column's containment, overlap
-    # and range positions run through its ColumnTrait, a created range written as its text cast to the type,
+    # [spec:pgorm:req:bindings.column-operators+4/test]    a registered range column's containment, overlap
+    # and range positions run through its pgorm::Column, a created range written as its text cast to the type,
     # any_/all_ over a list of ranges as the array of their texts cast to the type's array, and an element
     # is no value of the column's kind
     async def test_range_operators_take_the_column_casts(self):
@@ -553,7 +553,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             bool(query)
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]
+    # [spec:pgorm:req:bindings.entity-reads+5/test]
     async def test_one_never_widens_a_zero_limit(self):
         async with self.pool.connection() as connection:
             await self.active(1).insert(connection)
@@ -568,7 +568,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await self.account.find().limit(5).one(connection))["id"], 1)
             self.assertEqual(self.account.find().limit(5).inspect(terminal="one").params[-1].value, 1)
 
-    # [spec:pgorm:req:bindings.entity-writes+1/test]
+    # [spec:pgorm:req:bindings.entity-writes+2/test]
     async def test_composite_key_entity_writes_by_whole_key(self):
         membership = p.entity("app.Membership")
         described = membership.describe()
@@ -610,7 +610,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 {"tenant_id": 1, "id": shared, "role": "admin"},
             ])
 
-    # [spec:pgorm:req:bindings.entity-writes+1/test]
+    # [spec:pgorm:req:bindings.entity-writes+2/test]
     async def test_invalid_types_and_foreign_handles_are_rejected(self):
         for column, value in (("id", True), ("id", 2**31), ("id", "1"), ("mood", "unknown"), ("display name", None)):
             with self.subTest(column=column, value=value), self.assertRaises(p.ConstructionError):
@@ -631,7 +631,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             self.account.find().limit(True)
 
-    # [spec:pgorm:req:bindings.entity-writes+1/test]
+    # [spec:pgorm:req:bindings.entity-writes+2/test]
     async def test_model_setter_preserves_rust_conversion_checks(self):
         async with self.pool.connection() as connection:
             model = await self.active(1).insert(connection)
@@ -644,7 +644,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
             model.with_value(self.note.col("id"), 2)
         self.assertEqual(changed.into_active().get("display name").state, p.ActiveState.Unchanged)
 
-    # [spec:pgorm:req:bindings.entity-writes+1/test]    a hook's refusal is a ConstructionError,
+    # [spec:pgorm:req:bindings.entity-writes+2/test]    a hook's refusal is a ConstructionError,
     # never a DatabaseError, and the write it refused after the fact stands
     async def test_before_and_after_hooks_keep_write_outcomes(self):
         async with self.pool.connection() as connection:
@@ -664,7 +664,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
                 await after.into_active().delete(connection)
             self.assertIsNone(await self.account.find().where(self.account.col("id") == 98).optional(connection))
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]
+    # [spec:pgorm:req:bindings.entity-reads+5/test]
     # [spec:pgorm:req:bindings.errors+6/test]
     async def test_decode_failure_does_not_become_absence(self):
         async with self.pool.connection() as connection:

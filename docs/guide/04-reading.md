@@ -1,6 +1,6 @@
 # Reading rows
 
-Every read starts from an entity's [`find`](crate::EntityTrait::find), which
+Every read starts from an entity's [`find`](crate::Entity::find), which
 builds a [`Select`](crate::Select): a `SELECT` of every column of the table,
 decoded into its `Model`. The builder methods narrow it, order it, choose
 other columns or join other tables, and a terminal runs it. This chapter
@@ -18,7 +18,7 @@ A `Select` has three terminals:
 
 `one` and `one_opt` ask for a single row with `LIMIT 1`. Use `one` where a
 missing row is a mistake, and `one_opt` where it is an ordinary answer.
-[`find_by_id`](crate::EntityTrait::find_by_id) filters on the primary key, and
+[`find_by_id`](crate::Entity::find_by_id) filters on the primary key, and
 takes a composite key as a tuple:
 
 ```rust
@@ -52,7 +52,7 @@ assert!(cake_baker::Entity::find_by_id((2, 2)).one_opt(&db).await?.is_some());
 [`filter`](crate::QueryFilter::filter) adds a condition to the `WHERE`
 clause, and several `filter` calls must all hold. A condition is usually
 built from a column, through the methods of
-[`ColumnTrait`](crate::ColumnTrait):
+[`Column`](crate::Column):
 
 | Methods | SQL |
 | --- | --- |
@@ -411,7 +411,7 @@ assert_eq!(chocolate_shops[0].name, "Sunrise");
 [`group_by`](crate::QuerySelect::group_by) groups the rows, and the
 aggregate methods of a column, `count`, `sum`, `min` and `max`, summarize
 each group. [`having`](crate::QuerySelect::having) filters the groups.
-[`count`](crate::PaginatorTrait::count) on any query counts its rows.
+[`count`](crate::Paginate::count) on any query counts its rows.
 
 ```rust
 # use pgorm_guide_support::{bakery, cake};
@@ -474,7 +474,7 @@ assert_eq!(
 
 A `Select` is a [`SelectStatement`](crate::pgorm_query::SelectStatement) of
 the [query builder](crate::guide::query_builder) underneath, which
-[`QueryTrait::query`](crate::QueryTrait::query) hands out for what the entity
+[`Statement::query`](crate::Statement::query) hands out for what the entity
 builders do not cover: common table expressions, window functions, lateral
 joins, grouping sets. A statement built there, or SQL written by hand, still
 decodes into models and tuples ([Raw SQL](crate::guide::raw_sql)), and

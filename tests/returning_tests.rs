@@ -65,7 +65,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.crud.update+7/test]    `UpdateMany::exec_returning_models`
+// [spec:pgorm:sem:exec.crud.update+8/test]    `UpdateMany::exec_returning_models`
 // returns every updated model, and refuses an update with no column to set
 // rather than passing an empty `Vec` off as the rows it updated
 #[pgorm_macros::test]
@@ -395,12 +395,12 @@ async fn try_insert_result_variants() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.crud.update+7/test]    the empty-SET refusal of both
+// [spec:pgorm:sem:exec.crud.update+8/test]    the empty-SET refusal of both
 // `UpdateMany` terminals — including through the reachable input, a model read
 // back from the database and handed straight to `set` — against the `Ok(0)` of
 // a `WHERE` that matched nothing, and the no-op read of
 // `UpdateOne::exec_returning_model`
-// [spec:pgorm:def:error.model+15/test]    `Error::NothingToSet` has a
+// [spec:pgorm:def:error.model+16/test]    `Error::NothingToSet` has a
 // construction site, and it is this one
 #[pgorm_macros::test]
 async fn update_noop_and_record_check() -> Result<(), Error> {
@@ -490,7 +490,7 @@ async fn update_noop_and_record_check() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.crud.update+7/test]    the no-op read runs under the
+// [spec:pgorm:sem:exec.crud.update+8/test]    the no-op read runs under the
 // statement's complete `WHERE`, so a caller-added guard predicate excludes an
 // unchanged row exactly as it would a changed one
 #[pgorm_macros::test]
@@ -562,7 +562,7 @@ async fn exec_result_is_a_transparent_row_count() {
 // every builder that has one; each returning form names what it yields, one
 // for a single row and a `Vec` for a batch
 #[allow(dead_code)]
-async fn exec_terminals_name_their_shape<C: ConnectionTrait>(db: &C) -> Result<(), Error> {
+async fn exec_terminals_name_their_shape<C: Connection>(db: &C) -> Result<(), Error> {
     let insert = || Insert::<bakery::ActiveModel, OneRow>::one(bakery_model("Shape", 1.0));
 
     let _rows: u64 = insert().exec(db).await?;

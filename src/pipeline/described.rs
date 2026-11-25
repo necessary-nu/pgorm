@@ -44,7 +44,7 @@ use super::sources::{appended_projection, typed_cast};
 /// # Ok::<_, pgorm::pipeline::PipelineError>(())
 /// ```
 // [spec:pgorm:sem:pipeline.described+1]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 pub fn col_typed<'brand>(
     table: impl IntoName,
     column: impl IntoName,
@@ -65,7 +65,7 @@ pub fn col_typed<'brand>(
 /// ```
 /// use pgorm::pgorm_query::{ColumnType, TypeName};
 /// use pgorm::pipeline::{ExprOps, Pipeline, alias, col_shaped};
-/// use pgorm::{ColumnTypeTrait, TableColumn};
+/// use pgorm::{ColumnTypeExt, TableColumn};
 ///
 /// let code = TableColumn::new("code", ColumnType::Text.def())
 ///     .with_save_as(TypeName::new(alias("citext")));
@@ -321,7 +321,7 @@ mod tests {
     // [spec:pgorm:sem:pipeline.described+1/test]
     #[test]
     fn shaped_columns_compare_through_their_casts() {
-        use crate::{ColumnTypeTrait, TableColumn};
+        use crate::{ColumnTypeExt, TableColumn};
         let till = alias("till");
         let takings = TableColumn::new("takings", ColumnType::Money.def());
         let code = TableColumn::new("code", ColumnType::Text.def())

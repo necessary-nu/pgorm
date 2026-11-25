@@ -5,17 +5,15 @@
 
 use std::collections::BTreeMap;
 
-use pgorm::pgorm_query::{Expr, ExprTrait, Name, Query, Values};
-use pgorm::{
-    ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, pgorm_query::Value,
-};
+use pgorm::pgorm_query::{Expr, Expression, Name, Query, Values};
+use pgorm::{Column, Entity, QueryFilter, QueryOrder, QuerySelect, Statement, pgorm_query::Value};
 use serde_json::Value as Json;
 
 use pgorm::pipeline as pl;
 
 use crate::{account, graphs, membership, note, parcel};
 
-fn built<Q: QueryTrait>(query: &Q) -> (String, Values)
+fn built<Q: Statement>(query: &Q) -> (String, Values)
 where
     Q::QueryStatement: pgorm::pgorm_query::QueryStatementBuilder,
 {
@@ -57,7 +55,7 @@ fn cases() -> Vec<(&'static str, (String, Values))> {
         ("find-one", built(&account::Entity::find().limit(1))),
         ("find-one-limit-zero", {
             let mut query = account::Entity::find().limit(0);
-            QueryTrait::query(&mut query).narrow_limit_to_one();
+            Statement::query(&mut query).narrow_limit_to_one();
             built(&query)
         }),
         (
@@ -73,7 +71,7 @@ fn cases() -> Vec<(&'static str, (String, Values))> {
             "graph-mixed-default-aliases",
             built(
                 &graphs::required(&aliases(&["g1"])).join_maybe_as::<crate::note::Entity>(
-                    pgorm::RelationTrait::def(&account::Relation::Note),
+                    pgorm::Relation::def(&account::Relation::Note),
                     Name::runtime("g2"),
                 ),
             ),
@@ -179,8 +177,8 @@ fn pipelines() -> Vec<(&'static str, (String, Values))> {
     ]
 }
 
-// [spec:pgorm:req:bindings.entity-reads+4/test]
-// [spec:pgorm:req:bindings.entity-graphs+4/test]
+// [spec:pgorm:req:bindings.entity-reads+5/test]
+// [spec:pgorm:req:bindings.entity-graphs+5/test]
 // [spec:pgorm:req:bindings.pipeline-sources+3/test]
 #[test]
 fn entity_statements_match_the_golden_file() {

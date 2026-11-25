@@ -51,7 +51,7 @@ async fn copy(
 /// The columns `statement` reads or writes, described by the transaction's
 /// owner without starting the COPY. A description the server refuses aborts
 /// the transaction, as any failed statement does.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(crate) async fn describe_in(
     state: &Arc<State>,
     statement: Described,
@@ -75,7 +75,7 @@ pub(crate) async fn describe_in(
 }
 
 /// A COPY FROM in the transaction, which holds it until the COPY ends.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 pub(crate) async fn copy_in(
     state: &Arc<State>,
     statement: CopyFrom,
@@ -106,7 +106,7 @@ pub(crate) async fn copy_in(
 }
 
 /// A COPY TO in the transaction, which holds it until the stream ends.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 pub(crate) async fn copy_out(
     state: &Arc<State>,
     statement: CopyTo,

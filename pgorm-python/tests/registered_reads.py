@@ -36,7 +36,7 @@ class RegisteredReads(unittest.IsolatedAsyncioTestCase):
         account = self.account
         return account.find().where(account.col("mood") == "calm").order_by(account.col("id").asc())
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]
+    # [spec:pgorm:req:bindings.entity-reads+5/test]
     async def test_count_and_pages(self):
         query = self.calm()
         self.assertEqual(await query.count(self.pool), 3)
@@ -62,7 +62,7 @@ class RegisteredReads(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(p.ConstructionError):
                 bool(value)
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]
+    # [spec:pgorm:req:bindings.entity-reads+5/test]
     async def test_cursor_orders_by_columns_and_casts_boundaries(self):
         cursor = self.account.find().cursor("mood", "id")
         first = await cursor.first(2).all(self.pool)
@@ -83,7 +83,7 @@ class RegisteredReads(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             self.account.find().cursor("missing")
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]
+    # [spec:pgorm:req:bindings.entity-reads+5/test]
     async def test_stream_decodes_models_as_they_arrive(self):
         async with await self.calm().stream(self.pool) as models:
             read = [model async for model in models]
@@ -93,7 +93,7 @@ class RegisteredReads(unittest.IsolatedAsyncioTestCase):
             async with await self.calm().limit(1).stream(connection) as models:
                 self.assertEqual([model["display name"] async for model in models], ["Ann|before"])
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]
+    # [spec:pgorm:req:bindings.entity-reads+5/test]
     async def test_join_reads_the_root_by_a_relation(self):
         stay = p.entity("app.Stay")
         guest = stay.relation("Guest")
@@ -114,7 +114,7 @@ class RegisteredReads(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             stay.relation("Missing")
 
-    # [spec:pgorm:req:bindings.entity-reads+4/test]
+    # [spec:pgorm:req:bindings.entity-reads+5/test]
     async def test_select_projects_columns_as_records(self):
         names = self.calm().select("display name", "mood")
         self.assertEqual(names.columns, ["display name", "mood"])
@@ -154,7 +154,7 @@ class RegisteredGraphReads(unittest.IsolatedAsyncioTestCase):
         query = self.graph.find(aliases=["n"])
         return query.order_by(query.col(0, "id").asc(), query.col(1, "id").asc())
 
-    # [spec:pgorm:req:bindings.entity-graphs+4/test]
+    # [spec:pgorm:req:bindings.entity-graphs+5/test]
     async def test_all_grouped_count_and_pages(self):
         grouped = await self.ordered().all_grouped(self.pool)
         self.assertEqual(
@@ -169,13 +169,13 @@ class RegisteredGraphReads(unittest.IsolatedAsyncioTestCase):
         second = await pages.fetch_page(self.pool, 1)
         self.assertEqual([(root["id"], None if note is None else note["id"]) for root, note in second], [(4, None), (5, None)])
 
-    # [spec:pgorm:req:bindings.entity-graphs+4/test]
+    # [spec:pgorm:req:bindings.entity-graphs+5/test]
     async def test_stream_decodes_each_row(self):
         async with await self.ordered().stream(self.pool) as rows:
             read = [(root["id"], None if note is None else note["id"]) async for root, note in rows]
         self.assertEqual(read, [(1, 11), (1, 12), (2, 21), (3, None), (4, None), (5, None)])
 
-    # [spec:pgorm:req:bindings.entity-graphs+4/test]
+    # [spec:pgorm:req:bindings.entity-graphs+5/test]
     async def test_cursors_over_slot_columns_and_composite_orders(self):
         on_body = self.graph.find(aliases=["n"]).cursor_on(1, "body")
         compiled = on_body.first(2).inspect()

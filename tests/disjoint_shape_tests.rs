@@ -21,8 +21,8 @@ use pgorm::tests_cfg::{
 };
 use pgorm::types::ToSql;
 use pgorm::{
-    ActiveValue, ColumnTypeTrait, ConnectionTrait, DatabaseConnection, Disjoint, DisjointColumn,
-    DisjointJudged, DisjointShape, DisjointTable, DisjointValues, Error, QueryResult, QueryTrait,
+    ActiveValue, ColumnTypeExt, Connection, DatabaseConnection, Disjoint, DisjointColumn,
+    DisjointJudged, DisjointShape, DisjointTable, DisjointValues, Error, QueryResult, Statement,
     ValueHolder, count_statement, entity::prelude::*, page_statement,
 };
 use pretty_assertions::assert_eq;

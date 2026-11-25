@@ -7,7 +7,7 @@ explicit limitations.
 
 ## Entity traits
 
-> [spec:pgorm:def:entity.traits+4]
+> [spec:pgorm:def:entity.traits+5]
 > The entity trait family is defined in `src/entity/` and re-exported from
 > `pgorm::entity` (`src/entity/mod.rs`). Its base identifier contract is
 > `pgorm_query::StaticName` (`[spec:pgorm:def:sql.types]`), re-exported from
@@ -18,12 +18,12 @@ explicit limitations.
 > entity's name — borrowed from `self` through `EntityName::table_name` —
 > cannot be; the two are now one trait at the looser return, so a glob of both
 > modules is unambiguous and implementing the wrong one is not a state.
-> `EntityName: StaticName + Default` maps an entity to a table. `EntityTrait: EntityName`
-> is the abstract entity, carrying five associated types: `Model`
-> (`ModelTrait<Entity = Self> + FromQueryResult`), `ActiveModel`
-> (`ActiveModelBehavior<Entity = Self>`), `Column` (`ColumnTrait`), `Relation`
-> (`RelationTrait`), and `PrimaryKey`
-> (`PrimaryKeyTrait + PrimaryKeyToColumn<Column = Self::Column>`).
+> `EntityName: StaticName + Default` maps an entity to a table. `Entity: EntityName`
+> is the abstract entity, carrying five associated types, most bound by the trait
+> of their own name: `Model: Model<Entity = Self> + FromQueryResult`,
+> `ActiveModel: ActiveModelBehavior<Entity = Self>`, `Column: Column`,
+> `Relation: Relation`, and
+> `PrimaryKey: PrimaryKey + PrimaryKeyToColumn<Column = Self::Column>`.
 >
 > The trait family is produced by the derive macros exported from
 > `src/entity/prelude.rs` (`Entity`, `Relation`, and friends), an
@@ -32,7 +32,7 @@ explicit limitations.
 > whose names are computed, or a key the arity guard of `entity.traits.crud` refuses —
 > meets the same bounds.
 
-> [spec:pgorm:req:entity.traits.entity-name+6]
+> [spec:pgorm:req:entity.traits.entity-name+7]
 > `EntityName::table_name` is the only required method and MUST return the table's SQL
 > name. `schema_name` and `comment` default to `None`; `module_name` defaults to
 > `table_name()`; `unique_keys` — the table's unique keys over two columns or
@@ -50,7 +50,7 @@ explicit limitations.
 > An entity handed straight to a builder's table position — `from`, a join, an
 > `INSERT`, `UPDATE` or `DELETE` target, a DDL target — MUST be qualified the same
 > way, so a raw statement reads and writes the table `find()` does and never a
-> same-named one `search_path` finds first: the `SqlName` the `EntityTrait` derive writes
+> same-named one `search_path` finds first: the `SqlName` the `Entity` derive writes
 > answers `schema_name` as its `table_schema`, which `IntoTableName` reads
 > (`[spec:pgorm:def:sql.types.table-ref]`). An entity whose `SqlName` is written
 > by hand qualifies there only if it answers `table_schema` too.
@@ -63,7 +63,7 @@ explicit limitations.
 > `query.build.delete`, `query.graph`) or by `Update::many(entity)`,
 > `Delete::many(entity)` or `Pipeline::from(entity)` names the instance's, its schema
 > and table both. Every column reference such a statement writes is qualified by the
-> default's table name (`ColumnTrait::entity_name`), so where the instance's table
+> default's table name (`Column::entity_name`), so where the instance's table
 > name differs from the default's, the table is read under the default's as an alias —
 > `FROM "acme"."cake_2026" AS "cake"`, `UPDATE … AS "cake"` — and a schema alone needs
 > none, since `FROM "acme"."cake"` already answers to `cake`. The default is therefore
@@ -71,8 +71,8 @@ explicit limitations.
 > name one; a default whose table name is empty names none to read the instance's
 > table under, and its statements name the instance's table bare.
 
-> [spec:pgorm:req:entity.traits.crud+5]
-> `EntityTrait` provides the static *read* surface (`src/entity/base_entity.rs`):
+> [spec:pgorm:req:entity.traits.crud+6]
+> `Entity` provides the static *read* surface (`src/entity/base_entity.rs`):
 > `find()` returns a fresh `Select<Self>`; `find_by_id(values)` builds on `find()` by
 > adding an equality filter per primary-key column, consuming the value tuple in
 > primary-key iteration order. `delete_by_id(values)` returns a `DeleteMany`
@@ -84,7 +84,7 @@ explicit limitations.
 > (`entity.traits.entity-name`), so a per-tenant schema is chosen where the
 > statement is written; the static forms are the `_in` forms over the default.
 >
-> `EntityTrait` MUST NOT carry `insert`, `insert_many`, `update`, `update_many`,
+> `Entity` MUST NOT carry `insert`, `insert_many`, `update`, `update_many`,
 > `delete`, or `delete_many`. Each was a one-line forward to a builder
 > constructor — `Insert::one`, `Insert::many`, `Update::one`, `Update::many`,
 > `Delete::one`, `Delete::many` — and a second spelling of a constructor is a
@@ -98,16 +98,16 @@ explicit limitations.
 > `find_by_id` and `delete_by_id` MUST panic with `primary key arity mismatch` when the
 > number of supplied values differs from the primary key's arity, in either direction.
 > A value of another arity than the key's `ValueType` does not compile, so the panic is
-> reached only through a hand-written `PrimaryKeyTrait` whose `ValueType` disagrees with
+> reached only through a hand-written `PrimaryKey` whose `ValueType` disagrees with
 > its own variants.
-> Values are accepted via `IntoPrimaryKey<<Self::PrimaryKey as PrimaryKeyTrait>::ValueType>`
+> Values are accepted via `IntoPrimaryKey<<Self::PrimaryKey as PrimaryKey>::ValueType>`
 > (`entity.traits.primary-key`), so composite keys are passed as tuples whose parts
 > convert one by one: `find_by_id((1, "x"))` against an `(i32, String)` key, with no
 > `.to_owned()`. These two and their `_in` forms are the only APIs that take a key
 > value; a cursor boundary takes a value tuple over its order columns, not a key.
 
-> [spec:pgorm:def:entity.traits.column+9]
-> `ColumnTrait: StaticName + Iterable + FromStr` (`src/entity/column.rs`) describes one
+> [spec:pgorm:def:entity.traits.column+10]
+> `Column: StaticName + Iterable + FromStr` (`src/entity/column.rs`) describes one
 > column of an entity. `def()` returns the column's `ColumnDef`; `entity_name()` and
 > `as_column_ref()` qualify the column with its `EntityName`. The trait exposes an
 > expression-building surface wrapping `pgorm_query::Expr`: comparison operators `eq`,
@@ -145,7 +145,7 @@ explicit limitations.
 > The comparison operators above take a *value*, bound by `Into<Value>`. Comparing
 > against another column, or against a computed expression, is a separate named
 > family: `eq_col`, `ne_col`, `gt_col`, `gte_col`, `lt_col` and `lte_col` take any
-> `ColumnTrait` and render `"a"."x" <op> "b"."y"`, each side qualified by its own
+> `Column` and render `"a"."x" <op> "b"."y"`, each side qualified by its own
 > entity; `eq_expr` takes any `Into<SimpleExpr>` for the computed case. `eq` and its
 > siblings MUST NOT be widened to admit an expression operand: their operand goes
 > through `save_as`, which is what casts an enum value, and a widened bound would drop
@@ -163,13 +163,13 @@ explicit limitations.
 > can offer and what the two namespaces agree on when nothing is renamed.
 >
 > `ColumnType` is a re-export of `pgorm_query::ColumnType`; the crate's own `ColumnType`
-> enum was dropped and `ColumnTypeTrait` (`def()`, `get_enum_name()`) bridges a
+> enum was dropped and `ColumnTypeExt` (`def()`, `get_enum_name()`) bridges a
 > `ColumnType` or existing `ColumnDef` into a `ColumnDef`.
 
-> [spec:pgorm:req:entity.traits.column-def+2]
+> [spec:pgorm:req:entity.traits.column-def+3]
 > `ColumnDef` (`src/entity/column.rs`) carries a column's definition attributes:
 > `col_type: ColumnType`, `null`, `unique`, `indexed`, `default`, and
-> `comment: Option<String>`. `ColumnTypeTrait::def()` MUST initialise a definition
+> `comment: Option<String>`. `ColumnTypeExt::def()` MUST initialise a definition
 > as non-null, non-unique, non-indexed, with no default and no comment. Builder methods
 > flip individual attributes: `unique()`, `indexed()`, `null()` / `nullable()` (aliases),
 > `comment(v)`, `default_value(T: Into<Value>)`, `default(T: Into<SimpleExpr>)`
@@ -199,7 +199,7 @@ explicit limitations.
 > (`[spec:pgorm:sem:macros.derive.entity-model.column-def]`) and a hand-written
 > definition meets when its schema is created.
 
-> [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+> [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 > Enum-typed columns are transparently cast at the SQL boundary
 > (`src/entity/column.rs`). On read, `select_as` / `select_enum_as` casts an enum
 > column to `text` — or `text[]` when the column type is `Array` of an enum — and
@@ -263,7 +263,7 @@ explicit limitations.
 > A column whose domain is over an enum, directly or through further
 > domains, is the exception in comparisons: PostgreSQL resolves no operator
 > for it, not even between two values of the domain (`42883`, *operator does
-> not exist: d = d*), so every comparison `ColumnTrait` builds casts the
+> not exist: d = d*), so every comparison `Column` builds casts the
 > column to the enum by its structured `TypeName`, and casts each value
 > operand to the enum in place of `save_as` — an array operand (`eq_any`,
 > `ne_all`) to the enum's array in place of `save_array_as`. The value is
@@ -318,12 +318,12 @@ explicit limitations.
 > `max` aggregates cast their argument; sorting, grouping, projecting and
 > `count` keep the bare column.
 >
-> A pipeline's entity column also carries the type its `ColumnTrait` casts a
+> A pipeline's entity column also carries the type its `Column` casts a
 > compared value to, wherever what that trait writes is a cast of the value
 > itself — an enum, `money` and an array of it, a created range, a domain
 > needing a cast, a `save_as` type — and a literal or a bound value compared
 > with the column, by a comparison, `coalesce` or `in_array`, on either side,
-> is cast to it as `ColumnTrait` casts it, so a `money` column compares with a
+> is cast to it as `Column` casts it, so a `money` column compares with a
 > `Decimal` (`CAST($1::numeric AS money)`) where a bare value would leave the
 > server no operator (`42883`, *money = numeric*) or bind the value as a type
 > it is not. A bound value's placeholder is pinned inside the cast to the type
@@ -345,12 +345,12 @@ explicit limitations.
 > registration types the column (`bindings.pipeline-sources`,
 > `bindings.pipeline-expressions`). A binding's registered column is a
 > member — of a list of values, each converted to its declared kind, or of a
-> subquery's rows — through its `ColumnTrait`'s `is_in`, `is_not_in`,
+> subquery's rows — through its `Column`'s `is_in`, `is_not_in`,
 > `in_subquery` and `not_in_subquery`, so it is cast as Rust's is
 > (`bindings.entity-reads`); a statement builder's own expression is SQL as
 > written, and is cast by the caller where it needs one.
 >
-> Every value-position operand a `ColumnTrait` predicate takes passes through
+> Every value-position operand a `Column` predicate takes passes through
 > `save_as`, but under a column whose domain is over an enum, where it is cast
 > to the enum: the scalar comparators, `between` / `not_between`, `if_null`,
 > and `is_in` / `is_not_in` per element. A value predicate that binds an
@@ -372,8 +372,8 @@ explicit limitations.
 > spelling of the same type: `#[pgorm(save_as = "…")]` generates both, so the
 > scalar and array comparisons of one column cannot disagree about its cast.
 
-> [spec:pgorm:def:entity.traits.primary-key+8]
-> `PrimaryKeyTrait: StaticName + Iterable` (`src/entity/primary_key.rs`) defines an
+> [spec:pgorm:def:entity.traits.primary-key+9]
+> `PrimaryKey: StaticName + Iterable` (`src/entity/primary_key.rs`) defines an
 > entity's primary key as an iterable enum of key columns. Its `ValueType` associated
 > type is the Rust value form of the whole key and is bound by
 > `Sized + Send + Debug + PartialEq + IntoValueTuple + TryFromValueTuple
@@ -416,8 +416,8 @@ explicit limitations.
 > integration-test crate after touching the library took 53.3 s of user time before
 > them and 52.7 s after.
 
-> [spec:pgorm:def:entity.traits.model+3]
-> `ModelTrait: Clone + Send + Debug` (`src/entity/model.rs`) is the read-side row
+> [spec:pgorm:def:entity.traits.model+4]
+> `Model: Clone + Send + Debug` (`src/entity/model.rs`) is the read-side row
 > representation. `get(column)` returns the column's `Value`;
 > `set(column, value) -> Result<(), Error>` writes it, reporting a column this
 > model does not carry, or a value whose type does not match the field, as
@@ -425,14 +425,14 @@ explicit limitations.
 > `Related::find_related().belongs_to(self)`; `find_linked(L)` scopes a multi-hop
 > `Linked` join to this instance using the last hop's `r{n}` table alias.
 > `into_active(self)` converts the model into
-> `<Self::Entity as EntityTrait>::ActiveModel` by delegating to `IntoActiveModel`;
+> `<Self::Entity as Entity>::ActiveModel` by delegating to `IntoActiveModel`;
 > because the destination is fixed by the entity rather than by a type parameter, the
 > call needs no annotation where `into_active_model()` does.
 > `delete(self, db)` converts the model through `IntoActiveModel` and delegates to
-> `ActiveModelTrait::delete`, so behavior hooks run. `TryIntoModel<M>` is the fallible
+> `ActiveModel::delete`, so behavior hooks run. `TryIntoModel<M>` is the fallible
 > reverse conversion with a blanket identity impl for any model.
 
-> [spec:pgorm:def:entity.traits.from-query-result+5]
+> [spec:pgorm:def:entity.traits.from-query-result+6]
 > `FromQueryResult` (`src/entity/model.rs`) instantiates a type from a `QueryResult`
 > row given a column-name prefix: `from_query_result(res, pre)`.
 > `from_query_result_optional` reads a row that may not carry the type at all —
@@ -444,7 +444,7 @@ explicit limitations.
 > be checked against the type before a row exists (`exec.verify`) and so the optional
 > decode knows which columns witness an absent row; it defaults to `None`, the answer
 > of an implementation that does not report them.
-> `PartialModelTrait: FromQueryResult` (`src/entity/partial_model.rs`) adds
+> `PartialModel: FromQueryResult` (`src/entity/partial_model.rs`) adds
 > `select_cols<S: QuerySelect>(S) -> S::Projected`, letting a partial model declare
 > exactly the columns it needs on a select. The return type is the *projected* state,
 > not `S`, so an implementation that selects no column cannot typecheck: a field-less
@@ -472,8 +472,8 @@ explicit limitations.
 
 ## Active model
 
-> [spec:pgorm:req:entity.active-model+4]
-> `ActiveModelTrait: Clone + Debug` (`src/entity/active_model.rs`) is the write-side
+> [spec:pgorm:req:entity.active-model+5]
+> `ActiveModel: Clone + Debug` (`src/entity/active_model.rs`) is the write-side
 > row representation whose fields are `ActiveValue`s. Implementations MUST provide
 > per-column state access: `get` (a non-consuming read), `take` (removes and returns,
 > leaving `NotSet`), `set` (stores a `Value` as `Set`), `not_set` (clears to
@@ -506,8 +506,8 @@ explicit limitations.
 > MUST return `None` if any key component is `NotSet`.
 > `is_changed` returns `true` when any attribute is in the `Set` state.
 
-> [spec:pgorm:req:entity.active-model.set-if-not-equals]
-> `ActiveModelTrait::set_if_not_equals(column, value)` MUST be `set` unless the
+> [spec:pgorm:req:entity.active-model.set-if-not-equals+1]
+> `ActiveModel::set_if_not_equals(column, value)` MUST be `set` unless the
 > column holds that value `Unchanged`, when it does nothing: the column's
 > `ActiveValue::set_if_not_equals` reached by name, as a binding names a column,
 > so `is_changed` then reports whether there is anything to write. A column the
@@ -573,15 +573,15 @@ explicit limitations.
 > root and is the spelling documentation uses
 > (`[spec:pgorm:def:entity.active-model.active-value]`).
 
-> [spec:pgorm:req:entity.active-model.persistence+3]
-> `ActiveModelTrait::insert` MUST execute via `Insert::exec_returning_model`, so on
+> [spec:pgorm:req:entity.active-model.persistence+4]
+> `ActiveModel::insert` MUST execute via `Insert::exec_returning_model`, so on
 > PostgreSQL the insert and the returned `Model` are a single `INSERT ... RETURNING`
-> round trip. `ActiveModelTrait::update` executes
+> round trip. `ActiveModel::update` executes
 > `Update::one(am).exec_returning_model(db)`
 > (an `UPDATE ... RETURNING` statement keyed on the primary key) and likewise returns
-> the fresh `Model`. `ActiveModelTrait::delete` deletes by the model's primary key and
+> the fresh `Model`. `ActiveModel::delete` deletes by the model's primary key and
 > returns the rows-affected count as `u64`. All three are async and generic over any
-> `ConnectionTrait` (`src/entity/active_model.rs`). Each has an `_in` form taking the
+> `Connection` (`src/entity/active_model.rs`). Each has an `_in` form taking the
 > entity instance before the connection — `insert_in`, `update_in`, `delete_in` — that
 > writes the table the instance names through `Insert::one_in`, `Update::one_in` and
 > `Delete::one_in` (`[spec:pgorm:req:entity.traits.entity-name]`), its hooks run as the
@@ -592,8 +592,8 @@ explicit limitations.
 > (`[spec:pgorm:req:entity.active-model.save]`). Both accept a primary key in
 > either the `Set` or the `Unchanged` state.
 
-> [spec:pgorm:req:entity.active-model.save+1]
-> `ActiveModelTrait` MUST NOT carry a `save` operation that infers insert-versus-update
+> [spec:pgorm:req:entity.active-model.save+2]
+> `ActiveModel` MUST NOT carry a `save` operation that infers insert-versus-update
 > from the primary-key state. The inherited inference — `insert` when at least one key
 > column is `NotSet`, `update` otherwise — reads a distinction the input does not carry:
 > `Set` and `Unchanged` are both "holds a value", so an entity with a manually assigned
@@ -605,14 +605,14 @@ explicit limitations.
 > explicitly through `Insert::on_conflict`. The removal is deliberate and `save` MUST
 > NOT be reintroduced under this or another name (`src/entity/active_model.rs`).
 
-> [spec:pgorm:req:entity.active-model.hooks+1]
-> `ActiveModelBehavior: ActiveModelTrait` (`src/entity/active_model.rs`) defines
+> [spec:pgorm:req:entity.active-model.hooks+2]
+> `ActiveModelBehavior: ActiveModel` (`src/entity/active_model.rs`) defines
 > lifecycle hooks with pass-through defaults returning `Ok`. Ordering is fixed:
 > `insert` MUST call `before_save(self, db, insert: true)` before executing and
 > `after_save(model, db, true)` on the returned model; `update` does the same with
 > `insert: false`; `delete` MUST call `before_delete(self, db)` before executing and
 > `after_delete` (on a clone of the pre-delete active model) after. `new()` defaults to
-> `ActiveModelTrait::default()` and is the hook for constructing an active model with
+> `ActiveModel::default()` and is the hook for constructing an active model with
 > default values.
 >
 > An `Err` from a *before* hook aborts the operation: it returns before the statement
@@ -627,9 +627,9 @@ explicit limitations.
 > `delete` MUST state this asymmetry rather than promise an abort the code does not
 > perform.
 
-> [spec:pgorm:req:entity.active-model.into+3]
+> [spec:pgorm:req:entity.active-model.into+4]
 > `IntoActiveModel<A>` converts a type into an active model and has a blanket identity
-> impl for any `ActiveModelTrait`; derived models convert `Model` → `ActiveModel` with
+> impl for any `ActiveModel`; derived models convert `Model` → `ActiveModel` with
 > every field `Unchanged` (used by `Model::delete`, `set_from_json`, and by callers
 > turning a returned `Model` back into an active model to update it).
 > `IntoActiveValue<V>` governs how an `IntoActiveModel` struct's fields become states:
@@ -641,8 +641,8 @@ explicit limitations.
 > `Multirange` of each built-in subtype, those over jiff types under
 > `with-jiff`) MUST produce `Set` (`src/entity/active_model.rs`).
 
-> [spec:pgorm:req:entity.active-model.json+4]
-> Under the `with-json` feature, `ActiveModelTrait::from_json` builds an active model
+> [spec:pgorm:req:entity.active-model.json+5]
+> Under the `with-json` feature, `ActiveModel::from_json` builds an active model
 > by deserializing the JSON object into the entity's `Model` (errors surface as
 > `Error`), converting it with `IntoActiveModel`, then normalizing states per column:
 > attributes whose key exists in the JSON object become `Set`, and all others MUST be
@@ -650,7 +650,7 @@ explicit limitations.
 >
 > Presence detection and deserialization MUST read the same key namespace, and that
 > namespace is `serde`'s: the key a column occupies is the model field's name as
-> `serde` spells it, read from `ColumnTrait::json_key`
+> `serde` spells it, read from `Column::json_key`
 > (`[spec:pgorm:def:entity.traits.column]`) — never the SQL column name, which the
 > deserializer never sees. The `Entity` derive computes each column's key from the
 > field it derived that column from, applying `#[serde(rename = "..")]` and
@@ -673,13 +673,13 @@ explicit limitations.
 
 ## Relations
 
-> [spec:pgorm:req:entity.relation+1]
-> Relations are declared per entity through `RelationTrait: Iterable + Debug`, whose
+> [spec:pgorm:req:entity.relation+2]
+> Relations are declared per entity through `Relation: Iterable + Debug`, whose
 > `def(&self) -> RelationDef` maps each variant of the entity's `Relation` enum to a
 > definition (`src/entity/relation.rs`). `RelationType` has exactly two variants:
 > `HasOne` and `HasMany` — belongs-to is expressed as ownership direction, not a third
-> type. `EntityTrait::belongs_to(related)` MUST start a builder with `HasOne` and
-> `is_owner = false`; `EntityTrait::has_one(R)` and `has_many(R)` require
+> type. `Entity::belongs_to(related)` MUST start a builder with `HasOne` and
+> `is_owner = false`; `Entity::has_one(R)` and `has_many(R)` require
 > `R: Related<Self>` and derive their builder from the reversed related entity's
 > definition (`R::to().rev()`) with `is_owner = true` — but the builder keeps only
 > the tables and columns of that reversed definition: its `on_delete`/`on_update`
@@ -690,7 +690,7 @@ explicit limitations.
 > `find_related()`, which MUST inner-join `to()` (and `via()` when present, joined in
 > reverse) onto a fresh `Select<R>`.
 
-> [spec:pgorm:def:entity.relation.def+12]
+> [spec:pgorm:def:entity.relation.def+13]
 > `RelationDef` (`src/entity/relation.rs`) is the concrete relation record:
 > `rel_type`, `from_tbl` / `to_tbl` (`FromItem`, since a relation is joined into a
 > query and may be re-aliased), `columns` (`ColumnPairs`),
@@ -757,7 +757,7 @@ explicit limitations.
 > sound under aliasing; one that hardcodes is sound only where its relation
 > is never joined re-aliased. The `Relation` derive's `on_condition` attribute
 > written as an expression is where the mistake is easiest to write — it has
-> no parameters in scope, and a `ColumnTrait` operator
+> no parameters in scope, and a `Column` operator
 > (`Column::Name.like(..)`) qualifies with the entity's canonical table —
 > and the `tests_cfg` `TropicalFruit` relation is the standing in-tree
 > example; written as a closure, `"|left, right| .."`
@@ -818,13 +818,13 @@ explicit limitations.
 > conversion from `NoColumns`, so a relation missing its columns is a compile
 > error rather than a panic.
 
-> [spec:pgorm:req:entity.relation.linked+4]
+> [spec:pgorm:req:entity.relation.linked+5]
 > `Linked` (`src/entity/link.rs`) expresses a multi-hop join: `link()` returns the
 > ordered `Vec<RelationDef>` chain from `FromEntity` to `ToEntity`. `find_linked()`
 > MUST build the join by iterating the chain in reverse, aliasing each hop's source
 > table as `r0`, `r1`, ... and inner-joining it to the previous alias (the innermost
 > hop joins the target table the statement already selects from).
-> `ModelTrait::find_linked` scopes the result to a model instance by filtering on the
+> `Model::find_linked` scopes the result to a model instance by filtering on the
 > final alias `r{len - 1}` (`src/entity/model.rs`).
 >
 > A hop is not a bespoke join, and `find_linked` MUST NOT carry join machinery of
@@ -849,7 +849,7 @@ explicit limitations.
 > any diagnostic. The method is named for the mechanism rather than for one of
 > its readings: `find_linked` walks the ladder backwards from `ToEntity`, so
 > its last rung is the *source* table — which is exactly why it is what scopes
-> `ModelTrait::find_linked`, and what a caller ordering or filtering on a
+> `Model::find_linked`, and what a caller ordering or filtering on a
 > `FromEntity` column names. A chain whose `link()` is empty yields
 > `hop(0)`; the derivation saturates rather than underflowing, and the resulting
 > query names a table the (join-less) statement does not have, which the server
@@ -893,7 +893,7 @@ explicit limitations.
 
 ## Prelude
 
-> [spec:pgorm:def:entity.prelude+12]
+> [spec:pgorm:def:entity.prelude+13]
 > `pgorm::entity::prelude` (`src/entity/prelude.rs`) is the glob a file that
 > talks to the database imports instead of naming what it needs one item at a
 > time. Membership is chosen from what code actually writes, and is public API:
@@ -902,16 +902,16 @@ explicit limitations.
 > It carries the entity trait family and the derives that produce it
 > (`entity.traits`), each by the name `macros.derive.names` gives it, so a derive
 > named for a trait arrives with the trait; the query-builder traits whose methods are otherwise
-> unreachable — `QueryFilter`, `QuerySelect`, `QueryOrder`, `QueryTrait`,
-> `PaginatorTrait`, `CursorTrait`, `LoaderTrait`; the active-model vocabulary
+> unreachable — `QueryFilter`, `QuerySelect`, `QueryOrder`, `Statement`,
+> `Paginate`, `CursorSource`, `LoadRelated`; the active-model vocabulary
 > `ActiveValue` with its `Set` / `Unchanged` / `NotSet` variants,
 > `IntoActiveModel`, `IntoActiveValue`, `TryIntoModel`, and the free `set`
 > constructor (`entity.active-model.from-sugar`); the CRUD entry points
 > `Select`, `Insert`, `Update`, `Delete`; the decode surface `FromQueryResult`,
 > `QueryResult`, `DecodeSelect`, `DecodeRaw` (`exec.crud.selector-entry`); the
 > connection types `DatabasePool`, `DatabaseConnection`, `DatabaseTransaction`,
-> `ConnectionTrait`, `TransactionTrait`; `Iterable`, `Condition`, `JoinType`,
-> `Value`, the `error` module's contents, `ExprTrait`, without which a
+> `Connection`, `Transact`; `Iterable`, `Condition`, `JoinType`,
+> `Value`, the `error` module's contents, `Expression`, without which a
 > function call, a cast or a column's aggregate could be built but not
 > compared (`Column::Id.count().gt(2)`, `sql.ast.expr.operators`), and the
 > handful of `pgorm_query` names an entity definition needs (`Expr`, `Name`,
@@ -934,6 +934,17 @@ explicit limitations.
 > `column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`
 > resolves through the glob as a range column's does.
 >
+> Each trait an entity module names an item of its own after — `Entity`, `Model`,
+> `Column`, `ActiveModel`, `PrimaryKey` and `Relation`, with `Statement` and
+> `Connection`, which a driver's types are named too — is a member twice: by its
+> name, and unnamed (`as _`). A module's own item shadows a glob's name and would
+> take the trait's methods out of scope with it; the unnamed member keeps them in
+> scope, so `Entity::find()` and `model.into_active()` resolve in the module whose
+> derive writes `Entity` beside its `Model`, and the trait itself is named there by
+> path (`pgorm::Entity`). A module globbing both this prelude and an entity module
+> meets each of those names twice, an E0659 at the first mention, and imports the
+> one it means explicitly.
+>
 > `Order` — `pgorm_query`'s `ASC`/`DESC` enum — is deliberately NOT a member.
 > `order` is an ordinary table name, so an entity aliased `Order` is ordinary
 > too, and a module globbing both it and this prelude makes every mention of
@@ -945,7 +956,7 @@ explicit limitations.
 > could reuse.
 >
 > It also carries the relation vocabulary an entity definition and its call
-> sites write: `Related`, `Linked`, `RelationDef`, `RelationTrait`, and the
+> sites write: `Related`, `Linked`, `RelationDef`, `Relation`, and the
 > `RelatedLink` witness that spares a `Related` chain from being restated as a
 > hand-written `Linked` (`[spec:pgorm:req:entity.relation.linked]`).
 >

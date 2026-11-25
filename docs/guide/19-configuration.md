@@ -45,7 +45,7 @@ pgorm-driver's enums, which pgorm re-exports: `ssl_mode` an
 # let url = scratch.url();
 use std::time::Duration;
 
-use pgorm::{ConnectionTrait, TargetSessionAttrs};
+use pgorm::{Connection, TargetSessionAttrs};
 
 let mut config: pgorm::Config = url.parse()?;
 config
@@ -167,7 +167,7 @@ returns a [`HookError`](crate::HookError) refuses the connection, and the
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("configuration_hooks").await;
 # let config = scratch.config();
-use pgorm::{ConnectionTrait, Error, Hook, HookError, PoolError, connect_with_builder};
+use pgorm::{Connection, Error, Hook, HookError, PoolError, connect_with_builder};
 
 /// A hook refusing a connection to a server older than `minimum`, a
 /// `server_version_num` such as 190000 for PostgreSQL 19.
@@ -208,7 +208,7 @@ assert!(matches!(
 
 The client a hook is given is pgorm-driver's.
 [`HookConnection::new(client)`](crate::HookConnection) borrows it for the
-hook's length as a [`ConnectionTrait`](crate::ConnectionTrait), so pgorm's
+hook's length as a [`Connection`](crate::Connection), so pgorm's
 own statements run in a hook, an entity's `find` among them, through the
 connection's statement cache: a statement a hook prepares is the one the
 connection's borrowers then find cached. Here a `post_create` hook names
@@ -221,7 +221,7 @@ each new session after the bakery it serves, the first by id:
 # let scratch = pgorm_guide_support::Scratch::bakery("configuration_hook_connection").await;
 # let config = scratch.config();
 use pgorm::entity::prelude::*;
-use pgorm::{ConnectionTrait, Hook, HookConnection, HookError, connect_with_builder};
+use pgorm::{Connection, Hook, HookConnection, HookError, connect_with_builder};
 
 fn naming() -> Hook {
     Hook::async_fn(|client, _| {
@@ -286,7 +286,7 @@ DDL](crate::guide::statement_caches) describes.
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("configuration_recycling").await;
 # let config = scratch.config();
-use pgorm::{ConnectionTrait, ManagerConfig, NoTls, RecyclingMethod, connect_with};
+use pgorm::{Connection, ManagerConfig, NoTls, RecyclingMethod, connect_with};
 
 // What the next caller sees of a setting the last one changed.
 for (recycling_method, seen) in [
@@ -351,7 +351,7 @@ over the connector, and code of yours can be too. The bounds are the ones
 # let scratch = pgorm_guide_support::Scratch::bakery("configuration_tls").await;
 # let config = scratch.config();
 use pgorm::{
-    ConnectionTrait, DatabasePool, Error, MakeTlsConnect, ManagerConfig, NoTls, Socket,
+    Connection, DatabasePool, Error, MakeTlsConnect, ManagerConfig, NoTls, Socket,
     TlsConnect, connect_with,
 };
 
@@ -408,7 +408,7 @@ them is the program's: nothing balances or falls back across them.
 # let config = scratch.config();
 use std::collections::BTreeMap;
 
-use pgorm::{ConnectionTrait, PoolBuilder, connect_multi_with_builder};
+use pgorm::{Connection, PoolBuilder, connect_multi_with_builder};
 
 let mut shapes: BTreeMap<String, Box<dyn Fn(PoolBuilder) -> PoolBuilder>> = BTreeMap::new();
 shapes.insert("web".to_owned(), Box::new(|builder| builder.max_size(8)));
@@ -451,7 +451,7 @@ holder drops it. Dropping the last clone of a pool closes it too.
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("configuration_close").await;
 # let pool = scratch.pool.clone();
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 
 let db = pool.get().await?;
 pool.close();

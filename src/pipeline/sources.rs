@@ -16,8 +16,8 @@ use pgorm_query::{Name, SqlName, Values};
 use crate::executor::result_name::result_column_name;
 use crate::query::graph::{source_prefix, source_read_cast};
 use crate::{
-    ConnectionTrait, EntityTrait, Error, FromQueryResult, Iterable, QueryResult, SelectorRaw,
-    SelectorTrait, StaticName,
+    Connection, DecodeRow, Entity, Error, FromQueryResult, Iterable, QueryResult, SelectorRaw,
+    StaticName,
 };
 
 use super::adapter::{self, Piece, PlExpr};
@@ -57,21 +57,21 @@ mod sealed {
 // [spec:pgorm:sem:pipeline.select-sources+6]
 pub trait SelectableSource: sealed::SealedSource {
     /// The entity whose columns are projected and whose model is decoded.
-    type Entity: EntityTrait;
+    type Entity: Entity;
 
     /// The name the projection qualifies this source's columns by: the
     /// [`named`](super::IntoSource::named) token, or the entity's own table
-    /// name (`[spec:pgorm:sem:pipeline.qualify+4]`).
+    /// name (`[spec:pgorm:sem:pipeline.qualify+5]`).
     fn qualifier(&self) -> String;
 }
 
 // [spec:pgorm:sem:pipeline.select-sources+6]
-impl<E: EntityTrait> sealed::SealedSource for E {}
+impl<E: Entity> sealed::SealedSource for E {}
 
 /// A relation read bare: qualified by the entity's own name, exactly as its
 /// columns are everywhere else in the pipeline.
 // [spec:pgorm:sem:pipeline.select-sources+6]
-impl<E: EntityTrait> SelectableSource for E {
+impl<E: Entity> SelectableSource for E {
     type Entity = E;
 
     fn qualifier(&self) -> String {
@@ -101,7 +101,7 @@ impl<S: SelectableSource> SelectableSource for Named<S> {
 /// emitted as PL nodes instead of a `SelectStatement`.
 // [spec:pgorm:sem:pipeline.select-sources+6]
 // [spec:pgorm:sem:query.graph.writer+4]
-fn project_into<E: EntityTrait>(nodes: &mut Vec<PlExpr>, qualifier: &str, index: usize) {
+fn project_into<E: Entity>(nodes: &mut Vec<PlExpr>, qualifier: &str, index: usize) {
     let prefix = source_prefix(index);
     for column in <E::Column as Iterable>::iter() {
         let alias = result_column_name(&prefix, column.as_str());
@@ -144,7 +144,7 @@ pub(super) fn typed_cast(column: PlExpr, cast: &pgorm_query::TypeName) -> PlExpr
 /// `sql.render.cast-param-type` explains of a statement's placeholder. A pin
 /// is one of the fixed names `Value::source_type_name` gives, or such a name
 /// followed by `::text` for a range read through its text.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 pub(super) fn pinned_cast(
     operand: PlExpr,
     pin: Option<&str>,
@@ -195,10 +195,10 @@ impl<S: SelectableSource> sealed::SealedList for S {
 /// not prove a right-joined pipeline matched it.
 // [spec:pgorm:sem:pipeline.select-sources+6]
 impl<S: SelectableSource> SourceList for S {
-    type Row = Option<<S::Entity as EntityTrait>::Model>;
+    type Row = Option<<S::Entity as Entity>::Model>;
 
     fn decode(res: &QueryResult) -> Result<Self::Row, Error> {
-        <S::Entity as EntityTrait>::Model::from_query_result_optional(res, "s0_")
+        <S::Entity as Entity>::Model::from_query_result_optional(res, "s0_")
     }
 }
 
@@ -219,11 +219,11 @@ macro_rules! source_tuple {
 
         // [spec:pgorm:sem:pipeline.select-sources+6]
         impl<$( $s: SelectableSource ),+> SourceList for ( $( $s, )+ ) {
-            type Row = ( $( Option<<$s::Entity as EntityTrait>::Model>, )+ );
+            type Row = ( $( Option<<$s::Entity as Entity>::Model>, )+ );
 
             fn decode(res: &QueryResult) -> Result<Self::Row, Error> {
                 Ok(( $(
-                    <$s::Entity as EntityTrait>::Model::from_query_result_optional(res, $pre)?,
+                    <$s::Entity as Entity>::Model::from_query_result_optional(res, $pre)?,
                 )+ ))
             }
         }
@@ -241,7 +241,7 @@ source_tuple!(S1.0 @ "s0_", S2.1 @ "s1_", S3.2 @ "s2_", S4.3 @ "s3_", S5.4 @ "s4
 struct SourcesRow<T>(PhantomData<T>);
 
 // [spec:pgorm:sem:pipeline.select-sources+6]
-impl<T: SourceList> SelectorTrait for SourcesRow<T> {
+impl<T: SourceList> DecodeRow for SourcesRow<T> {
     type Item = T::Row;
 
     fn from_raw_query_result(res: QueryResult) -> Result<Self::Item, Error> {
@@ -406,7 +406,7 @@ impl<T: SourceList> SelectedSources<T> {
     // [spec:pgorm:sem:pipeline.select-sources+6]
     pub async fn all<C>(self, db: &C) -> Result<Vec<T::Row>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         let (sql, values) = self.into_sql()?;
         SelectorRaw {
@@ -426,7 +426,7 @@ impl<T: SourceList> SelectedSources<T> {
     // [spec:pgorm:sem:pipeline.select-sources+6]
     pub async fn one<C>(mut self, db: &C) -> Result<T::Row, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.pipeline = self.pipeline.take(1);
         let (sql, values) = self.into_sql()?;
@@ -444,7 +444,7 @@ impl<T: SourceList> SelectedSources<T> {
     // [spec:pgorm:sem:pipeline.select-sources+6]
     pub async fn one_opt<C>(mut self, db: &C) -> Result<Option<T::Row>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.pipeline = self.pipeline.take(1);
         let (sql, values) = self.into_sql()?;
@@ -539,8 +539,8 @@ impl<S: SelectableSource> Named<S> {
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
     // [spec:pgorm:sem:pipeline.self-join+1]
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+18]
-    pub fn col<'brand>(&self, column: <S::Entity as EntityTrait>::Column) -> Expr<'brand> {
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+    pub fn col<'brand>(&self, column: <S::Entity as Entity>::Column) -> Expr<'brand> {
         entity_column(self.name.clone(), &column)
     }
 }

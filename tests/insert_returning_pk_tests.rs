@@ -29,7 +29,7 @@ mod manual_key {
 
 async fn create_manual_key_table<C>(db: &C) -> Result<(), Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Schema::new().create_table_from_entity(manual_key::Entity)?;
     db.execute(&stmt.to_string(), &[]).await?;

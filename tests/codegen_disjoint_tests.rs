@@ -17,9 +17,7 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::entity::prelude::*;
-use pgorm::{
-    ConnectionTrait, Disjoint, KindedDisjoint, Schema, TransactionTrait, check_disjoint, set,
-};
+use pgorm::{Connection, Disjoint, KindedDisjoint, Schema, Transact, check_disjoint, set};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 

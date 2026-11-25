@@ -8,7 +8,7 @@ use syn::{
 
 /// `IntoActiveValue<Self>` for a column value type a derive makes, so a form's
 /// field of the type sets its column as a field of a built-in type does.
-// [spec:pgorm:sem:macros.derive.active-model+9]
+// [spec:pgorm:sem:macros.derive.active-model+10]
 pub(crate) fn into_active_value(ident: &Ident) -> TokenStream {
     quote! {
         #[automatically_derived]
@@ -60,11 +60,11 @@ pub(crate) fn skip_known_key(meta: &ParseNestedMeta<'_>, known: &[&str]) -> syn:
 }
 
 /// Keys of the composite derive's container attribute: the entity's literal
-/// names, which an entity under `EntityTrait` computes in a hand-written
+/// names, which an entity under `Entity` computes in a hand-written
 /// `EntityName` instead, the keys naming the model's columns, and `hooks`,
 /// saying the program implements `ActiveModelBehavior`. Every other derive
 /// refuses them with where they belong.
-// [spec:pgorm:sem:macros.derive.entity+7]
+// [spec:pgorm:sem:macros.derive.entity+8]
 pub(crate) const COMPOSITE_KEYS: [&str; 8] = [
     "table_name",
     "schema_name",
@@ -79,7 +79,7 @@ pub(crate) const COMPOSITE_KEYS: [&str; 8] = [
 /// The field keys `PartialModel` reads that the `FromQueryResult` it writes
 /// does not.
 // [spec:pgorm:sem:macros.derive.from-query-result+4]
-// [spec:pgorm:sem:macros.derive.partial-model+7]
+// [spec:pgorm:sem:macros.derive.partial-model+8]
 pub(crate) const PROJECTION_FIELD_KEYS: [&str; 2] = ["from_col", "from_expr"];
 
 /// Every field-level `#[pgorm(...)]` key the `Entity` derive defines. The

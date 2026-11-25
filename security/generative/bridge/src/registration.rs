@@ -1,5 +1,5 @@
 use crate::{account, graphs, note, room, stay};
-use pgorm::EntityTrait;
+use pgorm::Entity;
 use pgorm_python::entities::Registry;
 use pyo3::prelude::*;
 

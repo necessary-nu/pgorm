@@ -254,7 +254,7 @@ the methods that run statements. A statement on its connection would wait
 behind the notifications arriving there, and a transaction would hold their
 delivery back until it ended. Read and write through the pool or a connection
 taken from it, and send notifications from one with `notify`. Rust's
-`Listener` does not implement `ConnectionTrait`, so such a call does not
+`Listener` does not implement `pgorm::Connection`, so such a call does not
 compile; TypeScript refuses it the same way, and at run time the method is
 simply not there:
 

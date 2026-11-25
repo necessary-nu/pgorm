@@ -39,7 +39,7 @@ pub trait SqlName: Any + Send + Sync {
     /// The schema that qualifies this name wherever it names a table, so
     /// that [`IntoTableName`] reads it as `"schema"."name"`; `None` for a
     /// name that names its table bare. A name that knows its table's schema
-    /// answers it here: pgorm's `EntityTrait` derive answers the entity's
+    /// answers it here: pgorm's `Entity` derive answers the entity's
     /// `schema_name`, which is how an entity handed straight to `from`, a
     /// join or a write target reads the table its own queries do, rather than
     /// whichever one `search_path` finds first.
@@ -230,7 +230,7 @@ pub trait IntoColumnRef {
 /// quoted-or-verbatim question answered inside the type rather than by
 /// picking a different node.
 // [spec:pgorm:def:sql.types.type-name+11]
-// [spec:pgorm:req:sql.ast.cast-shape+2]
+// [spec:pgorm:req:sql.ast.cast-shape+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeName {
     pub schema: Option<Name>,
@@ -269,7 +269,7 @@ impl TypeName {
     /// nothing quoted or escaped.
     ///
     /// The only constructor of a verbatim type, and the one
-    /// [`ExprTrait::cast_as_raw`](crate::ExprTrait::cast_as_raw) and the derive's
+    /// [`Expression::cast_as_raw`](crate::Expression::cast_as_raw) and the derive's
     /// `select_as` / `save_as` attributes reach. Its argument is a literal
     /// written in the calling source: the text is program text the author
     /// already controls, never data, so rendering it as SQL adds no reach that
@@ -326,7 +326,7 @@ impl TypeName {
     /// before an array's `[]`: `bit(7)`, `numeric(10, 2)`, `varchar(20)[]`.
     ///
     /// ```
-    /// use pgorm_query::{Expr, ExprTrait, Name, Query, TypeName};
+    /// use pgorm_query::{Expr, Expression, Name, Query, TypeName};
     ///
     /// let bits = TypeName::new(Name::runtime("bit")).modifiers([7]);
     /// assert_eq!(bits.to_sql_string(), "bit(7)");
@@ -840,7 +840,7 @@ pub enum Keyword {
 }
 
 /// SubQuery operators
-// [spec:pgorm:def:sql.ast.expr+8]
+// [spec:pgorm:def:sql.ast.expr+9]
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum SubQueryOper {

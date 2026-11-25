@@ -3,8 +3,8 @@
 use pgorm_query::Values;
 
 use crate::{
-    ConnectionTrait, DecodeRaw, Error, FromQueryResult, SelectGetableTuple, SelectModel,
-    SelectorRaw, TryGetableMany,
+    Connection, DecodeRaw, Error, FromQueryResult, SelectGetableTuple, SelectModel, SelectorRaw,
+    TryGetableMany,
 };
 
 use super::adapter;
@@ -140,7 +140,7 @@ impl Pipeline {
     /// screened as identifiers only: they end the pipeline, so no later stage
     /// can resolve one to the PRQL name it shares, which is what the
     /// reserved-alias screen keeps an alias from doing.
-    // [spec:pgorm:sem:pipeline.terminal+1]
+    // [spec:pgorm:sem:pipeline.terminal+2]
     pub(super) fn into_sql_for<M: FromQueryResult>(
         self,
     ) -> Result<(String, Values), PipelineError> {
@@ -169,7 +169,7 @@ impl Pipeline {
     /// of two relations sharing a name it is refused as ambiguous, and
     /// [`select_sources`](Pipeline::select_sources) decodes each source's
     /// model instead.
-    // [spec:pgorm:sem:pipeline.terminal+1]
+    // [spec:pgorm:sem:pipeline.terminal+2]
     pub fn into_model<M>(self) -> Result<SelectorRaw<SelectModel<M>>, PipelineError>
     where
         M: FromQueryResult,
@@ -179,7 +179,7 @@ impl Pipeline {
 
     /// Compile and stage the pipeline for decoding into a tuple by column
     /// position.
-    // [spec:pgorm:sem:pipeline.terminal+1]
+    // [spec:pgorm:sem:pipeline.terminal+2]
     pub fn into_tuple<T>(self) -> Result<SelectorRaw<SelectGetableTuple<T>>, PipelineError>
     where
         T: TryGetableMany,
@@ -189,11 +189,11 @@ impl Pipeline {
 
     /// Compile, execute and decode every row into `M`, under the casts
     /// [`into_model`](Pipeline::into_model) writes for it.
-    // [spec:pgorm:sem:pipeline.terminal+1]
+    // [spec:pgorm:sem:pipeline.terminal+2]
     pub async fn all<M, C>(self, db: &C) -> Result<Vec<M>, Error>
     where
         M: FromQueryResult,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.into_model::<M>()?.all(db).await
     }
@@ -202,22 +202,22 @@ impl Pipeline {
     /// [`Error::RecordNotFound`] when there is none.
     ///
     /// A `take 1` stage is appended, so at most one row leaves the server.
-    // [spec:pgorm:sem:pipeline.terminal+1]
+    // [spec:pgorm:sem:pipeline.terminal+2]
     pub async fn one<M, C>(self, db: &C) -> Result<M, Error>
     where
         M: FromQueryResult,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.take(1).into_model::<M>()?.one(db).await
     }
 
     /// Compile, execute and decode the first row into `M`, or `None` when
     /// there is none. Appends `take 1` like [`one`](Pipeline::one).
-    // [spec:pgorm:sem:pipeline.terminal+1]
+    // [spec:pgorm:sem:pipeline.terminal+2]
     pub async fn one_opt<M, C>(self, db: &C) -> Result<Option<M>, Error>
     where
         M: FromQueryResult,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.take(1).into_model::<M>()?.one_opt(db).await
     }

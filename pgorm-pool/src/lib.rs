@@ -171,7 +171,7 @@ impl Manager {
     ///
     /// Native Turso factories refuse this notification connection before
     /// opening a client.
-    // [spec:pgorm:req:conn.listen+2]    a pool's listener connects as its connections do
+    // [spec:pgorm:req:conn.listen+3]    a pool's listener connects as its connections do
     pub async fn connect_raw(&self) -> Result<Unpooled, Error> {
         self.connect.connect_raw(&self.pg_config).await
     }
@@ -371,7 +371,7 @@ where
 
 /// Structure holding a reference to all [`StatementCache`]s and providing
 /// access for clearing all caches and removing single statements from them.
-// [spec:pgorm:sem:conn.pool.statement-cache+5]    manager-level registry
+// [spec:pgorm:sem:conn.pool.statement-cache+6]    manager-level registry
 #[derive(Default, Debug)]
 pub struct StatementCaches {
     caches: Mutex<Vec<Weak<StatementCache>>>,
@@ -490,7 +490,7 @@ struct StatementCacheKey<'a> {
 /// Normally, you probably want to use the [`ClientWrapper::prepare_cached()`]
 /// and [`ClientWrapper::prepare_typed_cached()`] methods instead (or the
 /// similar ones on [`Transaction`]).
-// [spec:pgorm:sem:conn.pool.statement-cache+5]
+// [spec:pgorm:sem:conn.pool.statement-cache+6]
 pub struct StatementCache {
     map: RwLock<HashMap<StatementCacheKey<'static>, Statement>>,
     size: AtomicUsize,
@@ -545,7 +545,7 @@ impl StatementCache {
     ///
     /// A concurrent caller may have replaced the invalidated handle before
     /// its error was received. That fresh entry remains cached.
-    // [spec:pgorm:req:conn.pool.statement-cache.invalidate+5]
+    // [spec:pgorm:req:conn.pool.statement-cache.invalidate+6]
     #[cfg(feature = "turso")]
     pub fn remove_invalidated(&self, query: &str, types: &[Type]) {
         let key = StatementCacheKey {
@@ -571,7 +571,7 @@ impl StatementCache {
 
     /// A stream can discover invalidation after its creation returned. Remove
     /// that handle on the next lookup, without replaying its operation.
-    // [spec:pgorm:req:conn.pool.statement-cache.invalidate+5]
+    // [spec:pgorm:req:conn.pool.statement-cache.invalidate+6]
     #[cfg(feature = "turso")]
     fn discard_invalidated(&self, key: &StatementCacheKey<'_>) -> Option<Statement> {
         let key = StatementCacheKey {
@@ -761,7 +761,7 @@ impl ClientWrapper {
     /// as its own. Pass a prepared [`Statement`]: preparing is a request of its
     /// own, and a statement refused there leaves the connection intact.
     /// Native Turso refuses COPY before starting work and keeps the client usable.
-    // [spec:pgorm:req:conn.copy+4]
+    // [spec:pgorm:req:conn.copy+5]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,

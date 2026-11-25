@@ -1,7 +1,7 @@
 use crate::{
-    ConnectionTrait, Delete, EntityTrait, Insert, IntoActiveModel, IntoActiveValue, Iterable,
-    NoContext, PrimaryKeyArity, PrimaryKeyToColumn, PrimaryKeyTrait, ScopeContext, ScopedIn,
-    Update, Value, error::*,
+    Connection, Delete, Entity, Insert, IntoActiveModel, IntoActiveValue, Iterable, NoContext,
+    PrimaryKey, PrimaryKeyArity, PrimaryKeyToColumn, ScopeContext, ScopedIn, Update, Value,
+    error::*,
 };
 use async_trait::async_trait;
 use pgorm_query::{Nullable, ValueTuple};
@@ -119,10 +119,10 @@ impl From<&[u8]> for ActiveValue<Vec<u8>> {
 }
 
 /// A Trait for ActiveModel to perform Create, Update or Delete operation.
-/// The type must also implement the [EntityTrait].
+/// The type must also implement the [Entity].
 ///
-/// Writes state their intent: pick [`ActiveModelTrait::insert`] or
-/// [`ActiveModelTrait::update`]. There is no `save` that guesses between the two
+/// Writes state their intent: pick [`ActiveModel::insert`] or
+/// [`ActiveModel::update`]. There is no `save` that guesses between the two
 /// from the primary-key state, because `Set` and `Unchanged` keys are
 /// indistinguishable to such a guess. For insert-or-update in one statement,
 /// attach an `ON CONFLICT` clause with [`Insert::on_conflict`](crate::Insert::on_conflict).
@@ -132,13 +132,13 @@ impl From<&[u8]> for ActiveValue<Vec<u8>> {
 /// [`ActiveModelBehavior`] for what the hooks can and cannot undo.
 ///
 /// See module level docs [crate::entity] for a full example
-// [spec:pgorm:req:entity.active-model+4]
-// [spec:pgorm:req:entity.active-model.save+1]
-// [spec:pgorm:req:entity.active-model.hooks+1]
+// [spec:pgorm:req:entity.active-model+5]
+// [spec:pgorm:req:entity.active-model.save+2]
+// [spec:pgorm:req:entity.active-model.hooks+2]
 #[async_trait]
-pub trait ActiveModelTrait: Clone + Debug {
+pub trait ActiveModel: Clone + Debug {
     /// The Entity this ActiveModel belongs to
-    type Entity: EntityTrait;
+    type Entity: Entity;
 
     /// Remove the [ActiveValue] from an ActiveModel, leaving [`NotSet`] in its
     /// place and returning what was there.
@@ -147,31 +147,28 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// as [`Self::set`]: asking for a column that does not exist is a different
     /// answer from a column that is merely [`NotSet`], and the two MUST NOT
     /// arrive spelled the same way.
-    fn take(
-        &mut self,
-        c: <Self::Entity as EntityTrait>::Column,
-    ) -> Result<ActiveValue<Value>, Error>;
+    fn take(&mut self, c: <Self::Entity as Entity>::Column) -> Result<ActiveValue<Value>, Error>;
 
     /// Read a copy of the [ActiveValue] an ActiveModel holds, reporting a column
     /// this model does not carry as [`Error::Type`].
-    fn get(&self, c: <Self::Entity as EntityTrait>::Column) -> Result<ActiveValue<Value>, Error>;
+    fn get(&self, c: <Self::Entity as Entity>::Column) -> Result<ActiveValue<Value>, Error>;
 
     /// Set the Value into an ActiveModel, reporting a column this model does not
     /// carry, or a value of the wrong type for it, as [`Error::Type`].
-    fn set(&mut self, c: <Self::Entity as EntityTrait>::Column, v: Value) -> Result<(), Error>;
+    fn set(&mut self, c: <Self::Entity as Entity>::Column, v: Value) -> Result<(), Error>;
 
     /// Set the state of an [ActiveValue] to the not set state
-    fn not_set(&mut self, c: <Self::Entity as EntityTrait>::Column);
+    fn not_set(&mut self, c: <Self::Entity as Entity>::Column);
 
     /// Check the state of a [ActiveValue]
-    fn is_not_set(&self, c: <Self::Entity as EntityTrait>::Column) -> bool;
+    fn is_not_set(&self, c: <Self::Entity as Entity>::Column) -> bool;
 
     /// The default implementation of the ActiveModel
     fn default() -> Self;
 
     /// Reset the value from [ActiveValue::Unchanged] to [ActiveValue::Set],
     /// leaving [ActiveValue::NotSet] untouched.
-    fn reset(&mut self, c: <Self::Entity as EntityTrait>::Column);
+    fn reset(&mut self, c: <Self::Entity as Entity>::Column);
 
     /// Set the Value into an ActiveModel unless the column holds it
     /// [`Unchanged`](ActiveValue::Unchanged), as
@@ -190,10 +187,10 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// assert!(cake.is_changed());
     /// # Ok::<(), pgorm::Error>(())
     /// ```
-    // [spec:pgorm:req:entity.active-model.set-if-not-equals]
+    // [spec:pgorm:req:entity.active-model.set-if-not-equals+1]
     fn set_if_not_equals(
         &mut self,
-        c: <Self::Entity as EntityTrait>::Column,
+        c: <Self::Entity as Entity>::Column,
         v: Value,
     ) -> Result<(), Error> {
         let mut slot = self.get(c)?;
@@ -207,7 +204,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// Reset all values from [ActiveValue::Unchanged] to [ActiveValue::Set],
     /// leaving [ActiveValue::NotSet] untouched.
     fn reset_all(mut self) -> Self {
-        for col in <Self::Entity as EntityTrait>::Column::iter() {
+        for col in <Self::Entity as Entity>::Column::iter() {
             self.reset(col);
         }
         self
@@ -219,8 +216,8 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// hand-written implementation does not carry one of its entity's key
     /// columns at all, since either way there is no whole key to return.
     fn get_primary_key_value(&self) -> Option<ValueTuple> {
-        let arity = <<<Self::Entity as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType as PrimaryKeyArity>::ARITY;
-        let mut cols = <Self::Entity as EntityTrait>::PrimaryKey::iter();
+        let arity = <<<Self::Entity as Entity>::PrimaryKey as PrimaryKey>::ValueType as PrimaryKeyArity>::ARITY;
+        let mut cols = <Self::Entity as Entity>::PrimaryKey::iter();
         let mut values = Vec::with_capacity(arity);
         for _ in 0..arity {
             values.push(self.get(cols.next()?.into_column()).ok()?.into_value()?);
@@ -256,56 +253,56 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// the two must stand or fall together.
     ///
     /// [txn]: crate::DatabaseTransaction
-    // [spec:pgorm:req:entity.active-model.persistence+3]
-    // [spec:pgorm:req:entity.active-model.hooks+1]
+    // [spec:pgorm:req:entity.active-model.persistence+4]
+    // [spec:pgorm:req:entity.active-model.hooks+2]
     #[doc(alias = "save")]
-    async fn insert<'a, C>(self, db: &'a C) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    async fn insert<'a, C>(self, db: &'a C) -> Result<<Self::Entity as Entity>::Model, Error>
     where
-        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.insert_in(Self::Entity::default(), db).await
     }
 
-    /// [`insert`](ActiveModelTrait::insert) under the context `cx`, hooks and
+    /// [`insert`](ActiveModel::insert) under the context `cx`, hooks and
     /// all, as [`Insert::one_for`] writes it: the row's scope columns filled
     /// from `cx`, after `before_save` has had the row.
-    // [spec:pgorm:req:entity.active-model.persistence+3]
+    // [spec:pgorm:req:entity.active-model.persistence+4]
     // [spec:pgorm:sem:scope.insert]
     async fn insert_for<'a, Cx, C>(
         self,
         cx: &'a Cx,
         db: &'a C,
-    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    ) -> Result<<Self::Entity as Entity>::Model, Error>
     where
-        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
-        Self::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = Self>,
+        Self::Entity: ScopedIn<Cx> + Entity<ActiveModel = Self>,
         Cx: ScopeContext + Sync,
-        C: ConnectionTrait,
+        C: Connection,
     {
         let am = ActiveModelBehavior::before_save(self, db, true).await?;
         let model = Insert::one_for(cx, am).exec_returning_model(db).await?;
         Self::after_save(model, db, true).await
     }
 
-    /// [`insert`](ActiveModelTrait::insert) into the table `entity` names,
+    /// [`insert`](ActiveModel::insert) into the table `entity` names,
     /// hooks and all, as [`Insert::one_in`] writes it: for an entity whose
     /// names are computed at run time.
-    // [spec:pgorm:req:entity.active-model.persistence+3]
-    // [spec:pgorm:req:entity.active-model.hooks+1]
+    // [spec:pgorm:req:entity.active-model.persistence+4]
+    // [spec:pgorm:req:entity.active-model.hooks+2]
     async fn insert_in<'a, C>(
         self,
         entity: Self::Entity,
         db: &'a C,
-    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    ) -> Result<<Self::Entity as Entity>::Model, Error>
     where
-        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         let am = ActiveModelBehavior::before_save(self, db, true).await?;
         let model = Insert::one_in(entity, am).exec_returning_model(db).await?;
@@ -340,60 +337,60 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// the two must stand or fall together.
     ///
     /// [txn]: crate::DatabaseTransaction
-    // [spec:pgorm:req:entity.active-model.persistence+3]
-    // [spec:pgorm:req:entity.active-model.hooks+1]
+    // [spec:pgorm:req:entity.active-model.persistence+4]
+    // [spec:pgorm:req:entity.active-model.hooks+2]
     #[doc(alias = "save")]
-    async fn update<'a, C>(self, db: &'a C) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    async fn update<'a, C>(self, db: &'a C) -> Result<<Self::Entity as Entity>::Model, Error>
     where
-        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.update_in(Self::Entity::default(), db).await
     }
 
-    /// [`update`](ActiveModelTrait::update) under the context `cx`, hooks and
+    /// [`update`](ActiveModel::update) under the context `cx`, hooks and
     /// all, as [`Update::one_for`] writes it: a row outside `cx`'s scopes is
     /// [`Error::RecordNotFound`], and a scope column set is
     /// [`Error::ImmutableColumn`].
-    // [spec:pgorm:req:entity.active-model.persistence+3]
+    // [spec:pgorm:req:entity.active-model.persistence+4]
     // [spec:pgorm:sem:scope.write]
     async fn update_for<'a, Cx, C>(
         self,
         cx: &'a Cx,
         db: &'a C,
-    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    ) -> Result<<Self::Entity as Entity>::Model, Error>
     where
-        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<Cx>,
         Cx: ScopeContext + Sync,
-        C: ConnectionTrait,
+        C: Connection,
     {
         let am = ActiveModelBehavior::before_save(self, db, false).await?;
-        let model: <Self::Entity as EntityTrait>::Model =
+        let model: <Self::Entity as Entity>::Model =
             Update::one_for(cx, am)?.exec_returning_model(db).await?;
         Self::after_save(model, db, false).await
     }
 
-    /// [`update`](ActiveModelTrait::update) of a row of the table `entity`
+    /// [`update`](ActiveModel::update) of a row of the table `entity`
     /// names, hooks and all, as [`Update::one_in`] writes it.
-    // [spec:pgorm:req:entity.active-model.persistence+3]
-    // [spec:pgorm:req:entity.active-model.hooks+1]
+    // [spec:pgorm:req:entity.active-model.persistence+4]
+    // [spec:pgorm:req:entity.active-model.hooks+2]
     async fn update_in<'a, C>(
         self,
         entity: Self::Entity,
         db: &'a C,
-    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    ) -> Result<<Self::Entity as Entity>::Model, Error>
     where
-        <Self::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
+        <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         let am = ActiveModelBehavior::before_save(self, db, false).await?;
-        let model: <Self::Entity as EntityTrait>::Model =
+        let model: <Self::Entity as Entity>::Model =
             Update::one_in(entity, am)?.exec_returning_model(db).await?;
         Self::after_save(model, db, false).await
     }
@@ -424,27 +421,27 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// when the two must stand or fall together.
     ///
     /// [txn]: crate::DatabaseTransaction
-    // [spec:pgorm:req:entity.active-model.hooks+1]
+    // [spec:pgorm:req:entity.active-model.hooks+2]
     async fn delete<'a, C>(self, db: &'a C) -> Result<u64, Error>
     where
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.delete_in(Self::Entity::default(), db).await
     }
 
-    /// [`delete`](ActiveModelTrait::delete) under the context `cx`, hooks and
+    /// [`delete`](ActiveModel::delete) under the context `cx`, hooks and
     /// all, as [`Delete::one_for`] deletes it: a row outside `cx`'s scopes is
     /// not deleted, and the count is `0`.
-    // [spec:pgorm:req:entity.active-model.hooks+1]
+    // [spec:pgorm:req:entity.active-model.hooks+2]
     // [spec:pgorm:sem:scope.write]
     async fn delete_for<'a, Cx, C>(self, cx: &'a Cx, db: &'a C) -> Result<u64, Error>
     where
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<Cx>,
         Cx: ScopeContext + Sync,
-        C: ConnectionTrait,
+        C: Connection,
     {
         let am = ActiveModelBehavior::before_delete(self, db).await?;
         let am_clone = am.clone();
@@ -453,14 +450,14 @@ pub trait ActiveModelTrait: Clone + Debug {
         Ok(delete_res)
     }
 
-    /// [`delete`](ActiveModelTrait::delete) from the table `entity` names,
+    /// [`delete`](ActiveModel::delete) from the table `entity` names,
     /// hooks and all, as [`Delete::one_in`] deletes from it.
-    // [spec:pgorm:req:entity.active-model.hooks+1]
+    // [spec:pgorm:req:entity.active-model.hooks+2]
     async fn delete_in<'a, C>(self, entity: Self::Entity, db: &'a C) -> Result<u64, Error>
     where
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         let am = ActiveModelBehavior::before_delete(self, db).await?;
         let am_clone = am.clone();
@@ -475,13 +472,12 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// anything else when the JSON does not parse: the value is converted into a
     /// whole new ActiveModel first, and only a conversion that succeeded reaches
     /// `self`.
-    // [spec:pgorm:req:entity.active-model.json+4]
+    // [spec:pgorm:req:entity.active-model.json+5]
     #[cfg(feature = "with-json")]
     fn set_from_json(&mut self, json: serde_json::Value) -> Result<(), Error>
     where
-        <<Self as ActiveModelTrait>::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
-        for<'de> <<Self as ActiveModelTrait>::Entity as EntityTrait>::Model:
-            serde::de::Deserialize<'de>,
+        <<Self as ActiveModel>::Entity as Entity>::Model: IntoActiveModel<Self>,
+        for<'de> <<Self as ActiveModel>::Entity as Entity>::Model: serde::de::Deserialize<'de>,
     {
         use crate::Iterable;
 
@@ -489,7 +485,7 @@ pub trait ActiveModelTrait: Clone + Debug {
         let mut incoming = Self::from_json(json)?;
 
         // Carry this model's primary key over to the replacement
-        for pk in <<Self::Entity as EntityTrait>::PrimaryKey>::iter() {
+        for pk in <<Self::Entity as Entity>::PrimaryKey>::iter() {
             let col = pk.into_column();
             match self.get(col)? {
                 ActiveValue::Unchanged(v) | ActiveValue::Set(v) => incoming.set(col, v)?,
@@ -503,20 +499,19 @@ pub trait ActiveModelTrait: Clone + Debug {
     }
 
     /// Create ActiveModel from a JSON value
-    // [spec:pgorm:req:entity.active-model.json+4]
+    // [spec:pgorm:req:entity.active-model.json+5]
     #[cfg(feature = "with-json")]
     fn from_json(json: serde_json::Value) -> Result<Self, Error>
     where
-        <<Self as ActiveModelTrait>::Entity as EntityTrait>::Model: IntoActiveModel<Self>,
-        for<'de> <<Self as ActiveModelTrait>::Entity as EntityTrait>::Model:
-            serde::de::Deserialize<'de>,
+        <<Self as ActiveModel>::Entity as Entity>::Model: IntoActiveModel<Self>,
+        for<'de> <<Self as ActiveModel>::Entity as Entity>::Model: serde::de::Deserialize<'de>,
     {
-        use crate::{ColumnTrait, Iterable};
+        use crate::{Column, Iterable};
 
         // Mark down which attribute exists in the JSON object, keyed the way
         // the deserialization below reads it
-        let json_keys: Vec<(<Self::Entity as EntityTrait>::Column, bool)> =
-            <<Self::Entity as EntityTrait>::Column>::iter()
+        let json_keys: Vec<(<Self::Entity as Entity>::Column, bool)> =
+            <<Self::Entity as Entity>::Column>::iter()
                 .map(|col| {
                     let present = json.get(col.json_key()).is_some();
                     (col, present)
@@ -524,7 +519,7 @@ pub trait ActiveModelTrait: Clone + Debug {
                 .collect();
 
         // Convert JSON object into ActiveModel via Model
-        let model: <Self::Entity as EntityTrait>::Model =
+        let model: <Self::Entity as Entity>::Model =
             serde_json::from_value(json).map_err(json_err)?;
         let mut am = model.into_active_model();
 
@@ -549,7 +544,7 @@ pub trait ActiveModelTrait: Clone + Debug {
     /// nothing, which is the answer an [`Error::Type`] from [`Self::get`]
     /// counts as here.
     fn is_changed(&self) -> bool {
-        <Self::Entity as EntityTrait>::Column::iter().any(|col| {
+        <Self::Entity as Entity>::Column::iter().any(|col| {
             self.get(col)
                 .is_ok_and(|value| value.is_set() && !value.is_unchanged())
         })
@@ -582,7 +577,7 @@ pub trait ActiveModelTrait: Clone + Debug {
 /// impl ActiveModelBehavior for ActiveModel {
 ///     async fn before_save<C>(mut self, _db: &C, _insert: bool) -> Result<Self, Error>
 ///     where
-///         C: ConnectionTrait,
+///         C: Connection,
 ///     {
 ///         if let ActiveValue::Set(name) = &self.name {
 ///             self.name = set(name.trim());
@@ -611,7 +606,7 @@ pub trait ActiveModelTrait: Clone + Debug {
 /// owns and let the `Err` reach the rollback:
 ///
 /// ```no_run
-/// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, TransactionError, TransactionTrait};
+/// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, TransactionError, Transact};
 /// #
 /// # async fn example(pool: &DatabasePool) -> Result<(), TransactionError<Error>> {
 /// let mut db = pool.get().await.map_err(TransactionError::Connection)?;
@@ -633,13 +628,13 @@ pub trait ActiveModelTrait: Clone + Debug {
 /// ```
 ///
 /// See module level docs [crate::entity] for a full example
-// [spec:pgorm:req:entity.active-model.hooks+1]
+// [spec:pgorm:req:entity.active-model.hooks+2]
 #[allow(unused_variables)]
 #[async_trait]
-pub trait ActiveModelBehavior: ActiveModelTrait {
+pub trait ActiveModelBehavior: ActiveModel {
     /// Create a new ActiveModel with default values. Also used by `Default::default()`.
     fn new() -> Self {
-        <Self as ActiveModelTrait>::default()
+        <Self as ActiveModel>::default()
     }
 
     /// Will be called before `ActiveModel::insert` (`insert: true`) and
@@ -647,7 +642,7 @@ pub trait ActiveModelBehavior: ActiveModelTrait {
     /// any SQL is sent.
     async fn before_save<C>(self, db: &C, insert: bool) -> Result<Self, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         Ok(self)
     }
@@ -656,12 +651,12 @@ pub trait ActiveModelBehavior: ActiveModelTrait {
     /// `ActiveModel::update` (`insert: false`). An `Err` is returned to the
     /// caller but does not undo the row already written.
     async fn after_save<C>(
-        model: <Self::Entity as EntityTrait>::Model,
+        model: <Self::Entity as Entity>::Model,
         db: &C,
         insert: bool,
-    ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+    ) -> Result<<Self::Entity as Entity>::Model, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         Ok(model)
     }
@@ -670,7 +665,7 @@ pub trait ActiveModelBehavior: ActiveModelTrait {
     /// before any SQL is sent.
     async fn before_delete<C>(self, db: &C) -> Result<Self, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         Ok(self)
     }
@@ -679,7 +674,7 @@ pub trait ActiveModelBehavior: ActiveModelTrait {
     /// caller but does not bring the deleted row back.
     async fn after_delete<C>(self, db: &C) -> Result<Self, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         Ok(self)
     }
@@ -871,7 +866,7 @@ where
     /// and then use [`.is_unchanged()`][ActiveValue#method.is_unchanged] to see whether it has *actually* changed.
     ///
     /// The same nice effect applies to the entire `ActiveModel`.
-    /// You can now meaningfully use [ActiveModelTrait::is_changed][ActiveModelTrait#method.is_changed]
+    /// You can now meaningfully use [ActiveModel::is_changed][ActiveModel#method.is_changed]
     /// to see whether are any changes that need to be saved to the database.
     ///
     /// ## Examples
@@ -980,7 +975,7 @@ mod tests {
     #[cfg(feature = "macros")]
     fn test_derive_into_active_model_1() {
         mod my_fruit {
-            pub use super::fruit::*;
+            use super::fruit::ActiveModel;
             use crate as pgorm;
             use crate::entity::prelude::*;
 
@@ -1011,7 +1006,7 @@ mod tests {
     #[cfg(feature = "macros")]
     fn test_derive_into_active_model_2() {
         mod my_fruit {
-            pub use super::fruit::*;
+            use super::fruit::ActiveModel;
             use crate as pgorm;
             use crate::entity::prelude::*;
 

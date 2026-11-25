@@ -2,19 +2,19 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { alterType, type MigrationTrait, migrations } from "@necessary/pgorm";
+import { alterType, type Migration, migrations } from "@necessary/pgorm";
 import { flavor } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
-  const addAlmond: MigrationTrait = {
+  const addAlmond: Migration = {
     name: "m20260401_000001_add_almond",
     commitsAfter: true,
     async up(tx) {
       await tx.execute(alterType(flavor).addValue("almond"));
     },
   };
-  const addAlmondCake: MigrationTrait = {
+  const addAlmondCake: Migration = {
     name: "m20260401_000002_add_almond_cake",
     async up(tx) {
       await tx.execute(

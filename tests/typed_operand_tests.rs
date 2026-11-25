@@ -10,15 +10,15 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 use jiff::{Timestamp, civil::Date};
 use pgorm::pgorm_query::{
-    Expr, ExprTrait, Func, Interval, Name, Query, Range, SelectStatement, SimpleExpr,
+    Expr, Expression, Func, Interval, Name, Query, Range, SelectStatement, SimpleExpr,
 };
-use pgorm::{ConnectionTrait, Error, SelectGetableTuple, Selector, TryGetableMany};
+use pgorm::{Connection, Error, SelectGetableTuple, Selector, TryGetableMany};
 use rust_decimal::Decimal;
 
 async fn read<T, C>(db: &C, query: SelectStatement) -> Result<Vec<T>, Error>
 where
     T: TryGetableMany,
-    C: ConnectionTrait,
+    C: Connection,
 {
     Selector::<SelectGetableTuple<T>>::into_tuple(query)
         .all(db)

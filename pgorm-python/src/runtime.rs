@@ -2,7 +2,7 @@ use crate::errors::Raise as _;
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::panics::future_into_py;
-use pgorm::{ConnectionTrait, metric::InstrumentedPool};
+use pgorm::{Connection, metric::InstrumentedPool};
 use pgorm_bindings::Metrics;
 use pyo3::prelude::*;
 use tokio_util::sync::CancellationToken;

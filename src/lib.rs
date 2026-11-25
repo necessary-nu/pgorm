@@ -117,14 +117,13 @@ pub use pgorm_driver::row::RowIndex;
 /// trait live in different namespaces, and one `use` brings both.
 /// `SqlName` and `StaticName` arrive through that glob too, `entity` pairing
 /// the traits with pgorm-macros' derives.
-// [spec:pgorm:req:macros.derive.names+3]
+// [spec:pgorm:req:macros.derive.names+4]
 // [spec:pgorm:def:disjoint.declare+5]
 // [spec:pgorm:def:disjoint.one-of+4]
 #[cfg(feature = "macros")]
 pub use pgorm_macros::{
-    ActiveEnum, Column, CreatedRange, Disjoint, Entity, EntityTrait, FromQueryResult,
-    IntoActiveModel, JsonValueType, Model, OneOf, PartialModel, Relation, Scope, ScopeContext,
-    ValueType,
+    ActiveEnum, Column, CreatedRange, Disjoint, Entity, FromQueryResult, IntoActiveModel,
+    JsonValueType, Model, OneOf, PartialModel, Relation, Scope, ScopeContext, ValueType,
 };
 
 /// Hold a raw SQL string literal to the PostgreSQL grammar at compile time,
@@ -144,7 +143,7 @@ pub use pgorm_macros::{
 /// The escape hatches that take SQL as text are its call sites, and they are
 /// findable rather than listed: the rule is the [`SqlText`] bound, every
 /// function taking its SQL as `&T where T: SqlText`. On a connection that is
-/// each [`ConnectionTrait`] method — [`execute`], [`execute_raw`],
+/// each [`Connection`] method — [`execute`], [`execute_raw`],
 /// [`query_one`], [`query_opt`], [`query_all`] and [`query_raw`] — plus
 /// [`batch_execute`], which takes its `&str` directly because it runs a whole
 /// script through the simple-query protocol. Away from a connection a raw
@@ -157,14 +156,14 @@ pub use pgorm_macros::{
 /// the last of them.
 ///
 /// [`SqlText`]: crate::SqlText
-/// [`ConnectionTrait`]: crate::ConnectionTrait
-/// [`execute`]: crate::ConnectionTrait::execute
-/// [`execute_raw`]: crate::ConnectionTrait::execute_raw
-/// [`query_one`]: crate::ConnectionTrait::query_one
-/// [`query_opt`]: crate::ConnectionTrait::query_opt
-/// [`query_all`]: crate::ConnectionTrait::query_all
-/// [`query_raw`]: crate::ConnectionTrait::query_raw
-/// [`batch_execute`]: crate::ConnectionTrait::batch_execute
+/// [`Connection`]: crate::Connection
+/// [`execute`]: crate::Connection::execute
+/// [`execute_raw`]: crate::Connection::execute_raw
+/// [`query_one`]: crate::Connection::query_one
+/// [`query_opt`]: crate::Connection::query_opt
+/// [`query_all`]: crate::Connection::query_all
+/// [`query_raw`]: crate::Connection::query_raw
+/// [`batch_execute`]: crate::Connection::batch_execute
 /// [`Select::from_raw_sql`]: crate::Select::from_raw_sql
 /// [`SelectorRaw`]: crate::SelectorRaw
 /// [`from_statement`]: crate::SelectorRaw::from_statement
@@ -175,7 +174,7 @@ pub use pgorm_macros::{
 /// [`DecodeRaw::into_tuple`]: crate::DecodeRaw::into_tuple
 /// [`into_values`]: crate::DecodeRaw::into_values
 /// [`FromQueryResult::find_by_statement`]: crate::FromQueryResult::find_by_statement
-// [spec:pgorm:def:macros.sql+8]
+// [spec:pgorm:def:macros.sql+9]
 pub use pgorm_sql_macro::sql;
 
 /// Compile a PRQL string literal to PostgreSQL SQL at build time, expanding
@@ -210,7 +209,7 @@ pub use pgorm_sql_macro::sql;
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:macros.prql+3]
+// [spec:pgorm:def:macros.prql+4]
 pub use pgorm_sql_macro::prql;
 
 /// The checks behind [`sql!`](crate::sql) and [`prql!`](crate::prql), run on

@@ -18,10 +18,10 @@ use syn::{
     token::Paren,
 };
 
-/// The most columns a primary key can have: `PrimaryKeyTrait::ValueType` is a
+/// The most columns a primary key can have: `PrimaryKey::ValueType` is a
 /// tuple for a composite key, and its traits are implemented for tuples of 1
 /// through 12 parts.
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+8]
 const MAX_KEY_ARITY: usize = 12;
 
 /// The field-level `#[pgorm(...)]` configuration of one model field.
@@ -137,7 +137,7 @@ const WRITE: Direction = Direction {
 /// The conversion `meta` declares. A column is converted one way in each
 /// direction, so a second key of the pair, or the same key again, is refused
 /// rather than left to override the first.
-// [spec:pgorm:req:macros.derive.one-form]
+// [spec:pgorm:req:macros.derive.one-form+1]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
 fn conversion(
     meta: &ParseNestedMeta,
@@ -172,8 +172,8 @@ struct Written {
 /// field declared none, leaving the trait's casts. A `save_with` needs a
 /// `save_array_with` beside it, since the array `= ANY` and `<> ALL` compare a
 /// column with is not a value of the column's type.
-// [spec:pgorm:req:macros.derive.one-form]
-// [spec:pgorm:sem:macros.derive.entity-model+9]
+// [spec:pgorm:req:macros.derive.one-form+1]
+// [spec:pgorm:sem:macros.derive.entity-model+10]
 fn conversion_arms(
     select: Option<Conversion>,
     save: Option<Conversion>,
@@ -344,7 +344,7 @@ fn parse_field_attrs(
 
 /// Refuse a scope column that could hold no scope: one read from no column,
 /// and one that can be `NULL`, since every row holds its scope's value.
-// [spec:pgorm:def:scope.declare]
+// [spec:pgorm:def:scope.declare+1]
 fn check_scope(attrs: &FieldAttrs, optional: bool) -> syn::Result<()> {
     let Some(span) = attrs.scope else {
         return Ok(());
@@ -381,7 +381,7 @@ fn written_scopes(meta: &ParseNestedMeta) -> syn::Result<Vec<Type>> {
 
 /// Refuse an identity beside anything else that would fill the column or let
 /// it be `NULL`, each a definition PostgreSQL rejects (42601).
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+8]
 fn check_identity(attrs: &FieldAttrs, optional: bool) -> syn::Result<()> {
     let Some((_, span)) = attrs.identity else {
         return Ok(());
@@ -403,7 +403,7 @@ fn check_identity(attrs: &FieldAttrs, optional: bool) -> syn::Result<()> {
 /// `WITHOUT OVERLAPS` on the key's last column alone and refuses a key it is
 /// the only column of (both 42601), so the period is the last key field of
 /// several, and anything else is refused at its key.
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+8]
 fn temporal_key(key_periods: &[Option<Span>]) -> syn::Result<TokenStream> {
     let last = key_periods.len().saturating_sub(1);
     if let Some(span) = key_periods[..last].iter().flatten().next() {
@@ -431,7 +431,7 @@ fn temporal_key(key_periods: &[Option<Span>]) -> syn::Result<TokenStream> {
 /// Refuse a generated column beside anything else that would fill it, and a
 /// virtual one where PostgreSQL cannot index it: the first are definitions it
 /// rejects as conflicting (42601), the second as unsupported (0A000).
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+10]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+11]
 fn check_generated(attrs: &FieldAttrs) -> syn::Result<()> {
     let Some((kind, _, span)) = &attrs.generated else {
         return Ok(());
@@ -725,7 +725,7 @@ impl Container {
     /// Read every `#[pgorm(..)]` on the `Model`, refusing a key the derive
     /// does not read and a `unique` key on a model given no `table_name`.
     // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
-    // [spec:pgorm:def:scope.declare]
+    // [spec:pgorm:def:scope.declare+1]
     fn parse(attrs: &[Attribute]) -> syn::Result<Self> {
         let mut container = Self {
             table_name: None,
@@ -784,11 +784,11 @@ impl Container {
 }
 
 /// Method to derive an Model
-// [spec:pgorm:sem:macros.derive.entity-model+9]
+// [spec:pgorm:sem:macros.derive.entity-model+10]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
 // [spec:pgorm:sem:macros.derive.entity-model.casing+4]
-// [spec:pgorm:sem:macros.derive.entity-model.column-def+10]
-// [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
+// [spec:pgorm:sem:macros.derive.entity-model.column-def+11]
+// [spec:pgorm:sem:macros.derive.entity-model.primary-key+8]
 pub fn expand_derive_entity_model(
     model: &Ident,
     data: Data,
@@ -808,7 +808,7 @@ pub fn expand_derive_entity_model(
 
     let serde_rename_all = serde_rename_all(&attrs)?;
 
-    // generate Column enum and it's ColumnTrait impl
+    // generate Column enum and it's Column impl
     let mut columns_enum: Vec<ColumnVariant> = Vec::new();
     let mut columns_trait: Punctuated<_, Comma> = Punctuated::new();
     let mut columns_json_key: Punctuated<_, Comma> = Punctuated::new();
@@ -960,8 +960,7 @@ pub fn expand_derive_entity_model(
                     sql_type, field_type, field_span,
                 )?;
 
-                let col_def =
-                    quote! { pgorm::prelude::ColumnTypeTrait::def(#pgorm_query_col_type) };
+                let col_def = quote! { pgorm::prelude::ColumnTypeExt::def(#pgorm_query_col_type) };
 
                 let mut match_row = quote! { Self::#field_name => #col_def };
                 if nullable {
@@ -1083,7 +1082,7 @@ pub fn expand_derive_entity_model(
             #key_iterable
 
             #[automatically_derived]
-            impl pgorm::prelude::PrimaryKeyTrait for PrimaryKey {
+            impl pgorm::prelude::PrimaryKey for PrimaryKey {
                 type ValueType = #primary_key_types;
 
                 fn auto_increment() -> bool {
@@ -1115,7 +1114,7 @@ pub fn expand_derive_entity_model(
         .map(|table_name| {
             quote! {
                 #[doc = " Generated by pgorm-macros"]
-                #[derive(Copy, Clone, Default, Debug, pgorm::prelude::EntityTrait)]
+                #[derive(Copy, Clone, Default, Debug, pgorm::prelude::Entity)]
                 pub struct Entity;
 
                 #[automatically_derived]
@@ -1154,7 +1153,7 @@ pub fn expand_derive_entity_model(
         #column_impls
 
         #[automatically_derived]
-        impl pgorm::prelude::ColumnTrait for Column {
+        impl pgorm::prelude::Column for Column {
             type EntityName = Entity;
 
             fn def(&self) -> pgorm::prelude::ColumnDef {
@@ -1172,21 +1171,21 @@ pub fn expand_derive_entity_model(
             fn select_as(&self, expr: pgorm::pgorm_query::Expr) -> pgorm::pgorm_query::SimpleExpr {
                 match self {
                     #columns_select_as
-                    _ => pgorm::prelude::ColumnTrait::select_enum_as(self, expr),
+                    _ => pgorm::prelude::Column::select_enum_as(self, expr),
                 }
             }
 
             fn save_as(&self, val: pgorm::pgorm_query::Expr) -> pgorm::pgorm_query::SimpleExpr {
                 match self {
                     #columns_save_as
-                    _ => pgorm::prelude::ColumnTrait::save_enum_as(self, val),
+                    _ => pgorm::prelude::Column::save_enum_as(self, val),
                 }
             }
 
             fn save_array_as(&self, val: pgorm::pgorm_query::Expr) -> pgorm::pgorm_query::SimpleExpr {
                 match self {
                     #columns_save_array_as
-                    _ => pgorm::prelude::ColumnTrait::save_enum_array_as(self, val),
+                    _ => pgorm::prelude::Column::save_enum_array_as(self, val),
                 }
             }
         }

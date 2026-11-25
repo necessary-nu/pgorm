@@ -170,7 +170,7 @@ pub mod draft {
         fn new() -> Self {
             Self {
                 title: set("untitled"),
-                ..ActiveModelTrait::default()
+                ..pgorm::ActiveModel::default()
             }
         }
     }

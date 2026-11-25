@@ -22,7 +22,7 @@ use pgorm::pgorm_query::{
     ColumnDef, Expr, Func, Index, MaterializedView, Name, Order, Query, SelectStatement, Table,
     UnionType, View, ViewCheckOption, WindowStatement, error::Error as QueryError,
 };
-use pgorm::{ConnectionTrait, TransactionTrait, entity::prelude::*};
+use pgorm::{Connection, Transact, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
@@ -133,7 +133,7 @@ async fn names(db: &DatabaseConnection, relation: &str) -> Result<Vec<String>, E
 /// its identity filling the key. The body's values — the `TRUE` and a quoted
 /// string — are written into the definition, there being no parameter a view
 /// could bind.
-// [spec:pgorm:req:sql.ddl.view+1/test]    an entity reads through a view and writes through a
+// [spec:pgorm:req:sql.ddl.view+2/test]    an entity reads through a view and writes through a
 // simple auto-updatable one, and the body's values are stored inlined
 #[pgorm_macros::test]
 async fn an_entity_reads_and_writes_through_a_view() -> Result<(), Error> {
@@ -217,7 +217,7 @@ async fn an_entity_reads_and_writes_through_a_view() -> Result<(), Error> {
 /// not show (`44000`), from an entity as from SQL. `LOCAL` consults the
 /// view's own condition alone and `CASCADED` every view beneath it too; and a
 /// view the server cannot update through takes no check option (`0A000`).
-// [spec:pgorm:req:sql.ddl.view+1/test]    a check option refuses a hidden row (44000), LOCAL
+// [spec:pgorm:req:sql.ddl.view+2/test]    a check option refuses a hidden row (44000), LOCAL
 // and CASCADED differ in the views they consult, and a view that is not updatable refuses one
 #[pgorm_macros::test]
 async fn a_check_option_refuses_rows_the_view_hides() -> Result<(), Error> {
@@ -332,7 +332,7 @@ async fn reloptions(db: &DatabaseConnection, relation: &str) -> Result<Vec<Strin
 /// (`42P16`), and replaces the view's options with its own; the column names
 /// rename the query's leading columns, and more names than columns are
 /// refused (`42601`).
-// [spec:pgorm:req:sql.ddl.view+1/test]    OR REPLACE adds columns at the end only (42P16) and
+// [spec:pgorm:req:sql.ddl.view+2/test]    OR REPLACE adds columns at the end only (42P16) and
 // resets what it leaves out; column names rename the leading columns, too many are refused
 #[pgorm_macros::test]
 async fn or_replace_keeps_columns_and_resets_options() -> Result<(), Error> {
@@ -406,7 +406,7 @@ async fn or_replace_keeps_columns_and_resets_options() -> Result<(), Error> {
 /// `security_barrier` keeps a caller's cheap function from seeing the rows
 /// the view's condition hides, and `security_invoker` checks the relations
 /// the view reads against the querying role rather than the view's owner.
-// [spec:pgorm:req:sql.ddl.view+1/test]    security_barrier keeps a hidden row from a caller's
+// [spec:pgorm:req:sql.ddl.view+2/test]    security_barrier keeps a hidden row from a caller's
 // function, and security_invoker reads with the querying role's privileges (42501)
 #[pgorm_macros::test]
 async fn security_options_change_what_a_view_reveals() -> Result<(), Error> {
@@ -480,7 +480,7 @@ async fn security_options_change_what_a_view_reveals() -> Result<(), Error> {
 }
 
 /// A recursive view reads itself by the columns it names.
-// [spec:pgorm:req:sql.ddl.view+1/test]    a recursive view counts through its own rows
+// [spec:pgorm:req:sql.ddl.view+2/test]    a recursive view counts through its own rows
 #[pgorm_macros::test]
 async fn a_recursive_view_reads_itself() -> Result<(), Error> {
     let ctx = TestContext::new("view_recursive").await;
@@ -716,7 +716,7 @@ async fn a_table_is_created_from_a_query() -> Result<(), Error> {
 /// in is not aborted, so nothing reached the server. Written into the same
 /// definitions by hand, the body is refused by the server with the SQLSTATE
 /// each check stands for; ordered and declared, it is one the server takes.
-// [spec:pgorm:req:sql.ddl.view+1/test]    a view's refused body is refused with nothing sent,
+// [spec:pgorm:req:sql.ddl.view+2/test]    a view's refused body is refused with nothing sent,
 // as the server refuses it, and the corrected body is taken
 // [spec:pgorm:req:sql.ddl.materialized-view+2/test]    a materialized view's refused body
 // is refused with nothing sent
@@ -829,7 +829,7 @@ async fn a_refused_body_is_never_sent() -> Result<(), Error> {
 /// A drop reaches its own kind of relation and refuses the other (`42809`),
 /// restricts while a view depends on it (`2BP01`) and cascades to it when
 /// told, and passes over a missing one under `IF EXISTS`.
-// [spec:pgorm:req:sql.ddl.view+1/test]    DROP VIEW restricts, cascades and refuses a
+// [spec:pgorm:req:sql.ddl.view+2/test]    DROP VIEW restricts, cascades and refuses a
 // materialized view
 // [spec:pgorm:req:sql.ddl.materialized-view+2/test]    DROP MATERIALIZED VIEW refuses a view
 #[pgorm_macros::test]
@@ -904,7 +904,7 @@ async fn each_drop_reaches_its_own_kind() -> Result<(), Error> {
 /// `ALTER VIEW` is not built, because `Table`'s statements reach what it
 /// does: PostgreSQL takes `ALTER TABLE`'s rename, column rename and column
 /// default on a view, and its renames on a materialized view.
-// [spec:pgorm:req:sql.ddl.view+1/test]    a view and a materialized view are renamed, their
+// [spec:pgorm:req:sql.ddl.view+2/test]    a view and a materialized view are renamed, their
 // columns renamed and a view column given an insert default, through Table's statements
 #[pgorm_macros::test]
 async fn table_alterations_reach_a_view() -> Result<(), Error> {

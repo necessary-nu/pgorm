@@ -355,7 +355,7 @@ test("verify-full TLS binds SCRAM authentication to the server's certificate", a
   await assert.rejects(refused.ping(), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.results+2/test]
+// [spec:pgorm:req:bindings.results+3/test]
 test("execute resolves with the number of rows a statement affected", async () => {
   await reset();
   assert.equal(await pool().execute("INSERT INTO items VALUES (1, 'a'), (2, 'b'), (3, 'c')"), 3);
@@ -364,7 +364,7 @@ test("execute resolves with the number of rows a statement affected", async () =
   assert.equal(await pool().execute("SELECT * FROM items"), 3);
 });
 
-// [spec:pgorm:req:bindings.results+2/test]
+// [spec:pgorm:req:bindings.results+3/test]
 // [spec:pgorm:req:bindings.row-count/test]
 test("one takes exactly one row and optional at most one, any other count a DecodeError", async () => {
   assert.equal((await pool().one("SELECT 1 AS n")).n, 1);

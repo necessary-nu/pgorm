@@ -6,10 +6,10 @@ use std::{any::Any, fmt, sync::Arc};
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{Expr, Name, SelectStatement, SimpleExpr, Value, Values};
 use pgorm::{
-    ActiveModelBehavior, ActiveModelTrait, ActiveValue, Change as RustChange, ColumnTrait,
-    EntityTrait, Error, FromQueryResult, IntoActiveModel, Iterable, ModelTrait, NoContext,
-    QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationDef, RelationTrait, ScopedIn,
-    SelectModel, SelectorTrait, StaticName, Update, Upserted,
+    ActiveModel, ActiveModelBehavior, ActiveValue, Change as RustChange, Column, DecodeRow, Entity,
+    Error, FromQueryResult, IntoActiveModel, Iterable, Model as _, NoContext, QueryFilter,
+    QueryOrder, QuerySelect, Relation, RelationDef, ScopedIn, SelectModel, Statement, StaticName,
+    Update, Upserted,
 };
 
 use super::{
@@ -22,7 +22,7 @@ use crate::{Database, Failure};
 
 /// The entity's column of SQL name `name`, refused as one the registration
 /// lacks.
-pub(crate) fn column<E: EntityTrait>(info: &EntityInfo, name: &str) -> Result<E::Column, Failure> {
+pub(crate) fn column<E: Entity>(info: &EntityInfo, name: &str) -> Result<E::Column, Failure> {
     <E::Column as Iterable>::iter()
         .find(|column| column.as_str() == name)
         .ok_or_else(|| Failure::Construction(format!("{} has no column {name:?}", info.name)))
@@ -42,7 +42,7 @@ pub struct EntityAdapter<E> {
 /// type-erased handle.
 pub fn model_of<E>(value: E::Model, info: &Arc<EntityInfo>) -> Model
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -56,7 +56,7 @@ where
 /// registration made it.
 fn concrete<E>(active: &Active) -> Result<E::ActiveModel, Error>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -69,16 +69,16 @@ where
 
 /// One of `E`'s columns, resolved when the pipeline expression naming it was
 /// built, so lowering it cannot miss.
-struct RegisteredColumn<E: EntityTrait>(E::Column);
+struct RegisteredColumn<E: Entity>(E::Column);
 
-impl<E: EntityTrait> fmt::Debug for RegisteredColumn<E> {
+impl<E: Entity> fmt::Debug for RegisteredColumn<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("RegisteredColumn").field(&self.0).finish()
     }
 }
 
 // [spec:pgorm:req:bindings.pipeline-sources+3]
-impl<E: EntityTrait + ScopedIn<NoContext> + Send + Sync> PipelineColumn for RegisteredColumn<E> {
+impl<E: Entity + ScopedIn<NoContext> + Send + Sync> PipelineColumn for RegisteredColumn<E> {
     fn lower<'brand>(&self, qualifier: Name) -> pgorm::pipeline::Expr<'brand> {
         pgorm::pipeline::named_runtime(E::default(), qualifier).col(self.0)
     }
@@ -87,7 +87,7 @@ impl<E: EntityTrait + ScopedIn<NoContext> + Send + Sync> PipelineColumn for Regi
 // [spec:pgorm:req:bindings.entities+6]
 impl<E> EntityBackend for EntityAdapter<E>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -164,7 +164,7 @@ where
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-reads+4]
+    // [spec:pgorm:req:bindings.entity-reads+5]
     fn quantified(
         &self,
         name: &str,
@@ -179,7 +179,7 @@ where
         })
     }
 
-    // [spec:pgorm:req:bindings.column-operators+3]
+    // [spec:pgorm:req:bindings.column-operators+4]
     fn between(
         &self,
         name: &str,
@@ -196,7 +196,7 @@ where
         })
     }
 
-    // [spec:pgorm:req:bindings.entity-reads+4]
+    // [spec:pgorm:req:bindings.entity-reads+5]
     fn membership(
         &self,
         name: &str,
@@ -243,7 +243,7 @@ where
 
 impl<E> EntityAdapter<E>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -322,15 +322,15 @@ where
 
 /// A registered entity's query, the real `Select<E>`.
 #[derive(Debug)]
-pub(crate) struct SelectAdapter<E: EntityTrait> {
+pub(crate) struct SelectAdapter<E: Entity> {
     pub(crate) query: pgorm::Select<E>,
     pub(crate) info: Arc<EntityInfo>,
 }
 
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 impl<E> SelectBackend for SelectAdapter<E>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -362,7 +362,7 @@ where
     fn compile(&self, read: Read) -> (String, Values) {
         let mut query = self.query.clone();
         if read != Read::All {
-            QueryTrait::query(&mut query).narrow_limit_to_one();
+            Statement::query(&mut query).narrow_limit_to_one();
         }
         query.build()
     }
@@ -386,13 +386,13 @@ where
             .collect::<Result<Vec<_>, _>>()?;
         let mut query = self.query.clone().select_only().columns(columns);
         if read != Read::All {
-            QueryTrait::query(&mut query).narrow_limit_to_one();
+            Statement::query(&mut query).narrow_limit_to_one();
         }
-        Ok(QueryTrait::into_query(query))
+        Ok(Statement::into_query(query))
     }
 
     fn statement(&self) -> SelectStatement {
-        QueryTrait::as_query(&self.query).clone()
+        Statement::as_query(&self.query).clone()
     }
 
     fn pages(&self) -> Arc<Pages> {
@@ -433,7 +433,7 @@ where
 
 impl<E> SelectAdapter<E>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -446,15 +446,15 @@ where
 }
 
 #[derive(Debug)]
-struct ModelAdapter<E: EntityTrait> {
+struct ModelAdapter<E: Entity> {
     value: E::Model,
     info: Arc<EntityInfo>,
 }
 
-// [spec:pgorm:req:bindings.entity-writes+1]
+// [spec:pgorm:req:bindings.entity-writes+2]
 impl<E> ModelBackend for ModelAdapter<E>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -483,14 +483,14 @@ where
 }
 
 #[derive(Debug)]
-struct ActiveAdapter<E: EntityTrait> {
+struct ActiveAdapter<E: Entity> {
     value: E::ActiveModel,
     info: Arc<EntityInfo>,
 }
 
 impl<E> ActiveAdapter<E>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -510,10 +510,10 @@ where
     }
 }
 
-// [spec:pgorm:req:bindings.entity-writes+1]
+// [spec:pgorm:req:bindings.entity-writes+2]
 impl<E> ActiveBackend for ActiveAdapter<E>
 where
-    E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {

@@ -11,11 +11,11 @@ use crate::{DatabaseConnection, DatabaseTransaction, Error};
 /// The means the closure form is built on — opening a transaction on a parent
 /// and ending it — kept out of every other crate's reach.
 ///
-/// The traits are public only so that they can bound [`TransactionTrait`] and
+/// The traits are public only so that they can bound [`Transact`] and
 /// its handle. Their module is private, so no other crate can name them to
 /// implement them, and every method takes a [`Token`] nothing outside pgorm
 /// can construct, so none can call them either — not even through a
-/// `C: TransactionTrait` bound, which puts a bound's methods in reach without
+/// `C: Transact` bound, which puts a bound's methods in reach without
 /// its trait being named.
 ///
 /// Opening lives on the parent and is generic over the borrow alone, never in
@@ -26,8 +26,8 @@ use crate::{DatabaseConnection, DatabaseTransaction, Error};
 pub(crate) mod sealed {
     use std::future::Future;
 
-    use super::TransactionTrait;
-    use crate::{ConnectionTrait, Error};
+    use super::Transact;
+    use crate::{Connection, Error};
 
     /// What every method of the sealed traits demands, so that only pgorm
     /// can call them.
@@ -48,7 +48,7 @@ pub(crate) mod sealed {
         /// or a transaction, and
         /// [`InstrumentedTransaction`](crate::metric::InstrumentedTransaction)
         /// on the metrics wrappers.
-        type Transaction<'t>: ConnectionTrait + TransactionTrait + Close;
+        type Transaction<'t>: Connection + Transact + Close;
     }
 
     /// A parent a transaction opens on: `BEGIN` on a connection, a savepoint
@@ -83,18 +83,18 @@ pub(crate) mod sealed {
 /// transaction, and an
 /// [`InstrumentedTransaction`](crate::metric::InstrumentedTransaction) on the
 /// metrics wrappers, so that the statements and savepoints inside stay
-/// instrumented. Either is a [`ConnectionTrait`](crate::ConnectionTrait) and
-/// itself a `TransactionTrait`, whose own transactions are savepoints.
+/// instrumented. Either is a [`Connection`](crate::Connection) and
+/// itself a `Transact`, whose own transactions are savepoints.
 ///
-/// The future [`transaction`](TransactionTrait::transaction) returns promises
+/// The future [`transaction`](Transact::transaction) returns promises
 /// no `Send`. A call on a concrete receiver — a [`DatabaseConnection`], a
 /// [`DatabaseTransaction`], a metrics wrapper — is `Send` whenever the closure's
 /// future is, so it runs in `tokio::spawn`. Code generic over
-/// `C: TransactionTrait` gets a future the compiler does not know to be
+/// `C: Transact` gets a future the compiler does not know to be
 /// `Send`: promising it would mean bounding an async closure's future, which
 /// stable Rust cannot express.
-// [spec:pgorm:req:conn.tx+4]
-pub trait TransactionTrait: sealed::Open {
+// [spec:pgorm:req:conn.tx+5]
+pub trait Transact: sealed::Open {
     /// Run `f` inside a transaction, committing when it returns `Ok` and
     /// rolling back when it returns `Err`.
     ///
@@ -109,7 +109,7 @@ pub trait TransactionTrait: sealed::Open {
     /// [`TransactionError::RollbackFailed`]. Dropping the
     /// returned future before it finishes rolls the transaction back without
     /// awaiting the server.
-    // [spec:pgorm:sem:conn.tx.closure+6]    one body for every implementor
+    // [spec:pgorm:sem:conn.tx.closure+7]    one body for every implementor
     #[doc(alias = "begin")]
     fn transaction<T, E, F>(&mut self, f: F) -> impl Future<Output = Result<T, TransactionError<E>>>
     where
@@ -125,7 +125,7 @@ pub trait TransactionTrait: sealed::Open {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6]    commit on Ok, awaited rollback on Err
+// [spec:pgorm:sem:conn.tx.closure+7]    commit on Ok, awaited rollback on Err
 pub(crate) async fn drive<H, T, E, F>(mut txn: H, f: F) -> Result<T, TransactionError<E>>
 where
     H: sealed::Close,
@@ -143,7 +143,7 @@ where
 
 /// Roll back a transaction whose closure failed with `cause`, and say how it
 /// ended.
-// [spec:pgorm:sem:conn.tx.closure+6]    a failed ROLLBACK travels beside the closure's error
+// [spec:pgorm:sem:conn.tx.closure+7]    a failed ROLLBACK travels beside the closure's error
 pub(crate) async fn rolled_back<E>(txn: impl sealed::Close, cause: E) -> TransactionError<E> {
     match txn.rollback(sealed::TOKEN).await {
         Ok(()) => TransactionError::Transaction(cause),
@@ -160,7 +160,7 @@ pub(crate) async fn rolled_back<E>(txn: impl sealed::Close, cause: E) -> Transac
 /// other direction exists: a `TransactionError<E>` whose `E` is an [`Error`],
 /// or converts into one, converts into an `Error`, so `?` passes a savepoint's
 /// failure to the closure around it.
-// [spec:pgorm:sem:conn.tx.closure+6]    error wrapper
+// [spec:pgorm:sem:conn.tx.closure+7]    error wrapper
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum TransactionError<E> {
@@ -239,8 +239,8 @@ impl<E: Into<Error>> From<TransactionError<E>> for Error {
     }
 }
 
-// [spec:pgorm:req:conn.tx+4]    BEGIN on the pooled client
-impl TransactionTrait for DatabaseConnection {}
+// [spec:pgorm:req:conn.tx+5]    BEGIN on the pooled client
+impl Transact for DatabaseConnection {}
 
 impl sealed::Handle for DatabaseConnection {
     type Transaction<'t> = DatabaseTransaction<'t>;
@@ -252,8 +252,8 @@ impl sealed::Open for DatabaseConnection {
     }
 }
 
-// [spec:pgorm:req:conn.tx+4]    a savepoint inside a transaction
-impl TransactionTrait for DatabaseTransaction<'_> {}
+// [spec:pgorm:req:conn.tx+5]    a savepoint inside a transaction
+impl Transact for DatabaseTransaction<'_> {}
 
 impl sealed::Handle for DatabaseTransaction<'_> {
     type Transaction<'t> = DatabaseTransaction<'t>;

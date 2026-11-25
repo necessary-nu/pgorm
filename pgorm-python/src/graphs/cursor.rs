@@ -10,7 +10,7 @@ pub struct PyEntityGraphCursor {
     pub(crate) state: CursorState,
 }
 
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 #[pymethods]
 impl PyEntityGraphCursor {
     /// Rows short of the one whose order-column values these are.

@@ -36,7 +36,7 @@ uuid = { version = "1.27", default-features = false }
 ipnetwork = { version = "0.21.1", default-features = false }
 mac_address = { version = "1.2.0", default-features = false }
 # `Serialize` and `Deserialize` for `Interval`, `Range` and `Multirange`
-# ([spec:pgorm:def:sql.value.interval], [spec:pgorm:def:sql.value.range]),
+# ([spec:pgorm:def:sql.value.interval+3], [spec:pgorm:def:sql.value.range]),
 # behind the `serde` feature. A range's impls are generic over its subtype, so
 # whether `Range<Decimal>` serializes is rust_decimal's own `serde` feature,
 # which pgorm's `with-json` turns on beside this one.

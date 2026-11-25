@@ -17,7 +17,7 @@ impl<'a> ValueSql<'a> {
     }
 }
 
-// [spec:pgorm:def:conn.sql-text+4]
+// [spec:pgorm:def:conn.sql-text+5]
 impl SqlText for ValueSql<'_> {
     fn sql_text(&self) -> &str {
         self.sql

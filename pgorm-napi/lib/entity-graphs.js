@@ -6,7 +6,7 @@
 // `GraphRow` — a slotless row as the root's record, otherwise a tuple of
 // each source's record, an absent `Opt` slot null — and paged by keyset
 // through `SelectGraph::cursor_by`.
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 
 import { arg, TRUSTED } from "./builder.js";
 import { decodedStream, runJob } from "./runs.js";
@@ -192,7 +192,7 @@ export class EntityGraphQuery {
   }
 
   /**
-   * How many rows the graph reads, by `PaginatorTrait::count`.
+   * How many rows the graph reads, by `pgorm::Paginate::count`.
    *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
@@ -202,7 +202,7 @@ export class EntityGraphQuery {
   }
 
   /**
-   * Pages of `pageSize` rows of the join, by `PaginatorTrait::paginate`.
+   * Pages of `pageSize` rows of the join, by `pgorm::Paginate::paginate`.
    *
    * @param {number} pageSize
    */

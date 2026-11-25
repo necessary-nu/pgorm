@@ -85,7 +85,7 @@ dropped.
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("getting_started_connect").await;
 # let url = scratch.url();
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 
 // The URL of the bakery database, such as
 // "postgres://postgres:postgres@localhost:5432/bakery".
@@ -108,7 +108,7 @@ clone shares the same connections. Take a connection for each unit of work,
 such as one request, and let it drop when the work is done.
 
 The pool is not itself a connection. `DatabasePool` does not implement
-[`ConnectionTrait`](crate::ConnectionTrait), so a query cannot run on
+[`Connection`](crate::Connection), so a query cannot run on
 "whichever connection the pool hands out":
 
 ```rust,compile_fail,E0277
@@ -129,7 +129,7 @@ the same time take two connections.
 
 The bakery's entities are Rust modules, one per table. Each holds a `Model`,
 the struct a row decodes into, and an `Entity`, the type queries start from.
-[`find`](crate::EntityTrait::find) starts a `SELECT`, the builder methods
+[`find`](crate::Entity::find) starts a `SELECT`, the builder methods
 refine it, and a terminal such as [`all`](crate::Select::all) runs it:
 
 ```rust
@@ -161,7 +161,7 @@ the builders use, the connection types, [`Error`](crate::Error), and the
 column value types.
 
 A query is a value until it runs, and it can be rendered without a database.
-[`build`](crate::QueryTrait::build) returns the SQL and the values it binds:
+[`build`](crate::Statement::build) returns the SQL and the values it binds:
 
 ```rust
 # use pgorm_guide_support::cake;
@@ -184,7 +184,7 @@ so a row decodes without knowing the type's internal id.
 
 ## A first write
 
-Writes go through an [`ActiveModel`](crate::ActiveModelTrait), a row in which
+Writes go through an [`ActiveModel`](crate::ActiveModel), a row in which
 each column is either set to a value or left out. [`set`](crate::set) sets
 one, and a column left out takes its default in the database:
 

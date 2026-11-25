@@ -17,7 +17,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.results+2/test]
+    # [spec:pgorm:req:bindings.results+3/test]
     # [spec:pgorm:req:bindings.row-count/test]
     async def test_cardinality_and_database_errors_are_distinct(self):
         empty = p.Select(p.literal(1).as_("n")).where(p.literal(False))
@@ -36,7 +36,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.sqlstate, "22012")
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:bindings.results+2/test]
+    # [spec:pgorm:req:bindings.results+3/test]
     async def test_builder_writes_return_counts_and_records(self):
         name = "python_result_" + uuid4().hex
         table = p.Table(name)
@@ -257,7 +257,7 @@ class ResultTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(str(caught.exception), "the statement takes 0 parameters, and 2 were given")
         self.assertEqual((await self.pool.one(p.RawSQL("SELECT 1 AS n")))["n"], 1)
 
-    # [spec:pgorm:req:conn.copy.statement+2/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
+    # [spec:pgorm:req:conn.copy.statement+3/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
     async def test_copy_as_statement_is_refused(self):
         for run in (
             lambda: self.pool.query(p.RawSQL("COPY (SELECT 1) TO STDOUT")),

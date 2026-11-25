@@ -272,7 +272,7 @@ fn a_range_parameter_pins_to_its_range_type() {
     );
 }
 
-// [spec:pgorm:def:sql.value+3/test]    range values compare and hash structurally, bound by bound,
+// [spec:pgorm:def:sql.value+4/test]    range values compare and hash structurally, bound by bound,
 // and NULL keeps its range type
 #[test]
 fn range_values_agree_on_identity() {
@@ -301,7 +301,7 @@ fn range_values_agree_on_identity() {
     assert!(std::mem::size_of::<Value>() <= 4 * std::mem::size_of::<usize>());
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+7/test]    `overlaps` is `&&` between its operands, bound
+// [spec:pgorm:req:sql.ast.expr.operators+8/test]    `overlaps` is `&&` between its operands, bound
 // or inlined, and the parser reads one operator expression
 #[test]
 fn overlaps_renders_the_overlap_operator() {

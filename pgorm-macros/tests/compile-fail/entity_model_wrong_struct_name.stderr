@@ -1,4 +1,4 @@
-error: `Entity` is derived on the struct named `Model`
+error: `Entity` is derived on the struct named `Model`, or on a hand-written struct named `Entity`
  --> tests/compile-fail/entity_model_wrong_struct_name.rs:6:12
   |
 6 | pub struct Cake {

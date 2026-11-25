@@ -28,7 +28,7 @@ builder](crate::guide::query_builder).
 
 ## Writing a migration
 
-A migration is a type implementing `MigrationTrait`. Its `up` receives the
+A migration is a type implementing `Migration`. Its `up` receives the
 transaction the migration runs in, a
 [`DatabaseTransaction`](crate::DatabaseTransaction) borrowed for the migration
 alone, and changes the schema through it. The statements can come from the
@@ -37,7 +37,7 @@ SQL text. Since the borrow is exclusive, a migration can also open a
 [savepoint](crate::guide::transactions) or run a [COPY](crate::guide::copy)
 inside it.
 
-A *migrator* implements `MigratorTrait`, whose `migrations` lists every
+A *migrator* implements `Migrator`, whose `migrations` lists every
 migration the program owns, in the order they apply. It is usually a unit
 struct, so the migrator is its one value, `Migrator`. Its `up` applies the
 migrations the database has not had yet:
@@ -55,7 +55,7 @@ impl MigrationName for CreateBakery {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateBakery {
+impl Migration for CreateBakery {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let table = Table::create(Bakery::Table)
             .col(ColumnDef::new(Bakery::Id).integer().not_null().auto_increment())
@@ -77,8 +77,8 @@ enum Bakery {
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateBakery)]
     }
 }
@@ -167,7 +167,7 @@ it runs.
 #         }
 #     }
 #     #[async_trait::async_trait]
-#     impl MigrationTrait for Migration {
+#     impl pgorm_migration::Migration for Migration {
 #         async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
 #             tx.batch_execute("CREATE TABLE cake (id serial PRIMARY KEY, name varchar NOT NULL)").await
 #         }
@@ -180,8 +180,8 @@ const INDEX_CAKE_NAME: SqlMigration =
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn pgorm_migration::Migration>> {
         vec![Box::new(create_bakery::Migration), Box::new(INDEX_CAKE_NAME)]
     }
 }
@@ -231,7 +231,7 @@ impl MigrationName for CreateCustomer {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateCustomer {
+impl Migration for CreateCustomer {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE customer (id serial PRIMARY KEY, email text UNIQUE NOT NULL)")
             .await
@@ -248,7 +248,7 @@ impl MigrationName for CreateCustomerAgain {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateCustomerAgain {
+impl Migration for CreateCustomerAgain {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE customer (id serial PRIMARY KEY)").await
     }
@@ -256,16 +256,16 @@ impl MigrationTrait for CreateCustomerAgain {
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateCustomer)]
     }
 }
 
 pub struct BrokenMigrator;
 
-impl MigratorTrait for BrokenMigrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for BrokenMigrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateCustomer), Box::new(CreateCustomerAgain)]
     }
 }
@@ -324,7 +324,7 @@ macro_rules! migration {
         }
 
         #[async_trait::async_trait]
-        impl MigrationTrait for $type {
+        impl Migration for $type {
             async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
                 tx.batch_execute($sql).await
             }
@@ -358,8 +358,8 @@ migration!(
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateCake), Box::new(AddCarrot), Box::new(AddCarrotCake)]
     }
 }
@@ -411,7 +411,7 @@ impl MigrationName for CreateBakery {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateBakery {
+impl Migration for CreateBakery {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE bakery (id serial PRIMARY KEY, name text NOT NULL)")
             .await
@@ -420,8 +420,8 @@ impl MigrationTrait for CreateBakery {
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateBakery)]
     }
 
@@ -479,7 +479,7 @@ impl MigrationName for CreateCake {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateCake {
+impl Migration for CreateCake {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE cake (id serial PRIMARY KEY)").await
     }
@@ -487,8 +487,8 @@ impl MigrationTrait for CreateCake {
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateCake)]
     }
 }
@@ -521,7 +521,7 @@ assert_eq!(row.get::<_, i64>(0), 1640995200);
 `status` logs, at `info` level through `tracing`, each migration's name and
 whether it is `Pending` or `Applied`. `get_migration_with_status`,
 `get_pending_migrations` and `get_applied_migrations` answer the same question
-as values. Each takes any [`ConnectionTrait`](crate::ConnectionTrait) and only
+as values. Each takes any [`Connection`](crate::Connection) and only
 reads: against a database never migrated, every migration is pending and no
 ledger is created to say so. A readiness probe or a CI step can ask with a role
 that has no right to change the schema.
@@ -538,7 +538,7 @@ impl MigrationName for CreateBakery {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateBakery {
+impl Migration for CreateBakery {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE bakery (id serial PRIMARY KEY)").await
     }
@@ -553,7 +553,7 @@ impl MigrationName for CreateCake {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateCake {
+impl Migration for CreateCake {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE cake (id serial PRIMARY KEY)").await
     }
@@ -561,8 +561,8 @@ impl MigrationTrait for CreateCake {
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateBakery), Box::new(CreateCake)]
     }
 }
@@ -625,7 +625,7 @@ impl MigrationName for CreateBakery {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateBakery {
+impl Migration for CreateBakery {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE bakery (id serial PRIMARY KEY)").await
     }
@@ -637,8 +637,8 @@ impl MigrationTrait for CreateBakery {
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateBakery { revision: "1" })]
     }
 }
@@ -646,8 +646,8 @@ impl MigratorTrait for Migrator {
 /// The same migration, edited after it ran.
 pub struct EditedMigrator;
 
-impl MigratorTrait for EditedMigrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for EditedMigrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CreateBakery { revision: "2" })]
     }
 }
@@ -705,7 +705,7 @@ impl MigrationName for Create {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for Create {
+impl Migration for Create {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let table = self.0.rsplit_once('_').map_or(self.0, |(_, table)| table);
         tx.batch_execute(&format!("CREATE TABLE {table} (id serial PRIMARY KEY)"))
@@ -716,8 +716,8 @@ impl MigrationTrait for Create {
 /// The newer build, which added the cake table.
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(Create("m20260101_000001_create_bakery")),
             Box::new(Create("m20260101_000002_create_cake")),
@@ -728,8 +728,8 @@ impl MigratorTrait for Migrator {
 /// The build before it, still starting while the newer one rolls out.
 pub struct OlderMigrator;
 
-impl MigratorTrait for OlderMigrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for OlderMigrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(Create("m20260101_000001_create_bakery"))]
     }
 
@@ -759,7 +759,7 @@ assert!(matches!(
 
 // A build with a migration of its own to apply refuses, even when it warns.
 let diverged = Migrations::new(vec![
-    Box::new(Create("m20260101_000001_create_bakery")) as Box<dyn MigrationTrait>,
+    Box::new(Create("m20260101_000001_create_bakery")) as Box<dyn Migration>,
     Box::new(Create("m20260201_000001_create_bun")),
 ])
 .with_unknown_migrations(UnknownMigrations::Warn);
@@ -807,8 +807,8 @@ use pgorm_migration::prelude::*;
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(sql_migration!(
             "docs/guide/migrations/m20260101_000001_create_bakery.sql"
         ))]
@@ -886,7 +886,7 @@ impl MigrationName for CreateCake {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for CreateCake {
+impl Migration for CreateCake {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("CREATE TABLE cake (id serial PRIMARY KEY, name text NOT NULL)")
             .await
@@ -897,7 +897,7 @@ impl MigrationTrait for CreateCake {
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("migrations_runtime").await;
 # let pool = scratch.pool.clone();
-let mut migrations: Vec<Box<dyn MigrationTrait>> = vec![Box::new(CreateCake)];
+let mut migrations: Vec<Box<dyn Migration>> = vec![Box::new(CreateCake)];
 for file in SqlMigration::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/guide/migrations"))? {
     migrations.push(Box::new(file));
 }

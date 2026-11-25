@@ -1,8 +1,9 @@
 use pgorm::entity::prelude::*;
 
-// A literal name is the composite derive's to write; the entity-trait derive
-// stands beside a hand-written `EntityName`, for a name computed at run time.
-#[derive(Copy, Clone, Default, Debug, EntityTrait)]
+// A literal name is the composite derive's to write; on a hand-written `Entity`
+// the derive stands beside a hand-written `EntityName`, for a name computed at
+// run time.
+#[derive(Copy, Clone, Default, Debug, Entity)]
 #[pgorm(table_name = "fruit")]
 pub struct Entity;
 
@@ -10,7 +11,7 @@ pub struct Entity;
 mod cased {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     #[pgorm(rename_all = "camelCase")]
     pub struct Entity;
 }
@@ -19,7 +20,7 @@ mod cased {
 mod pointed {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     #[pgorm(entity = Fruit)]
     pub struct Entity;
 }
@@ -28,7 +29,7 @@ mod pointed {
 mod misspelt {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     #[pgorm(colum = FruitColumn)]
     pub struct Entity;
 }

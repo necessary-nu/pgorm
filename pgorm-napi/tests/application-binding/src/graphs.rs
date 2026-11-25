@@ -2,7 +2,7 @@
 //! fixed here, its joins made under the aliases JavaScript chooses.
 
 use pgorm::pgorm_query::Name;
-use pgorm::{EntityTrait, Opt, RelationTrait, Req, SelectGraph};
+use pgorm::{Entity, Opt, Relation, Req, SelectGraph};
 use pgorm_napi::{RegistrationError, Registry};
 
 use crate::{account, membership, note};
@@ -22,7 +22,7 @@ pub fn required(aliases: &[String]) -> SelectGraph<account::Entity, (Req<note::E
 }
 
 /// Register every shape, once its source entities are registered.
-// [spec:pgorm:req:bindings.entity-graphs+4/test]
+// [spec:pgorm:req:bindings.entity-graphs+5/test]
 pub fn register(registry: &mut Registry) -> Result<(), RegistrationError> {
     registry.graph::<account::Entity, (), _>("app.AccountOnly", |_| account::Entity::graph())?;
     registry.graph::<membership::Entity, (), _>("app.MembershipOnly", |_| {

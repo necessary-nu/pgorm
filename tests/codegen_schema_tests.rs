@@ -12,7 +12,7 @@
 
 pub mod common;
 pub use common::{TestContext, setup::*};
-use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
+use pgorm::{Connection, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 /// The files pgorm-codegen generates from its created-schema fixture: the
@@ -30,7 +30,7 @@ const SCHEMA: &str = include_str!("../pgorm-codegen/tests/sql/created_schema/sch
 
 /// Each column of `sales.deal` with its type as the server prints it and
 /// whether it is `NOT NULL`.
-async fn columns_of(db: &impl ConnectionTrait) -> Result<Vec<(String, String, bool)>, Error> {
+async fn columns_of(db: &impl Connection) -> Result<Vec<(String, String, bool)>, Error> {
     let rows = db
         .query_all(
             "SELECT attname::text, format_type(atttypid, atttypmod), attnotnull \

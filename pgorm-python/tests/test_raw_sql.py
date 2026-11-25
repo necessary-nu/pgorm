@@ -28,7 +28,7 @@ class RawSQLTests(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute(RawSQL("DROP TABLE IF EXISTS python_raw_items"))
         await self.pool.close()
 
-    # [spec:pgorm:req:bindings.batch-execute/test]
+    # [spec:pgorm:req:bindings.batch-execute+1/test]
     async def test_a_script_runs_unprepared_on_each_executor(self):
         rows = await self.pool.one(RawSQL("SELECT count(*) AS n FROM python_raw_items"))
         self.assertEqual(rows["n"], 3)

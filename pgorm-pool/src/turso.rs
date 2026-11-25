@@ -27,7 +27,7 @@ impl Connect for TursoConnectImpl {
         })
     }
 
-    // [spec:pgorm:req:conn.listen+2] native notification refusal opens no client
+    // [spec:pgorm:req:conn.listen+3] native notification refusal opens no client
     fn connect_raw(&self, _: &Config) -> BoxFuture<'_, Result<Unpooled, Error>> {
         Box::pin(async { Err(Error::turso_unsupported("native notification connections")) })
     }

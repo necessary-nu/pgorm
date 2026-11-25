@@ -16,9 +16,9 @@ not, and what to do.
 ## What the cache holds
 
 Each connection has its own cache, shared by every transaction and savepoint
-on it. Every [`ConnectionTrait`](crate::ConnectionTrait) method that runs a
+on it. Every [`Connection`](crate::Connection) method that runs a
 statement looks its SQL text up there, and prepares it on a miss.
-[`batch_execute`](crate::ConnectionTrait::batch_execute) is the exception: it
+[`batch_execute`](crate::Connection::batch_execute) is the exception: it
 runs a script through the simple-query protocol and prepares nothing. A COPY
 is prepared afresh each time, too ([COPY](crate::guide::copy)).
 
@@ -41,7 +41,7 @@ statement and closes it afterwards. It is set through the pool's
 # let config = scratch.config();
 use std::num::NonZeroUsize;
 
-use pgorm::{ConnectionTrait, ManagerConfig, NoTls, StatementCacheSize, connect_with};
+use pgorm::{Connection, ManagerConfig, NoTls, StatementCacheSize, connect_with};
 
 /// How many statements this session holds prepared whose text starts with `prefix`.
 async fn prepared(db: &pgorm::DatabaseConnection, prefix: &str) -> Result<i64, pgorm::Error> {
@@ -97,7 +97,7 @@ transaction ([Transactions](crate::guide::transactions)).
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("statement_caches_result_type").await;
 # let pool = scratch.pool.clone();
-use pgorm::{ConnectionTrait, Error, TransactionError, TransactionTrait};
+use pgorm::{Connection, Error, TransactionError, Transact};
 
 let mut db = pool.get().await?;
 let before = db.query_all("SELECT * FROM baker", &[]).await?;
@@ -158,7 +158,7 @@ The call sends nothing, waits for nothing and cannot fail.
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("statement_caches_clear").await;
 # let config = scratch.config();
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 
 const INSERT: &str = "INSERT INTO box (contents) VALUES ($1) RETURNING ribbon";
 const PREPARED: &str =
@@ -242,7 +242,7 @@ and hears the clear the first sends after changing it:
 use std::time::Duration;
 
 use pgorm::{
-    ConnectionTrait, ManagerConfig, NoTls, STATEMENT_CACHE_CHANNEL, connect_with, notify,
+    Connection, ManagerConfig, NoTls, STATEMENT_CACHE_CHANNEL, connect_with, notify,
 };
 
 const INSERT: &str = "INSERT INTO box (contents) VALUES ($1) RETURNING ribbon";

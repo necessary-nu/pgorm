@@ -12,7 +12,7 @@
 
 pub mod common;
 pub use common::{TestContext, setup::*};
-use pgorm::{ConnectionTrait, LoaderTrait, Schema, TransactionTrait, entity::prelude::*};
+use pgorm::{Connection, LoadRelated, Schema, Transact, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
@@ -126,7 +126,7 @@ async fn key_of(db: &DatabaseConnection, table: &str) -> Result<(bool, bool, boo
     Ok((row.get(0), row.get(1), row.get(2)))
 }
 
-async fn create<E: EntityTrait>(db: &DatabaseConnection, entity: E) -> Result<String, Error> {
+async fn create<E: Entity>(db: &DatabaseConnection, entity: E) -> Result<String, Error> {
     let create = Schema::new().create_table_from_entity(entity)?.to_string();
     db.batch_execute(&create).await?;
     Ok(create)
@@ -138,7 +138,7 @@ async fn create<E: EntityTrait>(db: &DatabaseConnection, entity: E) -> Result<St
 /// having no shelf: `load_one` answers `None` for it, a graph's optional slot
 /// pairs it with `None` and a required slot leaves it out, as the shelf's
 /// `load_many` and `find_related` do.
-// [spec:pgorm:def:entity.relation.def+12/test]    against a live server: a NOT ENFORCED relation
+// [spec:pgorm:def:entity.relation.def+13/test]    against a live server: a NOT ENFORCED relation
 // creates the key unchecked, and its readers take an orphan as having no related row
 // [spec:pgorm:req:entity.relation.fk+6/test]
 #[pgorm_macros::test]
@@ -214,7 +214,7 @@ async fn a_not_enforced_relation_admits_orphans() -> Result<(), Error> {
 /// checked at commit: a transaction may write a book before its shelf, and a
 /// book whose shelf never comes is refused at commit (`23503`), where the
 /// plain key refuses the first insert.
-// [spec:pgorm:def:entity.relation.def+12/test]    against a live server: a deferred relation's
+// [spec:pgorm:def:entity.relation.def+13/test]    against a live server: a deferred relation's
 // key is checked at commit
 // [spec:pgorm:req:entity.relation.fk+6/test]
 #[pgorm_macros::test]

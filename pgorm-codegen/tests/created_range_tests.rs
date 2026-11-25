@@ -4,7 +4,7 @@
 mod common;
 
 use common::*;
-use pgorm::{ColumnTrait, ColumnTypeTrait, EntityTrait, Iterable, QueryTrait};
+use pgorm::{Column, ColumnTypeExt, Entity, Iterable, Statement};
 use pgorm_codegen::parse_schema;
 use pgorm_query::{ColumnType, Name, StringLen};
 use std::sync::Arc;

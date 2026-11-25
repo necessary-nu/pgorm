@@ -7,17 +7,17 @@ entity's `Relation` enum. This chapter reads along them.
 
 pgorm offers three ways to do it, one for each shape of question:
 
-- one model's related rows: [`find_related`](crate::ModelTrait::find_related),
+- one model's related rows: [`find_related`](crate::Model::find_related),
   a query of its own;
 - the related rows of a list of models, in one query rather than one per
-  model: the loaders of [`LoaderTrait`](crate::LoaderTrait);
+  model: the loaders of [`LoadRelated`](crate::LoadRelated);
 - rows read together with their related rows, in one joined query: the
-  graph, [`EntityTrait::graph`](crate::EntityTrait::graph).
+  graph, [`Entity::graph`](crate::Entity::graph).
 
 ## The related rows of one model
 
 [`Related<E>`](crate::Related) says how to reach entity `E` from this one,
-and [`find_related`](crate::ModelTrait::find_related) turns it into a query
+and [`find_related`](crate::Model::find_related) turns it into a query
 for one model's related rows. The query is an ordinary
 [`Select`](crate::Select), so it can be filtered and ordered before it runs:
 
@@ -78,7 +78,7 @@ assert_eq!(
 
 A path of more than one relation is a [`Linked`](crate::Linked) chain: a type
 listing the relations from one entity to another, in order.
-[`find_linked`](crate::ModelTrait::find_linked) reads along it. Here a
+[`find_linked`](crate::Model::find_linked) reads along it. Here a
 baker's customers are the people who ordered a cake the baker bakes:
 
 ```rust
@@ -130,11 +130,11 @@ Reading each model's related rows with `find_related` runs one query per
 model. The loaders read them for a whole list in one query, and return one
 entry per input model, in the input's order:
 
-- [`load_one`](crate::LoaderTrait::load_one) follows a relation to at most one
+- [`load_one`](crate::LoadRelated::load_one) follows a relation to at most one
   row, such as a cake's bakery, giving an `Option` per model;
-- [`load_many`](crate::LoaderTrait::load_many) follows a relation to many
+- [`load_many`](crate::LoadRelated::load_many) follows a relation to many
   rows, such as a bakery's cakes, giving a `Vec` per model;
-- [`load_many_via`](crate::LoaderTrait::load_many_via) follows a relation
+- [`load_many_via`](crate::LoadRelated::load_many_via) follows a relation
   through a junction table, such as a cake's bakers.
 
 Each takes the related entity, or a `Select` of it to filter and order what
@@ -198,7 +198,7 @@ column read against an `i32` field.
 
 The graph reads rows of one entity, the *root*, with rows of related
 entities joined beside them, in one query. Start it with
-[`graph()`](crate::EntityTrait::graph) where you would write `find()`, and add
+[`graph()`](crate::Entity::graph) where you would write `find()`, and add
 each related entity as a *slot*. A slot is required or optional:
 
 | Method | Joins | Decodes as |
@@ -448,7 +448,7 @@ assert_eq!((first.len(), cakes[0].len()), (1, 3));
 ```
 
 An unlimited graph pages as a `Select` does, by rows of the join, through
-[`paginate`](crate::PaginatorTrait::paginate) and
+[`paginate`](crate::Paginate::paginate) and
 [`cursor_by`](crate::SelectGraph::cursor_by).
 [`cursor_by_on::<I, _>(columns)`](crate::SelectGraph::cursor_by_on) orders by
 the columns of slot `I`, counting the first slot as `1`. A graph cursor

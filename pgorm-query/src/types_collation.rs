@@ -36,7 +36,7 @@ use super::*;
 ///
 /// Expr::col(Glyph::Image).collate(Expr::col(Glyph::Aspect));
 /// ```
-// [spec:pgorm:req:sql.ast.expr.collate+2]
+// [spec:pgorm:req:sql.ast.expr.collate+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Collation {
     schema: Option<Name>,
@@ -45,7 +45,7 @@ pub struct Collation {
 
 /// Anything that names a [`Collation`]: a name, a `(schema, name)` pair, or a
 /// collation itself.
-// [spec:pgorm:req:sql.ast.expr.collate+2]
+// [spec:pgorm:req:sql.ast.expr.collate+3]
 pub trait IntoCollation {
     /// Consume `self` and produce the [`Collation`] it names.
     fn into_collation(self) -> Collation;

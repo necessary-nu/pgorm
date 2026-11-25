@@ -686,7 +686,7 @@ export declare abstract class Queryable {
     params?: readonly Param[],
     options?: O,
   ): Promise<RowFor<O> | null>;
-  // [spec:pgorm:req:bindings.copy]
+  // [spec:pgorm:req:bindings.copy+1]
   /**
    * Run a `COPY … FROM STDIN`, writing the bytes `source` yields, and resolve
    * with the rows it wrote. The source is pulled only as the COPY takes its
@@ -706,7 +706,7 @@ export declare abstract class Queryable {
    * own.
    */
   copyOut(statement: CopyTo, options?: OperationOptions): Promise<CopyOutStream>;
-  // [spec:pgorm:req:bindings.copy-rows+2]
+  // [spec:pgorm:req:bindings.copy-rows+3]
   /**
    * Run a binary `COPY … FROM STDIN` whose rows are arrays of values, one for
    * each column the server describes for the statement, in order, and
@@ -750,7 +750,7 @@ export declare abstract class Queryable {
    * `22023`.
    */
   notify(channel: string, payload: string, options?: OperationOptions): Promise<void>;
-  // [spec:pgorm:req:bindings.batch-execute]
+  // [spec:pgorm:req:bindings.batch-execute+1]
   /**
    * Run `script`, statements separated by `;` with no parameters, as Rust's
    * `batch_execute` does: sent as it is through the simple-query protocol,

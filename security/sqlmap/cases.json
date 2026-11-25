@@ -2264,7 +2264,7 @@
     {
       "id": "contains",
       "family": "Pattern matching",
-      "api": "ColumnTrait::contains",
+      "api": "Column::contains",
       "method": "GET",
       "route": "/case/protected/contains",
       "field": "input",
@@ -2310,7 +2310,7 @@
     {
       "id": "starts-with",
       "family": "Pattern matching",
-      "api": "ColumnTrait::starts_with",
+      "api": "Column::starts_with",
       "method": "GET",
       "route": "/case/protected/starts-with",
       "field": "input",
@@ -2356,7 +2356,7 @@
     {
       "id": "ends-with",
       "family": "Pattern matching",
-      "api": "ColumnTrait::ends_with",
+      "api": "Column::ends_with",
       "method": "GET",
       "route": "/case/protected/ends-with",
       "field": "input",
@@ -2402,7 +2402,7 @@
     {
       "id": "like",
       "family": "Pattern matching",
-      "api": "ColumnTrait::like",
+      "api": "Column::like",
       "method": "GET",
       "route": "/case/protected/like",
       "field": "input",

@@ -20,7 +20,7 @@ use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Deferrability, Name, RangeType, Table, TableCreateStatement, TableKey,
     Unique,
 };
-use pgorm::{ConnectionTrait, entity::prelude::*};
+use pgorm::{Connection, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]

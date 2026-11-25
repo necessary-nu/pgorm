@@ -212,7 +212,7 @@ fn pipeline_family_matches_its_golden_file() {
     );
 }
 
-// [spec:pgorm:req:bindings.copy/test]
+// [spec:pgorm:req:bindings.copy+1/test]
 #[test]
 fn copy_family_matches_its_golden_file() {
     check(

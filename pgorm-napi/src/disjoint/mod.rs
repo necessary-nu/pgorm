@@ -482,7 +482,7 @@ fn job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (sql, values) = query.build();
     let job: crate::connect::job::Job = Box::new(move |db, secrets| {
         Box::pin(async move {
-            use pgorm::ConnectionTrait;
+            use pgorm::Connection;
             let holders: Vec<pgorm::ValueHolder> =
                 values.0.into_iter().map(pgorm::ValueHolder).collect();
             let params: Vec<&(dyn pgorm::types::ToSql + Sync)> = holders

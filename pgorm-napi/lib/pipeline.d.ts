@@ -13,7 +13,7 @@
 
 // [spec:pgorm:req:napi.typing+1]
 // [spec:pgorm:req:bindings.pipeline+1]
-// [spec:pgorm:req:bindings.pipeline-terminals]
+// [spec:pgorm:req:bindings.pipeline-terminals+1]
 
 import type { Builder, BindValue, Compiled, Expr } from "./expressions.d.ts";
 import type { Table } from "./select.d.ts";

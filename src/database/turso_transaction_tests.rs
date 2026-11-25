@@ -1,8 +1,8 @@
 //! Real ORM transactions over a test-only native connection factory.
 
 use crate::{
-    ConnectionTrait, DatabaseConnection, DatabasePool, DecodeRaw, Error, IsolationLevel,
-    TransactionError, TransactionMode, TransactionTrait,
+    Connection, DatabaseConnection, DatabasePool, DecodeRaw, Error, IsolationLevel, Transact,
+    TransactionError, TransactionMode,
 };
 use futures::{TryStreamExt, future::BoxFuture};
 use pgorm_driver::{Client, Config, TursoDatabase, error::SqlState};
@@ -82,7 +82,7 @@ async fn acquire(pool: &DatabasePool) -> DatabaseConnection {
         .expect("acquire native fixture connection")
 }
 
-async fn insert(db: &impl ConnectionTrait, id: i32) -> Result<(), Error> {
+async fn insert(db: &impl Connection, id: i32) -> Result<(), Error> {
     let inserted = (
         "INSERT INTO tx_values VALUES ($1) RETURNING id",
         Values(vec![id.into()]),
@@ -94,7 +94,7 @@ async fn insert(db: &impl ConnectionTrait, id: i32) -> Result<(), Error> {
     Ok(())
 }
 
-async fn ids(db: &impl ConnectionTrait) -> Result<Vec<i32>, Error> {
+async fn ids(db: &impl Connection) -> Result<Vec<i32>, Error> {
     Ok(db
         .query_all("SELECT id FROM tx_values ORDER BY id", &[])
         .await?

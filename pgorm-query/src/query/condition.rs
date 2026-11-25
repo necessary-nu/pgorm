@@ -1,4 +1,4 @@
-use crate::{ExprTrait, expr::SimpleExpr};
+use crate::{Expression, expr::SimpleExpr};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConditionType {
@@ -7,7 +7,7 @@ pub enum ConditionType {
 }
 
 /// Represents the value of an [`Condition::any`] or [`Condition::all`]: a set of disjunctive or conjunctive conditions.
-// [spec:pgorm:def:sql.ast.condition+2]
+// [spec:pgorm:def:sql.ast.condition+3]
 #[derive(Debug, Clone, PartialEq)]
 #[doc(alias = "Cond")]
 pub struct Condition {
@@ -16,7 +16,7 @@ pub struct Condition {
     pub(crate) conditions: Vec<ConditionExpression>,
 }
 
-// [spec:pgorm:def:sql.ast.condition+2]
+// [spec:pgorm:def:sql.ast.condition+3]
 pub trait IntoCondition {
     fn into_condition(self) -> Condition;
 }
@@ -293,7 +293,7 @@ impl From<Condition> for ConditionExpression {
 
 impl<T> From<T> for ConditionExpression
 where
-    T: ExprTrait,
+    T: Expression,
 {
     fn from(condition: T) -> Self {
         ConditionExpression::SimpleExpr(condition.into())
@@ -510,7 +510,7 @@ pub trait ConditionalStatement {
 
 impl<T> IntoCondition for T
 where
-    T: ExprTrait,
+    T: Expression,
 {
     fn into_condition(self) -> Condition {
         Condition::all().add(self)

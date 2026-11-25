@@ -70,7 +70,7 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
         ("graph.column", "pgorm::pgorm_query::Expr::col"),
         ("graph.where", "pgorm::QueryFilter"),
         ("graph.order_by", "pgorm::QueryOrder"),
-        ("graph.inspect", "pgorm::QueryTrait::build"),
+        ("graph.inspect", "pgorm::Statement::build"),
         ("graph.all", "pgorm::SelectGraph<E, S>::all"),
         ("graph.optional", "pgorm::SelectGraph<E, S>::one_opt"),
         ("graph.cursor", "pgorm::SelectGraph<E, S>::cursor_by"),
@@ -89,10 +89,10 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
             "graph.all_grouped",
             "pgorm::SelectGraph<E, (Opt<F>,)>::all_grouped",
         ),
-        ("graph.count", "pgorm::PaginatorTrait::count"),
+        ("graph.count", "pgorm::Paginate::count"),
         (
             "graph.paginate",
-            "pgorm::PaginatorTrait::paginate, Paginator::{fetch_page,num_items_and_pages}",
+            "pgorm::Paginate::paginate, Paginator::{fetch_page,num_items_and_pages}",
         ),
     ]
     .into_iter()

@@ -21,7 +21,7 @@ use pgorm::tests_cfg::{
     vehicle::{self, Vehicle, VehicleKind},
 };
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, Disjoint, Error, KindedDisjoint, RuntimeError, Schema,
+    Connection, DatabaseConnection, Disjoint, Error, KindedDisjoint, RuntimeError, Schema,
     entity::prelude::*,
 };
 use pretty_assertions::assert_eq;

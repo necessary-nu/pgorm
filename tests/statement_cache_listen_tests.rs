@@ -20,8 +20,8 @@ pub use common::{TestContext, setup::*};
 use std::{future::Future, time::Duration};
 
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, DatabasePool, Error, ManagerConfig, NoTls,
-    RecyclingMethod, STATEMENT_CACHE_CHANNEL, StatementCacheSize, notify,
+    Connection, DatabaseConnection, DatabasePool, Error, ManagerConfig, NoTls, RecyclingMethod,
+    STATEMENT_CACHE_CHANNEL, StatementCacheSize, notify,
 };
 use pgorm_test_support::{ListenerClears, PREPARED_STATEMENT};
 use pretty_assertions::assert_eq;

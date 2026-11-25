@@ -146,7 +146,7 @@ fn caret_block(sql: &str, offset: usize) -> Option<String> {
 
 /// PRQL compiled to PostgreSQL SQL, and the number of distinct `$N`
 /// placeholders the SQL asks values for.
-// [spec:pgorm:def:macros.prql+3]
+// [spec:pgorm:def:macros.prql+4]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledPrql {
     sql: String,
@@ -301,7 +301,7 @@ impl std::error::Error for ArityRejection {}
 /// server will ask for is the parser's own view of the finished statement.
 /// S-strings splice through unscreened; their boundary is the grammar, over
 /// the finished statement.
-// [spec:pgorm:def:macros.prql+3]
+// [spec:pgorm:def:macros.prql+4]
 // [spec:pgorm:req:macros.prql.reject]    PRQL rejections carry prqlc's message
 // [spec:pgorm:sem:macros.prql.sstring]    pass-through; the oracle is the gate
 pub fn compile_prql(prql: &str) -> Result<CompiledPrql, PrqlRejection> {

@@ -105,7 +105,7 @@ test("a pipeline's stages run as any statement does, through each terminal", asy
   assert.equal(await pool().transaction((tx) => tx.execute(base.select(id))), 6);
 });
 
-// [spec:pgorm:req:bindings.pipeline-terminals/test]
+// [spec:pgorm:req:bindings.pipeline-terminals+1/test]
 test("a pipeline's own terminals are Rust's Pipeline::all, one and one_opt, the latter two taking one row", async () => {
   const sorted = base.select(id).sort(id);
   assert.deepStrictEqual((await sorted.all(pool())).map((row) => row.id), [1n, 2n, 3n, 4n, 5n, 6n]);

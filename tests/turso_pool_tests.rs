@@ -3,9 +3,8 @@
 
 use futures::TryStreamExt;
 use pgorm::{
-    ConnectionTrait, DecodeRaw, Error, Hook, HookConnection, HookError, ManagerConfig, PoolBuilder,
-    PoolError, RecyclingMethod, Runtime, TimeoutType, TransactionTrait, connect_turso,
-    connect_turso_with,
+    Connection, DecodeRaw, Error, Hook, HookConnection, HookError, ManagerConfig, PoolBuilder,
+    PoolError, RecyclingMethod, Runtime, TimeoutType, Transact, connect_turso, connect_turso_with,
 };
 use pgorm_driver::{Statement, types::Type};
 use pgorm_query::Values;
@@ -44,7 +43,7 @@ impl Drop for Scratch {
     }
 }
 
-async fn typed_value(db: &impl ConnectionTrait, value: i32) -> Result<i32, Error> {
+async fn typed_value(db: &impl Connection, value: i32) -> Result<i32, Error> {
     (TYPED_SQL, Values(vec![value.into()]))
         .into_tuple::<i32>()
         .one(db)

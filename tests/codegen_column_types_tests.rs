@@ -13,7 +13,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::Range;
-use pgorm::{ConnectionTrait, QueryTrait, Schema, entity::prelude::*};
+use pgorm::{Connection, Schema, Statement, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
@@ -27,7 +27,7 @@ const SCHEMA: &str = include_str!("codegen_column_types/schema.sql");
 
 /// Each column of `specimen` with its type as the server prints it, typmod
 /// included, and whether it is `NOT NULL`.
-async fn columns_of(db: &impl ConnectionTrait) -> Result<Vec<(String, String, bool)>, Error> {
+async fn columns_of(db: &impl Connection) -> Result<Vec<(String, String, bool)>, Error> {
     let rows = db
         .query_all(
             "SELECT attname::text, format_type(atttypid, atttypmod), attnotnull \
@@ -45,7 +45,7 @@ async fn columns_of(db: &impl ConnectionTrait) -> Result<Vec<(String, String, bo
 
 /// The schema's types, and the table the generated entity creates in place
 /// of the schema's own.
-async fn entity_table(db: &impl ConnectionTrait) -> Result<(), Error> {
+async fn entity_table(db: &impl Connection) -> Result<(), Error> {
     db.batch_execute(SCHEMA).await?;
     db.batch_execute("DROP TABLE specimen").await?;
     db.batch_execute(
@@ -359,7 +359,7 @@ async fn generated_columns_hold_values_to_their_modifiers() -> Result<(), Error>
 
 /// The generated entity's `money` columns are read as `numeric` and written
 /// cast to `money` from the `numeric` a `Decimal` placeholder is pinned to.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18/test]    a `money` column, and an
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    a `money` column, and an
 // array of it, is read cast to `numeric` and written cast to `money`
 #[test]
 fn money_columns_cast_through_numeric() {
@@ -385,7 +385,7 @@ fn money_columns_cast_through_numeric() {
 /// generated entity's `Decimal` fields: the row inserted, read back whole and
 /// by its columns, found by a comparison with each, and updated through
 /// `RETURNING`, each value at the currency's two places, a third rounded off.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18/test]    against a live server: a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    against a live server: a
 // `money` column, and an array of it, is read as `numeric` and written through
 // `numeric` to `money`, which compares with the column as well as assigns to it
 // [spec:pgorm:sem:codegen.entity.types+13/test]
@@ -461,14 +461,14 @@ async fn a_money_column_reads_and_writes_as_decimal() -> Result<(), Error> {
 }
 
 /// A pipeline compares the generated entity's `money` columns as their
-/// `ColumnTrait` compares them: a bound `Decimal`, its placeholder pinned to
+/// `Column` compares them: a bound `Decimal`, its placeholder pinned to
 /// `numeric`, a literal and each listed value are cast to `money`, rounded to
 /// the currency's places as the column rounds what it stores, and the row
 /// reads back whole through `select_sources`.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18/test]    against a live server: a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    against a live server: a
 // pipeline's bound, literal and listed values compared with a `money` column, or with
 // an array of it, are cast to `money`, either side of the comparison
-// [spec:pgorm:req:pipeline.surface+4/test]    the column read by name, with no entity,
+// [spec:pgorm:req:pipeline.surface+5/test]    the column read by name, with no entity,
 // compares with a bound `Decimal` once compares_as names `money`, and refuses it unnamed
 #[pgorm_macros::test]
 async fn a_pipeline_compares_a_money_column_as_money() -> Result<(), Error> {

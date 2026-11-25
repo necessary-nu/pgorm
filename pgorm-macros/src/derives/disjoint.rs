@@ -386,7 +386,7 @@ fn active_model(input: &DeriveInput, kinds: &[Kind]) -> TokenStream {
         match &kind.payload {
             Some(payload) => quote_spanned! {payload.span()=>
                 #(#docs)*
-                #variant(<<#payload as pgorm::ModelTrait>::Entity as pgorm::EntityTrait>::ActiveModel)
+                #variant(<<#payload as pgorm::Model>::Entity as pgorm::Entity>::ActiveModel)
             },
             None => quote!(#(#docs)* #variant),
         }
@@ -423,7 +423,7 @@ fn impl_disjoint(input: &DeriveInput, container: &Container, kinds: &[Kind]) -> 
         },
         (None, None) => quote_spanned! {base.span()=>
             ::core::option::Option::Some(pgorm::KindColumn {
-                column: <#base as pgorm::EntityTrait>::Column::Kind,
+                column: <#base as pgorm::Entity>::Column::Kind,
                 kind_type: <#kind_ident as pgorm::ActiveEnum>::db_type(),
             })
         },

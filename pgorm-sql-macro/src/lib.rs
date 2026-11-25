@@ -63,9 +63,9 @@ use syn::{LitStr, parse_macro_input};
 /// The literal it expands to is spanned at the invocation, so it reads as the
 /// macro's expansion, and a lint judging where an expression came from, such
 /// as clippy's `disallowed_macros`, sees `sql!` there.
-// [spec:pgorm:def:macros.sql+8]
+// [spec:pgorm:def:macros.sql+9]
 // [spec:pgorm:req:macros.sql.reject+2]    non-literal input is `syn`'s own refusal
-// [spec:pgorm:req:scope.raw]
+// [spec:pgorm:req:scope.raw+1]
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
     let literal = parse_macro_input!(input as LitStr);
@@ -125,7 +125,7 @@ pub fn sql(input: TokenStream) -> TokenStream {
 /// The check ends where the catalog begins: whether `total` is a column and
 /// whether `$1` accepts an `i64` are the server's questions, answered at
 /// prepare time and by `VerifyTrait::verify` at runtime.
-// [spec:pgorm:def:macros.prql+3]
+// [spec:pgorm:def:macros.prql+4]
 // [spec:pgorm:req:macros.prql.reject]    non-literal input is `syn`'s own refusal
 // [spec:pgorm:req:macros.prql.ceiling+2]    the limits are stated on the macro
 #[proc_macro]
@@ -152,8 +152,8 @@ pub fn prql(input: TokenStream) -> TokenStream {
 /// expression, the name being the file stem and the text the file's with CRLF
 /// line endings read as LF, after holding that text to the grammar [`sql!`]
 /// uses. The path is resolved against `CARGO_MANIFEST_DIR`.
-// [spec:pgorm:def:macros.sql+8]    the hidden third macro
-// [spec:pgorm:def:migration.sql-file+1]
+// [spec:pgorm:def:macros.sql+9]    the hidden third macro
+// [spec:pgorm:def:migration.sql-file+2]
 // [spec:pgorm:req:migration.sql-file.const]
 #[doc(hidden)]
 #[proc_macro]

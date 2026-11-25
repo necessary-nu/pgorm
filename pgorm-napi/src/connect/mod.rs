@@ -27,7 +27,7 @@ use crate::errors::FailureJs as _;
 use std::{future::Future, ops::Deref, sync::Arc};
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{ConnectionTrait, metric::InstrumentedPool, types::ToSql};
+use pgorm::{Connection, metric::InstrumentedPool, types::ToSql};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -159,10 +159,10 @@ impl Statement {
     /// Run on `db`, a connection or a transaction, and decode the result.
     /// A cardinality the terminal does not admit is a `DecodeError`, decided
     /// after the query and never in place of a database or decode failure.
-    // [spec:pgorm:req:bindings.results+2]
+    // [spec:pgorm:req:bindings.results+3]
     pub(crate) async fn run<C>(self, db: &C, secrets: &Redactions) -> Result<Outcome, Failure>
     where
-        C: ConnectionTrait + ?Sized,
+        C: Connection + ?Sized,
     {
         let bound: Vec<&(dyn ToSql + Sync)> = self
             .params

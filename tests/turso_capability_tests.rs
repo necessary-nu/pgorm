@@ -2,9 +2,9 @@
 #![cfg(feature = "turso")]
 
 use pgorm::{
-    ConnectionTrait, CopyTrait, DatabaseTransaction, Error, TransactionTrait, connect_turso, notify,
+    Connection, CopyConnection, DatabaseTransaction, Error, Transact, connect_turso, notify,
 };
-use pgorm_migration::{MigrationName, MigrationTrait, MigratorTrait};
+use pgorm_migration::{Migration, MigrationName, Migrator};
 use pgorm_query::{CopyBinary, CopyFromStatement, CopyText, CopyToStatement, Name};
 use std::{
     error::Error as StdError,
@@ -37,14 +37,14 @@ fn missing_function(error: &Error, function: &str) {
     assert!(database.source().is_some(), "keep the native error cause");
 }
 
-async fn count(db: &impl ConnectionTrait) -> Result<i64, Error> {
+async fn count(db: &impl Connection) -> Result<i64, Error> {
     Ok(db
         .query_one("SELECT count(*) FROM capability_items", &[])
         .await?
         .get(0))
 }
 
-async fn refuse_row_copy(db: &mut (impl CopyTrait + Send)) {
+async fn refuse_row_copy(db: &mut (impl CopyConnection + Send)) {
     let input = CopyFromStatement::new(Name::runtime("missing_copy_table"), CopyBinary);
     let output = CopyToStatement::new(Name::runtime("missing_copy_table"), CopyBinary);
     unsupported(
@@ -76,7 +76,7 @@ async fn refuse_row_copy(db: &mut (impl CopyTrait + Send)) {
 }
 
 // [spec:pgorm:req:turso.capabilities/test]
-// [spec:pgorm:req:conn.copy.rows+6/test]
+// [spec:pgorm:req:conn.copy.rows+7/test]
 #[tokio::test]
 async fn dedicated_copy_refuses_without_poisoning_connection() -> Result<(), Error> {
     let pool = connect_turso(":memory:").await?;
@@ -245,7 +245,7 @@ impl MigrationName for ProbeMigration {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for ProbeMigration {
+impl Migration for ProbeMigration {
     async fn up(&self, transaction: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         self.0.fetch_add(1, Ordering::SeqCst);
         transaction
@@ -257,13 +257,13 @@ impl MigrationTrait for ProbeMigration {
 struct ProbeMigrator(Arc<AtomicUsize>);
 
 #[async_trait::async_trait]
-impl MigratorTrait for ProbeMigrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for ProbeMigrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(ProbeMigration(Arc::clone(&self.0)))]
     }
 }
 
-async fn migration_tables(db: &impl ConnectionTrait) -> Result<Vec<String>, Error> {
+async fn migration_tables(db: &impl Connection) -> Result<Vec<String>, Error> {
     Ok(db.query_all(
         "SELECT relname::text FROM pg_catalog.pg_class WHERE relname IN ('pgorm_migrations', 'seaql_migrations', 'migration_effect') ORDER BY relname", &[])
         .await?.iter().map(|row| row.get(0)).collect())

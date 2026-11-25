@@ -5,7 +5,7 @@ pub const INSERT: &str = "INSERT INTO line (id) VALUES ($1) RETURNING qty";
 
 /// The [`INSERT`] `db`'s session holds prepared, or `None` once a clear has
 /// closed it.
-pub async fn prepared_insert(db: &impl ConnectionTrait) -> Result<Option<String>, Error> {
+pub async fn prepared_insert(db: &impl Connection) -> Result<Option<String>, Error> {
     Ok(db
         .query_opt(PREPARED_STATEMENT, &[&INSERT])
         .await?
@@ -27,7 +27,7 @@ impl MigrationName for Script {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for Script {
+impl Migration for Script {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute(self.sql).await
     }
@@ -54,8 +54,8 @@ pub const DEFAULTED: Script = Script {
 pub struct Created;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Created {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Created {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CREATED)]
     }
 }
@@ -64,8 +64,8 @@ impl MigratorTrait for Created {
 pub struct Defaulted;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Defaulted {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Defaulted {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(CREATED), Box::new(DEFAULTED)]
     }
 }
@@ -81,8 +81,8 @@ pub const REDEFAULTED: Script = Script {
 pub struct Unannounced;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Unannounced {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Unannounced {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(CREATED),
             Box::new(DEFAULTED),

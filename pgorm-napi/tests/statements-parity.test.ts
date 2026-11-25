@@ -31,7 +31,7 @@ for (const [family, cases] of Object.entries(families)) {
   });
 
   for (const [name, make] of Object.entries(cases)) {
-    // [spec:pgorm:req:bindings.delegation/test]
+    // [spec:pgorm:req:bindings.delegation+1/test]
     test(`${family}: ${name} builds what pgorm-query builds`, () => {
       const expected = golden[name];
       assert.ok(expected, `${name} is in the golden file`);

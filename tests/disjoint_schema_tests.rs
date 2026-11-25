@@ -17,8 +17,8 @@ use pgorm::tests_cfg::{
     vehicle::{self, Vehicle},
 };
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, Error, KindedDisjoint, Schema, TransactionTrait,
-    check_disjoint, entity::prelude::*, result_column_name,
+    Connection, DatabaseConnection, Error, KindedDisjoint, Schema, Transact, check_disjoint,
+    entity::prelude::*, result_column_name,
 };
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;

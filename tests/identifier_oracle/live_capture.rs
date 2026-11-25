@@ -26,11 +26,11 @@ use std::{
 };
 
 use pgorm::{
-    ConnectionTrait, DatabasePool, EntityTrait, NoTls, RelationTrait, SelectModel,
+    Connection, DatabasePool, Entity, NoTls, Relation, SelectModel,
     pgorm_query::{Asterisk, IntoKey, Name, Query},
     tests_cfg::{cake, fruit},
 };
-use pgorm_migration::{MigrationName, MigrationTrait, MigratorTrait};
+use pgorm_migration::{Migration, MigrationName, Migrator};
 
 use super::{
     corpus::{Hostile, NUL_NAME, corpus},
@@ -109,7 +109,7 @@ pub fn live_sites() -> Vec<LiveSite> {
         LiveSite {
             site: Site {
                 id: "migration/ledger.table-name",
-                api: "MigratorTrait::migration_table_name() -> Name, through MigratorTrait::up",
+                api: "Migrator::migration_table_name() -> Name, through Migrator::up",
                 kinds: &[
                     "CreateStmt.relation.relname",
                     "RangeVar.relname",
@@ -226,15 +226,15 @@ impl MigrationName for Noop {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for Noop {
+impl Migration for Noop {
     async fn up(&self, _: &mut pgorm::DatabaseTransaction<'_>) -> Result<(), pgorm::Error> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl MigratorTrait for OracleMigrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for OracleMigrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(Noop)]
     }
 

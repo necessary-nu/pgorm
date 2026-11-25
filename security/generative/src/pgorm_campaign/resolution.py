@@ -30,7 +30,7 @@ class Resolution:
                 raise self.p.DecodeError(
                     "result reference requires a registered EntityModel"
                 )
-            return value, ["pgorm::ModelTrait"]
+            return value, ["pgorm::Model"]
         value = value.tagged(data["column"])
         if value.snapshot()["type"] != data["type"]:
             raise self.p.DecodeError(

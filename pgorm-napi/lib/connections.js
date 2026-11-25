@@ -5,11 +5,11 @@
 // callback — never by waiting for garbage collection.
 // [spec:pgorm:req:bindings.connections+3]
 // [spec:pgorm:req:napi.lifecycle+3]
-// [spec:pgorm:req:bindings.results+2]
+// [spec:pgorm:req:bindings.results+3]
 // [spec:pgorm:req:napi.raw]
 // [spec:pgorm:req:bindings.transactions+2]
 // [spec:pgorm:req:napi.transactions+3]
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 // [spec:pgorm:req:bindings.listen+3]
 // [spec:pgorm:req:bindings.tls+1]
 // [spec:pgorm:req:bindings.pool-hooks]
@@ -157,7 +157,7 @@ export class Queryable extends CopyRunner {
    * `batch_execute` does: sent as it is through the simple-query protocol,
    * nothing prepared. It is for DDL and fixed scripts, never for values a
    * user supplied.
-   * [spec:pgorm:req:bindings.batch-execute]
+   * [spec:pgorm:req:bindings.batch-execute+1]
    *
    * @param {string} script
    * @param {{ signal?: AbortSignal }} [options]

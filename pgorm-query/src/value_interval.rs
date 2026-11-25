@@ -31,7 +31,7 @@ type CodecError = Box<dyn Error + Sync + Send>;
 /// `{"months":1,"days":-2,"microseconds":3}` in JSON, the infinities
 /// included — and deserializes from exactly those three: a missing field or
 /// an unknown one is an error, never a zero or a dropped unit.
-// [spec:pgorm:def:sql.value.interval+2]
+// [spec:pgorm:def:sql.value.interval+3]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -43,7 +43,7 @@ pub struct Interval {
 
 impl Interval {
     /// The interval of these three fields, taken as they are.
-    // [spec:pgorm:def:sql.value.interval+2]
+    // [spec:pgorm:def:sql.value.interval+3]
     pub const fn new(months: i32, days: i32, microseconds: i64) -> Self {
         Self {
             months,
@@ -53,20 +53,20 @@ impl Interval {
     }
 
     /// Whether this is PostgreSQL's `infinity`, every field at its maximum.
-    // [spec:pgorm:def:sql.value.interval+2]
+    // [spec:pgorm:def:sql.value.interval+3]
     pub const fn is_infinity(&self) -> bool {
         self.months == i32::MAX && self.days == i32::MAX && self.microseconds == i64::MAX
     }
 
     /// Whether this is PostgreSQL's `-infinity`, every field at its minimum.
-    // [spec:pgorm:def:sql.value.interval+2]
+    // [spec:pgorm:def:sql.value.interval+3]
     pub const fn is_neg_infinity(&self) -> bool {
         self.months == i32::MIN && self.days == i32::MIN && self.microseconds == i64::MIN
     }
 
     /// The binary form, `interval_send`'s: the microseconds, then the days,
     /// then the months, each big-endian. [`FromSql`] reads the same layout.
-    // [spec:pgorm:def:sql.value.interval+2]
+    // [spec:pgorm:def:sql.value.interval+3]
     pub fn to_binary(&self) -> [u8; 16] {
         let mut out = [0; 16];
         out[..8].copy_from_slice(&self.microseconds.to_be_bytes());
@@ -124,7 +124,7 @@ fn is_interval(ty: &Type) -> bool {
 }
 
 /// The binary form [`Interval::to_binary`] writes.
-// [spec:pgorm:def:sql.value.interval+2]
+// [spec:pgorm:def:sql.value.interval+3]
 impl<'a> FromSql<'a> for Interval {
     fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Self, CodecError> {
         let raw: &[u8; 16] = raw
@@ -144,21 +144,21 @@ impl<'a> FromSql<'a> for Interval {
     }
 }
 
-// [spec:pgorm:def:sql.value.interval+2]
+// [spec:pgorm:def:sql.value.interval+3]
 impl From<Interval> for Value {
     fn from(x: Interval) -> Value {
         Value::Interval(Some(Box::new(x)))
     }
 }
 
-// [spec:pgorm:def:sql.value.interval+2]
+// [spec:pgorm:def:sql.value.interval+3]
 impl Nullable for Interval {
     fn null() -> Value {
         Value::Interval(None)
     }
 }
 
-// [spec:pgorm:def:sql.value.interval+2]
+// [spec:pgorm:def:sql.value.interval+3]
 impl ValueType for Interval {
     fn from_value(v: Value) -> Result<Self, ValueTypeError> {
         match v {
@@ -180,7 +180,7 @@ impl ValueType for Interval {
     }
 }
 
-// [spec:pgorm:def:sql.value.interval+2]
+// [spec:pgorm:def:sql.value.interval+3]
 impl NotU8 for Interval {}
 
 impl Value {
@@ -202,7 +202,7 @@ mod tests {
     use super::*;
     use postgres_types::Kind;
 
-    // [spec:pgorm:def:sql.value.interval+2/test]
+    // [spec:pgorm:def:sql.value.interval+3/test]
     #[test]
     fn binary_form_is_microseconds_days_months() -> Result<(), CodecError> {
         let interval = Interval::new(1, -2, 3_000_004);
@@ -215,7 +215,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:def:sql.value.interval+2/test]
+    // [spec:pgorm:def:sql.value.interval+3/test]
     #[test]
     fn binary_form_round_trips_every_extreme() -> Result<(), CodecError> {
         for interval in [
@@ -233,7 +233,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:def:sql.value.interval+2/test]
+    // [spec:pgorm:def:sql.value.interval+3/test]
     #[test]
     fn codec_refuses_other_types_and_widths() {
         assert!(!<Interval as FromSql>::accepts(&Type::INT8));
@@ -276,7 +276,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:def:sql.value.interval+2/test]
+    // [spec:pgorm:def:sql.value.interval+3/test]
     #[test]
     fn converts_into_and_out_of_value() {
         let interval = Interval::new(1, -2, 3);
@@ -308,7 +308,7 @@ mod tests {
         );
     }
 
-    // [spec:pgorm:def:sql.value.interval+2/test]
+    // [spec:pgorm:def:sql.value.interval+3/test]
     #[test]
     fn equality_is_field_by_field() {
         assert_ne!(
@@ -322,7 +322,7 @@ mod tests {
         assert_ne!(Value::Interval(None), Value::BigInt(None));
     }
 
-    // [spec:pgorm:def:sql.value.interval+2/test]
+    // [spec:pgorm:def:sql.value.interval+3/test]
     #[cfg(feature = "serde")]
     #[test]
     fn serde_writes_the_three_fields_by_name() -> Result<(), serde_json::Error> {
@@ -348,7 +348,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:def:sql.value.interval+2/test]
+    // [spec:pgorm:def:sql.value.interval+3/test]
     #[cfg(feature = "serde")]
     #[test]
     fn serde_refuses_a_missing_or_unknown_field() {

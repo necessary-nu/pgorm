@@ -1,12 +1,12 @@
 use crate::entity::compared_enum;
 use crate::{
-    ColumnTrait, Condition, ConnectionTrait, EntityName, EntityTrait, Error, Iterable, Key,
-    ModelTrait, NoContext, PrimaryKeyToColumn, QueryFilter, Related, RelationDef, RelationType,
-    Req, ScopedIn, Select, SelectGraph, error::*,
+    Column, Condition, Connection, Entity, EntityName, Error, Iterable, Key, Model, NoContext,
+    PrimaryKeyToColumn, QueryFilter, Related, RelationDef, RelationType, Req, ScopedIn, Select,
+    SelectGraph, error::*,
 };
 use async_trait::async_trait;
 use pgorm_query::{
-    AliasName, ColumnRef, Expr, ExprTrait, FromItem, IntoColumnRef, Name, NamedTable, SimpleExpr,
+    AliasName, ColumnRef, Expr, Expression, FromItem, IntoColumnRef, Name, NamedTable, SimpleExpr,
     TableName, TypeName, ValueTuple, alias,
 };
 use std::{
@@ -14,18 +14,18 @@ use std::{
     str::FromStr,
 };
 
-/// Entity, or a `Select<Entity>`; to be used as parameters in [`LoaderTrait`]
-pub trait EntityOrSelect<E: EntityTrait>: Send {
+/// Entity, or a `Select<Entity>`; to be used as parameters in [`LoadRelated`]
+pub trait EntityOrSelect<E: Entity>: Send {
     /// The selector, which a bare entity produces with `E::find()`.
     fn into_select(self) -> Select<E>;
 }
 
 /// This trait implements the Data Loader API
-// [spec:pgorm:req:query.loader+1]
+// [spec:pgorm:req:query.loader+2]
 #[async_trait]
-pub trait LoaderTrait {
+pub trait LoadRelated {
     /// Source model
-    type Model: ModelTrait;
+    type Model: Model;
 
     /// Used to eager load has_one relations.
     ///
@@ -35,20 +35,20 @@ pub trait LoaderTrait {
     /// discarding rows.
     async fn load_one<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Option<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>;
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>;
 
     /// Used to eager load has_many relations
     async fn load_many<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Vec<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>;
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>;
 
     /// Used to eager load many-to-many relations.
     ///
@@ -57,11 +57,11 @@ pub trait LoaderTrait {
     #[doc(alias = "load_many_to_many")]
     async fn load_many_via<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Vec<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>;
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>;
 }
 
 /// The entity alone is its every row, read with no context, so a scoped
@@ -69,7 +69,7 @@ pub trait LoaderTrait {
 // [spec:pgorm:req:scope.compile]
 impl<E> EntityOrSelect<E> for E
 where
-    E: EntityTrait + ScopedIn<NoContext>,
+    E: Entity + ScopedIn<NoContext>,
 {
     fn into_select(self) -> Select<E> {
         E::find()
@@ -78,7 +78,7 @@ where
 
 impl<E> EntityOrSelect<E> for Select<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     fn into_select(self) -> Select<E> {
         self
@@ -86,51 +86,51 @@ where
 }
 
 #[async_trait]
-impl<M> LoaderTrait for Vec<M>
+impl<M> LoadRelated for Vec<M>
 where
-    M: ModelTrait + Sync,
+    M: Model + Sync,
 {
     type Model = M;
 
     async fn load_one<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Option<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>,
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>,
     {
         self.as_slice().load_one(stmt, db).await
     }
 
     async fn load_many<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Vec<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>,
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>,
     {
         self.as_slice().load_many(stmt, db).await
     }
 
     async fn load_many_via<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Vec<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>,
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>,
     {
         self.as_slice().load_many_via(stmt, db).await
     }
 }
 
-// [spec:pgorm:req:query.loader+1]
+// [spec:pgorm:req:query.loader+2]
 #[async_trait]
-impl<M> LoaderTrait for &[M]
+impl<M> LoadRelated for &[M]
 where
-    M: ModelTrait + Sync,
+    M: Model + Sync,
 {
     type Model = M;
 
@@ -138,17 +138,17 @@ where
     // [spec:pgorm:sem:query.loader.regroup+6]
     async fn load_one<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Option<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>,
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>,
     {
         // we verify that is HasOne relation
-        if <<<Self as LoaderTrait>::Model as ModelTrait>::Entity as Related<R>>::via().is_some() {
+        if <<<Self as LoadRelated>::Model as Model>::Entity as Related<R>>::via().is_some() {
             return Err(query_err("Relation is ManytoMany instead of HasOne"));
         }
-        let rel_def = <<<Self as LoaderTrait>::Model as ModelTrait>::Entity as Related<R>>::to();
+        let rel_def = <<<Self as LoadRelated>::Model as Model>::Entity as Related<R>>::to();
         if rel_def.rel_type == RelationType::HasMany {
             return Err(query_err("Relation is HasMany instead of HasOne"));
         }
@@ -170,18 +170,18 @@ where
     // [spec:pgorm:sem:query.loader.regroup+6]
     async fn load_many<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Vec<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>,
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>,
     {
         // we verify that is HasMany relation
 
-        if <<<Self as LoaderTrait>::Model as ModelTrait>::Entity as Related<R>>::via().is_some() {
+        if <<<Self as LoadRelated>::Model as Model>::Entity as Related<R>>::via().is_some() {
             return Err(query_err("Relation is ManyToMany instead of HasMany"));
         }
-        let rel_def = <<<Self as LoaderTrait>::Model as ModelTrait>::Entity as Related<R>>::to();
+        let rel_def = <<<Self as LoadRelated>::Model as Model>::Entity as Related<R>>::to();
         if rel_def.rel_type == RelationType::HasOne {
             return Err(query_err("Relation is HasOne instead of HasMany"));
         }
@@ -196,19 +196,18 @@ where
     // [spec:pgorm:sem:query.loader.many-to-many+3]
     async fn load_many_via<R, S, C>(&self, stmt: S, db: &C) -> Result<Vec<Vec<R::Model>>, Error>
     where
-        C: ConnectionTrait,
-        R: EntityTrait,
+        C: Connection,
+        R: Entity,
         R::Model: Send + Sync,
         S: EntityOrSelect<R>,
-        <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>,
+        <<Self as LoadRelated>::Model as Model>::Entity: Related<R>,
     {
-        let Some(via_rel) =
-            <<<Self as LoaderTrait>::Model as ModelTrait>::Entity as Related<R>>::via()
+        let Some(via_rel) = <<<Self as LoadRelated>::Model as Model>::Entity as Related<R>>::via()
         else {
             return Err(query_err("Relation is not ManyToMany"));
         };
 
-        let rel_def = <<<Self as LoaderTrait>::Model as ModelTrait>::Entity as Related<R>>::to();
+        let rel_def = <<<Self as LoadRelated>::Model as Model>::Entity as Related<R>>::to();
         if rel_def.rel_type != RelationType::HasOne {
             return Err(query_err("Relation to is not HasOne"));
         }
@@ -232,7 +231,7 @@ where
         // The hop joins LEFT and the slot INNER, which is INNER end to end:
         // the slot's ON references the junction's columns, and NULLs do not
         // satisfy it.
-        let graph = join_source::<R, <M as ModelTrait>::Entity>(
+        let graph = join_source::<R, <M as Model>::Entity>(
             root_graph::<R>(stmt.into_select()).keyed_hop(rel_def.rev()),
             via_rel,
         );
@@ -264,8 +263,8 @@ fn source_alias() -> Name {
 // [spec:pgorm:sem:query.loader.batching+8]
 fn join_source<R, F>(graph: SelectGraph<R, ()>, rel: RelationDef) -> SelectGraph<R, (Req<F>,)>
 where
-    R: EntityTrait,
-    F: EntityTrait,
+    R: Entity,
+    F: Entity,
 {
     graph.keyed_slot::<F>(rel.rev(), source_alias())
 }
@@ -285,10 +284,10 @@ async fn collect_buckets<R, F, C>(
     db: &C,
 ) -> Result<Vec<Vec<R::Model>>, Error>
 where
-    C: ConnectionTrait,
-    R: EntityTrait,
+    C: Connection,
+    R: Entity,
     R::Model: Send + Sync,
-    F: EntityTrait,
+    F: Entity,
 {
     let src_tbl = FromItem::from(TableName::Table(source_alias()));
     let condition = prepare_condition(&src_tbl, from_col, &key_casts::<F>(from_col), keys)?;
@@ -329,9 +328,9 @@ async fn load_related<M, R, C>(
     db: &C,
 ) -> Result<(Vec<ValueTuple>, Vec<Vec<R::Model>>), Error>
 where
-    C: ConnectionTrait,
-    M: ModelTrait,
-    R: EntityTrait,
+    C: Connection,
+    M: Model,
+    R: Entity,
     R::Model: Send + Sync,
 {
     check_target_ref(&rel_def)?;
@@ -342,7 +341,7 @@ where
         .map(|model: &M| extract_key(&from_col, model))
         .collect::<Result<_, Error>>()?;
 
-    let graph = join_source::<R, <M as ModelTrait>::Entity>(root_graph::<R>(select), rel_def);
+    let graph = join_source::<R, <M as Model>::Entity>(root_graph::<R>(select), rel_def);
 
     let buckets = collect_buckets(graph, &keys, &from_col, db).await?;
     Ok((keys, buckets))
@@ -364,7 +363,7 @@ fn single_target<R>(
     from_col: &Key,
 ) -> Result<Option<R::Model>, Error>
 where
-    R: EntityTrait,
+    R: Entity,
 {
     let distinct: HashSet<ValueTuple> = bucket
         .iter()
@@ -402,7 +401,7 @@ where
 /// the same one.
 // [spec:pgorm:sem:query.loader.batching+8]
 // [spec:pgorm:sem:query.loader.many-to-many+3]
-fn root_graph<R: EntityTrait>(select: Select<R>) -> SelectGraph<R, ()> {
+fn root_graph<R: Entity>(select: Select<R>) -> SelectGraph<R, ()> {
     let mut query = select.query;
     query.clear_selects();
     SelectGraph::rooted(query, R::default().table_ref(), select.refused)
@@ -440,7 +439,7 @@ fn unmatched_key_err(key: &ValueTuple, input_keys: &[ValueTuple], from_col: &Key
 /// identifier the relation's `to_tbl` carries. An aliased or value-producing
 /// target would name a table the statement does not have, so it is reported
 /// on the terms [`table_column`] states rather than rendered.
-// [spec:pgorm:req:query.loader.table-ref-limitation+3]
+// [spec:pgorm:req:query.loader.table-ref-limitation+4]
 fn check_target_ref(rel: &RelationDef) -> Result<(), Error> {
     for col in rel.columns.to_key().iter() {
         table_column(&rel.to_tbl, col)?;
@@ -449,13 +448,13 @@ fn check_target_ref(rel: &RelationDef) -> Result<(), Error> {
 }
 
 // [spec:pgorm:sem:query.loader.batching+8]
-fn resolve_column<Model>(col: &Name) -> Result<<Model::Entity as EntityTrait>::Column, Error>
+fn resolve_column<M>(col: &Name) -> Result<<M::Entity as Entity>::Column, Error>
 where
-    Model: ModelTrait,
+    M: Model,
 {
     let name = col.to_string();
-    <<Model::Entity as EntityTrait>::Column as FromStr>::from_str(&name).map_err(|_| {
-        let entity = <Model::Entity as Default>::default();
+    <<M::Entity as Entity>::Column as FromStr>::from_str(&name).map_err(|_| {
+        let entity = <M::Entity as Default>::default();
         query_err(format!(
             "Relation names column `{name}`, which is not a column of `{}`",
             entity.table_name(),
@@ -464,13 +463,13 @@ where
 }
 
 // [spec:pgorm:sem:query.loader.batching+8]
-fn extract_key<Model>(target_col: &Key, model: &Model) -> Result<ValueTuple, Error>
+fn extract_key<M>(target_col: &Key, model: &M) -> Result<ValueTuple, Error>
 where
-    Model: ModelTrait,
+    M: Model,
 {
     let mut values = Vec::with_capacity(target_col.arity());
     for col in target_col.iter() {
-        values.push(model.get(resolve_column::<Model>(col)?));
+        values.push(model.get(resolve_column::<M>(col)?));
     }
     Ok(ValueTuple::from(values))
 }
@@ -479,8 +478,8 @@ where
 /// definition of it: `None` but for a column whose domain is over an enum. A
 /// name the entity does not resolve is `None` here, [`extract_key`] having
 /// already refused it.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
-fn key_casts<F: EntityTrait>(from_col: &Key) -> Vec<Option<TypeName>> {
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+fn key_casts<F: Entity>(from_col: &Key) -> Vec<Option<TypeName>> {
     from_col
         .iter()
         .map(|name| {
@@ -520,7 +519,7 @@ fn prepare_condition(
 /// column, and every value bound against it, cast to the enum, PostgreSQL
 /// resolving no operator for the domain itself.
 // [spec:pgorm:sem:query.loader.batching+8]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+18]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 fn compared_key_predicate(
     columns: Vec<ColumnRef>,
     casts: &[Option<TypeName>],
@@ -547,7 +546,7 @@ fn compared_key_predicate(
     }
 }
 
-// [spec:pgorm:req:query.loader.table-ref-limitation+3]
+// [spec:pgorm:req:query.loader.table-ref-limitation+4]
 fn table_column(tbl: &FromItem, col: &Name) -> Result<ColumnRef, Error> {
     match tbl.to_owned() {
         FromItem::Table(NamedTable {
@@ -578,16 +577,13 @@ fn table_column(tbl: &FromItem, col: &Name) -> Result<ColumnRef, Error> {
 mod tests {
     use super::*;
     use crate::tests_cfg::{cake, filling, fruit};
-    use crate::{QueryTrait, RelationTrait};
+    use crate::{Relation, Statement};
     use pgorm_query::IntoValueTuple;
     use pretty_assertions::assert_eq;
 
     /// The statement a loader sends for a two-key batch.
     #[track_caller]
-    fn batch_sql<R: EntityTrait, F: EntityTrait>(
-        graph: SelectGraph<R, (Req<F>,)>,
-        from_col: &Key,
-    ) -> String {
+    fn batch_sql<R: Entity, F: Entity>(graph: SelectGraph<R, (Req<F>,)>, from_col: &Key) -> String {
         let src_tbl = FromItem::from(TableName::Table(source_alias()));
         let keys = vec![1i32.into_value_tuple(), 2i32.into_value_tuple()];
         let condition = prepare_condition(&src_tbl, from_col, &[], &keys)
@@ -677,7 +673,7 @@ mod tests {
 
     #[test]
     fn caller_clauses_survive_the_reroot() {
-        use crate::{ColumnTrait, QueryOrder};
+        use crate::{Column, QueryOrder};
 
         let sql = root_graph::<filling::Entity>(
             filling::Entity::find()

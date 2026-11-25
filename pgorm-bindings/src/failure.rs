@@ -328,7 +328,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
         // caller's input, as a parameter that cannot be bound is.
         // [spec:pgorm:req:bindings.listen+3]
         Error::Listen(ListenError::ChannelTooLong { .. }) => Failure::Construction(message()),
-        // [spec:pgorm:req:conn.copy.statement+2]
+        // [spec:pgorm:req:conn.copy.statement+3]
         Error::CopyStatement => Failure::Construction(format!(
             "a COPY runs through {copy_in} or {copy_out}, which carry its data, not as a \
              statement: {}",
@@ -354,7 +354,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
         // refuses to run as written, and the refusal an application's
         // ActiveModelBehavior hook returns: the bindings make no
         // `Error::Custom` of their own.
-        // [spec:pgorm:req:bindings.entity-writes+1]
+        // [spec:pgorm:req:bindings.entity-writes+2]
         Error::NothingToSet
         | Error::PrimaryKeyNotSet
         | Error::ImmutableColumn { .. }

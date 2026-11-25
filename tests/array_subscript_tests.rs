@@ -17,7 +17,7 @@ use pgorm::pgorm_query::{
     Expr, Func, Name, Order, OrderedStatement, Query, SelectStatement, SimpleExpr, Subscript,
     TypeName,
 };
-use pgorm::{ConnectionTrait, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 /// One row: a one-dimensional array, a two-dimensional one, and a text to
@@ -77,9 +77,9 @@ async fn text(db: &DatabaseConnection, expr: impl Into<SimpleExpr>) -> Result<St
 
 /// `a[1]` is the first element, not the second: a zero-based reading would
 /// answer 20 here, and `a[3]` would be out of range.
-// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    against a live server: indexes count from 1
+// [spec:pgorm:req:sql.ast.expr.subscript+3/test]    against a live server: indexes count from 1
 // [spec:pgorm:req:sql.render.subscript/test]
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn indexes_count_from_one(db: &DatabaseConnection) -> Result<(), Error> {
     assert_eq!(int(db, col("a").index(1)).await?, Some(10));
     assert_eq!(int(db, col("a").index(2)).await?, Some(20));
@@ -90,7 +90,7 @@ async fn indexes_count_from_one(db: &DatabaseConnection) -> Result<(), Error> {
 
 /// An index outside the bounds — zero, negative, or past the end — answers
 /// NULL. The query succeeds; nothing raises.
-// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    against a live server: out of range is NULL
+// [spec:pgorm:req:sql.ast.expr.subscript+3/test]    against a live server: out of range is NULL
 async fn an_index_out_of_range_is_null(db: &DatabaseConnection) -> Result<(), Error> {
     assert_eq!(int(db, col("a").index(0)).await?, None);
     assert_eq!(int(db, col("a").index(4)).await?, None);
@@ -101,7 +101,7 @@ async fn an_index_out_of_range_is_null(db: &DatabaseConnection) -> Result<(), Er
 
 /// Both bounds inclusive; an omitted bound runs to that end of the array;
 /// omitting both is the whole array.
-// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    against a live server: bounds are inclusive,
+// [spec:pgorm:req:sql.ast.expr.subscript+3/test]    against a live server: bounds are inclusive,
 // and an omitted one runs to the array's end
 async fn slices_take_either_bound_or_neither(db: &DatabaseConnection) -> Result<(), Error> {
     assert_eq!(ints(db, col("a").slice(2, 3)).await?, [20, 30]);
@@ -118,7 +118,7 @@ async fn slices_take_either_bound_or_neither(db: &DatabaseConnection) -> Result<
 
 /// Where an index past the end is NULL, a slice past the end is cut to the
 /// bounds, and one entirely outside them is the empty array — never NULL.
-// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    against a live server: a slice out of range is
+// [spec:pgorm:req:sql.ast.expr.subscript+3/test]    against a live server: a slice out of range is
 // cut to the bounds, and empty rather than NULL
 async fn slice_out_of_range_is_cut_not_null(db: &DatabaseConnection) -> Result<(), Error> {
     assert_eq!(ints(db, col("a").slice(2, 9)).await?, [20, 30]);
@@ -134,7 +134,7 @@ async fn slice_out_of_range_is_cut_not_null(db: &DatabaseConnection) -> Result<(
 /// else: PostgreSQL types `m[2]` as the element type, `int4`, so that
 /// spelling is refused outright, and at runtime a single index on a
 /// two-dimensional array is NULL besides.
-// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    against a live server: chained subscripts are
+// [spec:pgorm:req:sql.ast.expr.subscript+3/test]    against a live server: chained subscripts are
 // one multi-dimensional access
 // [spec:pgorm:req:sql.render.subscript/test]    a subscripted base is not parenthesised
 async fn chained_subscripts_address_one_multidimensional_element(
@@ -173,7 +173,7 @@ async fn chained_subscripts_address_one_multidimensional_element(
 /// Once any subscript in a chain is a slice, PostgreSQL reads every one as a
 /// slice, and a plain index `i` as `1:i`. So `.slice(1, 2).index(2)` is the
 /// region `[1:2][1:2]`, not the second element of each row.
-// [spec:pgorm:req:sql.ast.expr.subscript+2/test]    against a live server: an index beside a slice
+// [spec:pgorm:req:sql.ast.expr.subscript+3/test]    against a live server: an index beside a slice
 // is read as `1:i`
 async fn index_beside_a_slice_reads_as_a_slice(db: &DatabaseConnection) -> Result<(), Error> {
     assert_eq!(

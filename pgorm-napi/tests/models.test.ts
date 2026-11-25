@@ -72,7 +72,7 @@ async function seed(): Promise<void> {
 
 const byId = Account.col("id").asc();
 
-// [spec:pgorm:req:bindings.models+6/test]
+// [spec:pgorm:req:bindings.models+7/test]
 test("a declaration is data: it sends nothing, and describes its table and fields", () => {
   const unconnected = model("nowhere", { schema: "absent", columns: { id: column("i32", { primaryKey: true }) } });
   assert.equal(unconnected.find().inspect().sql, 'SELECT "nowhere"."id" FROM "absent"."nowhere"');
@@ -100,7 +100,7 @@ test("a declaration is data: it sends nothing, and describes its table and field
   assert.equal(Account.alias, null);
 });
 
-// [spec:pgorm:req:bindings.models+6/test]
+// [spec:pgorm:req:bindings.models+7/test]
 // [spec:pgorm:req:bindings.argument-errors+1/test]
 test("a declaration that cannot be used is refused as it is made", () => {
   const unknown = { nullabel: true } as unknown as Record<string, never>;
@@ -171,7 +171,7 @@ test("a unique key PostgreSQL or the derive would refuse is refused as the model
 });
 
 // [spec:pgorm:req:bindings.model-writes+3/test]
-// [spec:pgorm:req:bindings.model-records+1/test]
+// [spec:pgorm:req:bindings.model-records+2/test]
 test("an insert writes the fields it sets, the rest taking the table's defaults", async () => {
   const ann = await Account.insert({ mood: "calm", name: "Ann", span: new Range(1.5, 2.5) }).returning().one(pool());
   assert.deepStrictEqual(Object.keys(ann), ["id", "name", "displayName", "mood", "tags", "visits", "created", "span", "seq"]);
@@ -301,7 +301,7 @@ test("find, select and findByKey read records, filtered, ordered and windowed", 
 });
 
 // [spec:pgorm:req:bindings.model-columns+2/test]
-// [spec:pgorm:req:bindings.column-operators+3/test]
+// [spec:pgorm:req:bindings.column-operators+4/test]
 test("a column compares through its declared kind, and refuses what it cannot bind", async () => {
   await seed();
   const glad = await Account.select("name").where(Account.col("mood").eq("glad")).all(pool());
@@ -382,7 +382,7 @@ test("a key names every key field and no other, a composite one included", async
   assert.throws(() => keyless.key({} as never), refused(/declares no primary key/));
 });
 
-// [spec:pgorm:req:bindings.model-records+1/test]
+// [spec:pgorm:req:bindings.model-records+2/test]
 test("a result that breaks the declaration is a DecodeError, never a value", async () => {
   await seed();
   await pool().execute("INSERT INTO app.account (name, mood) VALUES ('Dee', 'wild')");
@@ -403,8 +403,8 @@ test("a result that breaks the declaration is a DecodeError, never a value", asy
   assert.equal((await partial.find().all(pool())).length, 4);
 });
 
-// [spec:pgorm:req:bindings.models+6/test]
-// [spec:pgorm:req:bindings.model-records+1/test]
+// [spec:pgorm:req:bindings.models+7/test]
+// [spec:pgorm:req:bindings.model-records+2/test]
 // [spec:pgorm:req:bindings.created-ranges+5/test]
 test("a created multirange field is projected as its text and read as the multirange of its declared subtype", async () => {
   await pool().execute("CREATE TABLE app.slot (id int4 PRIMARY KEY, open app.floatmultirange)");
@@ -469,7 +469,7 @@ test("an array field of a created range or multirange writes and reads back as a
   assert.throws(() => Shelf.insert({ id: 3, spans: [new Range(1n, 2n)] as never }), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.model-records+1/test]
+// [spec:pgorm:req:bindings.model-records+2/test]
 test("records stream from a pool or a connection, and a transaction has no stream", async () => {
   await seed();
   const streamed = [];

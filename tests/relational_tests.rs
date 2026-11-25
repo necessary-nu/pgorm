@@ -5,7 +5,7 @@ pub mod common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use jiff::{Timestamp, tz::Offset};
 use pgorm::{Error, FromQueryResult, PartialModel, alias, entity::*, query::*, set};
-use pgorm_query::{Expr, ExprTrait, Func, SimpleExpr};
+use pgorm_query::{Expr, Expression, Func, SimpleExpr};
 use pretty_assertions::assert_eq;
 pub use rust_decimal::prelude::*;
 pub use uuid::Uuid;
@@ -460,14 +460,14 @@ pub async fn having() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:query.graph.decode+1/test]    a two-source graph decoding
+// [spec:pgorm:sem:query.graph.decode+2/test]    a two-source graph decoding
 // `(M, Option<N>)` through the `s0_` / `s1_` column prefixes, against real rows
 // [spec:pgorm:sem:query.graph.grouped+2/test]    `all_grouped` on a unary primary
 // key: children in row order, one entry per root key, and an empty `Vec` for a
 // root row the slot matched nothing for
-// [spec:pgorm:req:entity.relation+1/test]    `Related::find_related` inner-joins
+// [spec:pgorm:req:entity.relation+2/test]    `Related::find_related` inner-joins
 // `to()` onto a fresh `Select<R>`, exercised against real rows
-// [spec:pgorm:def:entity.traits.model+3/test]    `ModelTrait::find_related` scopes
+// [spec:pgorm:def:entity.traits.model+4/test]    `Model::find_related` scopes
 // that select to a single model instance
 #[pgorm_macros::test]
 pub async fn related() -> Result<(), Error> {
@@ -676,10 +676,10 @@ pub async fn related() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.relation.linked+4/test]    a five-hop `Linked` chain
-// resolving to the `r0`..`r4` alias ladder, and `ModelTrait::find_linked`
+// [spec:pgorm:req:entity.relation.linked+5/test]    a five-hop `Linked` chain
+// resolving to the `r0`..`r4` alias ladder, and `Model::find_linked`
 // filtering on the final alias, both verified against real rows
-// [spec:pgorm:def:entity.traits.model+3/test]    `ModelTrait::find_linked` scopes
+// [spec:pgorm:def:entity.traits.model+4/test]    `Model::find_linked` scopes
 // a multi-hop join to one model instance
 #[pgorm_macros::test]
 pub async fn linked() -> Result<(), Error> {
@@ -1295,7 +1295,7 @@ fn action(a: &Option<pgorm_query::ForeignKeyAction>) -> String {
     format!("{a:?}")
 }
 
-// [spec:pgorm:req:entity.relation+1/test]    `RelationType` has exactly two
+// [spec:pgorm:req:entity.relation+2/test]    `RelationType` has exactly two
 // variants; `belongs_to` starts a `HasOne` builder with `is_owner = false`;
 // `has_one` / `has_many` derive theirs from `R::to().rev()` with
 // `is_owner = true`; and `Related::to` / `via` / `find_related` behave as stated
@@ -1313,7 +1313,7 @@ fn relation_trait_and_ownership_direction() {
     }
     assert_ne!(RelationType::HasOne, RelationType::HasMany);
 
-    // `RelationTrait::def` maps each variant of the entity's Relation enum to a
+    // `Relation::def` maps each variant of the entity's Relation enum to a
     // definition. `baker::Relation::Bakery` is a `belongs_to`.
     let def = baker::Relation::Bakery.def();
     assert_eq!(def.rel_type, RelationType::HasOne);
@@ -1389,7 +1389,7 @@ fn relation_trait_and_ownership_direction() {
     );
 }
 
-// [spec:pgorm:def:entity.relation.def+12/test]    the `RelationDef` record and its
+// [spec:pgorm:def:entity.relation.def+13/test]    the `RelationDef` record and its
 // combinators: `rev()` swaps from/to, negates `is_owner`, clears `fk_name` and
 // keeps everything else; `from_alias` re-points the source table; `on_condition`
 // replaces any existing custom condition; `condition_type` picks AND vs OR.
@@ -1649,7 +1649,7 @@ fn relation_builder_accumulates_a_definition() {
     assert_eq!(full.rel_type, RelationType::HasOne);
 }
 
-// [spec:pgorm:def:entity.relation.def+12/test]    a set of join columns is a
+// [spec:pgorm:def:entity.relation.def+13/test]    a set of join columns is a
 // list of pairs, so both sides always name the same number of columns however
 // the definition is built, reversed or extended
 #[test]
@@ -1833,11 +1833,11 @@ impl Linked for FilteredBakerCakes {
     }
 }
 
-// [spec:pgorm:req:entity.relation.linked+4/test]    `find_linked` walks the chain
+// [spec:pgorm:req:entity.relation.linked+5/test]    `find_linked` walks the chain
 // in reverse, aliasing each hop's source table `r0`, `r1`, ... and inner-joining
 // it to the previous alias while the innermost hop joins the unaliased target
 // table; each hop's `on_condition` closure is added to that hop's join
-// condition; and `ModelTrait::find_linked` scopes the result on `r{len - 1}`
+// condition; and `Model::find_linked` scopes the result on `r{len - 1}`
 #[test]
 fn linked_chain_aliasing_and_conditions() {
     use pgorm_query::QueryBuilder;
@@ -1861,7 +1861,7 @@ fn linked_chain_aliasing_and_conditions() {
         .join(" ")
     );
 
-    // `ModelTrait::find_linked` scopes that to one instance by filtering on the
+    // `Model::find_linked` scopes that to one instance by filtering on the
     // final alias, `r{len - 1}` = r4 for a five-hop chain.
     let bob = baker::Model {
         id: 1,
@@ -1891,7 +1891,7 @@ fn linked_chain_aliasing_and_conditions() {
     );
 }
 
-// [spec:pgorm:req:entity.relation.linked+4/test]    `RelatedLink` is the chain
+// [spec:pgorm:req:entity.relation.linked+5/test]    `RelatedLink` is the chain
 // the `Related` impl already spells — `[to]` for a direct relation and
 // `[via, to]` for a junction one — so it stands in for a hand-written `Linked`
 // wherever one restated a `Related` impl, and its aliasing is what a

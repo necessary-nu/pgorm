@@ -6,10 +6,10 @@ it.
 
 ## Taxonomy
 
-> [spec:pgorm:def:error.model+15]
+> [spec:pgorm:def:error.model+16]
 > `Error` is the crate-wide error enum. Driver and pool failures convert in
 > via `From`: `Postgres(pgorm_driver::Error)` (the variant every
-> `ConnectionTrait` call and transaction commit produces on database failure;
+> `Connection` call and transaction commit produces on database failure;
 > its `Display` includes the server `DbError` detail when present) and
 > `Pool(pgorm_pool::PoolError)` (produced by `DatabasePool::get`; pool
 > exhaustion and acquisition timeouts surface here). `Verify(VerifyError)`

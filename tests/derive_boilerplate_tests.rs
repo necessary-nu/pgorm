@@ -11,7 +11,7 @@
 pub mod common;
 pub use common::TestContext;
 
-use pgorm::{ConnectionTrait, Error, entity::prelude::*};
+use pgorm::{Connection, Error, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 /// The schema the entities read, written by hand so the derives' defaults
@@ -88,7 +88,7 @@ mod cup {
     impl ActiveModelBehavior for ActiveModel {
         async fn before_save<C>(mut self, _db: &C, insert: bool) -> Result<Self, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             if insert && self.label.is_not_set() {
                 self.label = set("unlabelled");

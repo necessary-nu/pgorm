@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use futures_util::FutureExt;
 use neon::{event::Channel, prelude::*, types::Finalize};
 use pgorm_bindings::migrations::{Entry, Failed, Host, Listed, Ran, UNKNOWN_MIGRATIONS, statuses};
-use pgorm_migration::{MigrationName, MigrationTrait, MigratorTrait, SqlMigration};
+use pgorm_migration::{Migration, MigrationName, Migrator, SqlMigration};
 use tokio::sync::oneshot;
 
 use super::{
@@ -41,7 +41,7 @@ pub(crate) struct SqlMigrationHandle(SqlMigration);
 impl Finalize for SqlMigrationHandle {}
 
 /// `sqlMigration(name, sql)`.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 fn sql_migration(mut cx: FunctionContext) -> JsResult<JsBox<SqlMigrationHandle>> {
     let name = cx.argument::<JsString>(0)?.value(&mut cx);
     let sql = cx.argument::<JsString>(1)?.value(&mut cx);
@@ -62,7 +62,7 @@ fn read_failure<'cx, T>(cx: &mut FunctionContext<'cx>, error: std::io::Error) ->
 }
 
 /// `sqlMigrationRead(path)`: the migration the `.sql` file at `path` holds.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 fn sql_migration_read(mut cx: FunctionContext) -> JsResult<JsBox<SqlMigrationHandle>> {
     let path = cx.argument::<JsString>(0)?.value(&mut cx);
     match SqlMigration::read(&path) {
@@ -73,7 +73,7 @@ fn sql_migration_read(mut cx: FunctionContext) -> JsResult<JsBox<SqlMigrationHan
 
 /// `sqlMigrationReadDir(directory)`: every `.sql` file directly inside it,
 /// in file-name order.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 fn sql_migration_read_dir(mut cx: FunctionContext) -> JsResult<JsArray> {
     let directory = cx.argument::<JsString>(0)?.value(&mut cx);
     let migrations = match SqlMigration::read_dir(&directory) {
@@ -178,7 +178,7 @@ impl Host for Call {
 /// A migrator built from JavaScript's list: pgorm-migration's `Migrations`,
 /// its ledger placed, its channel named and a migration it does not know
 /// refused or warned of as given.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 pub(crate) struct MigrationsHandle(Listed<Root<JsObject>>);
 
 impl Finalize for MigrationsHandle {}
@@ -199,7 +199,7 @@ fn optional_string<'cx>(
 }
 
 /// A migration written in JavaScript, read once as the migrator is built.
-// [spec:pgorm:req:bindings.migrations]    name, checksum and commitsAfter read once
+// [spec:pgorm:req:bindings.migrations+1]    name, checksum and commitsAfter read once
 fn written<'cx>(
     cx: &mut FunctionContext<'cx>,
     object: Handle<'cx, JsObject>,
@@ -237,7 +237,7 @@ fn written<'cx>(
 
 /// `migrationsNew(migrations, tableName, tableSchema, channel,
 /// unknownMigrations)`.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 fn migrations_new(mut cx: FunctionContext) -> JsResult<JsBox<MigrationsHandle>> {
     let list = cx.argument::<JsArray>(0)?.to_vec(&mut cx)?;
     let mut entries = Vec::with_capacity(list.len());
@@ -280,7 +280,7 @@ fn migrations_new(mut cx: FunctionContext) -> JsResult<JsBox<MigrationsHandle>> 
 /// on connections of the pool's own, resolving with the warnings the run
 /// gave, or rejecting with what a migration's `up` rejected with when one
 /// did.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 fn migrations_up(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let handle = cx.argument::<JsBox<MigrationsHandle>>(0)?;
     let pool = cx.argument::<JsBox<PoolHandle>>(1)?.0.state.clone();
@@ -359,7 +359,7 @@ impl Settled for Installed {
 
 /// `migrationsJob(migrations, install)`: the runner's `install`, or its
 /// reading of every migration's status, as a job any executor runs.
-// [spec:pgorm:req:bindings.migrations]    the runner's own install and reads
+// [spec:pgorm:req:bindings.migrations+1]    the runner's own install and reads
 fn migrations_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
     let migrator = cx
         .argument::<JsBox<MigrationsHandle>>(0)?

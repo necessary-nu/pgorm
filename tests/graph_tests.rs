@@ -20,12 +20,12 @@ use pgorm::tests_cfg::{
     archive_exhibit, cake, cake_filling, filling, fruit, gallery_exhibit, loan_exhibit, vendor,
 };
 use pgorm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Error, Linked, LinkedAlias,
-    LoaderTrait, NoContext, Opt, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    RelationTrait, ScopedIn, SelectGraph, alias,
+    Column, Connection, DatabaseConnection, Entity, Error, Linked, LinkedAlias, LoadRelated,
+    NoContext, Opt, Paginate, QueryFilter, QueryOrder, QuerySelect, Relation, ScopedIn,
+    SelectGraph, alias,
 };
 use pgorm_driver::error::SqlState;
-use pgorm_query::{Expr, ExprTrait, IntoCondition};
+use pgorm_query::{Expr, Expression, IntoCondition};
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;
 
@@ -119,12 +119,12 @@ fn page_size(size: u64) -> NonZeroU64 {
     NonZeroU64::new(size).expect("page size is non-zero")
 }
 
-// [spec:pgorm:def:query.graph+2/test]    a graph declared as a root plus joined
+// [spec:pgorm:def:query.graph+3/test]    a graph declared as a root plus joined
 // sources executes as one statement whose rows carry every declared source
 // [spec:pgorm:sem:query.graph.writer+4/test]    three sources each carrying a
 // `name` and an `id` column decode without collision, because each is
 // projected under its own `s{i}_` prefix
-// [spec:pgorm:sem:query.graph.decode+1/test]    an unmatched LEFT JOIN reads as
+// [spec:pgorm:sem:query.graph.decode+2/test]    an unmatched LEFT JOIN reads as
 // `None` through the absence witness, at the middle of a chain and at its tail
 #[pgorm_macros::test]
 async fn graph_three_sources() -> Result<(), Error> {
@@ -636,7 +636,7 @@ const NULLABLE_SCHEMA: &str = r#"
     INSERT INTO "fruit" VALUES (10, NULL, 1);
 "#;
 
-// [spec:pgorm:sem:query.graph.decode+1/test]    a decode failure of a *present*
+// [spec:pgorm:sem:query.graph.decode+2/test]    a decode failure of a *present*
 // row propagates rather than being read as absence — on a required slot,
 // which never consults the witness, and on an optional one, whose witness
 // columns are not all NULL
@@ -669,8 +669,8 @@ async fn graph_decode_failure_is_not_absence() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:query.graph.terminals+2/test]    `all`, `one_opt`, `stream`
-// and `PaginatorTrait` all run through one `Selector<GraphRow<E, S>>`, and
+// [spec:pgorm:sem:query.graph.terminals+3/test]    `all`, `one_opt`, `stream`
+// and `Paginate` all run through one `Selector<GraphRow<E, S>>`, and
 // page boundaries fall between rows rather than between root models
 #[pgorm_macros::test]
 async fn graph_terminals() -> Result<(), Error> {
@@ -1026,7 +1026,7 @@ fn fruit_rows() -> SelectGraph<cake::Entity, (Opt<fruit::Entity>,)> {
         .order_by_asc(fruit::Column::Id)
 }
 
-// [spec:pgorm:sem:query.graph.slice/test]    a limit counts rows of the join
+// [spec:pgorm:sem:query.graph.slice+1/test]    a limit counts rows of the join
 // product, not roots: two rows are both Cheesecake's, where the first two
 // roots with their fruit would also bring Lonely; an offset starts part-way
 // through Cheesecake's rows; and `None` takes a slice back
@@ -1077,7 +1077,7 @@ async fn graph_slice_counts_rows_not_roots() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:query.graph.slice/test]    `one_opt` narrows a slice to one
+// [spec:pgorm:sem:query.graph.slice+1/test]    `one_opt` narrows a slice to one
 // row and never widens it — `limit(0)` reads none — and keeps the offset, and
 // `stream` yields exactly the rows `all` returns for the same window
 #[pgorm_macros::test]
@@ -1107,7 +1107,7 @@ async fn graph_slice_one_opt_and_stream() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:query.graph.slice/test]    the reads a sliced graph lacks
+// [spec:pgorm:sem:query.graph.slice+1/test]    the reads a sliced graph lacks
 // already own a window: an unsliced graph's page `k` is the slice at offset
 // `k * n` limited to `n`, and its cursor's `first(n)` is the slice limited
 // to `n` under the same order
@@ -1273,7 +1273,7 @@ mod peers {
         type ToEntity = member::Entity;
 
         fn link(&self) -> Vec<pgorm::RelationDef> {
-            use pgorm::RelationTrait;
+            use pgorm::Relation;
             vec![
                 member_link::Relation::Member.def().rev(),
                 member_link::Relation::Peer.def(),
@@ -1548,7 +1548,7 @@ mod long_name {
 // identifier projects and decodes through the graph: a 61-byte name whose
 // prefixed alias passes the 63-byte bound, a sibling sharing its whole head,
 // and a multibyte name — through `find`, the graph, and `select_sources`
-// [spec:pgorm:sem:query.graph.decode+1/test]    the decode witness reads the
+// [spec:pgorm:sem:query.graph.decode+2/test]    the decode witness reads the
 // same bounded spelling the writer minted
 #[pgorm_macros::test]
 async fn long_column_names_survive_graph_reads() -> Result<(), Error> {

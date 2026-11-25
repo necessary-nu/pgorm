@@ -11,7 +11,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, OnConflict};
-use pgorm::{Change, ConnectionTrait, Schema, Upserted, entity::prelude::*};
+use pgorm::{Change, Connection, Schema, Upserted, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 

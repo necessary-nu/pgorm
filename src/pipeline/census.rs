@@ -16,7 +16,7 @@
 //! miscounted, and the extents are exactly what the rewrite needs. Reading
 //! the finished SQL is complete here where it has to be defended in `prql!`
 //! ([spec:pgorm:sem:macros.prql.census+2]): the pipeline offers no raw-SQL
-//! hole ([spec:pgorm:req:pipeline.surface+4] cuts s-strings), and the one
+//! hole ([spec:pgorm:req:pipeline.surface+5] cuts s-strings), and the one
 //! text it hands the compiler to pass through untouched is a string literal
 //! it rendered itself ([spec:pgorm:req:pipeline.params+5]), which the lexer
 //! reads as a single constant. Nor can a name lex as one: the identifier

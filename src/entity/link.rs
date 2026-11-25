@@ -1,5 +1,5 @@
 use crate::query::join::{Joined, join_side};
-use crate::{EntityTrait, NoContext, Related, RelationDef, ScopeContext, ScopedIn, Select};
+use crate::{Entity, NoContext, Related, RelationDef, ScopeContext, ScopedIn, Select};
 use pgorm_query::{IntoName, JoinType, SqlName};
 use std::{
     fmt::{self, Debug},
@@ -20,7 +20,7 @@ use std::{
 /// It is an ordinary [`SqlName`], so it stands in any identifier position:
 ///
 /// ```
-/// use pgorm::{Linked, QueryOrder, QueryTrait, RelatedLink};
+/// use pgorm::{Linked, QueryOrder, Statement, RelatedLink};
 /// use pgorm::tests_cfg::{cake, fruit};
 /// use pgorm_query::Expr;
 ///
@@ -33,7 +33,7 @@ use std::{
 ///
 /// assert!(sql.ends_with(r#"ORDER BY "r0"."id" ASC"#), "{sql}");
 /// ```
-// [spec:pgorm:req:entity.relation.linked+4]
+// [spec:pgorm:req:entity.relation.linked+5]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LinkedAlias(usize);
 
@@ -44,7 +44,7 @@ impl LinkedAlias {
     }
 }
 
-// [spec:pgorm:req:entity.relation.linked+4]
+// [spec:pgorm:req:entity.relation.linked+5]
 impl SqlName for LinkedAlias {
     fn unquoted(&self, s: &mut dyn fmt::Write) {
         let _ = write!(s, "r{}", self.0);
@@ -58,13 +58,13 @@ impl fmt::Display for LinkedAlias {
 }
 
 /// A Trait for links between Entities
-// [spec:pgorm:req:entity.relation.linked+4]
+// [spec:pgorm:req:entity.relation.linked+5]
 pub trait Linked {
     #[allow(missing_docs)]
-    type FromEntity: EntityTrait;
+    type FromEntity: Entity;
 
     #[allow(missing_docs)]
-    type ToEntity: EntityTrait;
+    type ToEntity: Entity;
 
     /// Link for an Entity
     fn link(&self) -> Vec<RelationDef>;
@@ -73,7 +73,7 @@ pub trait Linked {
     ///
     /// [`find_linked`] walks the ladder backwards from `ToEntity`, so the last
     /// rung is the *source* table — which is why it is what scopes
-    /// [`ModelTrait::find_linked`](crate::ModelTrait::find_linked) to one
+    /// [`Model::find_linked`](crate::Model::find_linked) to one
     /// model, and what a caller ordering or filtering on a `FromEntity` column
     /// has to name.
     ///
@@ -128,8 +128,8 @@ pub trait Linked {
 
 /// `select` joined to each relation of a link, walked backwards from its
 /// target, each hop under the alias its position gives it and scoped by `cx`.
-// [spec:pgorm:req:entity.relation.linked+4]
-fn walk<E: EntityTrait>(
+// [spec:pgorm:req:entity.relation.linked+5]
+fn walk<E: Entity>(
     mut select: Select<E>,
     cx: Option<&dyn ScopeContext>,
     link: Vec<RelationDef>,
@@ -149,13 +149,13 @@ fn walk<E: EntityTrait>(
 /// A one-hop link is the relation itself, and a junction-mediated one is
 /// `[via, to]` — exactly what `Related` carries. Writing a unit struct plus an
 /// eleven-line `Linked` impl to restate that is duplication, so hand this to
-/// [`ModelTrait::find_linked`](crate::ModelTrait::find_linked) instead.
+/// [`Model::find_linked`](crate::Model::find_linked) instead.
 ///
 /// The source entity is inferred from the position it is used in; only the
 /// target is named:
 ///
 /// ```
-/// use pgorm::{ModelTrait, QueryTrait, RelatedLink, tests_cfg::{cake, fruit}};
+/// use pgorm::{Model, Statement, RelatedLink, tests_cfg::{cake, fruit}};
 ///
 /// let cake = cake::Model { id: 12, name: "Cheesecake".to_owned() };
 ///
@@ -176,7 +176,7 @@ fn walk<E: EntityTrait>(
 /// The linked form aliases the joined table, so it is also what a self-relation
 /// needs: `RelatedLink::to(Entity)` on an entity related to itself joins the
 /// table a second time under `r0` rather than emitting an ambiguous self-join.
-// [spec:pgorm:req:entity.relation.linked+4]
+// [spec:pgorm:req:entity.relation.linked+5]
 pub struct RelatedLink<E, R>(PhantomData<fn() -> (E, R)>);
 
 impl<E, R> RelatedLink<E, R> {
@@ -212,11 +212,11 @@ impl<E, R> Debug for RelatedLink<E, R> {
     }
 }
 
-// [spec:pgorm:req:entity.relation.linked+4]
+// [spec:pgorm:req:entity.relation.linked+5]
 impl<E, R> Linked for RelatedLink<E, R>
 where
-    E: EntityTrait + Related<R>,
-    R: EntityTrait,
+    E: Entity + Related<R>,
+    R: Entity,
 {
     type FromEntity = E;
 
@@ -230,15 +230,15 @@ where
     }
 }
 
-// [spec:pgorm:req:entity.relation.linked+4/test]    walking a chain is only the
+// [spec:pgorm:req:entity.relation.linked+5/test]    walking a chain is only the
 // binding of each hop's two ends, the join itself being the crate's reverse
 // edge — so a hop carries the whole relation, `condition_type` included
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tests_cfg::{cake, cake_filling, entity_linked, filling};
-    use crate::{QuerySelect, QueryTrait, RelationTrait};
-    use pgorm_query::{ConditionType, Expr, ExprTrait, IntoCondition};
+    use crate::{QuerySelect, Relation, Statement};
+    use pgorm_query::{ConditionType, Expr, Expression, IntoCondition};
     use pretty_assertions::assert_eq;
 
     #[test]

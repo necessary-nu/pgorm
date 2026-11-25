@@ -5,10 +5,10 @@ pub mod common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use entity::{Column, Entity};
 use pgorm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Error, FromQueryResult, ModelTrait, PartialModel,
+    ActiveModel, Column as _, Entity as _, Error, FromQueryResult, Model, PartialModel,
     QueryFilter, QueryOrder, set,
 };
-use pgorm_query::{Expr, ExprTrait, Func, Name};
+use pgorm_query::{Expr, Expression, Func, Name};
 
 mod entity {
     use pgorm::prelude::*;
@@ -36,9 +36,9 @@ struct SimpleTest {
 }
 
 #[derive(PartialModel)]
-#[pgorm(entity = <entity::Model as ModelTrait>::Entity)]
+#[pgorm(entity = <entity::Model as Model>::Entity)]
 struct EntityNameNotAIdent {
-    #[pgorm(from_col = <<entity::Model as ModelTrait>::Entity as EntityTrait>::Column::Foo2)]
+    #[pgorm(from_col = <<entity::Model as Model>::Entity as pgorm::Entity>::Column::Foo2)]
     _foo: i32,
     #[pgorm(from_col = Column::Bar2)]
     _bar: String,
@@ -98,10 +98,10 @@ struct SkipsAField {
     cached: String,
 }
 
-// [spec:pgorm:sem:macros.derive.partial-model+7/test]    a skipped field selects nothing and decodes as its default
+// [spec:pgorm:sem:macros.derive.partial-model+8/test]    a skipped field selects nothing and decodes as its default
 #[pgorm_macros::test]
 async fn partial_model_skip_selects_nothing() -> Result<(), Error> {
-    use pgorm::{PartialModelTrait, QuerySelect, QueryTrait};
+    use pgorm::{PartialModel as _, QuerySelect, Statement};
 
     let select = SkipsAField::select_cols(bakery::Entity::find().select_only());
     assert_eq!(select.build().0, r#"SELECT "bakery"."id" FROM "bakery""#);
@@ -132,9 +132,9 @@ async fn partial_model_skip_selects_nothing() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:exec.crud+2/test]    `Select::into_partial_model` re-targets
+// [spec:pgorm:def:exec.crud+3/test]    `Select::into_partial_model` re-targets
 // the decoded type, and `one` / `all` run through the same selector
-// [spec:pgorm:def:query.build.query-trait+2/test]    a field read from a bare
+// [spec:pgorm:def:query.build.query-trait+3/test]    a field read from a bare
 // function call, `from_expr = Func::upper(..)`
 #[pgorm_macros::test]
 async fn partial_model_select() -> Result<(), Error> {

@@ -88,7 +88,7 @@ def _expression(value: object, option: str) -> p.Expr | None:
     return value
 
 
-# [spec:pgorm:req:bindings.models+6]
+# [spec:pgorm:req:bindings.models+7]
 # [spec:pgorm:req:bindings.schema-from-model]
 # [spec:pgorm:req:bindings.model-casts]
 # [spec:pgorm:req:bindings.model-conversions]
@@ -333,7 +333,7 @@ class Column:
         """Whether the column is projected as its text: a created multirange
         is, and an array of one as ``text[]``, since the driver reports one
         with no subtype to read its binary form by, so it is read cast to
-        text as pgorm's ``ColumnTrait::select_as`` reads an entity's; and so
+        text as ``pgorm::Column::select_as`` reads an entity's; and so
         is an enum column typed as a domain over its enum, which pgorm reads
         as its text, unless the column reads itself another way."""
         if isinstance(self.kind, p.CreatedMultirange):
@@ -359,7 +359,7 @@ class Column:
 
 
 # [spec:pgorm:req:bindings.model-columns+2]
-# [spec:pgorm:req:bindings.column-operators+3]
+# [spec:pgorm:req:bindings.column-operators+4]
 class ModelColumn(p._DeclaredColumn):
     """A model field's column, itself the column's expression.
 

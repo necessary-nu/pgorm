@@ -491,7 +491,7 @@ Here is what each one is in JavaScript:
 | `Disjoint` | `disjoint(..)` ([Disjoint enums](15-disjoint.md)) |
 | `OneOf` | `oneOf(..)` ([One-of references](16-one-of.md)) |
 | `Column` | no counterpart: a field is named by its string |
-| `EntityTrait` | `model(..)` takes names computed at run time, [below](#names-computed-at-run-time) |
+| `Entity`, on a hand-written `Entity` | `model(..)` takes names computed at run time, [below](#names-computed-at-run-time) |
 | `SqlName`, `StaticName` | a name is a string, quoted wherever it is written ([The query builder](11-query-builder.md)) |
 
 A Rust `ValueType` newtype keeps, say, grams of flour apart from other
@@ -537,7 +537,7 @@ assert.equal(mo.weekly, true);
 ## Names computed at run time
 
 A Rust entity's table and schema are fixed when it is written, unless a
-hand-written `Entity` derives `EntityTrait` and computes them. A JavaScript
+hand-written `Entity` derives `pgorm::Entity` and computes them. A JavaScript
 model is made when the program runs, so its names are whatever the program
 computes then: a deployment that keeps each region in a schema of its own
 declares its models from the region it was started for.

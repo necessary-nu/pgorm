@@ -21,8 +21,8 @@ use crate::{
 /// `Expr` method reads it as written, and its comparisons, quantified ones
 /// over a list of values among them, `[NOT] BETWEEN [SYMMETRIC]`,
 /// `IS [NOT] DISTINCT FROM`, range operators and membership are the column's
-/// own `ColumnTrait` methods.
-// [spec:pgorm:req:bindings.column-operators+3]
+/// own `Column` methods.
+// [spec:pgorm:req:bindings.column-operators+4]
 #[derive(Clone, Debug)]
 #[pyclass(name = "EntityColumn", module = "pgorm", frozen, from_py_object, extends = PyExpr)]
 pub struct PyEntityColumn {
@@ -41,11 +41,11 @@ impl PyEntityColumn {
             .add_subclass(Self { entity, name }))
     }
 
-    /// `[NOT] BETWEEN [SYMMETRIC]` through the column's `ColumnTrait`, each
+    /// `[NOT] BETWEEN [SYMMETRIC]` through the column's `Column`, each
     /// bound converted to the column's declared kind as a compared value is.
     /// A bound that is an expression leaves the test to `Expr`'s, both bounds
     /// taken as written.
-    // [spec:pgorm:req:bindings.column-operators+3]
+    // [spec:pgorm:req:bindings.column-operators+4]
     fn bounded(
         &self,
         lower: &Bound<'_, PyAny>,
@@ -79,14 +79,14 @@ impl PyEntityColumn {
     }
 
     /// A comparison, a distinctness test or a range operator through the
-    /// column's `ColumnTrait`, its value converted as
+    /// column's `Column`, its value converted as
     /// [`compared`](Self::compared) converts one, and `any_(..)` / `all_(..)`
     /// over a list of values through its `compare_any` / `compare_all`, each
     /// value converted to the column's declared kind. An expression, and a
     /// quantifier over a `Select`, an expression or a list of a column of no
     /// scalar kind, is compared as written, as `Expr`'s operator compares it.
-    // [spec:pgorm:req:bindings.entity-reads+4]
-    // [spec:pgorm:req:bindings.column-operators+3]
+    // [spec:pgorm:req:bindings.entity-reads+5]
+    // [spec:pgorm:req:bindings.column-operators+4]
     fn comparison(&self, value: &Bound<'_, PyAny>, op: Comparison) -> PyResult<PyExpr> {
         if let Ok(quantified) = value.extract::<PyRef<'_, PyQuantified>>()
             && let Some(listed) = quantified.listed.as_ref().filter(|_| op.quantifiable())
@@ -110,14 +110,14 @@ impl PyEntityColumn {
             .py()
     }
 
-    /// Membership through the column's `ColumnTrait`: `is_in` / `is_not_in`
+    /// Membership through the column's `Column`: `is_in` / `is_not_in`
     /// over a list or tuple of values, each converted to the column's
     /// declared kind as a compared value is, or `in_subquery` /
     /// `not_in_subquery` over a `Select`'s rows, so a column whose domain is
     /// over an enum is a member as the enum, and so is what the subquery
     /// projects. A list holding an expression is a member as written, as
     /// `Expr`'s `is_in` takes one.
-    // [spec:pgorm:req:bindings.entity-reads+4]
+    // [spec:pgorm:req:bindings.entity-reads+5]
     fn membership(&self, values: &Bound<'_, PyAny>, negated: bool) -> PyResult<PyExpr> {
         let listed =
             values.is_exact_instance_of::<PyList>() || values.is_exact_instance_of::<PyTuple>();

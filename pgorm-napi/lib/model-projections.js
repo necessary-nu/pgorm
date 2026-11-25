@@ -331,7 +331,7 @@ export function projectionOf(recipe) {
 }
 
 /** A partial model's field read from an expression, decoded as its declaration says: Rust's `from_expr`. */
-// [spec:pgorm:req:bindings.partial-models]
+// [spec:pgorm:req:bindings.partial-models+1]
 export class FromExpr {
   /**
    * @param {unknown} expr
@@ -360,7 +360,7 @@ export function fromExpr(expr, column) {
 }
 
 /** A partial model's field read from no column, holding its default in every row: Rust's `skip`. */
-// [spec:pgorm:req:bindings.partial-models]
+// [spec:pgorm:req:bindings.partial-models+1]
 export class Skip {
   /**
    * @param {unknown} value
@@ -393,7 +393,7 @@ let selectorOf;
  * what it declares and decodes each row into an object of its fields, in
  * declaration order.
  */
-// [spec:pgorm:req:bindings.partial-models]
+// [spec:pgorm:req:bindings.partial-models+1]
 export class PartialModel {
   /** @type {import("./model-shape.js").Shape} */
   #shape;

@@ -5,7 +5,7 @@
  */
 
 // [spec:pgorm:req:napi.typing+1]
-// [spec:pgorm:req:bindings.models+6]
+// [spec:pgorm:req:bindings.models+7]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
 import type { ComparisonOperand, Compiled, Condition, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
@@ -542,7 +542,7 @@ export interface ModelHooks<C extends Columns> {
  * The fields one record write sets, made by a model's `active`, as a Rust
  * `ActiveModel` holds them: `insert`, `update` and `delete` write the record
  * by its key and run the model's hooks around the write, as
- * `ActiveModelTrait` does.
+ * `pgorm::ActiveModel` does.
  */
 export declare class ModelActive<C extends Columns = Columns> {
   private constructor();

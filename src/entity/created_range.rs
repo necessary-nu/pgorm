@@ -1,4 +1,4 @@
-use pgorm_query::{Expr, ExprTrait, SimpleExpr, TypeName, Value};
+use pgorm_query::{Expr, Expression, SimpleExpr, TypeName, Value};
 
 /// A Rust type standing for a range type a schema created with `CREATE TYPE
 /// ... AS RANGE`, or for the multirange PostgreSQL creates beside it: a
@@ -12,13 +12,13 @@ use pgorm_query::{Expr, ExprTrait, SimpleExpr, TypeName, Value};
 /// [`Value::String`]: each bound is written in its subtype's text and
 /// quoted where the range parser needs it. A column of the type is
 /// [`ColumnType::CreatedRange`](crate::ColumnType::CreatedRange), whose
-/// [`save_as`](crate::ColumnTrait::save_as) casts that text to the type by
+/// [`save_as`](crate::Column::save_as) casts that text to the type by
 /// name, bound as a `text` parameter or escaped inline; there is no cast
 /// between two range types, so a built-in range value written to the column
 /// is turned into its text first. A row of a range decodes from the range's
 /// binary form, over whatever subtype the server reports; a row of a
 /// multirange, which the driver reports as a simple type, is read as its
-/// text, the column's [`select_as`](crate::ColumnTrait::select_as) casting it
+/// text, the column's [`select_as`](crate::Column::select_as) casting it
 /// so.
 ///
 /// Derived with [`CreatedRange`](pgorm_macros::CreatedRange):
@@ -38,7 +38,7 @@ use pgorm_query::{Expr, ExprTrait, SimpleExpr, TypeName, Value};
 ///     ),
 /// );
 /// ```
-// [spec:pgorm:def:sql.value.created-range+10]
+// [spec:pgorm:def:sql.value.created-range+11]
 pub trait CreatedRange: Into<Value> {
     /// The range type's name, schema-qualified when it was declared with one.
     fn name() -> TypeName;

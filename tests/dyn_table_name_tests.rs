@@ -22,14 +22,14 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.crud.update+7/test]    `UpdateMany::exec` returns the
+// [spec:pgorm:sem:exec.crud.update+8/test]    `UpdateMany::exec` returns the
 // rows-affected count
 // [spec:pgorm:sem:exec.crud.delete+1/test]    `DeleteMany::exec` returns the
 // rows-affected count
-// [spec:pgorm:req:entity.traits.entity-name+6/test]    a statement over an instance
+// [spec:pgorm:req:entity.traits.entity-name+7/test]    a statement over an instance
 // whose table name differs from the default's reads the instance's table, under the
 // default's name its columns are qualified by
-// [spec:pgorm:sem:pipeline.qualify+4/test]    and so does a pipeline over one
+// [spec:pgorm:sem:pipeline.qualify+5/test]    and so does a pipeline over one
 pub async fn dyn_table_name_lazy_static(db: &DatabaseConnection) -> Result<(), Error> {
     use dyn_table_name_lazy_static::*;
 

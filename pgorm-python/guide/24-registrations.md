@@ -141,9 +141,9 @@ and `offset` each return a new one. Testing a query or a write for truth, as
 ### Counts, pages, cursors and streams
 
 A query has the rest of Rust's `Select<E>` reads. `count(db)` is
-`PaginatorTrait::count`, counting the rows with the limit, offset and
+`pgorm::Paginate::count`, counting the rows with the limit, offset and
 ordering dropped, and `inspect(terminal="count")` shows that statement.
-`paginate(page_size)` is `PaginatorTrait::paginate`: its paginator holds no
+`paginate(page_size)` is `pgorm::Paginate::paginate`: its paginator holds no
 database, so each of `fetch_page(db, n)`, `num_items(db)`, `num_pages(db)` and
 `num_items_and_pages(db)` takes the one it runs on, `pages(db)` reads each
 page in turn until one is empty, and `inspect(n)` or `inspect("count")` shows
@@ -241,7 +241,7 @@ asyncio.run(main())
 
 ### Columns
 
-A column's comparisons are the entity's `ColumnTrait`: `eq`, `ne`, `gt`,
+A column's comparisons are the entity's `pgorm::Column`: `eq`, `ne`, `gt`,
 `gte`, `lt` and `lte`, and the operators that spell them. The value converts
 to the column's declared type and is written through the column's own cast,
 so an enum's label is cast to its type, `CAST($1::text AS flavor)` for the
@@ -342,7 +342,7 @@ is a `Value` of its own). `set(column, value)`, `not_set(column)` and
 A model read back converts with `into_active()`, the Rust conversion, which
 leaves each column `Unchanged`; set the ones to change. `with_value(column,
 value)` gives a copy of a model with one value changed, through Rust's
-`ModelTrait::set`, and writes nothing.
+`pgorm::Model::set`, and writes nothing.
 
 ```python registered
 import asyncio
@@ -431,13 +431,13 @@ impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         Self {
             note: set("Ask at the counter"),
-            ..ActiveModelTrait::default()
+            ..pgorm::ActiveModel::default()
         }
     }
 
     async fn before_save<C>(self, _db: &C, _insert: bool) -> Result<Self, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         if self.name.as_ref().is_empty() {
             return Err(Error::Custom("a special needs a name".to_owned()));
@@ -974,7 +974,7 @@ each bakery with each of its cakes, or with none:
 
 ```rust
 use pgorm::pgorm_query::Name;
-use pgorm::{EntityTrait, Opt, RelationTrait, SelectGraph};
+use pgorm::{Entity, Opt, Relation, SelectGraph};
 use pgorm_guide_support::{bakery, cake};
 
 /// Each bakery with each of its cakes, or with none.

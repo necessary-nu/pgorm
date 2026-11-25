@@ -73,7 +73,7 @@ class Checker:
                     {
                         "id": step["id"],
                         "status": "observed",
-                        "native_paths": ["pgorm::ConnectionTrait::query_raw"],
+                        "native_paths": ["pgorm::Connection::query_raw"],
                         "observation": {"kind": "record", "fields": []},
                     }
                     for step in data["steps"]

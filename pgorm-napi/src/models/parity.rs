@@ -10,7 +10,7 @@ use pgorm::pgorm_query::{
     Asterisk, Condition, Expr, Func, NamedTable, OnConflict, Order, Query, ReturningClause,
     SelectStatement, SimpleExpr, TableName, TypeName, Values,
 };
-use pgorm::{Delete, Insert, QueryFilter, QueryOrder, QuerySelect, QueryTrait, Update, set};
+use pgorm::{Delete, Insert, QueryFilter, QueryOrder, QuerySelect, Statement, Update, set};
 
 use crate::statements::parity::{check, n};
 
@@ -147,7 +147,7 @@ mod long_names {
     pub enum Relation {}
 }
 
-fn built<Q: QueryTrait>(query: &Q) -> (String, Values)
+fn built<Q: Statement>(query: &Q) -> (String, Values)
 where
     Q::QueryStatement: pgorm::pgorm_query::QueryStatementBuilder,
 {
@@ -340,7 +340,7 @@ fn writes() -> Vec<(&'static str, (String, Values))> {
 }
 
 fn graphs() -> Vec<(&'static str, (String, Values))> {
-    use pgorm::RelationTrait;
+    use pgorm::Relation;
     vec![
         (
             "graph",
@@ -384,7 +384,7 @@ fn graphs() -> Vec<(&'static str, (String, Values))> {
 }
 
 fn cursors() -> Vec<(&'static str, (String, Values))> {
-    use pgorm::RelationTrait;
+    use pgorm::Relation;
     let graph = || {
         post::Entity::graph()
             .join_maybe::<account::Entity>(post::Relation::Author.def())
@@ -472,7 +472,7 @@ struct AccountLine {
 /// partial model's.
 fn clauses() -> Vec<(&'static str, (String, Values))> {
     use pgorm::pgorm_query::{JoinType, LockBehavior, LockType};
-    use pgorm::{PartialModelTrait, RelationTrait};
+    use pgorm::{PartialModel, Relation};
     let post_count = || Func::count(col("post", "id"));
     vec![
         ("find-distinct", built(&account::Entity::find().distinct())),
@@ -579,7 +579,7 @@ fn secondary_cursors() -> Vec<(&'static str, (String, Values))> {
     ]
 }
 
-// [spec:pgorm:req:bindings.models+6/test]
+// [spec:pgorm:req:bindings.models+7/test]
 // [spec:pgorm:req:bindings.model-reads+1/test]
 // [spec:pgorm:req:bindings.model-writes+3/test]
 // [spec:pgorm:req:bindings.relations+3/test]
@@ -588,7 +588,7 @@ fn secondary_cursors() -> Vec<(&'static str, (String, Values))> {
 // [spec:pgorm:req:bindings.pagination/test]
 // [spec:pgorm:req:bindings.model-clauses/test]
 // [spec:pgorm:req:bindings.model-projections/test]
-// [spec:pgorm:req:bindings.partial-models/test]
+// [spec:pgorm:req:bindings.partial-models+1/test]
 // [spec:pgorm:req:bindings.cursor-secondary-order+1/test]
 #[test]
 fn model_family_matches_its_golden_file() {

@@ -2,7 +2,7 @@
 
 // Rust entities the application's own module registers, reached by name.
 // Every operation is the entity's real Rust API — `Select<E>`'s terminals,
-// `ModelTrait::set`, `ActiveModelTrait`'s writes with their
+// `pgorm::Model::set`, `pgorm::ActiveModel`'s writes with their
 // `ActiveModelBehavior` hooks — run on a pool's connection, a connection or
 // a transaction. A record is a frozen plain object keyed by SQL column name,
 // behind which the module keeps the Rust model it was read as, so that
@@ -149,7 +149,7 @@ export class Entity extends Handle {
   }
 
   /**
-   * A column, as the entity's `ColumnTrait` names it, whose comparisons
+   * A column, as the entity's `pgorm::Column` names it, whose comparisons
    * convert a value through its declared kind and `save_as`.
    *
    * @param {string} column
@@ -191,7 +191,7 @@ export class Entity extends Handle {
   }
 
   /**
-   * A copy of the record with `ModelTrait::set` applied to one column;
+   * A copy of the record with `pgorm::Model::set` applied to one column;
    * nothing is written.
    *
    * @param {unknown} record
@@ -267,7 +267,7 @@ export function activeHandleOf(active) {
 /**
  * The native half of `active`, refused unless it is an ActiveModel of the
  * registration `entity` names: another's is an argument of the wrong type.
- * [spec:pgorm:req:bindings.entity-writes+1]
+ * [spec:pgorm:req:bindings.entity-writes+2]
  *
  * @param {unknown} active
  * @param {string} entity
@@ -281,7 +281,7 @@ export function ownActive(active, entity) {
 /**
  * A registered entity's ActiveModel: each column `notSet`, `set` or
  * `unchanged`. Every change returns a new ActiveModel; the writes run
- * `ActiveModelTrait`'s, its `ActiveModelBehavior` hooks around them.
+ * `pgorm::ActiveModel`'s, its `ActiveModelBehavior` hooks around them.
  */
 export class ActiveModel {
   /** @type {unknown} */
@@ -342,7 +342,7 @@ export class ActiveModel {
     return new ActiveModel(native.entityActiveChange(this.#native, "setIfNotEquals", column, value), this.#entity, MADE);
   }
 
-  /** Whether any column is set, `ActiveModelTrait::is_changed`. */
+  /** Whether any column is set, `pgorm::ActiveModel::is_changed`. */
   isChanged() {
     return /** @type {boolean} */ (native.entityActiveChanged(this.#native));
   }
@@ -371,7 +371,7 @@ export class ActiveModel {
   }
 
   /**
-   * `ActiveModelTrait::insert`, resolving with the inserted record.
+   * `pgorm::ActiveModel::insert`, resolving with the inserted record.
    *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
@@ -381,7 +381,7 @@ export class ActiveModel {
   }
 
   /**
-   * `ActiveModelTrait::update`, resolving with the updated record.
+   * `pgorm::ActiveModel::update`, resolving with the updated record.
    *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
@@ -391,7 +391,7 @@ export class ActiveModel {
   }
 
   /**
-   * `ActiveModelTrait::delete`, resolving with the rows it deleted.
+   * `pgorm::ActiveModel::delete`, resolving with the rows it deleted.
    *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]

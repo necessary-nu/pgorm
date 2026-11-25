@@ -1,9 +1,9 @@
 // @ts-check
 
 // A registered entity's reads: its columns as expressions whose
-// comparisons are the column's own `ColumnTrait` methods, and its
+// comparisons are the column's own `pgorm::Column` methods, and its
 // `Select<E>` with Rust's terminals.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 
 import { arg, Handle, TRUSTED } from "./builder.js";
 import { decodedStream, runJob } from "./runs.js";
@@ -27,14 +27,14 @@ export let registeredColumn;
 /**
  * A registered entity's column. A value it is compared with converts to the
  * column's declared kind and is written through its `save_as`, by the
- * column's own `ColumnTrait` method, and so do `between`'s bounds, the value
+ * column's own `pgorm::Column` method, and so do `between`'s bounds, the value
  * of a distinctness test or a range operator, the values of `any(..)` or
  * `all(..)` over a list, and those of a list it is tested for membership in;
  * a subquery's rows are compared by the trait's `in_subquery`; an
  * expression, and a quantifier over a `Select` or an expression, are
  * compared as written.
  */
-// [spec:pgorm:req:bindings.column-operators+3]
+// [spec:pgorm:req:bindings.column-operators+4]
 export class EntityColumn extends Expr {
   /** @type {unknown} */
   #entity;
@@ -63,7 +63,7 @@ export class EntityColumn extends Expr {
   }
 
   /**
-   * Membership through the column's `ColumnTrait`, or `null` for a list
+   * Membership through the column's `pgorm::Column`, or `null` for a list
    * holding an expression, which is a member as written.
    *
    * @param {boolean} negated
@@ -94,7 +94,7 @@ export class EntityColumn extends Expr {
   }
 
   /**
-   * The column compared through its `ColumnTrait`: a value as the trait's
+   * The column compared through its `pgorm::Column`: a value as the trait's
    * method of the operator's meaning compares one, and `any(..)` or `all(..)`
    * over a list as its `compare_any` or `compare_all` does, or `null` for an
    * operand compared as written.
@@ -114,7 +114,7 @@ export class EntityColumn extends Expr {
   }
 
   /**
-   * `[NOT] BETWEEN [SYMMETRIC]` through the column's `ColumnTrait`, or `null`
+   * `[NOT] BETWEEN [SYMMETRIC]` through the column's `pgorm::Column`, or `null`
    * for a bound that is an expression, which leaves the test to `Expr`'s,
    * both bounds as written.
    *
@@ -412,7 +412,7 @@ export class EntityQuery {
 
   /**
    * How many rows the query reads, its limit, offset and ordering aside, by
-   * `PaginatorTrait::count`.
+   * `pgorm::Paginate::count`.
    *
    * @param {unknown} db
    * @param {{ signal?: AbortSignal }} [options]
@@ -422,7 +422,7 @@ export class EntityQuery {
   }
 
   /**
-   * Pages of `pageSize` rows, by `PaginatorTrait::paginate`.
+   * Pages of `pageSize` rows, by `pgorm::Paginate::paginate`.
    *
    * @param {number} pageSize
    */

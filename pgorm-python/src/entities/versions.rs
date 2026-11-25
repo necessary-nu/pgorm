@@ -28,7 +28,7 @@ pub(crate) const TERMINALS: [(&str, &str); 2] = [
     ),
     (
         "entity.update_many.returning_changes",
-        "pgorm::Update::many, UpdateMany::{col_expr, filter, exec_returning_changes}, ColumnTrait::save_as",
+        "pgorm::Update::many, UpdateMany::{col_expr, filter, exec_returning_changes}, Column::save_as",
     ),
 ];
 
@@ -183,7 +183,7 @@ fn run<'py>(
 
 /// An ActiveModel of this registration; another's is an argument of the
 /// wrong type.
-// [spec:pgorm:req:bindings.entity-writes+1]
+// [spec:pgorm:req:bindings.entity-writes+2]
 pub(super) fn owned(entity: &Arc<dyn EntityBackend>, active: &PyActiveModel) -> PyResult<Active> {
     if active.inner.info().name != entity.info().name {
         return Err(PyTypeError::new_err(format!(
