@@ -760,12 +760,17 @@ impl ClientWrapper {
     /// tokio-postgres leaves an answer behind that the next request would read
     /// as its own. Pass a prepared [`Statement`]: preparing is a request of its
     /// own, and a statement refused there leaves the connection intact.
-    // [spec:pgorm:req:conn.copy+3]
+    /// Native Turso refuses COPY before starting work and keeps the client usable.
+    // [spec:pgorm:req:conn.copy+4]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
     {
+        #[cfg(feature = "turso")]
+        if self.client.is_turso() {
+            return self.client.copy_in(statement).await;
+        }
         copy::guarded(
             &self.conn_task.abort_handle(),
             self.client.copy_in(statement),

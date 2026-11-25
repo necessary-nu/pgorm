@@ -22,6 +22,7 @@ impl Client {
     /// Whether this client executes against an embedded Turso database.
     ///
     /// This records connection construction and remains true after closing.
+    // [spec:pgorm:req:turso.capabilities]
     pub fn is_turso(&self) -> bool {
         self.inner.native().is_some()
     }

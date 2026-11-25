@@ -23,7 +23,7 @@ use tokio::task::AbortHandle;
 /// is closed instead, every later call on it fails as closed, and the pool's
 /// recycling discards it. A cancelled start closes it too, since whether the
 /// server refused is then unknown.
-// [spec:pgorm:req:conn.copy+3]    a refused start closes the connection
+// [spec:pgorm:req:conn.copy+4]    a refused start closes the connection
 pub(crate) async fn guarded<F, U>(
     connection: &AbortHandle,
     start: F,

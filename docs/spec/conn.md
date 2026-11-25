@@ -1064,7 +1064,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## COPY
 
-> [spec:pgorm:req:conn.copy+3]
+> [spec:pgorm:req:conn.copy+4]
 > `CopyTrait` is COPY's data flow on a connection: `copy_in(&mut self,
 > &CopyFromStatement<F>)` starts `COPY … FROM STDIN` and returns a
 > `CopyInSink<'_>`, and `copy_out(&mut self, &CopyToStatement<F>)` starts `COPY
@@ -1073,6 +1073,11 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `DatabaseTransaction`, savepoints included, and for the metrics wrappers
 > (`metric.layer.copy`). A COPY's rows travel as `CopyData` messages beside the
 > statement, which no `ConnectionTrait` method sends or returns (`sql.scope`).
+>
+> Native Turso exposes the same methods but MUST refuse streaming COPY before
+> preparing or executing its SQL. That local unsupported-operation refusal
+> MUST NOT close an otherwise usable connection or abort its transaction.
+> The wire-protocol behavior below describes PostgreSQL.
 >
 > The methods take only the typed statements. Text that is not a COPY would
 > reach the driver's `copy_in` as a statement that runs to completion before
@@ -1194,7 +1199,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > element or only nulls, a range or multirange of no named type — as its
 > column's (`bindings.copy-rows.typed`).
 
-> [spec:pgorm:req:conn.copy.rows+5]
+> [spec:pgorm:req:conn.copy.rows+6]
+> Native Turso MUST refuse the connection-backed COPY column and row helpers
+> before preparing a description or running catalog queries. These operations
+> below describe PostgreSQL. Standalone `CopyRowEncoder`, `CopyRowDecoder` and
+> `CopyColumn` codecs over caller-supplied metadata remain independent of the
+> connection backend.
+>
 > Binary COPY carries rows of pgorm `Value`s, each field in its value's
 > binary form, the form a parameter is bound in and a result column decoded
 > from. The format sends no column types — a header, then each row as its

@@ -97,3 +97,47 @@ async fn wire_only_operations_refuse_without_closing_native_client() {
         .unwrap()
         .unwrap();
 }
+
+// [spec:pgorm:req:turso.capabilities/test]
+#[tokio::test]
+async fn generic_copy_routes_refuse_before_execution() {
+    let database = TursoDatabase::open(":memory:").await.unwrap();
+    let (client, connection) = database.connect().await.unwrap();
+    let task = tokio::spawn(connection);
+    client
+        .batch_execute("CREATE TABLE copied(id integer); INSERT INTO copied VALUES(1),(2)")
+        .await
+        .unwrap();
+    let sql = "COPY copied TO STDOUT";
+    unsupported(client.prepare(sql).await, "COPY TO STDOUT");
+    unsupported(client.prepare_typed(sql, &[]).await, "COPY TO STDOUT");
+    unsupported(client.query(sql, &[]).await, "COPY TO STDOUT");
+    unsupported(client.query(sql, &[&MustNotEncode]).await, "COPY TO STDOUT");
+    unsupported(client.execute(sql, &[]).await, "COPY TO STDOUT");
+    unsupported(
+        client.query_raw(sql, std::iter::empty::<i32>()).await,
+        "COPY TO STDOUT",
+    );
+    unsupported(client.query_typed(sql, &[]).await, "COPY TO STDOUT");
+    unsupported(
+        client
+            .batch_execute("COPY copied TO STDOUT; INSERT INTO copied VALUES(3)")
+            .await,
+        "COPY TO STDOUT",
+    );
+    assert_eq!(
+        client
+            .query_one("SELECT count(*) FROM copied", &[])
+            .await
+            .unwrap()
+            .get::<_, i64>(0),
+        2
+    );
+    client.check_connection().await.unwrap();
+    drop(client);
+    tokio::time::timeout(Duration::from_secs(5), task)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+}

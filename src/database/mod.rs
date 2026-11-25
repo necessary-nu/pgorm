@@ -33,7 +33,7 @@ pub use pgorm_driver::Notification;
 
 /// The chunk type COPY's data travels in, both ways, re-exported so writing a
 /// [`CopyInSink`] needs no direct dependency on `bytes`.
-// [spec:pgorm:req:conn.copy+3]
+// [spec:pgorm:req:conn.copy+4]
 pub use bytes::Bytes;
 
 /// The buffer [`CopyRowEncoder`] writes a binary COPY's header, rows and

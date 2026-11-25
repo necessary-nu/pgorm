@@ -2,8 +2,42 @@
 
 The `turso` feature uses Turso's embedded API at
 `adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa` (`0.9.0-pre.6`). PostgreSQL remains
-the reference implementation. This matrix distinguishes the driver's codecs
-from type identities that the native compiler can preserve.
+the reference implementation. Backend identity comes from the connection
+constructor; the driver does not inspect a server banner. The evidence below
+applies to this exact native revision, independently of Turso's pgwire frontend.
+
+## Operation matrix
+
+“Supported” means the stated cases are exercised, not that all PostgreSQL
+semantics are established. A driver gap is a missing integration; an engine gap
+is a native refusal that a different client cannot repair. A mismatch is an
+observed difference despite successful execution. Unverified behavior has no
+compatibility claim.
+
+| Operation | Status | Boundary and evidence |
+| --- | --- | --- |
+| Prepared queries, scalar parameters and owned rows | Supported subset | The scalar table below is the boundary. [Native codec tests](../crates/pgorm-driver/tests/native_types.rs), [execution tests](../crates/pgorm-driver/tests/native_execution.rs) and [ORM tests](../tests/turso_execution_tests.rs) exercise it. |
+| Pooling and statement reuse | Supported subset | File and memory pools and hooks are covered by [pool tests](../tests/turso_pool_tests.rs); typed cache keys and invalidation by [ORM execution tests](../tests/turso_execution_tests.rs). |
+| Transactions and savepoints | Supported subset | Default snapshot isolation and explicit driver `RepeatableRead`; other builder modes are refused before `BEGIN`. See [driver](../crates/pgorm-driver/tests/native_transactions.rs) and [ORM](../src/database/turso_transaction_tests.rs) tests and the transaction notes below. |
+| Cancellation | Supported subset | `cancel_token().cancel_query(NoTls)` requests native cancellation; dropped work and streams use native cleanup. [Lifecycle](../crates/pgorm-driver/tests/native_lifecycle.rs) and [execution](../crates/pgorm-driver/tests/native_execution.rs) tests cover reuse and cancellation under backpressure. Cancellation does not promise to interrupt synchronous kernel I/O. |
+| Network cancellation, portals and simple-query messages | Driver gap | These wire-specific APIs refuse locally. Use native cancellation, ordinary queries or `batch_execute` as appropriate. [Refusal tests](../crates/pgorm-driver/tests/native_unsupported.rs). |
+| Streaming COPY and connection-backed COPY column/row helpers | Driver gap | Dedicated APIs refuse before SQL preparation or catalog work, preserving a usable connection and transaction. The native frontend exposes `CopyOut` rows, but the driver has no COPY transport integration. Standalone COPY codecs remain independent of the backend. [Public capability tests](../tests/turso_capability_tests.rs). |
+| COPY through generic query/execute | Refused | The ORM's existing COPY guard returns `Error::CopyStatement`, including before any part of a script runs. Direct driver preparation refuses native `CopyOut` before stepping; a direct driver batch retains effects of earlier completed statements. [Driver](../crates/pgorm-driver/tests/native_unsupported.rs) and [public](../tests/turso_capability_tests.rs) tests. |
+| Filesystem COPY via direct native SQL | Unverified | Acceptance of a native `Command` does not establish file-copy effects, format fidelity or affected-row counts. The ORM's generic COPY guard still applies. |
+| Notifications | Engine and driver gaps | Native `LISTEN`, `NOTIFY` and `UNLISTEN` return `0A000`; `pg_notify` returns `42883`. The pool refuses listener construction and notification cache configuration locally. [Native probes](../crates/pgorm-driver/tests/native_capabilities.rs) and [public tests](../tests/turso_capability_tests.rs). |
+| MERGE | Engine gap | The tested matched-update/unmatched-insert form returns `0A000` without changing the target. [Native probe](../crates/pgorm-driver/tests/native_capabilities.rs). |
+| Selected `pg_catalog` queries | Supported values, metadata mismatch | The fixture's `pg_class(relname,relkind)`, `pg_attribute(attname,attnum)` and `pg_type(typname,typtype)` values are checked directly and through the driver. The native metadata uses TEXT/INT4 rather than PostgreSQL's name/char/int2 identities. This is not general catalog parity. [Native probes](../crates/pgorm-driver/tests/native_capabilities.rs). |
+| `information_schema.tables` / `.columns` | Engine gap | The tested qualified queries, including the migrator checksum-column query, return `42P01`. [Native probes](../crates/pgorm-driver/tests/native_capabilities.rs). |
+| `to_regclass` and `pg_advisory_xact_lock` | Engine gap | Tested literal and parameterized forms return `42883` during native preparation. Explicit parameter types do not repair these missing functions. [Native probes](../crates/pgorm-driver/tests/native_capabilities.rs). |
+| LOCK TABLE | Known mismatch | Inside a transaction, `LOCK TABLE missing_relation IN ACCESS SHARE MODE` succeeds even though the relation does not exist. Outside a transaction the same statement returns `22000`. Do not rely on PostgreSQL lock semantics from successful execution. [Native probe](../crates/pgorm-driver/tests/native_capabilities.rs). |
+| pgorm migrations | Engine gap | Fresh `MigratorTrait::status` and `up` return `42883` before creating a ledger or running a migration body. Required catalog/functions and notifications are missing. [Public migration probes](../tests/turso_capability_tests.rs). |
+| Code generation | Offline generation; native runtime unverified | `pgorm-codegen` consumes DDL and generates Rust models without connecting to a database. Its existing [DDL fixtures](../pgorm-codegen/tests/sql) do not establish that every emitted type or query works natively. Generated models are subject to the same scalar and SQL limits above. |
+
+Driver refusals carry no invented SQLSTATE. Engine errors retain their native
+SQLSTATE and diagnostics. Command statements expose no internal placeholder
+columns or rows; native serial/identity prerequisites may change their compiled
+program while executing, after which the prepared handle is invalidated.
+There is no SQL translation layer and no emulated successful unsupported call.
 
 ## Opening a pool
 

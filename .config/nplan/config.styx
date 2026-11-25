@@ -366,6 +366,9 @@ platforms (
             pool {
                 cmd "cargo test -p pgorm --features turso --test turso_pool_tests"
             }
+            capabilities {
+                cmd "cargo test -p pgorm --features turso --test turso_capability_tests"
+            }
         }
     }
 )

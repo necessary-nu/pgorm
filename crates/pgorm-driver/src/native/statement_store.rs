@@ -7,7 +7,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, Weak},
 };
-use turso_pg::PgConnection;
+use turso_pg::{PgConnection, StatementResultKind};
 
 pub(crate) struct Prepared {
     pub(crate) id: u64,
@@ -66,6 +66,7 @@ pub(super) struct Store {
 impl Store {
     // [spec:pgorm:req:turso.parameters] explicit native types are established before client codecs run
     // [spec:pgorm:sem:turso.execution] native parsing enforces one command and retained handles avoid reparsing
+    // [spec:pgorm:req:turso.capabilities] native result semantics govern public metadata and COPY refusal
     pub(super) fn prepare(
         &mut self,
         connection: &PgConnection,
@@ -79,6 +80,9 @@ impl Store {
             ));
         }
         let statement = connection.prepare(sql).map_err(Error::turso)?;
+        if statement.result_kind() == StatementResultKind::CopyOut {
+            return Err(Error::turso_unsupported("COPY TO STDOUT"));
+        }
         let count = statement.parameters_count();
         if types.len() > count {
             return Err(Error::parameters(types.len(), count));
@@ -89,7 +93,11 @@ impl Store {
             ));
         }
         let parameter_codecs = codecs::parameter_codecs(&types)?;
-        let (columns, result_codecs) = describe::describe_columns(&statement, &types)?;
+        let (columns, result_codecs) = if statement.result_kind() == StatementResultKind::Command {
+            (Vec::new(), Box::default())
+        } else {
+            describe::describe_columns(&statement, &types)?
+        };
         let described_program = Arc::clone(statement.get_program().prepared());
         let transaction_boundary = super::transaction::is_boundary(&statement);
         let described_schema_version = connection

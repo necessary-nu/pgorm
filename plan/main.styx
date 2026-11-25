@@ -22461,6 +22461,27 @@ children (
                         kind @note
                         text "Read-only review at pinned native revision found concrete probes for this item. StatementResultKind publicly distinguishes Command/Rows/CopyOut, but current driver ignores it: generic COPY TO STDOUT may bypass the dedicated COPY refusal, and Command placeholders may leak internal SELECT 0 columns. Native prerequisite execution can replace the compiled program (not ordinary deferred CREATE SCHEMA/RESET), so probe serial/identity DDL for false invalidation after effects. Native LOCK ACCESS SHARE source checks only transaction presence and ignores relation names: probe/document engine mismatch. Separate typed/literal probes for pg_notify, pg_advisory_xact_lock and to_regclass from the migrator's current raw-parameter typing refusal; test exact catalog queries rather than extrapolating broad catalog support. Codegen is offline DDL-to-model generation, not catalog introspection. These are source findings awaiting execution probes, not passing capability claims."
                     }
+
+                    {
+                        at 2026-11-25T13:31:26.198618Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:31:28.726156Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the user-directed Turso chain after 7221399d. Honor native StatementResultKind rather than parsing or rewriting SQL: refuse unsupported CopyOut transport before stepping, keep Command placeholders out of public rows, and distinguish native prerequisite program changes from unsafe row metadata changes. Probe catalog/SQL/tooling behavior independently of driver typing to classify integration gaps, engine gaps, known mismatches and unverified behavior accurately. Preserve PostgreSQL execution and use construction-time Client identity; do not introduce a generic adapter or server-banner detection. Three agents own disjoint native implementation, native engine probes, and public ORM capability cases; root owns the matrix/spec review and serialized validation."
+                    }
+
+                    {
+                        at 2026-11-25T13:45:40.951128Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Eight direct-native/driver capability probes and three unsupported-operation tests pass; all 16 execution tests pass. Seven public capability tests plus 20 PostgreSQL COPY and 14 COPY-row regressions pass. Native Command metadata is hidden, native CopyOut is refused before stepping, and serial/identity prerequisites finish before invalidating their handles. Native COPY refusal bypasses PostgreSQL COPY-start disposal and precedes ORM preparation/metadata queries, preserving usable clients and transactions. Reviewed conn.copy+4 and conn.copy.rows+6 scope additions and all reference repins; no stale refs. Actual probes establish 42883 for missing migration/notification functions before parameter inference, 42P01 for tested information_schema queries, canonical catalog metadata, and the missing-relation LOCK mismatch. Compatibility matrix records these as engine gaps/mismatches separately from driver gaps and unverified file COPY/codegen runtime behavior."
+                    }
                 )
             }
 

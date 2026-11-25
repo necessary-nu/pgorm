@@ -251,6 +251,99 @@ async fn command_counts_match_completed_execution() {
     finish(client, task).await;
 }
 
+// [spec:pgorm:req:turso.capabilities/test]
+#[tokio::test]
+async fn command_results_hide_internal_columns() {
+    let (client, task) = session().await;
+    let setting = client
+        .prepare("SET application_name = 'native-command'")
+        .await
+        .unwrap();
+    assert!(setting.columns().is_empty());
+    assert_eq!(client.execute(&setting, &[]).await.unwrap(), 0);
+    assert!(client.query(&setting, &[]).await.unwrap().is_empty());
+    assert_eq!(
+        client
+            .query_one("SELECT current_setting('application_name')::text", &[])
+            .await
+            .unwrap()
+            .get::<_, &str>(0),
+        "native-command"
+    );
+    let schema = client.prepare("CREATE SCHEMA commands").await.unwrap();
+    assert!(schema.columns().is_empty());
+    assert!(client.query(&schema, &[]).await.unwrap().is_empty());
+    client
+        .batch_execute("CREATE TABLE commands.visible(id integer)")
+        .await
+        .unwrap();
+    let insert = client
+        .prepare("INSERT INTO commands.visible VALUES(1),(2)")
+        .await
+        .unwrap();
+    assert!(insert.columns().is_empty());
+    let mut rows = Box::pin(
+        client
+            .query_raw(&insert, std::iter::empty::<i32>())
+            .await
+            .unwrap(),
+    );
+    assert!(rows.try_next().await.unwrap().is_none());
+    assert_eq!(rows.rows_affected(), Some(2));
+    assert_eq!(
+        client
+            .query_one("SELECT count(*) FROM commands.visible", &[])
+            .await
+            .unwrap()
+            .get::<_, i64>(0),
+        2
+    );
+    finish(client, task).await;
+}
+
+// [spec:pgorm:req:turso.capabilities/test]
+// [spec:pgorm:sem:turso.execution/test]
+#[tokio::test]
+async fn prerequisite_commands_complete_then_invalidate() {
+    let (client, task) = session().await;
+    let serial = client
+        .prepare("CREATE TABLE serial_command(id serial PRIMARY KEY)")
+        .await
+        .unwrap();
+    assert!(serial.columns().is_empty());
+    assert_eq!(client.execute(&serial, &[]).await.unwrap(), 0);
+    assert!(serial.is_invalidated());
+    assert!(
+        client
+            .execute(&serial, &[])
+            .await
+            .unwrap_err()
+            .is_statement_invalidated()
+    );
+    let identity = client
+        .prepare("CREATE TABLE identity_command(id integer GENERATED ALWAYS AS IDENTITY)")
+        .await
+        .unwrap();
+    assert!(identity.columns().is_empty());
+    let mut rows = Box::pin(
+        client
+            .query_raw(&identity, std::iter::empty::<i32>())
+            .await
+            .unwrap(),
+    );
+    assert!(rows.try_next().await.unwrap().is_none());
+    assert_eq!(rows.rows_affected(), Some(0));
+    assert!(identity.is_invalidated());
+    for table in ["serial_command", "identity_command"] {
+        let sql = format!("INSERT INTO {table} DEFAULT VALUES RETURNING id");
+        assert_eq!(
+            client.query_one(&sql, &[]).await.unwrap().get::<_, i32>(0),
+            1
+        );
+    }
+    finish(client, task).await;
+}
+
 // [spec:pgorm:sem:turso.execution/test]
 #[tokio::test]
 async fn scripts_stop_after_partial_effects() {

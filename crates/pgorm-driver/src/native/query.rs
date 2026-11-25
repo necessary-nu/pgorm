@@ -13,7 +13,7 @@ use tokio::{
     sync::{oneshot, watch},
 };
 use turso_core::Value;
-use turso_pg::PgConnection;
+use turso_pg::{PgConnection, StatementResultKind};
 
 fn bind(entry: &mut Entry, params: Vec<Value>) -> Result<(), Error> {
     let count = entry.statement.parameters_count();
@@ -33,6 +33,7 @@ fn bind(entry: &mut Entry, params: Vec<Value>) -> Result<(), Error> {
 }
 
 // [spec:pgorm:sem:turso.execution] one execution path counts completion and establishes cleanup
+// [spec:pgorm:req:turso.capabilities] command-internal rows never become public results
 fn run(
     connection: &PgConnection,
     entry: &mut Entry,
@@ -44,18 +45,21 @@ fn run(
         operation.transaction_boundary(control);
     }
     install_progress(connection, operation, control);
+    let returns_rows = entry.statement.result_kind() == StatementResultKind::Rows;
     let mut returned = 0_u64;
     let outcome = loop {
         let stepped = next_row(&mut entry.statement, operation, control);
         // Native step can automatically reprepare after our preflight, both
         // at startup and on an internal SchemaUpdated retry. Never expose a
-        // row/count under metadata from the previous compiled program. This
-        // check is after execution: the refusal does not prove zero effects.
-        if stepped.is_ok() && !entry.metadata_is_current() {
+        // row under metadata from the previous compiled program. Commands
+        // have no public row metadata and native prerequisites can replace
+        // their internal program. Completion still invalidates that handle.
+        // This check is after execution: refusal does not prove zero effects.
+        if returns_rows && stepped.is_ok() && !entry.metadata_is_current() {
             break Err(Error::turso_statement_invalidated());
         }
         match stepped {
-            Ok(true) => {
+            Ok(true) if returns_rows => {
                 returned = match returned.checked_add(1) {
                     Some(count) => count,
                     None => {
@@ -70,6 +74,7 @@ fn run(
                     break Err(error);
                 }
             }
+            Ok(true) => continue,
             Ok(false) => {
                 let affected = if entry.statement.get_program().change_cnt_on {
                     match u64::try_from(entry.statement.n_change()) {

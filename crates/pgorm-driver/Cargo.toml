@@ -45,6 +45,11 @@ name = "native_transactions"
 path = "tests/native_transactions.rs"
 required-features = ["turso"]
 
+[[test]]
+name = "native_capabilities"
+path = "tests/native_capabilities.rs"
+required-features = ["turso"]
+
 [[bench]]
 name = "bench"
 harness = false

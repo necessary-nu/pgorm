@@ -158,17 +158,22 @@ impl Transaction<'_> {
     /// refuses before its data flow starts closes the connection, as
     /// [`ClientWrapper::copy_in`](crate::ClientWrapper::copy_in) does and for
     /// the same reason. The transaction then ends without committing.
-    // [spec:pgorm:req:conn.copy+3]    the transaction wrapper forwards COPY FROM STDIN
+    /// Native Turso refuses COPY before work starts, preserving the transaction.
+    // [spec:pgorm:req:conn.copy+4]    the transaction wrapper forwards COPY FROM STDIN
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
     {
+        #[cfg(feature = "turso")]
+        if self.is_turso() {
+            return self.txn.copy_in(statement).await;
+        }
         crate::copy::guarded(&self.connection, self.txn.copy_in(statement)).await
     }
 
     /// Like [`pgorm_driver::Transaction::copy_out()`].
-    // [spec:pgorm:req:conn.copy+3]    the transaction wrapper forwards COPY TO STDOUT
+    // [spec:pgorm:req:conn.copy+4]    the transaction wrapper forwards COPY TO STDOUT
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,

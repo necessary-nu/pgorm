@@ -90,7 +90,7 @@ pub(crate) fn refuse_copy_statement(sql: &str) -> Result<(), Error> {
 /// caching it would fill the bounded cache with statements run once.
 ///
 /// [`ConnectionTrait`]: crate::ConnectionTrait
-// [spec:pgorm:req:conn.copy+3]
+// [spec:pgorm:req:conn.copy+4]
 #[async_trait::async_trait]
 pub trait CopyTrait {
     /// Start `COPY … FROM STDIN`, returning the sink its data is written to.
@@ -116,6 +116,9 @@ pub trait CopyTrait {
     /// recovery its API allows. Every later call on the connection fails as
     /// closed, and the pool discards it rather than lending it again. The same
     /// holds when this future is dropped before it completes.
+    ///
+    /// Native Turso refuses COPY before preparation and leaves the connection
+    /// and any open transaction usable.
     async fn copy_in<F>(
         &mut self,
         statement: &CopyFromStatement<F>,
@@ -143,7 +146,7 @@ pub trait CopyTrait {
     /// The description prepares a `SELECT` of those columns and runs
     /// nothing; a table or column that does not exist is refused here, and
     /// the connection is left as it was.
-    // [spec:pgorm:req:conn.copy.rows+5]
+    // [spec:pgorm:req:conn.copy.rows+6]
     async fn copy_in_columns<F>(
         &mut self,
         statement: &CopyFromStatement<F>,
@@ -155,7 +158,7 @@ pub trait CopyTrait {
     /// types, as the server describes them: its table's columns the server
     /// does not generate, or its statement's result columns. A write source
     /// is prepared, never run.
-    // [spec:pgorm:req:conn.copy.rows+5]
+    // [spec:pgorm:req:conn.copy.rows+6]
     async fn copy_out_columns<F>(
         &mut self,
         statement: &CopyToStatement<F>,
@@ -174,7 +177,7 @@ pub trait CopyTrait {
     /// any other, so it is the COPY's start that refuses the list and closes
     /// the connection. Leave generated columns out of the list, or give no
     /// list, which leaves them out already.
-    // [spec:pgorm:req:conn.copy.rows+5]
+    // [spec:pgorm:req:conn.copy.rows+6]
     async fn copy_in_rows(
         &mut self,
         statement: &CopyFromStatement<CopyBinary>,
@@ -190,7 +193,7 @@ pub trait CopyTrait {
     /// Start a binary `COPY … TO STDOUT` whose rows arrive as pgorm
     /// [`Value`](pgorm_query::Value)s, each field decoded by the type
     /// [`copy_out_columns`](Self::copy_out_columns) describes for its column.
-    // [spec:pgorm:req:conn.copy.rows+5]
+    // [spec:pgorm:req:conn.copy.rows+6]
     async fn copy_out_rows(
         &mut self,
         statement: &CopyToStatement<CopyBinary>,
@@ -218,7 +221,7 @@ pub trait CopyTrait {
 /// a transaction nothing is written; inside one, the transaction is aborted,
 /// as by any failed statement, and only a rollback ends it. `Sink::close`
 /// finishes the COPY as `finish` does but discards the row count.
-// [spec:pgorm:req:conn.copy+3]
+// [spec:pgorm:req:conn.copy+4]
 pub struct CopyInSink<'a> {
     sink: Pin<Box<pgorm_driver::CopyInSink<Bytes>>>,
     /// What is left of a chunk longer than one message carries, sent before
@@ -312,7 +315,7 @@ impl fmt::Debug for CopyInSink<'_> {
 /// server back rather than filling memory. Dropping it early does not stop
 /// the server: the connection reads and discards the rest of the data before
 /// the next statement on it runs.
-// [spec:pgorm:req:conn.copy+3]
+// [spec:pgorm:req:conn.copy+4]
 pub struct CopyOutStream<'a> {
     stream: Pin<Box<pgorm_driver::CopyOutStream>>,
     connection: PhantomData<&'a mut ()>,
@@ -344,7 +347,7 @@ impl fmt::Debug for CopyOutStream<'_> {
     }
 }
 
-// [spec:pgorm:req:conn.copy+3]    COPY on the pooled client
+// [spec:pgorm:req:conn.copy+4]    COPY on the pooled client
 #[async_trait::async_trait]
 impl CopyTrait for DatabaseConnection {
     async fn copy_in<F>(
@@ -354,6 +357,11 @@ impl CopyTrait for DatabaseConnection {
     where
         F: CopyFormat,
     {
+        #[cfg(feature = "turso")]
+        if self.0.is_turso() {
+            let sink = self.0.copy_in::<_, Bytes>(&statement.to_string()).await?;
+            return Ok(CopyInSink::new(sink));
+        }
         let prepared = self.0.prepare(&statement.to_string()).await?;
         let sink = self.0.copy_in::<_, Bytes>(&prepared).await?;
         Ok(CopyInSink::new(sink))
@@ -379,6 +387,10 @@ impl CopyTrait for DatabaseConnection {
     where
         F: CopyFormat,
     {
+        #[cfg(feature = "turso")]
+        if self.0.is_turso() {
+            return Err(pgorm_driver::Error::turso_unsupported("COPY column metadata").into());
+        }
         copy_rows::copy_in_columns(&self.0, statement).await
     }
 
@@ -389,11 +401,15 @@ impl CopyTrait for DatabaseConnection {
     where
         F: CopyFormat,
     {
+        #[cfg(feature = "turso")]
+        if self.0.is_turso() {
+            return Err(pgorm_driver::Error::turso_unsupported("COPY column metadata").into());
+        }
         copy_rows::copy_out_columns(&self.0, statement).await
     }
 }
 
-// [spec:pgorm:req:conn.copy+3]    COPY inside a transaction or savepoint
+// [spec:pgorm:req:conn.copy+4]    COPY inside a transaction or savepoint
 #[async_trait::async_trait]
 impl CopyTrait for DatabaseTransaction<'_> {
     async fn copy_in<F>(
@@ -403,6 +419,14 @@ impl CopyTrait for DatabaseTransaction<'_> {
     where
         F: CopyFormat,
     {
+        #[cfg(feature = "turso")]
+        if self.tx().is_turso() {
+            let sink = self
+                .tx()
+                .copy_in::<_, Bytes>(&statement.to_string())
+                .await?;
+            return Ok(CopyInSink::new(sink));
+        }
         let prepared = GenericClient::prepare(self.tx(), &statement.to_string()).await?;
         let sink = self.tx().copy_in::<_, Bytes>(&prepared).await?;
         Ok(CopyInSink::new(sink))
@@ -428,6 +452,10 @@ impl CopyTrait for DatabaseTransaction<'_> {
     where
         F: CopyFormat,
     {
+        #[cfg(feature = "turso")]
+        if self.tx().is_turso() {
+            return Err(pgorm_driver::Error::turso_unsupported("COPY column metadata").into());
+        }
         copy_rows::copy_in_columns(self.tx(), statement).await
     }
 
@@ -438,6 +466,10 @@ impl CopyTrait for DatabaseTransaction<'_> {
     where
         F: CopyFormat,
     {
+        #[cfg(feature = "turso")]
+        if self.tx().is_turso() {
+            return Err(pgorm_driver::Error::turso_unsupported("COPY column metadata").into());
+        }
         copy_rows::copy_out_columns(self.tx(), statement).await
     }
 }

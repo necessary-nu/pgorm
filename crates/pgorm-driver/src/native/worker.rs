@@ -610,6 +610,7 @@ pub(super) fn finish_statement(
 
 // [spec:pgorm:sem:turso.lifecycle] one worker drives the complete native operation
 // [spec:pgorm:sem:turso.execution] native script parsing stops on the first failure without claiming implicit atomicity
+// [spec:pgorm:req:turso.capabilities] native COPY classification is refused before its first step
 pub(super) fn execute_script(
     connection: &PgConnection,
     sql: &str,
@@ -628,6 +629,11 @@ pub(super) fn execute_script(
         else {
             continue;
         };
+        if statement.result_kind() == turso_pg::StatementResultKind::CopyOut {
+            return Err(Failure::recoverable(Error::turso_unsupported(
+                "COPY TO STDOUT",
+            )));
+        }
         if statement.parameters_count() != 0 {
             return Err(Failure::recoverable(Error::parameters(
                 0,
