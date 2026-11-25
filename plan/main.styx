@@ -22577,6 +22577,30 @@ children (
                         kind @decision
                         text "Separate the completed benchmark harness into a build commit before measuring, so its formatting, Clippy and structural gates pass before the frozen measurement window. This is progress only: the perf delivery remains pending actual repeated PostgreSQL off/on, direct-native/driver/ORM, allocation and growing-stream evidence. Keep other builds and tests out of our measurement window and record observed external load without claiming host isolation."
                     }
+
+                    {
+                        at 2026-11-25T16:19:33.777442Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The completed27-process baseline measured stable driver scalar11 allocations/3696 requested bytes, ORM16/5769, and bounded stream peaks through1M rows. PostgreSQL attribution is inconclusive under recorded external host activity; retain all distributions without inventing zero-regression or speedup claims. Investigate the concrete eager32-row pending-batch reservation with a narrow native-only change: inline first row, promote on second, no unused successor reserve. Preserve before artifacts, validate observable row/byte/error boundaries, and use separate after binaries for interleaved scalar/stream latency and allocation comparisons before accepting the optimization."
+                        after_done true
+                    }
+
+                    {
+                        at 2026-11-25T16:53:56.83445Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Reject the optional inline-first-row batch optimization after the corrected 16-process comparison. Its scalar requested-byte savings are established, but memory stream driver throughput divided by the unchanged direct-control ratio was lower in 3 of 4 pairs (approximately 0.85–0.86), covering both variant orders; file results were mixed/faster. This is not proof of a universal regression or causal attribution on the shared host, but does not justify shipping the optimization given the performance priority. Restore the prior production batch storage, retain the new boundary/error tests, and preserve both comparison windows and unfavorable results. Final performance claims describe the pre-optimization implementation; reconsider batch storage only with controlled-host evidence."
+                        after_done true
+                    }
+
+                    {
+                        at 2026-11-25T16:56:04.464861Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The production query batching implementation was restored byte-for-byte to 418d5a73; the added cardinality, partial-error and exact-byte regressions remain. The restored source passed 86 focused native tests (49 unit, 17 execution, 9 lifecycle, 11 types), strict driver Clippy and formatting. Final delivery uses the original measured storage implementation; the rejected allocation experiment is retained in the report, not claimed as a shipped improvement."
+                        after_done true
+                    }
                 )
             }
 
@@ -22696,6 +22720,27 @@ children (
                         author "brendan@necessary.nu"
                         kind @note
                         text "Publish Rust, Python and JavaScript setup/examples for the actual shipped feature/package combinations and connection entry points. Document database ownership, file/in-memory lifetime, supported operations and types, explicit refusals and known mismatches, linking the revisioned compatibility matrix and benchmark evidence. Explain the native driver architecture and how the existing public driver types are preserved, without implying complete PostgreSQL compatibility. Record the engine revision, licenses/notices, upgrade procedure and checks to rerun on upstream changes. Examples must execute in the relevant native test/package environments; PostgreSQL remains the reference for PostgreSQL semantics."
+                    }
+
+                    {
+                        at 2026-11-25T16:47:45.579861Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T16:53:00.577775Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The native setup guide now documents existing connect/Pool path entry points, lazy construction, memory ownership, typing and refusal boundaries, companion files, exact engine provenance/licenses, measured-performance links and upgrade checks. Its Rust example is byte-identical to the executed README block (SHA-256 b72c54808eb95224518d4f803ff3f9a51240bbd7671288948b22778647f067b8), run successfully with turso in a fresh directory. The Python README bound INSERT/SELECT example passed unchanged in an installed native wheel (SHA-256 01c25a879ebc984ea373b0b5325175eb891076a263ae0d9c293b281d2e36e8c5). JavaScript README and distribution native examples passed unchanged in installed packages under both Node and Deno, each in a fresh directory. Local guide links were checked; package availability remains scoped to the locally validated platform."
+                    }
+
+                    {
+                        at 2026-11-25T17:00:52.763873Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Documentation verification is linked to the existing default_constructor_waits_until_first_acquisition regression: it opens a fresh file with connect(path.parse()), acquires lazily and asserts the documented SELECT 1/i32 result. That test passed in the final native pool suite. This executable contract check complements the separately recorded verbatim Rust/Python/JavaScript documentation-example runs; it does not claim to automatically inspect all prose or validate every documented limitation."
                     }
                 )
             }

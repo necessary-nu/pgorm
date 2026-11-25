@@ -33,6 +33,8 @@ pinned engine revision, supported operations and known differences.
   Python, chapter for chapter, every example run against a server.
 - [The JavaScript guide](pgorm-napi/guide/README.md) is its dialect for
   Node.js and Deno, chapter for chapter, every example run in both runtimes.
+- [Experimental native Turso](docs/turso.md) covers file and memory databases,
+  package choices, compatibility, performance and engine upgrades.
 - [Coming from SeaORM](COMING_FROM_SEAORM.md) maps each SeaORM API to what
   replaces it, for porting an application. pgorm began as a fork of SeaORM
   and keeps its shape: entities, models, active models and relations.

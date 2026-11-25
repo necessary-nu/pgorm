@@ -212,7 +212,13 @@ async fn prepared_stream_backpressure_and_drop() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn wide_rows_obey_byte_backpressure() {
     use futures_util::TryStreamExt;
-    for (width, expected) in [(40 * 1024, 4_u64), (128 * 1024, 2_u64)] {
+    for (width, expected) in [
+        (40 * 1024, 4_u64),
+        (65535, 4),
+        (65536, 2),
+        (65537, 2),
+        (128 * 1024, 2),
+    ] {
         let (actor, task) = actor().await;
         let client = crate::Client::from_turso(Arc::clone(&actor));
         let payload = vec![0xab_u8; width];
@@ -234,6 +240,7 @@ async fn wide_rows_obey_byte_backpressure() {
             expected
         );
         let retained = rows.try_next().await.unwrap().unwrap();
+        assert_eq!(retained.raw_size_bytes(), width);
         drop(rows);
         tokio::time::timeout(Duration::from_secs(3), client.check_connection())
             .await

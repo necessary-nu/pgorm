@@ -485,37 +485,67 @@ async fn known_invalidation_skips_later_codecs() {
 
 // [spec:pgorm:sem:turso.streaming/test]
 #[tokio::test]
+async fn batch_boundaries_preserve_rows_and_counts() {
+    let (client, task) = session().await;
+    let sql = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<$1) SELECT x::bigint FROM n WHERE x<=$1";
+    let statement = client.prepare_typed(sql, &[Type::INT4]).await.unwrap();
+    for expected in [0_i32, 1, 2, 31, 32, 33, 64, 65] {
+        let mut rows = Box::pin(client.query_raw(&statement, [&expected]).await.unwrap());
+        assert_eq!(rows.rows_affected(), None);
+        for value in 1..=expected {
+            let row = rows.try_next().await.unwrap().expect("missing result row");
+            assert_eq!(row.get::<_, i64>(0), i64::from(value));
+            assert_eq!(rows.rows_affected(), None);
+        }
+        assert!(rows.try_next().await.unwrap().is_none());
+        assert_eq!(rows.rows_affected(), Some(u64::try_from(expected).unwrap()));
+        assert!(rows.try_next().await.unwrap().is_none());
+    }
+    client.check_connection().await.unwrap();
+    finish(client, task).await;
+}
+
+// [spec:pgorm:sem:turso.streaming/test]
+#[tokio::test]
 async fn conversion_error_follows_emitted_rows() {
     let (client, task) = session().await;
-    let sql = "WITH RECURSIVE n(x) AS (SELECT 2147483616 UNION ALL SELECT x+1 FROM n WHERE x<2147483650) SELECT x::integer FROM n";
-    let statement = client.prepare(sql).await.unwrap();
-    let mut rows = Box::pin(
-        client
-            .query_raw(&statement, std::iter::empty::<i32>())
-            .await
-            .unwrap(),
-    );
-    let mut count = 0;
-    let error = loop {
-        match rows.try_next().await {
-            Ok(Some(row)) => {
-                assert_eq!(row.get::<_, i32>(0), 2147483616 + count);
-                count += 1;
+    for (start, visible, affected) in [
+        (2147483616_i32, 32, 35),
+        (2147483647, 0, 4),
+        (2147483615, 32, 36),
+    ] {
+        let sql = format!(
+            "WITH RECURSIVE n(x) AS (SELECT {start} UNION ALL SELECT x+1 FROM n WHERE x<2147483650) SELECT x::integer FROM n"
+        );
+        let statement = client.prepare(&sql).await.unwrap();
+        let mut rows = Box::pin(
+            client
+                .query_raw(&statement, std::iter::empty::<i32>())
+                .await
+                .unwrap(),
+        );
+        let mut count = 0;
+        let error = loop {
+            match rows.try_next().await {
+                Ok(Some(row)) => {
+                    assert_eq!(row.get::<_, i32>(0), start + count);
+                    count += 1;
+                }
+                Err(error) => break error,
+                Ok(None) => panic!("partial result became successful EOF"),
             }
-            Err(error) => break error,
-            Ok(None) => panic!("partial result became successful EOF"),
-        }
-    };
-    assert_eq!(count, 32);
-    assert!(
-        error.code().is_none(),
-        "this is a driver width refusal: {error}"
-    );
-    assert_eq!(rows.rows_affected(), None);
-    assert!(rows.try_next().await.unwrap().is_none());
-    // execute drains and counts engine rows without encoding discarded cells.
-    assert_eq!(client.execute(&statement, &[]).await.unwrap(), 35);
-    client.check_connection().await.unwrap();
+        };
+        assert_eq!(count, visible, "start={start}");
+        assert!(
+            error.code().is_none(),
+            "this is a driver width refusal: {error}"
+        );
+        assert_eq!(rows.rows_affected(), None);
+        assert!(rows.try_next().await.unwrap().is_none());
+        // execute drains and counts engine rows without encoding discarded cells.
+        assert_eq!(client.execute(&statement, &[]).await.unwrap(), affected);
+        client.check_connection().await.unwrap();
+    }
     finish(client, task).await;
 }
 

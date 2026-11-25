@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-25T16:17:34.365234Z
+last_sync_at 2026-11-25T17:00:53.61082Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1822,7 +1822,6 @@ assertions (
     {id tokenizer-backslash-standard, kind @complete, author "brendan@necessary.nu", at 2026-09-23T23:26:31.551166Z}
     {id trait-names, kind @complete, author "brendan@necessary.nu", at 2026-11-25T16:18:11.061453Z}
     {id transaction-stale-plan-recovery, kind @complete, author "brendan@necessary.nu", at 2026-09-06T12:12:04.84501Z}
-    {id turso.performance, kind @doing, author "brendan@necessary.nu", at 2026-11-25T13:53:25.354302Z}
     {id turso.performance-baseline, kind @complete, author "brendan@necessary.nu", at 2026-11-24T14:40:05.916004Z}
     {id turso.spec, kind @complete, author "brendan@necessary.nu", at 2026-11-24T15:31:35.020061Z}
     {id tx-closure-only, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:30:14.075005Z}
@@ -3998,6 +3997,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id turso.pool, version 1}
     )}
+    {id turso.docs, covered_rules (
+        turso.documentation
+    ), covered_claims (
+        {impl_name main, rule turso.documentation}
+    )}
     {id turso.execution, covered_rules (
         turso.execution
         turso.parameters
@@ -4027,6 +4031,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id turso.feature, version 0}
         {id turso.lifecycle, version 0}
+    )}
+    {id turso.performance, covered_rules (
+        turso.performance
+    ), covered_claims (
+        {impl_name main, rule turso.performance}
     )}
     {id turso.python, covered_rules (
         turso.python

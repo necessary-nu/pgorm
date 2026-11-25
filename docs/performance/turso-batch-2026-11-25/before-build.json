@@ -1,0 +1,468 @@
+{
+  "created_utc": "2026-11-25T16:05:19.255238+00:00",
+  "source_root": "/Users/brendan/git/necessary/pgorm",
+  "source_fingerprint": "1bc9f034f0606044e72e1e8147bb09ee0f643670",
+  "git_head": "451ff6076db65c19fc027b98b1ac1a9629a5bc2c",
+  "git_status": "M  .config/nplan/config.styx\nM  .config/nspec/config.styx\nA  .github/workflows/turso.yml\nM  benches/driver_baseline.rs\nA  benches/native/.gitignore\nA  benches/native/Cargo.lock\nA  benches/native/Cargo.toml\nA  benches/native/allocation.rs\nA  benches/native/mod.rs\nA  benches/native/workloads.rs\nA  benches/native_baseline.rs\nA  benches/support/mod.rs\nM  docs/performance/README.md\nA  docs/performance/run.py\nM  docs/turso-compatibility.md\nM  plan/.state.styx\nM  plan/annotations.styx\nA  tests/turso_compatibility/mod.rs\nA  tests/turso_compatibility_tests.rs\nM  tests/turso_feature_tests.rs\n?? tests/scope_security_tests.rs",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: aarch64-apple-darwin\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)",
+  "runner_sha256": "c8f0a5ca3ce9d33d1d75a52c8d489cfde21fd408990e0084046d9f4658b663fc",
+  "root_lockfile_hash": "1d402dab3154fd963a58f1b41bb34c08e01c47d1",
+  "native_lockfile_hash": "eb70126f8aea396b038e6804476490f5863f93d8",
+  "build_environment": {},
+  "artifacts": {
+    "postgres-before": {
+      "path": "/private/tmp/pgorm-performance-artifacts/postgres-before",
+      "executable_git_blob_hash": "6bddf829af0756e0cd9f689464ef2c2c35ab22b6",
+      "reference_report": "docs/performance/postgres-before-turso.json",
+      "reference_report_sha256": "55fc9ab786826b00a4de055298b9e4b5507d0def5078596a36ae54eaeac5d1ca",
+      "original_build_command": "cargo bench --bench driver_baseline --offline --target-dir /tmp/pgorm-perf-target -- --output docs/performance/postgres-before-turso.json",
+      "compiled_source_head": "14707a0eab0ad1daaf0f43065b5192a766a17e7c",
+      "compiled_source_fingerprint": "545bbcd4b9c4e531a63ece17c3149d54bfacd76b",
+      "compiled_features": {
+        "macros": true,
+        "metrics-fingerprint": true,
+        "postgres-array": true,
+        "tests-cfg": true,
+        "with-jiff": true,
+        "with-json": true,
+        "with-uuid": true
+      }
+    },
+    "postgres-off": {
+      "path": "/private/tmp/pgorm-performance-artifacts/postgres-off",
+      "executable_git_blob_hash": "839b30289cf1ae8884a2c2fb6b065a598ce05a19",
+      "build_command": [
+        "cargo",
+        "bench",
+        "--bench",
+        "driver_baseline",
+        "--no-run",
+        "--locked",
+        "--offline",
+        "--message-format=json",
+        "--target-dir",
+        "/private/tmp/pgorm-native-perf-build"
+      ],
+      "cargo_reported_features": [
+        "default",
+        "macros",
+        "metrics-fingerprint",
+        "postgres-array",
+        "serde_json",
+        "tests-cfg",
+        "uuid",
+        "with-jiff",
+        "with-json",
+        "with-uuid"
+      ],
+      "compiled_crates": {
+        "pgorm_driver": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/crates/pgorm-driver#0.2.0",
+          "features": [
+            "array-impls",
+            "default",
+            "runtime",
+            "with-jiff-0_2",
+            "with-serde_json-1",
+            "with-uuid-1"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_pool": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/pgorm-pool#0.2.0",
+          "features": [
+            "default"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm#0.2.0",
+          "features": [
+            "default",
+            "macros",
+            "metrics-fingerprint",
+            "postgres-array",
+            "serde_json",
+            "tests-cfg",
+            "uuid",
+            "with-jiff",
+            "with-json",
+            "with-uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        }
+      },
+      "build_stdout": "/private/tmp/pgorm-performance-artifacts/postgres-off-build.jsonl",
+      "build_stderr": "/private/tmp/pgorm-performance-artifacts/postgres-off-build.stderr"
+    },
+    "postgres-on": {
+      "path": "/private/tmp/pgorm-performance-artifacts/postgres-on",
+      "executable_git_blob_hash": "a2030608fd7f875b8402e0d91e7cf4bc871beba0",
+      "build_command": [
+        "cargo",
+        "bench",
+        "--bench",
+        "driver_baseline",
+        "--features",
+        "turso",
+        "--no-run",
+        "--locked",
+        "--offline",
+        "--message-format=json",
+        "--target-dir",
+        "/private/tmp/pgorm-native-perf-build"
+      ],
+      "cargo_reported_features": [
+        "default",
+        "macros",
+        "metrics-fingerprint",
+        "postgres-array",
+        "serde_json",
+        "tests-cfg",
+        "turso",
+        "uuid",
+        "with-jiff",
+        "with-json",
+        "with-uuid"
+      ],
+      "compiled_crates": {
+        "turso_core": {
+          "package_id": "git+https://github.com/tursodatabase/turso.git?rev=adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa#turso_core@0.9.0-pre.6",
+          "features": [
+            "autovacuum",
+            "baseline",
+            "conn_raw_api",
+            "default",
+            "encryption",
+            "fs",
+            "json",
+            "percentile",
+            "series",
+            "simd",
+            "time",
+            "uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "turso_pg": {
+          "package_id": "git+https://github.com/tursodatabase/turso.git?rev=adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa#turso_pg@0.9.0-pre.6",
+          "features": [],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_driver": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/crates/pgorm-driver#0.2.0",
+          "features": [
+            "array-impls",
+            "default",
+            "runtime",
+            "turso",
+            "with-jiff-0_2",
+            "with-serde_json-1",
+            "with-uuid-1"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_pool": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/pgorm-pool#0.2.0",
+          "features": [
+            "default",
+            "turso"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm#0.2.0",
+          "features": [
+            "default",
+            "macros",
+            "metrics-fingerprint",
+            "postgres-array",
+            "serde_json",
+            "tests-cfg",
+            "turso",
+            "uuid",
+            "with-jiff",
+            "with-json",
+            "with-uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        }
+      },
+      "build_stdout": "/private/tmp/pgorm-performance-artifacts/postgres-on-build.jsonl",
+      "build_stderr": "/private/tmp/pgorm-performance-artifacts/postgres-on-build.stderr"
+    },
+    "native": {
+      "path": "/private/tmp/pgorm-performance-artifacts/native",
+      "executable_git_blob_hash": "bfcb216c846553c194d7a286e079a120a0efa16f",
+      "build_command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "/Users/brendan/git/necessary/pgorm/benches/native/Cargo.toml",
+        "--release",
+        "--locked",
+        "--offline",
+        "--message-format=json",
+        "--target-dir",
+        "/private/tmp/pgorm-native-perf-build"
+      ],
+      "cargo_reported_features": [],
+      "compiled_crates": {
+        "turso_core": {
+          "package_id": "git+https://github.com/tursodatabase/turso.git?rev=adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa#turso_core@0.9.0-pre.6",
+          "features": [
+            "autovacuum",
+            "baseline",
+            "conn_raw_api",
+            "default",
+            "encryption",
+            "fs",
+            "json",
+            "percentile",
+            "series",
+            "simd",
+            "time",
+            "uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "turso_pg": {
+          "package_id": "git+https://github.com/tursodatabase/turso.git?rev=adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa#turso_pg@0.9.0-pre.6",
+          "features": [],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_driver": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/crates/pgorm-driver#0.2.0",
+          "features": [
+            "array-impls",
+            "default",
+            "runtime",
+            "turso",
+            "with-jiff-0_2",
+            "with-serde_json-1",
+            "with-uuid-1"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_pool": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/pgorm-pool#0.2.0",
+          "features": [
+            "default",
+            "turso"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm#0.2.0",
+          "features": [
+            "default",
+            "macros",
+            "postgres-array",
+            "serde_json",
+            "turso",
+            "uuid",
+            "with-jiff",
+            "with-json",
+            "with-uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        }
+      },
+      "build_stdout": "/private/tmp/pgorm-performance-artifacts/native-build.jsonl",
+      "build_stderr": "/private/tmp/pgorm-performance-artifacts/native-build.stderr"
+    },
+    "native-alloc": {
+      "path": "/private/tmp/pgorm-performance-artifacts/native-alloc",
+      "executable_git_blob_hash": "f4102e89f57e96bea41ee48d22d373f0ff593d72",
+      "build_command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "/Users/brendan/git/necessary/pgorm/benches/native/Cargo.toml",
+        "--release",
+        "--features",
+        "alloc-profile",
+        "--locked",
+        "--offline",
+        "--message-format=json",
+        "--target-dir",
+        "/private/tmp/pgorm-native-perf-build"
+      ],
+      "cargo_reported_features": [
+        "alloc-profile"
+      ],
+      "compiled_crates": {
+        "turso_core": {
+          "package_id": "git+https://github.com/tursodatabase/turso.git?rev=adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa#turso_core@0.9.0-pre.6",
+          "features": [
+            "autovacuum",
+            "baseline",
+            "conn_raw_api",
+            "default",
+            "encryption",
+            "fs",
+            "json",
+            "percentile",
+            "series",
+            "simd",
+            "time",
+            "uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "turso_pg": {
+          "package_id": "git+https://github.com/tursodatabase/turso.git?rev=adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa#turso_pg@0.9.0-pre.6",
+          "features": [],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_driver": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/crates/pgorm-driver#0.2.0",
+          "features": [
+            "array-impls",
+            "default",
+            "runtime",
+            "turso",
+            "with-jiff-0_2",
+            "with-serde_json-1",
+            "with-uuid-1"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm_pool": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm/pgorm-pool#0.2.0",
+          "features": [
+            "default",
+            "turso"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        },
+        "pgorm": {
+          "package_id": "path+file:///Users/brendan/git/necessary/pgorm#0.2.0",
+          "features": [
+            "default",
+            "macros",
+            "postgres-array",
+            "serde_json",
+            "turso",
+            "uuid",
+            "with-jiff",
+            "with-json",
+            "with-uuid"
+          ],
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": false,
+            "overflow_checks": false,
+            "test": false
+          }
+        }
+      },
+      "build_stdout": "/private/tmp/pgorm-performance-artifacts/native-alloc-build.jsonl",
+      "build_stderr": "/private/tmp/pgorm-performance-artifacts/native-alloc-build.stderr"
+    }
+  }
+}
