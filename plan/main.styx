@@ -22762,4 +22762,34 @@ children (
             }
         )
     }
+
+    {
+        id build-speed
+        title "Builds stop redoing work: debug builds carry no dependency debug info, tools stop overwriting each other's artifacts, the commit gate stops checking what clippy checks, and integration tests link as a few binaries"
+        kind @build
+        children (
+            {
+                id build-speed.debuginfo
+                title "Debug builds in every workspace of the repository keep line tables for its own crates and no debug info for dependencies"
+            }
+
+            {
+                id build-speed.check-dedupe
+                title "nplan check runs no cargo check that a clippy of the same scope and features already covers"
+            }
+
+            {
+                id build-speed.tool-thrash
+                title "No two of the repository's builds sharing a target directory rebuild each other's units: the cause of each rebuild found with cargo's fingerprint log and removed"
+                deps (build-speed.debuginfo)
+            }
+
+            {
+                id build-speed.test-binaries
+                title "Each crate's integration tests link as one test binary (plus one per required feature set) rather than one per file"
+                kind @test
+                deps (read-only.rust)
+            }
+        )
+    }
 )
