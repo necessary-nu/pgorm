@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-25T15:57:49.634977Z
+last_sync_at 2026-11-25T16:05:29.170749Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1883,7 +1883,6 @@ assertions (
     {id scopes.security-regressions, kind @doing, author "brendan@necessary.nu", at 2026-11-24T09:41:46.543776Z}
     {id turso.performance-baseline, kind @complete, author "brendan@necessary.nu", at 2026-11-24T14:40:05.916004Z}
     {id turso.spec, kind @complete, author "brendan@necessary.nu", at 2026-11-24T15:31:35.020061Z}
-    {id turso.tests, kind @doing, author "brendan@necessary.nu", at 2026-11-25T13:53:12.655041Z}
     {id turso.performance, kind @doing, author "brendan@necessary.nu", at 2026-11-25T13:53:25.354302Z}
 )
 
@@ -4078,6 +4077,8 @@ impl_evidence (
         turso.pool
     ), covered_claims (
         {impl_name main, rule turso.pool}
+    ), rule_versions_seen (
+        {id turso.pool, version 1}
     )}
     {id turso.execution, covered_rules (
         turso.execution
@@ -4092,6 +4093,13 @@ impl_evidence (
         {id turso.parameters, version 0}
         {id turso.streaming, version 0}
     )}
+    {id turso.javascript, covered_rules (
+        turso.javascript
+    ), covered_claims (
+        {impl_name javascript, rule turso.javascript}
+    ), rule_versions_seen (
+        {id turso.javascript, version 1}
+    )}
     {id turso.native, covered_rules (
         turso.feature
         turso.lifecycle
@@ -4101,6 +4109,13 @@ impl_evidence (
     ), rule_versions_seen (
         {id turso.feature, version 0}
         {id turso.lifecycle, version 0}
+    )}
+    {id turso.python, covered_rules (
+        turso.python
+    ), covered_claims (
+        {impl_name python, rule turso.python}
+    ), rule_versions_seen (
+        {id turso.python, version 1}
     )}
     {id turso.transactions, covered_rules (
         turso.cleanup
@@ -4146,15 +4161,10 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
-    {id turso.python, covered_rules (
-        turso.python
+    {id turso.tests, covered_rules (
+        turso.compatibility
     ), covered_claims (
-        {impl_name python, rule turso.python}
-    )}
-    {id turso.javascript, covered_rules (
-        turso.javascript
-    ), covered_claims (
-        {impl_name javascript, rule turso.javascript}
+        {impl_name main, rule turso.compatibility}
     )}
 )
 
