@@ -22025,12 +22025,20 @@ children (
         title "No trait carries a Trait suffix: Entity, Model, Column, Connection, Transact, Paginate and the rest are named for what they are"
         kind @refactor
         deps (scopes.rust)
+        sealed true
         log (
             {
                 at 2026-11-24T01:29:56.793767Z
                 author "brendan@necessary.nu"
                 kind @decision
                 text "2026-11-24, agreed with the operator (\"agreed to all\"): the Trait suffix (inherited from SeaORM) goes from all 19 traits, as a pure breaking rename with no aliases, COMING_FROM_SEAORM.md mapping old to new. Same name as the types each entity module generates, path-disambiguated like `impl std::error::Error for Error`: EntityTrait→Entity, ModelTrait→Model, ColumnTrait→Column, ActiveModelTrait→ActiveModel, RelationTrait→Relation, PrimaryKeyTrait→PrimaryKey, MigratorTrait→Migrator (the template's struct Migrator is the application's), PartialModelTrait→PartialModel (sharing its derive's name). Probe first whether a glob-imported trait shadowed by a local struct of the same name still resolves methods (Entity::find() in an entity module); if not, the preludes also re-export the traits `as _`. New names where pgorm or std already uses the bare one: PaginatorTrait→Paginate, CursorTrait→CursorSource, SelectorTrait→DecodeRow, QueryTrait→Statement, ExprTrait→Expression, ColumnTypeTrait→ColumnTypeExt (an extension of pgorm-query's ColumnType, the idiomatic Ext case), MigrationTrait→Migration (pgorm-migration's own Migration struct renamed for what it holds), CopyTrait folded away (copy_out onto the read connection trait, copy_in onto the write one). ConnectionTrait→Connection and TransactionTrait→Transact (what a connection can do). The read/write split (Connection for reads, ConnectionMut: Connection for writes; Mut meaning \"may change the database\", writes keeping &self) is read-only.rust's; this node renames ConnectionTrait to Connection and moves CopyTrait's methods so read-only.rust only splits. LoaderTrait→LoadRelated. Order agreed: scopes.rust lands, this rename runs alone with nothing else in flight, then read-only, then immutable and redact."
+            }
+
+            {
+                at 2026-11-25T16:18:11.061453Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
