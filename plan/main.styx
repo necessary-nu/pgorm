@@ -22569,6 +22569,14 @@ children (
                         kind @decision
                         text "Separate the completed benchmark harness into a build commit before measuring, so its formatting, Clippy and structural gates pass before the frozen measurement window. This is progress only: the perf delivery remains pending actual repeated PostgreSQL off/on, direct-native/driver/ORM, allocation and growing-stream evidence. Keep other builds and tests out of our measurement window and record observed external load without claiming host isolation."
                     }
+
+                    {
+                        at 2026-11-25T16:19:33.777442Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The completed27-process baseline measured stable driver scalar11 allocations/3696 requested bytes, ORM16/5769, and bounded stream peaks through1M rows. PostgreSQL attribution is inconclusive under recorded external host activity; retain all distributions without inventing zero-regression or speedup claims. Investigate the concrete eager32-row pending-batch reservation with a narrow native-only change: inline first row, promote on second, no unused successor reserve. Preserve before artifacts, validate observable row/byte/error boundaries, and use separate after binaries for interleaved scalar/stream latency and allocation comparisons before accepting the optimization."
+                        after_done true
+                    }
                 )
             }
 

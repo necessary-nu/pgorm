@@ -12,9 +12,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
 import statistics
 import subprocess
+import sys
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 REFERENCE = ROOT / "docs/performance/postgres-before-turso.json"
@@ -214,6 +217,108 @@ def distribution(values):
     }
 
 
+def host_snapshot():
+    processes = subprocess.run(
+        ["ps", "-Ao", "pid,ppid,pcpu,pmem,etime,state,comm"],
+        text=True, capture_output=True, check=False,
+    )
+    rows = []
+    observed = {"cargo", "rustc", "clippy-driver", "nplan", "postgres", "native-baseline", "driver_baseline", "clang", "clang++", "ld", "ld64"}
+    if processes.returncode == 0:
+        for line in processes.stdout.splitlines()[1:]:
+            fields = line.split(None, 6)
+            if len(fields) != 7:
+                continue
+            pid, parent, cpu, memory, elapsed, state, executable = fields
+            name = Path(executable).name
+            if float(cpu) >= 1.0 or name in observed:
+                rows.append({"pid": int(pid), "ppid": int(parent), "cpu_percent": float(cpu), "memory_percent": float(memory), "elapsed": elapsed, "state": state, "executable": name})
+        rows.sort(key=lambda row: row["cpu_percent"], reverse=True)
+    return {
+        "utc": datetime.now(timezone.utc).isoformat(),
+        "load_average_1_5_15_minutes": os.getloadavg(),
+        "logical_cpu_count": os.cpu_count(),
+        "process_snapshot_exit": processes.returncode,
+        "process_snapshot_error": processes.stderr.strip() or None,
+        "processes": rows,
+    }
+
+
+def compare(args):
+    builds = {
+        variant: json.loads((directory / "build.json").read_text())
+        for variant, directory in [("before", args.before), ("after", args.after)]
+    }
+    current = fingerprint()
+    if current != builds["after"]["source_fingerprint"]:
+        raise RuntimeError("source differs from candidate build")
+    for binary in ["native", "native-alloc"]:
+        before = builds["before"]["artifacts"][binary]
+        after = builds["after"]["artifacts"][binary]
+        if before["compiled_crates"] != after["compiled_crates"]:
+            raise RuntimeError("comparison changed native dependency identities, features or profiles")
+        for artifact in [before, after]:
+            if blob(Path(artifact["path"])) != artifact["executable_git_blob_hash"]:
+                raise RuntimeError("comparison binary differs from its build record")
+    for field in ["rustc", "root_lockfile_hash", "native_lockfile_hash", "build_environment"]:
+        if builds["before"][field] != builds["after"][field]:
+            raise RuntimeError(f"comparison changed {field}")
+    destination = args.output.resolve()
+    destination.mkdir(parents=True, exist_ok=True)
+    if any(destination.glob("*.json")):
+        raise RuntimeError("comparison output already contains reports")
+    for variant, record in builds.items():
+        write_json(destination / f"{variant}-build.json", record)
+    schedule = []
+    for repeat in range(args.repeats):
+        modes = ["memory", "file"] if repeat % 2 == 0 else ["file", "memory"]
+        for mode_index, mode in enumerate(modes):
+            for work_index, workload in enumerate(["scalar", "stream", "memory"]):
+                binaries = ["native-alloc"] if workload == "memory" else ["native", "native-alloc"]
+                for profile_index, binary in enumerate(binaries):
+                    variants = ["before", "after"] if (repeat + mode_index + work_index + profile_index) % 2 == 0 else ["after", "before"]
+                    for variant in variants:
+                        options = ["--database", mode, "--samples", "5000", "--warmup", "500", "--rounds", "3", "--workers", "4", "--pool-size", "4", "--rows", "128"]
+                        options += ["--stream-memory", "true"] if workload == "memory" else ["--workload", workload]
+                        schedule.append((variant, binary, mode, workload, repeat, options))
+    window = {
+        "command": [sys.executable, *sys.argv],
+        "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "runtime_source_fingerprint": current,
+        "runtime_head": output(["git", "rev-parse", "HEAD"]),
+        "host_platform": platform.platform(),
+        "observer_scope": "Start/end snapshots only; intervening activity is not continuously observed. CPU percentages come from ps and are not window utilization. No quiet-host guarantee.",
+        "start": host_snapshot(),
+    }
+    write_json(destination / "window.json", window)
+    started = time.monotonic()
+    try:
+        for sequence, (variant, binary, mode, workload, repeat, options) in enumerate(schedule):
+            artifact = builds[variant]["artifacts"][binary]
+            path = destination / f"{sequence:02}-{variant}-{binary}-{mode}-{workload}-{repeat}.json"
+            command = [artifact["path"], *options, "--source-root", str(ROOT), "--output", str(path)]
+            print("Comparing", path.name, flush=True)
+            with path.with_suffix(".stderr").open("w") as errors:
+                subprocess.run(command, cwd=ROOT, stderr=errors, check=True)
+            report = json.loads(path.read_text())
+            if report["source_tree_changed_during_run"] or fingerprint() != current:
+                raise RuntimeError("source changed during comparison")
+            if report["executable_git_blob_hash"] != artifact["executable_git_blob_hash"]:
+                raise RuntimeError("measured comparison binary changed")
+            report["comparison"] = {
+                "sequence": sequence, "repeat": repeat, "group": f"batch-{workload}-{mode}",
+                "artifact": f"{variant}-{binary}", "command": command, "build": artifact,
+                "compiled_source_fingerprint": builds[variant]["source_fingerprint"],
+                "runtime_source_note": "Both executables inspect the candidate runtime checkout. Each variant's separate build record identifies its actual compiled source and executable hash.",
+            }
+            write_json(path, report)
+        window["success"] = True
+    finally:
+        window["elapsed_seconds"] = time.monotonic() - started
+        window["end"] = host_snapshot()
+        write_json(destination / "window.json", window)
+
+
 def summarize(args):
     grouped = {}
     memory = []
@@ -226,7 +331,7 @@ def summarize(args):
             key = (comparison["group"], comparison["artifact"], measurement["name"])
             grouped.setdefault(key, []).append((comparison["repeat"], measurement))
         for measurement in report.get("stream_memory_measurements", []):
-            memory.append({"file": path.name, "database": report["database"], **measurement})
+            memory.append({"file": path.name, "database": report["database"], "artifact": comparison["artifact"], "repeat": comparison["repeat"], **measurement})
     rows = []
     for key, measurements in sorted(grouped.items()):
         repeats = {}
@@ -284,6 +389,12 @@ def main():
     running.add_argument("--suite", choices=["all", "postgres", "native", "alloc", "memory"], default="all")
     running.add_argument("--repeats", type=int, default=3)
     running.set_defaults(function=run)
+    comparing = commands.add_parser("compare")
+    comparing.add_argument("--before", type=Path, required=True)
+    comparing.add_argument("--after", type=Path, required=True)
+    comparing.add_argument("--output", type=Path, required=True)
+    comparing.add_argument("--repeats", type=int, default=3)
+    comparing.set_defaults(function=compare)
     summarizing = commands.add_parser("summarize")
     summarizing.add_argument("--input", type=Path, required=True)
     summarizing.add_argument("--output", type=Path, required=True)

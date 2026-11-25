@@ -201,3 +201,30 @@ ranges, standard deviations, and coefficients of variation. Allocation-build
 timings are excluded from its latency table. Final conclusions require the
 recorded run results and investigation of repeatable regressions; the presence
 of this harness alone establishes no performance result.
+
+For a focused native batching comparison, preserve the complete before artifact
+directory and build the candidate into a different directory using the same
+target cache. Then run:
+
+```sh
+python3 docs/performance/run.py build \
+  --artifacts /tmp/pgorm-performance-artifacts-after \
+  --target /tmp/pgorm-native-perf-build
+python3 docs/performance/run.py compare \
+  --before /tmp/pgorm-performance-artifacts \
+  --after /tmp/pgorm-performance-artifacts-after \
+  --output /tmp/pgorm-performance-batch-results
+python3 docs/performance/run.py summarize \
+  --input /tmp/pgorm-performance-batch-results \
+  --output /tmp/pgorm-performance-batch-results/summary.json
+```
+
+This interleaves before/after scalar and 128-row stream measurements in both
+storage modes, with separate latency and allocation executables. Three process
+repeats each contain three rounds. Growing-stream memory profiles also repeat
+three times per storage mode and variant. The command verifies matching compiler,
+dependency identities, feature sets and profiles, preserves both build records,
+records the runner SHA256 and start/end host conditions, and checks every result.
+Runtime source inspection in the old executable describes the candidate checkout;
+its separate build record identifies the actual compiled source. This focused
+comparison does not rerun PostgreSQL workloads.
