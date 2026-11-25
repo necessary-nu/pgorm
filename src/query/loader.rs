@@ -1,8 +1,8 @@
 use crate::entity::compared_enum;
 use crate::{
     ColumnTrait, Condition, ConnectionTrait, EntityName, EntityTrait, Error, Iterable, Key,
-    ModelTrait, PrimaryKeyToColumn, QueryFilter, QueryTrait, Related, RelationDef, RelationType,
-    Req, Select, SelectGraph, error::*,
+    ModelTrait, NoContext, PrimaryKeyToColumn, QueryFilter, Related, RelationDef, RelationType,
+    Req, ScopedIn, Select, SelectGraph, error::*,
 };
 use async_trait::async_trait;
 use pgorm_query::{
@@ -64,9 +64,12 @@ pub trait LoaderTrait {
         <<Self as LoaderTrait>::Model as ModelTrait>::Entity: Related<R>;
 }
 
+/// The entity alone is its every row, read with no context, so a scoped
+/// entity is a statement its loader is given, such as `find_for(&cx)`.
+// [spec:pgorm:req:scope.compile]
 impl<E> EntityOrSelect<E> for E
 where
-    E: EntityTrait,
+    E: EntityTrait + ScopedIn<NoContext>,
 {
     fn into_select(self) -> Select<E> {
         E::find()
@@ -230,7 +233,7 @@ where
         // the slot's ON references the junction's columns, and NULLs do not
         // satisfy it.
         let graph = join_source::<R, <M as ModelTrait>::Entity>(
-            root_graph::<R>(stmt.into_select()).via(rel_def.rev()),
+            root_graph::<R>(stmt.into_select()).keyed_hop(rel_def.rev()),
             via_rel,
         );
 
@@ -264,7 +267,7 @@ where
     R: EntityTrait,
     F: EntityTrait,
 {
-    graph.join_one_as::<F>(rel.rev(), source_alias())
+    graph.keyed_slot::<F>(rel.rev(), source_alias())
 }
 
 /// Run a loader's graph read under the batch key predicate and hand back, per
@@ -400,9 +403,9 @@ where
 // [spec:pgorm:sem:query.loader.batching+8]
 // [spec:pgorm:sem:query.loader.many-to-many+3]
 fn root_graph<R: EntityTrait>(select: Select<R>) -> SelectGraph<R, ()> {
-    let mut query = select.into_query();
+    let mut query = select.query;
     query.clear_selects();
-    SelectGraph::rooted(query, R::default().table_ref())
+    SelectGraph::rooted(query, R::default().table_ref(), select.refused)
 }
 
 fn key_columns(identity: &Key) -> String {
@@ -574,8 +577,8 @@ fn table_column(tbl: &FromItem, col: &Name) -> Result<ColumnRef, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RelationTrait;
     use crate::tests_cfg::{cake, filling, fruit};
+    use crate::{QueryTrait, RelationTrait};
     use pgorm_query::IntoValueTuple;
     use pretty_assertions::assert_eq;
 

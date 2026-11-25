@@ -10,8 +10,8 @@
 //! insert answers.
 
 use pgorm::{
-    ActiveModelTrait, ConnectionTrait, EntityTrait, Error, Insert, IntoActiveModel, TryInsert,
-    TryInsertResult, Upserted,
+    ActiveModelTrait, ConnectionTrait, EntityTrait, Error, Insert, IntoActiveModel, NoContext,
+    ScopedIn, TryInsert, TryInsertResult, Upserted,
     pgorm_query::{IntoValueTuple, OnConflict, ValueTuple},
 };
 
@@ -156,7 +156,7 @@ pub async fn insert<E, C, M, U>(
     upsert: impl Fn(Upserted<E::Model>) -> U,
 ) -> Result<TryInsertResult<Inserted<M, U>>, Error>
 where
-    E: EntityTrait,
+    E: EntityTrait + ScopedIn<NoContext>,
     E::Model: IntoActiveModel<E::ActiveModel>,
     C: ConnectionTrait,
 {

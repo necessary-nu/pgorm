@@ -1,7 +1,7 @@
 use crate::{
-    ConnectionTrait, EntityTrait, Error, Iterable, ModelTrait, OneOfShape, PrimaryKeyToColumn,
-    PrimaryKeyTrait, QueryFilter, Related, StaticName, entity::disjoint::table_label,
-    error::query_err,
+    ConnectionTrait, EntityTrait, Error, Iterable, ModelTrait, NoContext, OneOfShape,
+    PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter, Related, ScopeContext, Select, StaticName,
+    entity::disjoint::table_label, error::query_err,
 };
 use async_trait::async_trait;
 use pgorm_query::Value;
@@ -141,8 +141,42 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// sent. A row's reference is read as [`key`](Self::key) reads it, and
     /// its errors are this one's; a key its target table does not hold is
     /// [`OneOfShape::absent`]'s [`Error::Query`].
+    ///
+    /// A target is read with no context, so a scoped target's read is refused
+    /// with [`ScopeError::NotHeld`](crate::ScopeError::NotHeld) before
+    /// anything is sent; [`load_for`](Self::load_for) reads it under one.
     // [spec:pgorm:def:disjoint.one-of+4]
     async fn load<C>(
+        models: &[<Self::Entity as EntityTrait>::Model],
+        db: &C,
+    ) -> Result<Vec<Self::Model>, Error>
+    where
+        C: ConnectionTrait,
+    {
+        Self::load_under(&NoContext, models, db).await
+    }
+
+    /// [`load`](Self::load) under the context `cx`: each target's read is
+    /// held to its table's scopes under `cx`, so a reference to a row outside
+    /// them is [`OneOfShape::absent`]'s error, and a target `cx` does not hold
+    /// the scopes of is refused before anything is sent.
+    // [spec:pgorm:def:disjoint.one-of+4]
+    // [spec:pgorm:sem:scope.read]
+    async fn load_for<Cx, C>(
+        cx: &Cx,
+        models: &[<Self::Entity as EntityTrait>::Model],
+        db: &C,
+    ) -> Result<Vec<Self::Model>, Error>
+    where
+        Cx: ScopeContext + Sync,
+        C: ConnectionTrait,
+    {
+        Self::load_under(cx, models, db).await
+    }
+
+    #[doc(hidden)]
+    async fn load_under<C>(
+        cx: &(dyn ScopeContext + Sync),
         models: &[<Self::Entity as EntityTrait>::Model],
         db: &C,
     ) -> Result<Vec<Self::Model>, Error>
@@ -159,6 +193,7 @@ pub trait OneOf: Sized + Send + Sync + 'static {
                 shape: &shape,
                 models,
                 keys: &keys,
+                cx,
                 db,
                 index: 0,
                 loads: Vec::new(),
@@ -450,6 +485,7 @@ struct Load<'a, O: OneOf, C> {
     shape: &'a OneOfShape,
     models: &'a [<O::Entity as EntityTrait>::Model],
     keys: &'a [O::Key],
+    cx: &'a (dyn ScopeContext + Sync),
     db: &'a C,
     index: usize,
     loads: Vec<TargetLoad<'a, O::Model>>,
@@ -488,8 +524,9 @@ impl<'a, O: OneOf, C: ConnectionTrait> TargetVisitor<O> for Load<'a, O, C> {
             }
         };
         let (shape, models, db) = (self.shape, self.models, self.db);
+        let read = Select::<T>::scoped(&T::default(), self.cx);
         self.loads.push(Box::pin(async move {
-            let found = T::find().filter(condition).all(db).await?;
+            let found = read.filter(condition).all(db).await?;
             let key = <T::PrimaryKey as Iterable>::iter()
                 .next()
                 .map(PrimaryKeyToColumn::into_column);

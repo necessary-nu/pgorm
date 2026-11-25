@@ -21,8 +21,8 @@ use pgorm::tests_cfg::{
 };
 use pgorm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Error, Linked, LinkedAlias,
-    LoaderTrait, Opt, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
-    SelectGraph, alias,
+    LoaderTrait, NoContext, Opt, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    RelationTrait, ScopedIn, SelectGraph, alias,
 };
 use pgorm_query::{Expr, ExprTrait, IntoCondition};
 use pretty_assertions::assert_eq;
@@ -1299,7 +1299,11 @@ type LinkedGraph<L> = SelectGraph<<L as Linked>::FromEntity, (Opt<<L as Linked>:
 
 /// A `Linked` chain as a graph, every hop under its own alias as SeaORM's
 /// linked joins had them.
-fn linked<L: Linked>(link: L) -> Option<LinkedGraph<L>> {
+fn linked<L: Linked>(link: L) -> Option<LinkedGraph<L>>
+where
+    L::FromEntity: ScopedIn<NoContext>,
+    L::ToEntity: ScopedIn<NoContext>,
+{
     let mut hops = link.link();
     let last = hops.pop()?;
     let end = hops.len();

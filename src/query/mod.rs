@@ -4,7 +4,7 @@ mod disjoint_write;
 pub(crate) mod graph;
 mod helper;
 mod insert;
-mod join;
+pub(crate) mod join;
 mod loader;
 mod select;
 mod traits;

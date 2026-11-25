@@ -27,12 +27,15 @@ use pgorm_query::{
     TableName, TypeName,
 };
 
-use super::helper::{alias_apart, join_condition};
+use super::helper::alias_apart;
+use super::join::join_condition;
+use crate::entity::entity_table;
 use crate::executor::BoundaryCast;
 use crate::executor::result_name::result_column_name;
 use crate::{
-    ColumnTrait, EntityTrait, Error, FromQueryResult, Iterable, PrimaryKeyToColumn, QueryFilter,
-    QueryOrder, QueryResult, QueryTrait, Related, RelationDef, StaticName,
+    ColumnTrait, EntityTrait, Error, FromQueryResult, Iterable, NoContext, PrimaryKeyToColumn,
+    QueryFilter, QueryOrder, QueryResult, QueryTrait, Related, RelationDef, ScopeContext,
+    ScopeError, ScopedIn, Scopes, StaticName,
 };
 
 /// The closure shape a call-site `ON` predicate takes: the join's left and
@@ -395,7 +398,7 @@ pub(crate) fn project_source<F: EntityTrait>(
 /// ```
 // [spec:pgorm:def:query.graph+2]
 #[doc(alias("SelectTwo", "SelectTwoMany"))]
-pub struct SelectGraph<E: EntityTrait, S = (), R = Unsliced> {
+pub struct SelectGraph<E: EntityTrait, S = (), R = Unsliced, Cx = NoContext> {
     pub(crate) query: SelectStatement,
     /// The decoded sources' effective identifiers, in declaration order: the
     /// root at index 0, each slot at its own. It is the writer's prefix index
@@ -405,6 +408,13 @@ pub struct SelectGraph<E: EntityTrait, S = (), R = Unsliced> {
     /// Every table the graph names, the root and each edge's joined side, in
     /// join order.
     pub(crate) visits: Vec<Visit>,
+    /// The context the graph is read under: each slot's entity is held to
+    /// it at compile time, and each table an edge joins is scoped by it in
+    /// that edge's `ON`.
+    pub(crate) cx: Cx,
+    /// What a table the context does not cover was refused with, held until
+    /// the graph would run.
+    pub(crate) refused: Option<ScopeError>,
     pub(crate) marker: PhantomData<(E, S, R)>,
 }
 
@@ -429,22 +439,26 @@ fn identity(table: &TableName) -> (Option<String>, String) {
     )
 }
 
-impl<E: EntityTrait, S, R> fmt::Debug for SelectGraph<E, S, R> {
+impl<E: EntityTrait, S, R, Cx: fmt::Debug> fmt::Debug for SelectGraph<E, S, R, Cx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SelectGraph")
             .field("query", &self.query)
             .field("qualifiers", &self.qualifiers)
             .field("visits", &self.visits)
+            .field("cx", &self.cx)
+            .field("refused", &self.refused)
             .finish()
     }
 }
 
-impl<E: EntityTrait, S, R> Clone for SelectGraph<E, S, R> {
+impl<E: EntityTrait, S, R, Cx: Clone> Clone for SelectGraph<E, S, R, Cx> {
     fn clone(&self) -> Self {
         SelectGraph {
             query: self.query.clone(),
             qualifiers: self.qualifiers.clone(),
             visits: self.visits.clone(),
+            cx: self.cx.clone(),
+            refused: self.refused.clone(),
             marker: PhantomData,
         }
     }
@@ -457,14 +471,55 @@ impl<E: EntityTrait> SelectGraph<E, ()> {
     ///
     /// The same construction [`EntityTrait::graph`](crate::EntityTrait::graph)
     /// and [`Default`] perform.
-    pub fn new() -> Self {
+    pub fn new() -> Self
+    where
+        E: ScopedIn<NoContext>,
+    {
         E::graph_in(E::default())
     }
 
     /// The graph over `query`, whose `FROM` reads `table`, one of `E`'s, its
-    /// root projected under the `s0_` prefix.
+    /// root projected under the `s0_` prefix, with no context: a read pgorm
+    /// makes of a statement already held to its scopes, whose refusal, if
+    /// it holds one, is `refused`.
     // [spec:pgorm:def:query.graph+2]
-    pub(crate) fn rooted(query: SelectStatement, table: TableName) -> Self {
+    pub(crate) fn rooted(
+        query: SelectStatement,
+        table: TableName,
+        refused: Option<ScopeError>,
+    ) -> Self {
+        let mut graph = SelectGraph::rooted_in(query, table, NoContext);
+        graph.refused = refused;
+        graph
+    }
+}
+
+impl<E: EntityTrait, Cx: ScopeContext> SelectGraph<E, (), Unsliced, Cx> {
+    /// The graph rooted at the table `entity` names, under `cx`: the root's
+    /// scopes in the `WHERE`, or the refusal held.
+    // [spec:pgorm:def:query.graph+2]
+    // [spec:pgorm:sem:scope.read]
+    pub(crate) fn rooted_under(entity: &E, cx: Cx) -> Self {
+        let mut query = SelectStatement::new();
+        query.from(entity_table(entity));
+        let mut graph = SelectGraph::rooted_in(query, entity.table_ref(), cx);
+        if let Some(scopes) = E::scopes() {
+            match scopes.condition(&graph.cx, Name::new(E::default())) {
+                Ok(Some(condition)) => {
+                    graph.query.cond_where(condition);
+                }
+                Ok(None) => {}
+                Err(refusal) => graph.refuse(refusal),
+            }
+        }
+        graph
+    }
+}
+
+impl<E: EntityTrait, Cx> SelectGraph<E, (), Unsliced, Cx> {
+    /// The graph over `query`, reading `table` under `cx`.
+    // [spec:pgorm:def:query.graph+2]
+    fn rooted_in(query: SelectStatement, table: TableName, cx: Cx) -> Self {
         let mut graph = SelectGraph {
             query,
             qualifiers: Vec::new(),
@@ -473,6 +528,8 @@ impl<E: EntityTrait> SelectGraph<E, ()> {
                 table: Some(table),
                 apart: false,
             }],
+            cx,
+            refused: None,
             marker: PhantomData,
         };
         graph.project::<E>(Name::new(E::default()));
@@ -481,13 +538,20 @@ impl<E: EntityTrait> SelectGraph<E, ()> {
 }
 
 // [spec:pgorm:def:query.graph+2]
-impl<E: EntityTrait> Default for SelectGraph<E, ()> {
+impl<E: EntityTrait + ScopedIn<NoContext>> Default for SelectGraph<E, ()> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
+impl<E: EntityTrait, S, R, Cx> SelectGraph<E, S, R, Cx> {
+    /// Hold `refusal`, the first one held being the one the graph fails
+    /// with when it would run.
+    // [spec:pgorm:req:scope.refusals]
+    pub(crate) fn refuse(&mut self, refusal: ScopeError) {
+        self.refused.get_or_insert(refusal);
+    }
+
     /// Project one decoded source under the next prefix, and record the
     /// identifier that prefix belongs to.
     // [spec:pgorm:sem:query.graph.writer+4]
@@ -514,6 +578,21 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
         self.qualifiers.get(index).cloned()
     }
 
+    /// Re-type the graph after an edge or a slice has been written into the
+    /// statement.
+    fn retype<S2, R2>(self) -> SelectGraph<E, S2, R2, Cx> {
+        SelectGraph {
+            query: self.query,
+            qualifiers: self.qualifiers,
+            visits: self.visits,
+            cx: self.cx,
+            refused: self.refused,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<E: EntityTrait, S, R, Cx: ScopeContext> SelectGraph<E, S, R, Cx> {
     /// Join a hop that is never decoded — a junction table, a hop of a chain.
     ///
     /// `rel.to_tbl` is `LEFT JOIN`ed under the relation's own condition
@@ -542,8 +621,10 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     /// ```
     // [spec:pgorm:def:query.graph+2]
     #[doc(alias("find_also_linked", "find_with_linked"))]
+    // [spec:pgorm:sem:scope.join]
     pub fn via(mut self, rel: RelationDef) -> Self {
-        self.edge(JoinType::LeftJoin, rel, None, None);
+        let scopes = rel.to_scopes;
+        self.edge(JoinType::LeftJoin, rel, None, None, scopes);
         self
     }
 
@@ -593,8 +674,16 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     /// ```
     // [spec:pgorm:req:query.graph.aliases+2]
     #[doc(alias("find_also_linked", "find_with_linked"))]
+    // [spec:pgorm:sem:scope.join]
     pub fn via_as(mut self, rel: RelationDef, alias: impl IntoName) -> Self {
-        self.edge(JoinType::LeftJoin, rel, Some(alias.into_name()), None);
+        let scopes = rel.to_scopes;
+        self.edge(
+            JoinType::LeftJoin,
+            rel,
+            Some(alias.into_name()),
+            None,
+            scopes,
+        );
         self
     }
 
@@ -670,7 +759,7 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     /// and a load: `E::find().limit(n)`, then
     /// [`load_many`](crate::LoaderTrait::load_many) or `load_many_via`.
     // [spec:pgorm:sem:query.graph.slice]
-    pub fn limit(mut self, limit: impl Into<Option<u64>>) -> SelectGraph<E, S, Sliced> {
+    pub fn limit(mut self, limit: impl Into<Option<u64>>) -> SelectGraph<E, S, Sliced, Cx> {
         match limit.into() {
             Some(limit) => self.query.limit(limit),
             None => self.query.reset_limit(),
@@ -685,7 +774,7 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     /// [`Sliced`], and the row reads skip exactly the rows the SQL skips, so
     /// a read can start part-way through one root's rows.
     // [spec:pgorm:sem:query.graph.slice]
-    pub fn offset(mut self, offset: impl Into<Option<u64>>) -> SelectGraph<E, S, Sliced> {
+    pub fn offset(mut self, offset: impl Into<Option<u64>>) -> SelectGraph<E, S, Sliced, Cx> {
         match offset.into() {
             Some(offset) => self.query.offset(offset),
             None => self.query.reset_offset(),
@@ -699,16 +788,20 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     /// side's effective identifier.
     ///
     /// A hop and a slot are both this join; a slot is one whose joined side
-    /// is then projected ([`slot_edge`](Self::slot_edge)).
+    /// is then projected ([`slot_edge`](Self::slot_edge)). `scopes` are the
+    /// joined table's, which the graph's context holds it to in the same
+    /// `ON`, or whose refusal the graph holds.
     // [spec:pgorm:def:query.graph+2]
     // [spec:pgorm:sem:query.graph.slots+2]
     // [spec:pgorm:req:query.graph.aliases+2]
+    // [spec:pgorm:sem:scope.join]
     fn edge(
         &mut self,
         join: JoinType,
         mut rel: RelationDef,
         alias: Option<Name>,
         extra: Option<OnCondition>,
+        scopes: Option<Scopes>,
     ) -> Name {
         if let Some(from) = unaliased(&rel.from_tbl)
             && let Some(visit) = self.visits.iter().find(|visit| {
@@ -748,6 +841,13 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
                 .add(condition)
                 .add(extra(left, Name::clone(&qualifier)));
         }
+        if let Some(scopes) = scopes {
+            match scopes.condition(&self.cx, Name::clone(&qualifier)) {
+                Ok(Some(scope)) => condition = Condition::all().add(condition).add(scope),
+                Ok(None) => {}
+                Err(refusal) => self.refuse(refusal),
+            }
+        }
         self.query.join(join, to_tbl, condition);
         qualifier
     }
@@ -755,26 +855,41 @@ impl<E: EntityTrait, S, R> SelectGraph<E, S, R> {
     /// Join a decoded source through [`edge`](Self::edge), then project it
     /// under the next prefix by the identifier the join bound it to.
     // [spec:pgorm:req:query.graph.aliases+2]
-    fn slot_edge<F: EntityTrait>(
+    /// The slot's own table is `F`'s, so its scopes are `F`'s, whatever the
+    /// relation records of its side.
+    // [spec:pgorm:sem:scope.join]
+    pub(crate) fn slot_edge<F: EntityTrait>(
         &mut self,
         join: JoinType,
         rel: RelationDef,
         alias: Option<Name>,
         extra: Option<OnCondition>,
     ) {
-        let qualifier = self.edge(join, rel, alias, extra);
+        let qualifier = self.edge(join, rel, alias, extra, F::scopes());
         self.project::<F>(qualifier);
     }
 
-    /// Re-type the graph after an edge or a slice has been written into the
-    /// statement.
-    fn retype<S2, R2>(self) -> SelectGraph<E, S2, R2> {
-        SelectGraph {
-            query: self.query,
-            qualifiers: self.qualifiers,
-            visits: self.visits,
-            marker: PhantomData,
-        }
+    /// A slot of `F` joined for a read pgorm makes over rows its caller
+    /// already holds, keyed by them: the loaders' join back to their input
+    /// models, which no scope narrows further.
+    // [spec:pgorm:sem:query.loader.batching+8]
+    pub(crate) fn keyed_slot<F: EntityTrait>(
+        mut self,
+        rel: RelationDef,
+        alias: Name,
+    ) -> SelectGraph<E, (Req<F>,), R, Cx> {
+        let qualifier = self.edge(<Req<F> as Slot>::JOIN, rel, Some(alias), None, None);
+        self.project::<F>(qualifier);
+        self.retype()
+    }
+
+    /// A hop through a junction for a read pgorm makes over rows its caller
+    /// already holds: [`keyed_slot`](Self::keyed_slot)'s, unscoped on the
+    /// same terms.
+    // [spec:pgorm:sem:query.loader.many-to-many+3]
+    pub(crate) fn keyed_hop(mut self, rel: RelationDef) -> Self {
+        self.edge(JoinType::LeftJoin, rel, None, None, None);
+        self
     }
 }
 
@@ -795,7 +910,7 @@ fn unaliased(item: &FromItem) -> Option<&TableName> {
 macro_rules! grow {
     ( $( $( #[doc = $example:literal] )* ( $( $prev:ident ),* ) ),+ $(,)? ) => {$(
         // [spec:pgorm:sem:query.graph.slots+2]
-        impl<E: EntityTrait, R $(, $prev: Slot )*> SelectGraph<E, ( $( $prev, )* ), R> {
+        impl<E: EntityTrait, R, Cx: ScopeContext $(, $prev: Slot )*> SelectGraph<E, ( $( $prev, )* ), R, Cx> {
             /// `LEFT JOIN` a source that may be absent, decoded as
             /// `Option<F::Model>` through the absence witness.
             ///
@@ -803,10 +918,10 @@ macro_rules! grow {
             /// `on_condition` and `condition_type` included.
             // [spec:pgorm:sem:query.graph.slots+2]
             #[doc(alias("select_also", "find_also_linked"))]
-            pub fn join_maybe<F: EntityTrait>(
+            pub fn join_maybe<F: ScopedIn<Cx>>(
                 mut self,
                 rel: RelationDef,
-            ) -> SelectGraph<E, ( $( $prev, )* Opt<F>, ), R> {
+            ) -> SelectGraph<E, ( $( $prev, )* Opt<F>, ), R, Cx> {
                 self.slot_edge::<F>(<Opt<F> as Slot>::JOIN, rel, None, None);
                 self.retype()
             }
@@ -821,11 +936,11 @@ macro_rules! grow {
             /// client-side — joining a table the graph already names,
             /// unaliased, renders SQL PostgreSQL refuses.
             // [spec:pgorm:req:query.graph.aliases+2]
-            pub fn join_maybe_as<F: EntityTrait>(
+            pub fn join_maybe_as<F: ScopedIn<Cx>>(
                 mut self,
                 rel: RelationDef,
                 alias: impl IntoName,
-            ) -> SelectGraph<E, ( $( $prev, )* Opt<F>, ), R> {
+            ) -> SelectGraph<E, ( $( $prev, )* Opt<F>, ), R, Cx> {
                 self.slot_edge::<F>(<Opt<F> as Slot>::JOIN, rel, Some(alias.into_name()), None);
                 self.retype()
             }
@@ -854,9 +969,9 @@ macro_rules! grow {
                 mut self,
                 rel: RelationDef,
                 f: C,
-            ) -> SelectGraph<E, ( $( $prev, )* Opt<F>, ), R>
+            ) -> SelectGraph<E, ( $( $prev, )* Opt<F>, ), R, Cx>
             where
-                F: EntityTrait,
+                F: ScopedIn<Cx>,
                 C: Fn(Name, Name) -> Condition + Send + Sync + 'static,
             {
                 self.slot_edge::<F>(<Opt<F> as Slot>::JOIN, rel, None, Some(Box::new(f)));
@@ -866,10 +981,10 @@ macro_rules! grow {
             /// `INNER JOIN` a source that must match, decoded as a bare
             /// `F::Model` — no `Option` to unwrap for a join that cannot miss.
             // [spec:pgorm:sem:query.graph.slots+2]
-            pub fn join_one<F: EntityTrait>(
+            pub fn join_one<F: ScopedIn<Cx>>(
                 mut self,
                 rel: RelationDef,
-            ) -> SelectGraph<E, ( $( $prev, )* Req<F>, ), R> {
+            ) -> SelectGraph<E, ( $( $prev, )* Req<F>, ), R, Cx> {
                 self.slot_edge::<F>(<Req<F> as Slot>::JOIN, rel, None, None);
                 self.retype()
             }
@@ -878,11 +993,11 @@ macro_rules! grow {
             /// caller-supplied alias, on the terms
             /// [`join_maybe_as`](Self::join_maybe_as) states.
             // [spec:pgorm:req:query.graph.aliases+2]
-            pub fn join_one_as<F: EntityTrait>(
+            pub fn join_one_as<F: ScopedIn<Cx>>(
                 mut self,
                 rel: RelationDef,
                 alias: impl IntoName,
-            ) -> SelectGraph<E, ( $( $prev, )* Req<F>, ), R> {
+            ) -> SelectGraph<E, ( $( $prev, )* Req<F>, ), R, Cx> {
                 self.slot_edge::<F>(<Req<F> as Slot>::JOIN, rel, Some(alias.into_name()), None);
                 self.retype()
             }
@@ -896,9 +1011,9 @@ macro_rules! grow {
             /// one call, junction hop included.
             // [spec:pgorm:sem:query.graph.slots+2]
             #[doc(alias("find_also_related", "find_with_related"))]
-            pub fn related_maybe<F: EntityTrait>(
+            pub fn related_maybe<F: ScopedIn<Cx>>(
                 self,
-            ) -> SelectGraph<E, ( $( $prev, )* Opt<F>, ), R>
+            ) -> SelectGraph<E, ( $( $prev, )* Opt<F>, ), R, Cx>
             where
                 E: Related<F>,
             {
@@ -920,14 +1035,15 @@ macro_rules! grow {
             /// that is decodes `F` as a bare `F::Model`.
             $( #[doc = $example] )*
             // [spec:pgorm:sem:query.graph.slots+2]
-            pub fn related_one<F: EntityTrait>(
+            pub fn related_one<F: ScopedIn<Cx>>(
                 mut self,
-            ) -> SelectGraph<E, ( $( $prev, )* Req<F>, ), R>
+            ) -> SelectGraph<E, ( $( $prev, )* Req<F>, ), R, Cx>
             where
                 E: Related<F>,
             {
                 if let Some(via) = <E as Related<F>>::via() {
-                    self.edge(<Req<F> as Slot>::JOIN, via, None, None);
+                    let scopes = via.to_scopes;
+                    self.edge(<Req<F> as Slot>::JOIN, via, None, None, scopes);
                 }
                 self.join_one::<F>(<E as Related<F>>::to())
             }
@@ -968,7 +1084,7 @@ assert_eq!(
 );
 
 // [spec:pgorm:def:query.graph+2]
-impl<E: EntityTrait, S, R> QueryFilter for SelectGraph<E, S, R> {
+impl<E: EntityTrait, S, R, Cx> QueryFilter for SelectGraph<E, S, R, Cx> {
     type QueryStatement = SelectStatement;
 
     fn query(&mut self) -> &mut SelectStatement {
@@ -977,7 +1093,7 @@ impl<E: EntityTrait, S, R> QueryFilter for SelectGraph<E, S, R> {
 }
 
 // [spec:pgorm:def:query.graph+2]
-impl<E: EntityTrait, S, R> QueryOrder for SelectGraph<E, S, R> {
+impl<E: EntityTrait, S, R, Cx> QueryOrder for SelectGraph<E, S, R, Cx> {
     type QueryStatement = SelectStatement;
 
     fn query(&mut self) -> &mut SelectStatement {
@@ -986,7 +1102,7 @@ impl<E: EntityTrait, S, R> QueryOrder for SelectGraph<E, S, R> {
 }
 
 // [spec:pgorm:def:query.graph+2]
-impl<E: EntityTrait, S, R> QueryTrait for SelectGraph<E, S, R> {
+impl<E: EntityTrait, S, R, Cx> QueryTrait for SelectGraph<E, S, R, Cx> {
     type QueryStatement = SelectStatement;
 
     fn query(&mut self) -> &mut SelectStatement {

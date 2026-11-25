@@ -50,6 +50,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         self.ensure_uniform_columns()?;
         if self.insert_struct.is_empty() {
             return Ok(TryInsertResult::Empty);
@@ -89,6 +90,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         if self.insert_struct.is_empty() {
             return Ok(TryInsertResult::Empty);
         }
@@ -110,6 +112,7 @@ where
         InsertedModel<A>: IntoActiveModel<A>,
         C: ConnectionTrait,
     {
+        self.refusal()?;
         if self.insert_struct.is_empty() {
             return Ok(TryInsertResult::Empty);
         }
@@ -140,6 +143,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         self.ensure_uniform_columns()?;
         if self.insert_struct.is_empty() {
             return Ok(TryInsertResult::Empty);
@@ -161,6 +165,7 @@ where
         InsertedModel<A>: IntoActiveModel<A>,
         C: ConnectionTrait,
     {
+        self.refusal()?;
         self.ensure_uniform_columns()?;
         if self.insert_struct.is_empty() {
             return Ok(TryInsertResult::Empty);
@@ -197,6 +202,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         self.ensure_uniform_columns()?;
         if self.has_no_models() {
             return Ok(0);
@@ -222,6 +228,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         exec_insert_returning_pks::<A, _>(self.query, db)
             .await?
             .pop()
@@ -241,6 +248,7 @@ where
         InsertedModel<A>: IntoActiveModel<A>,
         C: ConnectionTrait,
     {
+        self.refusal()?;
         exec_insert_returning_models::<A, _>(self.query, db)
             .await?
             .pop()
@@ -268,6 +276,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         self.ensure_uniform_columns()?;
         if self.has_no_models() {
             return Ok(Vec::new());
@@ -291,6 +300,7 @@ where
         InsertedModel<A>: IntoActiveModel<A>,
         C: ConnectionTrait,
     {
+        self.refusal()?;
         self.ensure_uniform_columns()?;
         if self.has_no_models() {
             return Ok(Vec::new());

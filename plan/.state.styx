@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-23T19:01:40.957507Z
+last_sync_at 2026-11-24T03:02:44.138946Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -294,7 +294,7 @@ rule_versions (
     {id guide.examples, version 0}
     {id guide.features, version 0}
     {id guide.rust, version 1}
-    {id macros.derive, version 7}
+    {id macros.derive, version 8}
     {id macros.derive.active-enum, version 6}
     {id macros.derive.active-enum.expansion, version 6}
     {id macros.derive.active-model, version 9}
@@ -315,7 +315,7 @@ rule_versions (
     {id macros.derive.iden, version 3}
     {id macros.derive.iden.query, version 1}
     {id macros.derive.model, version 7}
-    {id macros.derive.names, version 2}
+    {id macros.derive.names, version 3}
     {id macros.derive.one-form, version 0}
     {id macros.derive.partial-model, version 7}
     {id macros.derive.relation, version 8}
@@ -425,6 +425,18 @@ rule_versions (
     {id schema.from-entity.index, version 2}
     {id schema.from-shape, version 0}
     {id schema.shape-casts, version 1}
+    {id scope.compile, version 0}
+    {id scope.context, version 0}
+    {id scope.declare, version 0}
+    {id scope.every, version 0}
+    {id scope.immutable, version 0}
+    {id scope.insert, version 0}
+    {id scope.join, version 0}
+    {id scope.raw, version 0}
+    {id scope.read, version 0}
+    {id scope.refusals, version 0}
+    {id scope.write, version 0}
+    {id scope.written, version 0}
     {id security.ident-oracle, version 18}
     {id security.ident-oracle.nul, version 3}
     {id security.sqlmap, version 0}
@@ -821,6 +833,9 @@ derived_priorities (
     {id identifier-bypass-surfaces, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id identifier-render-oracle, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id identity-arity-collapse, priority 0, derived_at 2026-09-07T11:29:18.890823Z}
+    {id immutable.napi, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
+    {id immutable.python, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
+    {id immutable.rust, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
     {id in-subquery-enum-shapes, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id inert-features, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id infra.prepared-api, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
@@ -1116,6 +1131,12 @@ derived_priorities (
     {id raw-entry-points-one-shape, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id raw-identifier-casts, priority 0, derived_at 2026-09-08T15:20:53.390093Z}
     {id raw-pagination-placeholder-lexing, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
+    {id read-only.napi, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
+    {id read-only.python, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
+    {id read-only.rust, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
+    {id redact.napi, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
+    {id redact.python, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
+    {id redact.rust, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
     {id relation-def-rev, priority 0, derived_at 2026-09-07T15:33:15.757479Z}
     {id repair.doctests, priority 2, derived_at 2026-09-01T22:48:19.179922Z}
     {id retire-try-from-u64, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
@@ -1142,6 +1163,9 @@ derived_priorities (
     {id scope-range-types, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-sequences, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-simple-case, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id scopes.napi, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
+    {id scopes.python, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
+    {id scopes.rust, priority 0, derived_at 2026-11-24T03:02:44.138946Z}
     {id sea-config-residue, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id sea-orm-active-enums-name, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id sea-rc-name, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
@@ -1202,6 +1226,7 @@ derived_priorities (
     {id template-static-text, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id test-run-isolation, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id tokenizer-backslash-standard, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id trait-names, priority 1, derived_at 2026-11-24T03:02:44.138946Z}
     {id transaction-stale-plan-recovery, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id tx-closure-only, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
     {id tx-closure-send, priority 0, derived_at 2026-10-26T20:21:09.753689Z}
@@ -3605,6 +3630,46 @@ impl_evidence (
         {impl_name main, rule sql.value.kinds}
     ), rule_versions_seen (
         {id sql.value.kinds, version 0}
+    )}
+    {id scopes.rust, covered_rules (
+        scope.compile
+        scope.context
+        scope.declare
+        scope.every
+        scope.immutable
+        scope.insert
+        scope.join
+        scope.raw
+        scope.read
+        scope.refusals
+        scope.write
+        scope.written
+    ), covered_claims (
+        {impl_name main, rule scope.compile}
+        {impl_name main, rule scope.context}
+        {impl_name main, rule scope.declare}
+        {impl_name main, rule scope.every}
+        {impl_name main, rule scope.immutable}
+        {impl_name main, rule scope.insert}
+        {impl_name main, rule scope.join}
+        {impl_name main, rule scope.raw}
+        {impl_name main, rule scope.read}
+        {impl_name main, rule scope.refusals}
+        {impl_name main, rule scope.write}
+        {impl_name main, rule scope.written}
+    ), rule_versions_seen (
+        {id scope.compile, version 0}
+        {id scope.context, version 0}
+        {id scope.declare, version 0}
+        {id scope.every, version 0}
+        {id scope.immutable, version 0}
+        {id scope.insert, version 0}
+        {id scope.join, version 0}
+        {id scope.raw, version 0}
+        {id scope.read, version 0}
+        {id scope.refusals, version 0}
+        {id scope.write, version 0}
+        {id scope.written, version 0}
     )}
     {id signature-types-reexported, covered_rules (
         conn.driver-types

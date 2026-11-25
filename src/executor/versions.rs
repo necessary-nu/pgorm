@@ -140,6 +140,7 @@ where
         <A::Entity as EntityTrait>::Model: IntoActiveModel<A>,
         C: ConnectionTrait,
     {
+        self.refusal()?;
         if self.query.get_values().is_empty() {
             let model = find_unchanged_model::<A, C>(self.entity, &self.query, db).await?;
             return Ok(Change {
@@ -172,6 +173,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         if self.query.get_values().is_empty() {
             return Err(Error::NothingToSet);
         }
@@ -230,6 +232,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         Ok(exec_upserts::<A, C>(self.query, db).await?.pop())
     }
 }
@@ -255,6 +258,7 @@ where
     where
         C: ConnectionTrait,
     {
+        self.refusal()?;
         self.ensure_uniform_columns()?;
         if self.has_no_models() {
             return Ok(Vec::new());

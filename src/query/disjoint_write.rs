@@ -20,7 +20,7 @@ use pgorm_query::{
 };
 
 use super::disjoint::{KindRows, key_filter};
-use super::helper::join_condition;
+use super::join::join_condition;
 use crate::entity::KindedBy;
 use crate::{
     ActiveValue, Disjoint, DisjointKind, DisjointShape, DisjointTable, DisjointValues, Error,
@@ -435,6 +435,21 @@ impl DisjointShape {
         kind: &str,
         row: Option<&DisjointValues>,
     ) -> Result<SelectStatement, Error> {
+        self.update_under(base, kind, row, None)
+    }
+
+    /// [`update`](Self::update) with `scope`, the condition a context's scopes
+    /// put on the base row, beside the key and the kind, so a row outside
+    /// them is no row.
+    // [spec:pgorm:sem:disjoint.write+2]
+    // [spec:pgorm:sem:scope.write]
+    pub(crate) fn update_under(
+        &self,
+        base: &DisjointValues,
+        kind: &str,
+        row: Option<&DisjointValues>,
+        scope: Option<Condition>,
+    ) -> Result<SelectStatement, Error> {
         let kinded = self.writable()?;
         let values = self.base.owns(base)?;
         unwritten(
@@ -459,7 +474,11 @@ impl DisjointShape {
                 update.value(Name::clone(&column.name), column.casts.save(value.clone()));
             }
         }
-        let condition = key_filter(&self.base, key).add(self.kind_eq(kinded, entry.value.clone()));
+        let mut condition =
+            key_filter(&self.base, key).add(self.kind_eq(kinded, entry.value.clone()));
+        if let Some(scope) = scope {
+            condition = condition.add(scope);
+        }
         let row = self.update_kind(entry, row)?;
         let written = row.is_some();
         Ok(
@@ -523,6 +542,20 @@ impl DisjointShape {
         kind: &str,
         row: Option<&DisjointValues>,
     ) -> Result<SelectStatement, Error> {
+        self.change_kind_under(key, kind, row, None)
+    }
+
+    /// [`change_kind`](Self::change_kind) with `scope`, the condition a
+    /// context's scopes put on the base row, beside the key and the kind.
+    // [spec:pgorm:sem:disjoint.write+2]
+    // [spec:pgorm:sem:scope.write]
+    pub(crate) fn change_kind_under(
+        &self,
+        key: Vec<Value>,
+        kind: &str,
+        row: Option<&DisjointValues>,
+        scope: Option<Condition>,
+    ) -> Result<SelectStatement, Error> {
         let kinded = self.writable()?;
         self.key_arity(key.len())?;
         let (new, entry) = self.kind(kind)?;
@@ -535,6 +568,14 @@ impl DisjointShape {
             }
         }
         let column = &self.base.columns[kinded.column];
+        let mut condition = key_filter(&self.base, key).add(self.kind_compare(
+            kinded,
+            BinOper::NotEqual,
+            entry.value.clone(),
+        ));
+        if let Some(scope) = scope {
+            condition = condition.add(scope);
+        }
         let mut update = UpdateStatement::new();
         update
             .table(self.base.table.clone())
@@ -542,11 +583,7 @@ impl DisjointShape {
                 Name::clone(&column.name),
                 column.casts.save(entry.value.clone().into()),
             )
-            .cond_where(key_filter(&self.base, key).add(self.kind_compare(
-                kinded,
-                BinOper::NotEqual,
-                entry.value.clone(),
-            )))
+            .cond_where(condition)
             .returning(returned(&self.base));
         Ok(
             self.write(written_part(&self.base, update), parts, &|kind| {

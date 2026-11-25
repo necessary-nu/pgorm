@@ -5,8 +5,7 @@ use std::ops::RangeInclusive;
 
 use pgorm_query::{AliasName, IntoName, Name, SqlName, Value};
 
-use crate::EntityTrait;
-use crate::entity::default_alias;
+use crate::{EntityTrait, NoContext, ScopeError, ScopedIn};
 
 use super::adapter::{self, PlExpr, Projected};
 use super::binder::Binder;
@@ -245,6 +244,11 @@ pub struct Pipeline {
     /// is read through a cast.
     // [spec:pgorm:sem:pipeline.described+1]
     pub(super) read: Option<Vec<(String, Option<pgorm_query::TypeName>)>>,
+    /// What a scoped source its context does not cover was refused with,
+    /// carried by every pipeline embedding this one and reported by
+    /// [`into_sql`](Pipeline::into_sql).
+    // [spec:pgorm:req:scope.refusals]
+    pub(super) refused: Option<ScopeError>,
 }
 
 /// Which rows a [`join`](Pipeline::join) keeps.
@@ -345,7 +349,7 @@ enum SourceKind {
     Pipeline(Box<Pipeline>),
 }
 
-fn table_source(node: PlExpr) -> Source {
+pub(super) fn table_source(node: PlExpr) -> Source {
     Source {
         kind: SourceKind::Table(node),
         alias: None,
@@ -363,17 +367,14 @@ impl IntoSource for Source {
 /// The instance's own schema and table, read under the default's table name
 /// where the instance's differs: an entity column qualifies itself by that
 /// name, so the relation has to answer to it.
+///
+/// An entity alone is every row of its table, so a scoped entity is a source
+/// only through [`Pipeline::from_for`], which reads it under a context.
 // [spec:pgorm:sem:pipeline.qualify+4]
-impl<E: EntityTrait> IntoSource for E {
+// [spec:pgorm:req:scope.compile]
+impl<E: EntityTrait + ScopedIn<NoContext>> IntoSource for E {
     fn into_source(self) -> Source {
-        let mut source = table_source(match self.schema_name() {
-            Some(schema) => {
-                adapter::ident_in(vec![schema.to_owned()], self.table_name().to_owned())
-            }
-            None => adapter::ident(self.table_name()),
-        });
-        source.alias = default_alias(&self).map(|alias| SqlName::to_string(&*alias));
-        source
+        super::scoped::entity_source(&self)
     }
 }
 
@@ -486,6 +487,7 @@ impl Pipeline {
             ordering: None,
             combined: None,
             read: None,
+            refused: None,
         };
         let reference = pipeline.embed(source.into_source());
         pipeline.stages.push(adapter::call("from", vec![reference]));
@@ -513,6 +515,7 @@ impl Pipeline {
             ordering: None,
             combined: None,
             read: None,
+            refused: None,
         }
     }
 
@@ -549,6 +552,9 @@ impl Pipeline {
             }
             SourceKind::Pipeline(other) => {
                 let other = *other;
+                if let Some(refused) = other.refused {
+                    self.refused.get_or_insert(refused);
+                }
                 // An embedded pipeline exposes whatever its own stages
                 // projected, so a star crosses the binding only if one was
                 // still there to cross.
@@ -585,7 +591,7 @@ impl Pipeline {
     /// following it after all. The hoist happens before the stage is
     /// repointed, so the repointing lands on the binding it just made.
     // [spec:pgorm:req:pipeline.compose+2]
-    fn stage(mut self, mut node: PlExpr) -> Self {
+    pub(super) fn stage(mut self, mut node: PlExpr) -> Self {
         if self.bare_star_key {
             self.settle(&naming::Naming::default(), Some("distinct"));
         }
@@ -665,7 +671,7 @@ impl Pipeline {
         self.columns = Columns::Sourced { introduced: false };
     }
 
-    fn bound<F, T>(&mut self, f: F) -> T
+    pub(super) fn bound<F, T>(&mut self, f: F) -> T
     where
         F: for<'brand> FnOnce(&mut Binder<'brand>) -> T,
     {

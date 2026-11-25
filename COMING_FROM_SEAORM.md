@@ -1107,9 +1107,13 @@ into a graph. Like SeaORM's linked joins, it gives every hop its own alias
 (`r0`, `r1`, ...), so a chain that visits a table twice works too:
 
 ```rust,no_run
-use pgorm::{LinkedAlias, Opt, SelectGraph, entity::prelude::*, tests_cfg::{cake, entity_linked, vendor}};
+use pgorm::{LinkedAlias, Opt, ScopedIn, SelectGraph, entity::prelude::*, tests_cfg::{cake, entity_linked, vendor}};
 
-fn linked<L: Linked>(link: L) -> Option<SelectGraph<L::FromEntity, (Opt<L::ToEntity>,)>> {
+fn linked<L: Linked>(link: L) -> Option<SelectGraph<L::FromEntity, (Opt<L::ToEntity>,)>>
+where
+    L::FromEntity: ScopedIn<NoContext>,
+    L::ToEntity: ScopedIn<NoContext>,
+{
     let mut hops = link.link();
     let last = hops.pop()?;
     let end = hops.len();

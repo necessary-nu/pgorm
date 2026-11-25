@@ -2,6 +2,7 @@ use super::case_style::{CaseStyle, CaseStyleHelpers, case_style_of, convert_case
 use super::column::{ColumnVariant, column_impls};
 use super::iterable::impl_iterable;
 use super::primary_key::expand_primary_key;
+use super::scope::{DeclaredScopes, expand_entity_scopes};
 use super::sql_type_match::unwrap_option;
 use super::util::{
     bare_code, column_variant_ident, escape_rust_keyword, parse_derived_ident,
@@ -58,6 +59,9 @@ struct FieldAttrs {
     /// The generated column this field declared: its kind, its expression,
     /// and where the key was written.
     generated: Option<(Generated, Expr, Span)>,
+    /// Where this field's `scope` key was written: the column holds the
+    /// scope its type is, equal to the value a statement's context holds.
+    scope: Option<Span>,
 }
 
 /// Which of PostgreSQL's two identity forms a field declared.
@@ -322,6 +326,11 @@ fn parse_field_attrs(
                 parsed.indexed = true;
             } else if meta.path.is_ident("unique") {
                 parsed.unique = true;
+            } else if meta.path.is_ident("scope") {
+                if parsed.scope.is_some() {
+                    return Err(meta.error("a column holds one scope; `scope` is given twice"));
+                }
+                parsed.scope = Some(meta.path.span());
             } else {
                 return Err(unknown_pgorm_key(&meta));
             }
@@ -331,6 +340,43 @@ fn parse_field_attrs(
     }
 
     Ok(parsed)
+}
+
+/// Refuse a scope column that could hold no scope: one read from no column,
+/// and one that can be `NULL`, since every row holds its scope's value.
+// [spec:pgorm:def:scope.declare]
+fn check_scope(attrs: &FieldAttrs, optional: bool) -> syn::Result<()> {
+    let Some(span) = attrs.scope else {
+        return Ok(());
+    };
+    let refusal = if attrs.ignore {
+        "an `ignore`d field reads no column, so it cannot hold a scope"
+    } else if attrs.nullable || optional {
+        "a scope column holds its scope's value in every row; declare the field without \
+         `Option` or `nullable`"
+    } else if attrs.generated.is_some() {
+        "a generated column is written by nobody, so no insert fills its scope; declare \
+         the scope on a column the row writes"
+    } else {
+        return Ok(());
+    };
+    Err(syn::Error::new(span, refusal))
+}
+
+/// The types the container's `scope(..)` names, each a scope whose condition
+/// the program writes as its `ScopeOn` this entity.
+// [spec:pgorm:def:scope.written]
+fn written_scopes(meta: &ParseNestedMeta) -> syn::Result<Vec<Type>> {
+    let content;
+    parenthesized!(content in meta.input);
+    let types = Punctuated::<Type, Token![,]>::parse_terminated(&content)?;
+    if types.is_empty() {
+        return Err(meta.error(
+            "`scope(..)` names one scope or more, each a type the program implements \
+             `ScopeOn<Entity>` for: `scope(UserId)`",
+        ));
+    }
+    Ok(types.into_iter().collect())
 }
 
 /// Refuse an identity beside anything else that would fill the column or let
@@ -661,6 +707,82 @@ impl CompositeUnique {
     }
 }
 
+/// What the composite derive's container attribute says: the entity's
+/// literal names, which an `Entity` struct the derive writes from
+/// `table_name` carries, the case rule its columns are named by, its
+/// composite unique keys, and the scopes it declares written by hand.
+struct Container {
+    table_name: Option<Lit>,
+    comment: TokenStream,
+    schema_name: TokenStream,
+    table_iden: bool,
+    rename_all: Option<CaseStyle>,
+    uniques: Vec<CompositeUnique>,
+    scopes: DeclaredScopes,
+}
+
+impl Container {
+    /// Read every `#[pgorm(..)]` on the `Model`, refusing a key the derive
+    /// does not read and a `unique` key on a model given no `table_name`.
+    // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
+    // [spec:pgorm:def:scope.declare]
+    fn parse(attrs: &[Attribute]) -> syn::Result<Self> {
+        let mut container = Self {
+            table_name: None,
+            comment: quote! { None },
+            schema_name: quote! { None },
+            table_iden: false,
+            rename_all: None,
+            uniques: Vec::new(),
+            scopes: DeclaredScopes::default(),
+        };
+        for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("comment") {
+                    let name: Lit = meta.value()?.parse()?;
+                    container.comment = quote! { Some(#name) };
+                } else if meta.path.is_ident("table_name") {
+                    container.table_name = Some(meta.value()?.parse::<Lit>()?);
+                } else if meta.path.is_ident("schema_name") {
+                    let name: Lit = meta.value()?.parse()?;
+                    container.schema_name = quote! { Some(#name) };
+                } else if meta.path.is_ident("table_iden") {
+                    container.table_iden = true;
+                } else if meta.path.is_ident("rename_all") {
+                    container.rename_all = Some(case_style_of(&meta)?);
+                } else if meta.path.is_ident("hooks") {
+                    // Read by `declares_hooks`, for the `ActiveModel`.
+                } else if meta.path.is_ident("unique") {
+                    container.uniques.push(CompositeUnique::parse(&meta)?);
+                } else if meta.path.is_ident("scope") {
+                    container.scopes.written.extend(written_scopes(&meta)?);
+                } else {
+                    return Err(unknown_pgorm_key(&meta));
+                }
+                Ok(())
+            })?;
+        }
+        if let (None, Some(unique)) = (&container.table_name, container.uniques.first()) {
+            return Err(syn::Error::new(
+                unique.key,
+                "`unique` is written into the `EntityName` the derive implements from \
+                 `table_name`; an entity whose names are computed implements \
+                 `EntityName::unique_keys` with its own",
+            ));
+        }
+        Ok(container)
+    }
+
+    /// The table's name as written, for naming the trait its scopes are
+    /// checked through.
+    fn table(&self) -> Option<String> {
+        match &self.table_name {
+            Some(Lit::Str(name)) => Some(name.value()),
+            _ => None,
+        }
+    }
+}
+
 /// Method to derive an Model
 // [spec:pgorm:sem:macros.derive.entity-model+9]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
@@ -672,51 +794,17 @@ pub fn expand_derive_entity_model(
     data: Data,
     attrs: Vec<Attribute>,
 ) -> syn::Result<TokenStream> {
-    // if #[pgorm(table_name = "foo", schema_name = "bar")] specified, create Entity struct
-    let mut table_name = None;
-    let mut comment = quote! {None};
-    let mut schema_name = quote! { None };
-    let mut table_iden = false;
-    let mut rename_all: Option<CaseStyle> = None;
-    let mut uniques: Vec<CompositeUnique> = Vec::new();
-
-    attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("pgorm"))
-        .try_for_each(|attr| {
-            attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("comment") {
-                    let name: Lit = meta.value()?.parse()?;
-                    comment = quote! { Some(#name) };
-                } else if meta.path.is_ident("table_name") {
-                    table_name = Some(meta.value()?.parse::<Lit>()?);
-                } else if meta.path.is_ident("schema_name") {
-                    let name: Lit = meta.value()?.parse()?;
-                    schema_name = quote! { Some(#name) };
-                } else if meta.path.is_ident("table_iden") {
-                    table_iden = true;
-                } else if meta.path.is_ident("rename_all") {
-                    rename_all = Some(case_style_of(&meta)?);
-                } else if meta.path.is_ident("hooks") {
-                    // Read by `declares_hooks`, for the `ActiveModel`.
-                } else if meta.path.is_ident("unique") {
-                    uniques.push(CompositeUnique::parse(&meta)?);
-                } else {
-                    return Err(unknown_pgorm_key(&meta));
-                }
-
-                Ok(())
-            })
-        })?;
-
-    if let (None, Some(unique)) = (&table_name, uniques.first()) {
-        return Err(syn::Error::new(
-            unique.key,
-            "`unique` is written into the `EntityName` the derive implements from \
-             `table_name`; an entity whose names are computed implements \
-             `EntityName::unique_keys` with its own",
-        ));
-    }
+    let container = Container::parse(&attrs)?;
+    let table = container.table();
+    let Container {
+        table_name,
+        comment,
+        schema_name,
+        table_iden,
+        rename_all,
+        uniques,
+        mut scopes,
+    } = container;
 
     let serde_rename_all = serde_rename_all(&attrs)?;
 
@@ -778,6 +866,7 @@ pub fn expand_derive_entity_model(
                 )?;
                 check_identity(&attrs, unwrap_option(&field.ty).is_some())?;
                 check_generated(&attrs)?;
+                check_scope(&attrs, unwrap_option(&field.ty).is_some())?;
                 let FieldAttrs {
                     sql_type,
                     column_name,
@@ -797,6 +886,7 @@ pub fn expand_derive_entity_model(
                     auto_increment: field_auto_increment,
                     identity,
                     generated,
+                    scope,
                 } = attrs;
 
                 if let Some(variant) = variant {
@@ -899,6 +989,10 @@ pub fn expand_derive_entity_model(
                 if let Some((kind, expr, _)) = generated {
                     let builder = kind.builder(&expr);
                     match_row = quote! { #match_row #builder };
+                }
+                if scope.is_some() {
+                    scopes.columns.push((field_name.clone(), field.ty.clone()));
+                    match_row = quote! { #match_row.immutable() };
                 }
                 columns_trait.push(match_row);
             }
@@ -1044,6 +1138,8 @@ pub fn expand_derive_entity_model(
         })
         .unwrap_or_default();
 
+    let entity_scopes = expand_entity_scopes(&scopes, table.as_deref());
+
     let column_ident = Ident::new("Column", Span::call_site());
     let column_impls = column_impls(&column_ident, &syn::parse_quote!(pub), &columns_enum);
     let column_variants = columns_enum.iter().map(|column| &column.variant);
@@ -1096,6 +1192,8 @@ pub fn expand_derive_entity_model(
         }
 
         #entity_def
+
+        #entity_scopes
 
         #primary_key
     })

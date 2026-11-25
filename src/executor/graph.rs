@@ -16,7 +16,7 @@ use pgorm_query::{Order, Value};
 use crate::{
     ConnectionTrait, EntityTrait, Error, FromQueryResult, Iterable, ModelTrait, Opt, Paginator,
     PaginatorTrait, PinBoxSendStream, PrimaryKeyToColumn, QueryResult, SelectGraph, Selector,
-    SelectorTrait, Slot,
+    SelectorTrait, Slot, Unsliced,
 };
 
 /// The selector that decodes one graph row: the root under `s0_`, then each
@@ -98,7 +98,7 @@ pub type GraphItem<E, S> = <GraphRow<E, S> as SelectorTrait>::Item;
 
 // [spec:pgorm:sem:query.graph.terminals+2]
 // [spec:pgorm:sem:query.graph.slice]
-impl<E: EntityTrait, S, R> SelectGraph<E, S, R>
+impl<E: EntityTrait, S, R, Cx> SelectGraph<E, S, R, Cx>
 where
     GraphRow<E, S>: SelectorTrait,
 {
@@ -111,6 +111,7 @@ where
         Selector {
             query: self.query,
             selector: GraphRow::new(),
+            refused: self.refused,
         }
     }
 
@@ -234,7 +235,7 @@ fn group_rows<E: EntityTrait, F: EntityTrait>(
 /// The grouped read, which exists on exactly one shape: a graph whose slot
 /// tuple is `(Opt<F>,)`.
 // [spec:pgorm:sem:query.graph.grouped+2]
-impl<E: EntityTrait, F: EntityTrait> SelectGraph<E, (Opt<F>,)> {
+impl<E: EntityTrait, F: EntityTrait, Cx> SelectGraph<E, (Opt<F>,), Unsliced, Cx> {
     /// Fetch every root once, with the slot's matching models collected
     /// beneath it.
     ///
@@ -326,7 +327,7 @@ impl<E: EntityTrait, F: EntityTrait> SelectGraph<E, (Opt<F>,)> {
 /// replace a slice's, and the count strips them.
 // [spec:pgorm:sem:query.graph.terminals+2]
 // [spec:pgorm:sem:query.graph.slice]
-impl<'db, C, E, S> PaginatorTrait<'db, C> for SelectGraph<E, S>
+impl<'db, C, E, S, Cx> PaginatorTrait<'db, C> for SelectGraph<E, S, Unsliced, Cx>
 where
     C: ConnectionTrait,
     E: EntityTrait,

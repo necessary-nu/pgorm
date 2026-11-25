@@ -357,6 +357,8 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
         // [spec:pgorm:req:bindings.entity-writes+1]
         Error::NothingToSet
         | Error::PrimaryKeyNotSet
+        | Error::ImmutableColumn { .. }
+        | Error::Scope(_)
         | Error::AttrNotSet(_)
         | Error::QueryBuilder(_)
         | Error::Query(_)

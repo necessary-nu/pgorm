@@ -1,5 +1,10 @@
-use crate::{EntityTrait, QuerySelect, Related, Select};
+use crate::query::helper::unpack_table_name;
+use crate::{
+    ColumnPairs, EntityTrait, NoContext, QuerySelect, Related, RelationDef, ScopeContext,
+    ScopeError, ScopedIn, Select,
+};
 pub use pgorm_query::JoinType;
+use pgorm_query::{Condition, ConditionType, Expr, ExprTrait, Name, TypeName};
 
 // [spec:pgorm:sem:query.build.join+5]
 impl<E> Select<E>
@@ -9,36 +14,222 @@ where
     /// Left Join with a Related Entity.
     pub fn left_join<R>(self, _: R) -> Self
     where
-        R: EntityTrait,
+        R: EntityTrait + ScopedIn<NoContext>,
         E: Related<R>,
     {
-        self.join_join(JoinType::LeftJoin, E::to(), E::via())
+        join_related(self, None, JoinType::LeftJoin, E::to(), E::via())
+    }
+
+    /// [`left_join`](Select::left_join) under the context `cx`: the joined
+    /// table's scopes, and a junction's, ANDed into their `ON`s.
+    // [spec:pgorm:sem:scope.join]
+    pub fn left_join_for<Cx, R>(self, cx: &Cx, _: R) -> Self
+    where
+        Cx: ScopeContext,
+        R: ScopedIn<Cx>,
+        E: Related<R>,
+    {
+        join_related(self, Some(cx), JoinType::LeftJoin, E::to(), E::via())
     }
 
     /// Right Join with a Related Entity.
     pub fn right_join<R>(self, _: R) -> Self
     where
-        R: EntityTrait,
+        R: EntityTrait + ScopedIn<NoContext>,
         E: Related<R>,
     {
-        self.join_join(JoinType::RightJoin, E::to(), E::via())
+        join_related(self, None, JoinType::RightJoin, E::to(), E::via())
+    }
+
+    /// [`right_join`](Select::right_join) under the context `cx`, as
+    /// [`left_join_for`](Select::left_join_for) scopes it.
+    // [spec:pgorm:sem:scope.join]
+    pub fn right_join_for<Cx, R>(self, cx: &Cx, _: R) -> Self
+    where
+        Cx: ScopeContext,
+        R: ScopedIn<Cx>,
+        E: Related<R>,
+    {
+        join_related(self, Some(cx), JoinType::RightJoin, E::to(), E::via())
     }
 
     /// Inner Join with a Related Entity.
     pub fn inner_join<R>(self, _: R) -> Self
     where
-        R: EntityTrait,
+        R: EntityTrait + ScopedIn<NoContext>,
         E: Related<R>,
     {
-        self.join_join(JoinType::InnerJoin, E::to(), E::via())
+        join_related(self, None, JoinType::InnerJoin, E::to(), E::via())
+    }
+
+    /// [`inner_join`](Select::inner_join) under the context `cx`, as
+    /// [`left_join_for`](Select::left_join_for) scopes it.
+    // [spec:pgorm:sem:scope.join]
+    pub fn inner_join_for<Cx, R>(self, cx: &Cx, _: R) -> Self
+    where
+        Cx: ScopeContext,
+        R: ScopedIn<Cx>,
+        E: Related<R>,
+    {
+        join_related(self, Some(cx), JoinType::InnerJoin, E::to(), E::via())
     }
 
     /// Join with an Entity Related to me.
     pub fn reverse_join<R>(self, _: R) -> Self
     where
-        R: EntityTrait + Related<E>,
+        R: EntityTrait + Related<E> + ScopedIn<NoContext>,
     {
-        self.join_rev(JoinType::InnerJoin, R::to())
+        join_side(self, None, JoinType::InnerJoin, R::to(), Joined::From)
+    }
+
+    /// [`reverse_join`](Select::reverse_join) under the context `cx`, the
+    /// joined table's scopes ANDed into its `ON`.
+    // [spec:pgorm:sem:scope.join]
+    pub fn reverse_join_for<Cx, R>(self, cx: &Cx, _: R) -> Self
+    where
+        Cx: ScopeContext,
+        R: Related<E> + ScopedIn<Cx>,
+    {
+        join_side(self, Some(cx), JoinType::InnerJoin, R::to(), Joined::From)
+    }
+}
+
+/// `query` joined to a related entity along `rel`, through `via` first where
+/// a junction stands between, each hop scoped by `cx`.
+// [spec:pgorm:sem:query.build.join+5]
+// [spec:pgorm:sem:scope.join]
+pub(crate) fn join_related<Q: QuerySelect>(
+    mut query: Q,
+    cx: Option<&dyn ScopeContext>,
+    join: JoinType,
+    rel: RelationDef,
+    via: Option<RelationDef>,
+) -> Q {
+    if let Some(via) = via {
+        query = join_side(query, cx, join, via, Joined::To);
+    }
+    join_side(query, cx, join, rel, Joined::To)
+}
+
+/// [`join_related`] from the related side: `rel` and then `via` reversed into
+/// the statement, each hop scoped by `cx`.
+// [spec:pgorm:sem:query.build.join+5]
+// [spec:pgorm:sem:scope.join]
+pub(crate) fn join_related_rev<Q: QuerySelect>(
+    mut query: Q,
+    cx: Option<&dyn ScopeContext>,
+    join: JoinType,
+    rel: RelationDef,
+    via: Option<RelationDef>,
+) -> Q {
+    query = join_side(query, cx, join, rel, Joined::From);
+    if let Some(via) = via {
+        query = join_side(query, cx, join, via, Joined::From);
+    }
+    query
+}
+
+/// Join `rel`'s `joined` side under the relation's condition and, where that
+/// side's table is scoped, its scopes under `cx` ANDed into the `ON`: the one
+/// join every relation join of a select goes through. A scoped side with no
+/// `cx`, or one `cx` does not hold the scopes of, is joined unscoped and the
+/// refusal held, so the statement never runs.
+// [spec:pgorm:sem:query.build.join+5]
+// [spec:pgorm:sem:scope.join]
+pub(crate) fn join_side<Q: QuerySelect>(
+    mut query: Q,
+    cx: Option<&dyn ScopeContext>,
+    join: JoinType,
+    rel: RelationDef,
+    joined: Joined,
+) -> Q {
+    let (table, scopes) = match joined {
+        Joined::To => (rel.to_tbl.clone(), rel.to_scopes),
+        Joined::From => (rel.from_tbl.clone(), rel.from_scopes),
+    };
+    let mut condition = join_condition(rel);
+    if let Some(scopes) = scopes {
+        let qualifier = Name::clone(table.qualifier());
+        let scoped = match cx {
+            Some(cx) => scopes.condition(cx, qualifier),
+            None => Err(ScopeError::Unscoped {
+                table: unpack_table_name(&table).table().to_string(),
+                scopes: scopes.listed(),
+            }),
+        };
+        match scoped {
+            Ok(Some(scope)) => condition = Condition::all().add(condition).add(scope),
+            Ok(None) => {}
+            Err(refusal) => query.refuse(refusal),
+        }
+    }
+    query.query().join(join, table, condition);
+    query
+}
+
+/// Which side of a relation a join adds to the statement.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Joined {
+    /// The side the relation points at, `to_tbl`.
+    To,
+    /// The side it points from, `from_tbl`: a reversed join.
+    From,
+}
+
+// [spec:pgorm:sem:query.build.join+5]
+pub(crate) fn join_condition(mut rel: RelationDef) -> Condition {
+    // Use table alias (if any) to construct the join condition
+    let from_tbl = Name::clone(rel.from_tbl.qualifier());
+    let to_tbl = Name::clone(rel.to_tbl.qualifier());
+    let mut condition = match rel.condition_type {
+        ConditionType::All => Condition::all(),
+        ConditionType::Any => Condition::any(),
+    };
+
+    condition = condition.add(join_tbl_on_condition(
+        Name::clone(&from_tbl),
+        Name::clone(&to_tbl),
+        rel.columns,
+    ));
+    if let Some(f) = rel.on_condition.take() {
+        condition = condition.add(f(from_tbl, to_tbl));
+    }
+
+    condition
+}
+
+// [spec:pgorm:sem:query.build.join+5]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+fn join_tbl_on_condition(from_tbl: Name, to_tbl: Name, columns: ColumnPairs) -> Condition {
+    let mut cond = Condition::all();
+    for ((owner_key, foreign_key), compared) in columns.compared_pairs() {
+        let from = compared_side(
+            Expr::col((Name::clone(&from_tbl), Name::clone(owner_key))),
+            &compared.from,
+        );
+        let to = compared_side(
+            Expr::col((Name::clone(&to_tbl), Name::clone(foreign_key))),
+            &compared.to,
+        );
+        cond = cond.add(from.eq(to));
+    }
+    // A temporal relation's periods meet where they overlap: a row is joined
+    // to every row whose period shares a moment with its own.
+    if let Some((from_period, to_period)) = columns.period().cloned() {
+        cond =
+            cond.add(Expr::col((from_tbl, from_period)).overlaps(Expr::col((to_tbl, to_period))));
+    }
+    cond
+}
+
+/// One side of a join pair as the equality compares it: cast to the enum when
+/// its column's domain is over one, which is the only way PostgreSQL compares
+/// such a column with anything.
+// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+fn compared_side(column: Expr, enum_type: &Option<TypeName>) -> Expr {
+    match enum_type {
+        Some(enum_type) => Expr::expr(column.cast_as_type(enum_type.clone())),
+        None => column,
     }
 }
 

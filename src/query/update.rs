@@ -1,7 +1,8 @@
 use crate::entity::entity_table;
+use crate::entity::{immutable_column, immutable_set, scope_condition};
 use crate::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, Iterable, PrimaryKeyToColumn,
-    QueryFilter, QueryTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, Iterable, NoContext,
+    PrimaryKeyToColumn, QueryFilter, QueryTrait, ScopeContext, ScopeError, ScopedIn, StaticName,
 };
 use core::marker::PhantomData;
 use pgorm_query::{Expr, IntoFromItem, IntoName, SimpleExpr, UpdateStatement};
@@ -31,6 +32,9 @@ where
 {
     pub(crate) query: UpdateStatement,
     pub(crate) entity: PhantomData<E>,
+    /// What a context that does not hold a scope of `E` was refused with,
+    /// held until the statement would run.
+    pub(crate) refused: Option<ScopeError>,
 }
 
 impl Update {
@@ -69,10 +73,53 @@ impl Update {
     /// ```
     pub fn one<E, A>(model: A) -> Result<UpdateOne<A>, Error>
     where
-        E: EntityTrait,
+        E: EntityTrait + ScopedIn<NoContext>,
         A: ActiveModelTrait<Entity = E>,
     {
         Self::one_in(E::default(), model)
+    }
+
+    /// [`one`](Update::one) under the context `cx`: the row is found by its
+    /// key and `cx`'s scopes side by side, so a key of a row outside them
+    /// updates nothing, and [`exec_returning_model`](UpdateOne::exec_returning_model)
+    /// reports [`Error::RecordNotFound`]. A scope column is immutable, so a
+    /// model setting one is refused as [`Error::ImmutableColumn`].
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, tests_cfg::scoped::{note, CompanyId, Member, UserId}};
+    ///
+    /// let member = Member { company: CompanyId(7), user: UserId(3) };
+    /// let update = Update::one_for(
+    ///     &member,
+    ///     note::ActiveModel {
+    ///         id: set(1),
+    ///         body: set("edited"),
+    ///         ..Default::default()
+    ///     },
+    /// )
+    /// .expect("the key is set and no scope column is");
+    /// assert_eq!(
+    ///     update.as_query().to_string(),
+    ///     [
+    ///         r#"UPDATE "note" SET "body" = 'edited' WHERE "note"."id" = 1"#,
+    ///         r#"AND "note"."company_id" = 7 AND "note"."author_id" = 3"#,
+    ///     ]
+    ///     .join(" "),
+    /// );
+    /// ```
+    // [spec:pgorm:sem:query.build.update+5]
+    // [spec:pgorm:sem:scope.write]
+    pub fn one_for<Cx, E, A>(cx: &Cx, model: A) -> Result<UpdateOne<A>, Error>
+    where
+        Cx: ScopeContext,
+        E: EntityTrait + ScopedIn<Cx>,
+        A: ActiveModelTrait<Entity = E>,
+    {
+        let mut one = Self::one_unscoped(E::default(), model)?;
+        if let Some(condition) = scope_condition::<E>(cx)? {
+            one.query.cond_where(condition);
+        }
+        Ok(one)
     }
 
     /// [`one`](Update::one) of a row of the table `entity` names: the
@@ -99,6 +146,17 @@ impl Update {
     /// ```
     // [spec:pgorm:sem:query.build.update+5]
     pub fn one_in<E, A>(entity: E, model: A) -> Result<UpdateOne<A>, Error>
+    where
+        E: EntityTrait + ScopedIn<NoContext>,
+        A: ActiveModelTrait<Entity = E>,
+    {
+        Self::one_unscoped(entity, model)
+    }
+
+    /// The update of `model`'s row of the table `entity` names, by its key
+    /// alone.
+    // [spec:pgorm:sem:query.build.update+5]
+    fn one_unscoped<E, A>(entity: E, model: A) -> Result<UpdateOne<A>, Error>
     where
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E>,
@@ -130,18 +188,45 @@ impl Update {
     #[doc(alias = "update_many")]
     pub fn many<E>(entity: E) -> UpdateMany<E>
     where
+        E: EntityTrait + ScopedIn<NoContext>,
+    {
+        Self::many_unscoped(&entity)
+    }
+
+    /// [`many`](Update::many) under the context `cx`: `cx`'s scopes are
+    /// ANDed into the `WHERE`, so only rows they hold are updated.
+    // [spec:pgorm:sem:query.build.update+5]
+    // [spec:pgorm:sem:scope.write]
+    pub fn many_for<Cx, E>(cx: &Cx, entity: E) -> UpdateMany<E>
+    where
+        Cx: ScopeContext,
+        E: EntityTrait + ScopedIn<Cx>,
+    {
+        let mut many = Self::many_unscoped(&entity);
+        match scope_condition::<E>(cx) {
+            Ok(Some(condition)) => {
+                many.query.cond_where(condition);
+            }
+            Ok(None) => {}
+            Err(refusal) => many.refused = Some(refusal),
+        }
+        many
+    }
+
+    fn many_unscoped<E>(entity: &E) -> UpdateMany<E>
+    where
         E: EntityTrait,
     {
         UpdateMany {
             query: UpdateStatement::new()
-                .table(entity_table(&entity))
+                .table(entity_table(entity))
                 .to_owned(),
             entity: PhantomData,
+            refused: None,
         }
     }
 }
 
-// [spec:pgorm:sem:query.build.update+5]
 impl<A> UpdateOne<A>
 where
     A: ActiveModelTrait,
@@ -159,6 +244,7 @@ where
         Ok(self)
     }
 
+    // [spec:pgorm:req:scope.immutable]
     fn prepare_values(mut self) -> Result<Self, Error> {
         for col in <A::Entity as EntityTrait>::Column::iter() {
             if <A::Entity as EntityTrait>::PrimaryKey::from_column(col).is_some() {
@@ -166,6 +252,7 @@ where
             }
             match self.model.get(col)? {
                 ActiveValue::Set(value) => {
+                    immutable_column::<A::Entity>(col.as_str())?;
                     let expr = col.save_as(Expr::val(value));
                     self.query.value(col, expr);
                 }
@@ -173,6 +260,13 @@ where
             }
         }
         Ok(self)
+    }
+
+    /// What every execution path asks before sending anything: a `SET` of a
+    /// column its definition marks immutable.
+    // [spec:pgorm:req:scope.immutable]
+    pub(crate) fn refusal(&self) -> Result<(), Error> {
+        immutable_set::<A::Entity>(&self.query)
     }
 }
 
@@ -241,6 +335,19 @@ impl<E> UpdateMany<E>
 where
     E: EntityTrait,
 {
+    /// What every execution path asks before sending anything: a context
+    /// refused for its scopes, and a `SET` of a column its definition marks
+    /// immutable, whether [`set`](Self::set) or
+    /// [`col_expr`](Self::col_expr) named it.
+    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.immutable]
+    pub(crate) fn refusal(&self) -> Result<(), Error> {
+        if let Some(refused) = &self.refused {
+            return Err(Error::Scope(refused.clone()));
+        }
+        immutable_set::<E>(&self.query)
+    }
+
     /// Add the models to update to Self
     ///
     /// Only `Set` columns are written: `Unchanged` and `NotSet` ones contribute

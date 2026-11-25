@@ -95,12 +95,20 @@ pub enum PipelineError {
          with into_model / into_tuple"
     )]
     ReshapedSources(&'static str),
+    /// A scoped source its context does not cover, from
+    /// [`from_for`](super::Pipeline::from_for).
+    // [spec:pgorm:req:scope.refusals]
+    #[error("{0}")]
+    Scope(crate::ScopeError),
 }
 
 // [spec:pgorm:req:pipeline.errors+5]
 impl From<PipelineError> for crate::Error {
     fn from(err: PipelineError) -> Self {
-        crate::Error::Query(crate::error::RuntimeError::Internal(err.to_string()))
+        match err {
+            PipelineError::Scope(refusal) => crate::Error::Scope(refusal),
+            err => crate::Error::Query(crate::error::RuntimeError::Internal(err.to_string())),
+        }
     }
 }
 

@@ -21869,4 +21869,187 @@ children (
             }
         )
     }
+
+    {
+        id scopes
+        title "A scoped table's statements cannot be built without the scopes it declares, such as company_id and user_id"
+        kind @feat
+        children (
+            {
+                id scopes.rust
+                title "A scoped entity's statements start from a context holding its scopes, and every other way to build one is a compile error naming the entity and its scopes"
+                implements {
+                    main (
+                        [spec:pgorm:def:scope.declare]
+                        [spec:pgorm:def:scope.context]
+                        [spec:pgorm:def:scope.every]
+                        [spec:pgorm:req:scope.compile]
+                        [spec:pgorm:sem:scope.read]
+                        [spec:pgorm:sem:scope.join]
+                        [spec:pgorm:sem:scope.insert]
+                        [spec:pgorm:sem:scope.write]
+                        [spec:pgorm:req:scope.immutable]
+                        [spec:pgorm:req:scope.refusals]
+                        [spec:pgorm:def:scope.written]
+                        [spec:pgorm:req:scope.raw]
+                    )
+                }
+            }
+
+            {
+                id scopes.python
+                title "A Python model's scoped columns hold its statements to a Scopes context, refused when the statement is built without one"
+                deps (scopes.rust trait-names)
+            }
+
+            {
+                id scopes.napi
+                title "A JavaScript model's scoped columns hold its statements to a scopes context, checked by TypeScript and refused at build time"
+                deps (scopes.rust trait-names)
+            }
+
+            {
+                id scopes.from-using
+                title "An UPDATE .. FROM or DELETE .. USING naming a scoped entity holds it to its scopes, refused without a context that holds them"
+                deps (trait-names)
+                log (
+                    {
+                        at 2026-11-24T03:03:07.935409Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Left by scopes.rust (its report, 2026-11-24): UpdateMany::from and DeleteMany::using take any IntoFromItem (src/query/update.rs, src/query/delete.rs), so `Update::many_for(&cx, invoice).from(note::Entity)` adds note's rows with no scope condition. Hold a scoped entity named there to its scopes as the joins are: a context form ANDs the scopes into the WHERE, the plain form holds a ScopeError::Unscoped refusal returned when the statement runs (the `refused` slot the builders carry). Re-locate by name: trait-names renames the traits first."
+                    }
+                )
+            }
+
+            {
+                id scopes.one-of-live
+                title "OneOf::load_for is exercised against a live database: a scoped target read under its context, and refused under one that lacks its scopes"
+                kind @test
+                deps (trait-names)
+            }
+        )
+        log (
+            {
+                at 2026-11-24T00:34:53.49387Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-24, agreed with the operator: tenant isolation is enforced outside pgorm (RLS is not pgorm's job), and pgorm's part is a type-safe way to never forget a required predicate, generalised from tenant_id to application-defined scopes (CompanyId, UserId, …). A scope is the application's type (#[derive(Scope)] on a newtype that is also the column's ValueType); an entity marks its scope columns #[pgorm(scope)], or declares scope(T) with a hand-written ScopeOn<Entity> condition and insert hook (a message readable by sender OR recipient). A context (#[derive(ScopeContext)] struct, or one scope value alone) provides scopes; Every<S> lifts one on purpose. Every statement constructor has a form taking the context first (mirroring the _in forms); the plain forms of a scoped entity are compile errors whose text the derive writes per entity (\"`note::Entity` is scoped by `CompanyId` and `UserId`, which `NoContext` does not hold\") via a generated per-entity trait with #[diagnostic::on_unimplemented] and a #[diagnostic::do_not_recommend] blanket impl, probed on stable. Reads AND the scope, joins put each slot's scopes in its ON, inserts fill scope columns (refusing a conflicting value), updates/deletes by key carry the scope, a scope column cannot be changed. Raw SQL is outside: document clippy's disallowed-macros (sql!, prql!) and disallowed-methods (raw-text entry points), allowed case by case with #[allow(clippy::disallowed_macros)]. No default-applied scopes (soft delete) in this round."
+            }
+        )
+    }
+
+    {
+        id immutable
+        title "A column marked immutable is written once at insert and no statement pgorm builds can change it"
+        kind @feat
+        children (
+            {
+                id immutable.rust
+                title "#[pgorm(immutable)] refuses an update, bulk update or upsert that would change the column, and scope columns are immutable through the same rule"
+                deps (scopes.rust read-only.rust)
+            }
+
+            {
+                id immutable.python
+                title "A Python model's Column(immutable=True) refuses the statements that would change it, as Rust's does"
+                deps (immutable.rust)
+            }
+
+            {
+                id immutable.napi
+                title "A JavaScript model's immutable column refuses the statements that would change it, as Rust's does"
+                deps (immutable.rust)
+            }
+        )
+        log (
+            {
+                at 2026-11-24T00:45:36.479959Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-24, agreed with the operator: #[pgorm(immutable)] marks a column written once at insert (created_at, created_by, external ids, ledger amounts). Update::one (already a Result) refuses an ActiveModel with the column Set, as do save() and the scoped _for forms; Update::many's col_expr on it is refused; upserts leave it out of ON CONFLICT .. DO UPDATE SET, refusing it when named explicitly. All refusals are typed errors before anything is sent (statement-build time: an ActiveModel serves insert and update alike and col_expr takes a run-time column, so compile time would need separate insert/update model types, not in scope). No trigger is generated: database enforcement is the application's. Scope columns are immutable by definition, so scopes.rust's \"a row cannot leave its scope\" refusal becomes this rule, written once. #[pgorm(redact)] was discussed the same day and deferred: masking needs a Redacted<T> type that stays masked once the value leaves the model, not only an attribute."
+            }
+        )
+    }
+
+    {
+        id redact
+        title "A Redacted<T> column's value appears in no text pgorm produces: Debug, Values, built statements and errors"
+        kind @feat
+        children (
+            {
+                id redact.rust
+                title "Redacted<T> binds and decodes as T, masks itself through Value::Redacted, and scrubs its values out of PostgreSQL's errors"
+                deps (read-only.rust)
+            }
+
+            {
+                id redact.python
+                title "A Python model's redacted column decodes to pgorm.Redacted, masked in repr and refused by json.dumps"
+                deps (redact.rust)
+            }
+
+            {
+                id redact.napi
+                title "A JavaScript model's redacted column decodes to Redacted, masked in inspect and refused by JSON.stringify"
+                deps (redact.rust)
+            }
+        )
+        log (
+            {
+                at 2026-11-24T00:56:27.481456Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-24, agreed with the operator: redaction is a type, not an attribute, because the mask must follow the value. Redacted<T> (pgorm-query, re-exported by pgorm): private field, new / expose(&self) / into_inner; Debug prints <redacted>; Clone, PartialEq, Eq, Hash when T has them (not constant-time); deliberately NO Display, NO Deref (auto-deref would reach the secret with no expose() in the code), NO Serialize (a #[derive(Serialize)] model must choose #[serde(skip)] or serialize_with = pgorm::redacted::expose); Deserialize implemented. As a column type it is T's (ValueType, TryGetable, Nullable, IntoActiveValue; Option<Redacted<T>> nullable), so Model and ActiveModel Debug mask with no attribute. It converts to a new Value::Redacted(Box<Value>): Value/Values Debug and Display, build() output and statement Debug print it masked, inline rendering masks it and DDL refuses it, binding sends the inner value; a redacted column's definition marks plain values its predicates bind (Column::ApiKey.eq(plain)) as redacted too. Errors: pgorm::Error's Display/Debug scrub the statement's redacted parameters' text (the Redactions technique pgorm-bindings uses for credentials), drop a DETAIL that echoes a row (Failing row contains) and mask a Key (..)=(..) naming a redacted column, for tables with redacted columns; as_db_error() stays the explicit raw route. Not covered, documented: selecting a redacted column into a plain type, the server's own parameter logging (log_parameter_max_length = 0, log_parameter_max_length_on_error = 0), zeroize-on-drop (possible later feature). Bindings: Python Column(.., redacted=True) decodes to pgorm.Redacted (masked repr, expose(), json.dumps raises TypeError); JavaScript Redacted (masked inspect/toString, toJSON throws, expose(), TypeScript Redacted<string>); both build errors from pgorm's scrubbed error. Codegen generating Redacted<..> for configured columns is a possible follow-up."
+            }
+        )
+    }
+
+    {
+        id trait-names
+        title "No trait carries a Trait suffix: Entity, Model, Column, Connection, Transact, Paginate and the rest are named for what they are"
+        kind @refactor
+        deps (scopes.rust)
+        log (
+            {
+                at 2026-11-24T01:29:56.793767Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-24, agreed with the operator (\"agreed to all\"): the Trait suffix (inherited from SeaORM) goes from all 19 traits, as a pure breaking rename with no aliases, COMING_FROM_SEAORM.md mapping old to new. Same name as the types each entity module generates, path-disambiguated like `impl std::error::Error for Error`: EntityTrait→Entity, ModelTrait→Model, ColumnTrait→Column, ActiveModelTrait→ActiveModel, RelationTrait→Relation, PrimaryKeyTrait→PrimaryKey, MigratorTrait→Migrator (the template's struct Migrator is the application's), PartialModelTrait→PartialModel (sharing its derive's name). Probe first whether a glob-imported trait shadowed by a local struct of the same name still resolves methods (Entity::find() in an entity module); if not, the preludes also re-export the traits `as _`. New names where pgorm or std already uses the bare one: PaginatorTrait→Paginate, CursorTrait→CursorSource, SelectorTrait→DecodeRow, QueryTrait→Statement, ExprTrait→Expression, ColumnTypeTrait→ColumnTypeExt (an extension of pgorm-query's ColumnType, the idiomatic Ext case), MigrationTrait→Migration (pgorm-migration's own Migration struct renamed for what it holds), CopyTrait folded away (copy_out onto the read connection trait, copy_in onto the write one). ConnectionTrait→Connection and TransactionTrait→Transact (what a connection can do). The read/write split (Connection for reads, ConnectionMut: Connection for writes; Mut meaning \"may change the database\", writes keeping &self) is read-only.rust's; this node renames ConnectionTrait to Connection and moves CopyTrait's methods so read-only.rust only splits. LoaderTrait→LoadRelated. Order agreed: scopes.rust lands, this rename runs alone with nothing else in flight, then read-only, then immutable and redact."
+            }
+        )
+    }
+
+    {
+        id read-only
+        title "A connection that may only read is a type: reads take Connection, writes take ConnectionMut, and a read-only pool's connections refuse writes at the server too"
+        kind @feat
+        children (
+            {
+                id read-only.rust
+                title "Read terminals take Connection, writes and raw text take ConnectionMut, sql! classifies its statement, and ReadOnlyPool's connections and transactions implement Connection alone"
+                deps (trait-names)
+            }
+
+            {
+                id read-only.python
+                title "Python's ReadOnlyPool refuses writes, typed so mypy rejects a write given one and raising TypeError at run time"
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.napi
+                title "JavaScript's ReadOnlyPool refuses writes, typed so TypeScript rejects a write given one and throwing TypeError at run time"
+                deps (read-only.rust)
+            }
+        )
+        log (
+            {
+                at 2026-11-24T01:29:56.99555Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-24, agreed with the operator: the capability to write is in the type, on the trait names trait-names settles. Connection covers what only reads (Select / graph / selector terminals, counts, pagination, cursors, pipeline terminals, loaders, copy_out); ConnectionMut: Connection adds inserts, updates, deletes, the ActiveModel and Model write methods, copy_in, migrations and raw SQL text. Every existing connection type implements both, so a function taking &impl Connection cannot write whatever it is handed. ReadOnlyPool / ReadOnlyConnection / ReadOnlyTransaction implement Connection alone, built by connect_read_only(config) and its _with forms (a replica or a read-only role fits), each connection opened with default_transaction_read_only = on so the server refuses what types cannot see (25006, e.g. a SELECT calling a writing function). Transaction modes move to the type they belong to: a read-write connection's transaction_with takes read-write modes only; read_only_transaction(isolation, |tx| ..) and snapshot(|tx| ..) (SERIALIZABLE READ ONLY DEFERRABLE) give a ReadOnlyTransaction, removing today's ReadOnly-mode handle that offers inserts. conn.read_only() downgrades a borrowed read-write connection by type alone; nothing upgrades. Raw SQL: sql! classifies its statement at compile time (SELECT, VALUES, TABLE, SHOW, EXPLAIN without ANALYZE; no data-modifying WITH, no FOR UPDATE/SHARE) and only a read runs on Connection; run-time text needs ConnectionMut, except the read-only types' own unchecked-text method, the server enforcing it there. Database roles stay the real boundary (a raw SET can undo the session setting). Writes to a read-only connection are compile errors with per-trait diagnostics. Python and JavaScript: ReadOnlyPool, write terminals typed to refuse it (mypy, TypeScript under deno check) and TypeError at run time. InstrumentedPool over a read-only pool stays read-only. Orthogonal to scopes (scope = which rows; capability = whether it may write)."
+            }
+        )
+    }
 )
