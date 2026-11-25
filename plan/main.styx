@@ -22771,6 +22771,14 @@ children (
             {
                 id build-speed.debuginfo
                 title "Debug builds in every workspace of the repository keep line tables for its own crates and no debug info for dependencies"
+                log (
+                    {
+                        at 2026-11-25T18:21:42.97724Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
 
             {
