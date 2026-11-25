@@ -183,10 +183,6 @@ with-uuid = ["uuid"]
 postgres-array = []
 tests-cfg = []
 
-[[test]]
-name = "turso_compatibility_tests"
-required-features = ["turso"]
-
 [[bench]]
 name = "driver_baseline"
 harness = false

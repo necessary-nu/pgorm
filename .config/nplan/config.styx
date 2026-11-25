@@ -197,9 +197,6 @@ platforms (
                 cmd "cargo fmt --manifest-path pgorm-python/Cargo.toml --all -- --check"
                 fix "cargo fmt --manifest-path pgorm-python/Cargo.toml --all"
             }
-            check {
-                cmd "cargo check --manifest-path pgorm-python/Cargo.toml --locked --target-dir target"
-            }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-python/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
             }
@@ -262,9 +259,6 @@ platforms (
                 cmd "cargo fmt --manifest-path pgorm-napi/Cargo.toml --all -- --check"
                 fix "cargo fmt --manifest-path pgorm-napi/Cargo.toml --all"
             }
-            check {
-                cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target"
-            }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
             }
@@ -319,9 +313,6 @@ platforms (
             format {
                 cmd "cargo fmt --all -- --check"
                 fix "cargo fmt --all"
-            }
-            check {
-                cmd "cargo check --workspace"
             }
             // nextest stays out of the commit gate deliberately: it needs a
             // live Postgres and does not fit the check budget. Run it

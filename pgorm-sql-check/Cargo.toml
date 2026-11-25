@@ -5,7 +5,6 @@ authors = []
 edition = "2024"
 description = "PostgreSQL grammar checks of raw SQL and PRQL compilation, shared by pgorm's sql!/prql! macros and its run-time checks"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/necessary-nu/pgorm"
 documentation = "https://docs.rs/pgorm-sql-check"
 repository = "https://github.com/necessary-nu/pgorm"
 categories = ["database"]

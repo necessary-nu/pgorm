@@ -22752,6 +22752,12 @@ children (
                     }
                 )
             }
+
+            {
+                id turso.ci-gaps
+                title "The Turso delivery passes CI: the Python sdist parses pgorm's manifest without its test files, the vendored driver resolves at the workspace's Rust 1.89 and drops its unused chrono and time support, and the supply-chain audit allows Turso's pinned git source with chrono's advisory ignored for turso_core alone"
+                kind @fix
+            }
         )
         log (
             {
@@ -22771,6 +22777,7 @@ children (
             {
                 id build-speed.debuginfo
                 title "Debug builds in every workspace of the repository keep line tables for its own crates and no debug info for dependencies"
+                sealed true
                 log (
                     {
                         at 2026-11-25T18:21:42.97724Z
@@ -22778,12 +22785,27 @@ children (
                         kind @status
                         text "Todo → Doing (nplan start)"
                     }
+
+                    {
+                        at 2026-11-25T18:45:15.263922Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
                 )
             }
 
             {
                 id build-speed.check-dedupe
                 title "nplan check runs no cargo check that a clippy of the same scope and features already covers"
+                log (
+                    {
+                        at 2026-11-25T18:45:45.87088Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
 
             {
@@ -22798,6 +22820,25 @@ children (
                 kind @test
                 deps (read-only.rust)
             }
+
+            {
+                id build-speed.no-incremental
+                title "Debug builds in every workspace of the repository compile without incremental caches, which held 24 of a 29 GB target after one nplan check"
+                log (
+                    {
+                        at 2026-11-25T22:44:54.546321Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "2026-11-25, operator (\"do it\"): after one nplan check on Rust 1.100, main's target was 29G, 24G of it debug/incremental. The incremental cache serves one crate's edit loop but is made per unit for every workspace member in every feature set nplan check builds, which never reuse it. The operator had deleted target/ twice that day for size. Traded: a small edit in pgorm recompiles the whole crate. Set in .cargo/config.toml so every run agrees; per-run CARGO_INCREMENTAL would churn fingerprints between runs that disagree."
+                    }
+                )
+            }
         )
+    }
+
+    {
+        id rust-1-100
+        title "The compile-fail tests' expected output is Rust 1.100's, the stable CI runs and the local toolchain follows"
+        kind @test
     }
 )

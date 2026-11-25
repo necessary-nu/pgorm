@@ -19,8 +19,6 @@ mod bit_vec_07;
 mod bit_vec_08;
 #[cfg(feature = "with-bit-vec-0_9")]
 mod bit_vec_09;
-#[cfg(feature = "with-chrono-0_4")]
-mod chrono_04;
 #[cfg(feature = "with-eui48-1")]
 mod eui48_1;
 #[cfg(feature = "with-geo-types-0_6")]
@@ -35,10 +33,6 @@ mod jiff_02;
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
 mod smol_str_01;
-#[cfg(feature = "with-time-0_2")]
-mod time_02;
-#[cfg(feature = "with-time-0_3")]
-mod time_03;
 #[cfg(feature = "with-uuid-0_8")]
 mod uuid_08;
 #[cfg(feature = "with-uuid-1")]

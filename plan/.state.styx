@@ -1885,7 +1885,8 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id turso.suite-gaps, kind @complete, author "brendan@necessary.nu", at 2026-11-25T17:47:26.405738Z}
-    {id build-speed.debuginfo, kind @doing, author "brendan@necessary.nu", at 2026-11-25T18:21:42.97724Z}
+    {id build-speed.debuginfo, kind @complete, author "brendan@necessary.nu", at 2026-11-25T18:45:15.263922Z}
+    {id build-speed.check-dedupe, kind @doing, author "brendan@necessary.nu", at 2026-11-25T18:45:45.87088Z}
 )
 
 impl_evidence (

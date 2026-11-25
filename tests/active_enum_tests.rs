@@ -5,7 +5,7 @@ pub mod common;
 use active_enum::Entity as ActiveEnumEntity;
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::{
-    ActiveEnum as ActiveEnumTrait,
+    ActiveEnum,
     ActiveValue::Unchanged,
     entity::prelude::*,
     entity::*,

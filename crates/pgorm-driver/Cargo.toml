@@ -10,7 +10,7 @@ repository = "https://github.com/necessary-nu/pgorm"
 readme = "README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
 categories = ["database"]
-rust-version = "1.85"
+rust-version = "1.89"
 
 [lib]
 test = false
@@ -74,7 +74,6 @@ with-bit-vec-0_6 = ["postgres-types/with-bit-vec-0_6"]
 with-bit-vec-0_7 = ["postgres-types/with-bit-vec-0_7"]
 with-bit-vec-0_8 = ["postgres-types/with-bit-vec-0_8"]
 with-bit-vec-0_9 = ["postgres-types/with-bit-vec-0_9"]
-with-chrono-0_4 = ["postgres-types/with-chrono-0_4"]
 with-cidr-0_2 = ["postgres-types/with-cidr-0_2"]
 with-cidr-0_3 = ["postgres-types/with-cidr-0_3"]
 with-eui48-0_4 = ["postgres-types/with-eui48-0_4"]
@@ -87,8 +86,6 @@ with-serde_json-1 = ["postgres-types/with-serde_json-1"]
 with-smol_str-01 = ["postgres-types/with-smol_str-01"]
 with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
 with-uuid-1 = ["postgres-types/with-uuid-1"]
-with-time-0_2 = ["postgres-types/with-time-0_2"]
-with-time-0_3 = ["postgres-types/with-time-0_3"]
 js = ["postgres-protocol/js", "postgres-types/js"]
 
 [dependencies]
@@ -137,7 +134,6 @@ bit-vec-06 = { version = "0.6", package = "bit-vec" }
 bit-vec-07 = { version = "0.7", package = "bit-vec" }
 bit-vec-08 = { version = "0.8", package = "bit-vec" }
 bit-vec-09 = { version = "0.9", package = "bit-vec" }
-chrono-04 = { version = "0.4", package = "chrono", default-features = false }
 eui48-1 = { version = "1.0", package = "eui48", default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types" }
 geo-types-07 = { version = "0.7", package = "geo-types" }
@@ -147,5 +143,3 @@ serde_json-1 = { version = "1.0", package = "serde_json" }
 smol_str-01 = { version = "0.1", package = "smol_str" }
 uuid-08 = { version = "0.8", package = "uuid" }
 uuid-1 = { version = "1.0", package = "uuid" }
-time-02 = { version = "0.2", package = "time" }
-time-03 = { version = "0.3", package = "time", features = ["parsing"] }
