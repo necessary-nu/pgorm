@@ -146,6 +146,8 @@ use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;
 pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
+#[cfg(feature = "turso")]
+pub use crate::transaction::TursoCommitError;
 pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
 #[cfg(feature = "turso")]
 pub use crate::turso::{TursoConnection, TursoDatabase};

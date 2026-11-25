@@ -189,8 +189,26 @@ impl Transaction<'_> {
     /// way, a round trip ahead of its `RELEASE`: an aborted savepoint refuses
     /// the `RELEASE` too, but the `RELEASE` consumes the handle the
     /// `ROLLBACK TO` would be sent through.
-    // [spec:pgorm:sem:conn.tx.aborted+1]
+    ///
+    /// Native Turso checks transaction state and ends the transaction in one
+    /// serialized driver operation, retaining the same aborted/rollback error
+    /// distinction without a PostgreSQL protocol probe.
+    // [spec:pgorm:sem:conn.tx.aborted+2]
+    // [spec:pgorm:sem:turso.transactions]
     pub async fn commit(self) -> Result<(), CommitError> {
+        #[cfg(feature = "turso")]
+        if self.is_turso() {
+            return self
+                .txn
+                .commit_checked_turso()
+                .await
+                .map_err(|error| match error {
+                    pgorm_driver::TursoCommitError::Failed(error) => CommitError::Failed(error),
+                    pgorm_driver::TursoCommitError::Aborted { refusal, rollback } => {
+                        CommitError::Aborted { refusal, rollback }
+                    }
+                });
+        }
         if self.savepoint {
             if let Err(refusal) = self.txn.batch_execute("SELECT").await {
                 return Err(self.aborted(refusal).await);
@@ -319,7 +337,7 @@ enum Ending {
 
 /// Send `SELECT; COMMIT` as one simple query, and say which statement failed
 /// by whether the `SELECT` had completed.
-// [spec:pgorm:sem:conn.tx.aborted+1]
+// [spec:pgorm:sem:conn.tx.aborted+2]
 async fn committed(txn: &PgTransaction<'_>) -> Result<(), Ending> {
     let answers = txn
         .client()
@@ -339,16 +357,17 @@ async fn committed(txn: &PgTransaction<'_>) -> Result<(), Ending> {
     Ok(())
 }
 
-/// Why [`Transaction::commit`] committed nothing.
+/// Why [`Transaction::commit`] could not confirm a successful commit.
 ///
 /// Exhaustive, so that pgorm, which turns each kind into an error of its
 /// own, is told by the compiler when a kind is added.
-// [spec:pgorm:sem:conn.tx.aborted+1]
+// [spec:pgorm:sem:conn.tx.aborted+2]
 #[derive(Debug)]
 pub enum CommitError {
     /// The `COMMIT` or `RELEASE` failed, or the connection broke before the
     /// server answered. PostgreSQL ends a transaction whose `COMMIT` fails,
-    /// so nothing is left to roll back.
+    /// so nothing is left to roll back. A native connection with an unknown
+    /// outcome is closed.
     Failed(Error),
     /// A statement that failed inside the transaction had aborted it, so it
     /// could only roll back, and was rolled back (a savepoint rolled back

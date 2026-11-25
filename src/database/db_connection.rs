@@ -296,7 +296,7 @@ where
 }
 
 /// `transaction_with_retry`'s body, for every parent [`OpenWith`] covers.
-// [spec:pgorm:sem:conn.tx.retry+3]
+// [spec:pgorm:sem:conn.tx.retry+4]
 pub(crate) async fn with_retry<C, T, E, F>(
     parent: &mut C,
     mode: TransactionMode,
@@ -376,7 +376,7 @@ impl DatabaseConnection {
     /// replay it. `f` is [`AsyncFnMut`] because it is called once per attempt,
     /// and must therefore be replayable: every effect it has outside the
     /// transaction happens again on each attempt.
-    // [spec:pgorm:sem:conn.tx.retry+3]
+    // [spec:pgorm:sem:conn.tx.retry+4]
     pub async fn transaction_with_retry<T, E, F>(
         &mut self,
         mode: TransactionMode,
@@ -402,7 +402,7 @@ enum Retryable<E> {
 /// What the closure returns ends it. A closure whose future is dropped before
 /// it finishes leaves this handle to roll back as it drops, which queues the
 /// `ROLLBACK` without awaiting the server's answer.
-// [spec:pgorm:sem:conn.tx.guard+5]
+// [spec:pgorm:sem:conn.tx.guard+6]
 #[derive(Debug)]
 pub struct DatabaseTransaction<'a>(pub(crate) Option<Transaction<'a>>);
 
@@ -429,7 +429,7 @@ impl<'a> DatabaseTransaction<'a> {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+5]    rollback-on-drop warning
+// [spec:pgorm:sem:conn.tx.guard+6]    rollback-on-drop warning
 impl Drop for DatabaseTransaction<'_> {
     fn drop(&mut self) {
         if self.0.is_some() {

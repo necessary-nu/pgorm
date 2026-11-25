@@ -343,7 +343,14 @@ async fn raw_parameters_require_explicit_typed_preparation() -> Result<(), Error
 // [spec:pgorm:sem:turso.execution/test]
 #[tokio::test]
 async fn native_invalidation_evicts_without_replaying() -> Result<(), Error> {
-    let client = native().await?;
+    let database = TursoDatabase::open(":memory:").await?;
+    let (client, connection) = database.connect().await?;
+    let client = ClientWrapper::new(
+        client,
+        tokio::spawn(async move {
+            connection.await.expect("native connection worker failed");
+        }),
+    );
     let db = HookConnection::new(&client);
     db.batch_execute(
         "CREATE TABLE invalidation(value INTEGER); INSERT INTO invalidation VALUES(0)",
@@ -352,7 +359,17 @@ async fn native_invalidation_evicts_without_replaying() -> Result<(), Error> {
     let sql = "UPDATE invalidation SET value=value+1 RETURNING *";
     assert_eq!(db.query_one(sql, &[]).await?.get::<_, i32>(0), 1);
     assert_eq!(client.statement_cache.size(), 1);
-    db.batch_execute("ALTER TABLE invalidation ADD COLUMN extra TEXT")
+    // The idle cached connection has not observed this other connection's
+    // schema change, so execution must refuse before any write can run.
+    let (other, connection) = database.connect().await?;
+    let other = ClientWrapper::new(
+        other,
+        tokio::spawn(async move {
+            connection.await.expect("native connection worker failed");
+        }),
+    );
+    other
+        .batch_execute("ALTER TABLE invalidation ADD COLUMN extra TEXT")
         .await?;
     let error = db.query_one(sql, &[]).await.unwrap_err();
     assert!(matches!(&error, Error::Postgres(error) if error.is_statement_invalidated()));
@@ -385,6 +402,7 @@ async fn cache_discards_a_flagged_native_statement() -> Result<(), Error> {
     client
         .batch_execute("ALTER TABLE invalidation ADD COLUMN extra TEXT")
         .await?;
+    assert!(stale.is_invalidated());
     let error = client.query(&stale, &[]).await.unwrap_err();
     assert!(error.is_statement_invalidated());
     assert!(stale.is_invalidated());

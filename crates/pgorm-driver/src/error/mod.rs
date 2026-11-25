@@ -386,6 +386,8 @@ enum Kind {
 struct ErrorInner {
     kind: Kind,
     cause: Option<Box<dyn error::Error + Sync + Send>>,
+    #[cfg(feature = "turso")]
+    native_cleanup_failed: bool,
 }
 
 /// An error communicating with the Postgres server.
@@ -486,7 +488,12 @@ impl Error {
     }
 
     fn new(kind: Kind, cause: Option<Box<dyn error::Error + Sync + Send>>) -> Error {
-        Error(Box::new(ErrorInner { kind, cause }))
+        Error(Box::new(ErrorInner {
+            kind,
+            cause,
+            #[cfg(feature = "turso")]
+            native_cleanup_failed: false,
+        }))
     }
 
     pub(crate) fn closed() -> Error {

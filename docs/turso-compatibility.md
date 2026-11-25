@@ -108,3 +108,36 @@ so its next cache lookup prepares afresh. The failed operation is not replayed
 automatically. Native SQLSTATE 0A000 is a server refusal, not evidence that
 PostgreSQL's cached-plan retry is safe. A conversion or cardinality error after
 stepping likewise does not prove that a write had no effects.
+
+## Transactions and reuse
+
+Default native transactions use the engine's snapshot isolation. The driver
+builder also accepts an explicit `RepeatableRead` isolation level. Other
+isolation levels and explicit access or deferrability settings are refused
+before beginning a transaction. In the ORM, `TransactionMode::Default` is the
+supported initial mode; its other variants request explicit access settings.
+
+Transactions and nested savepoints use the existing APIs. Commit and rollback
+await native completion. A statement error can leave the native transaction
+aborted even when the closure catches it: committing that closure rolls back
+and reports `TransactionAborted`. An aborted savepoint rolls back to its
+boundary, allowing the outer transaction to continue. The original refusal
+and any additional rollback failure remain available to the caller.
+
+Dropping a transaction queues rollback behind its preceding work. If the queue
+cannot accept cleanup, cleanup fails, or a transaction end is abandoned with
+an unknown outcome, the native client becomes unusable. Native Fast recycling
+checks completed work and idle state without a query. A connection returned
+with unfinished work, a retained active stream or an open transaction is
+disposed rather than handed to another borrower. Verified recycling also
+performs a native health operation; PostgreSQL's Clean session reset is
+unsupported.
+
+At the pinned revision, `ROLLBACK TO` changes the native preparation context
+even without DDL. The worker marks affected prepared handles before returning
+the rollback result. If drop cleanup is still queued, the ORM cache prepares
+the requested key after it in FIFO order. Ordinary commits retain healthy
+cached statements, and no executed write is retried to repair the cache.
+
+Native SQLSTATEs remain diagnostic evidence. A cleanup failure prevents
+transaction retry even if its primary error carries `40001` or `40P01`.

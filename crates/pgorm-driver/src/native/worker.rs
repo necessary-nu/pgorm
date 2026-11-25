@@ -1,16 +1,14 @@
-use super::{
-    commands::Command,
-    query, rows,
-    statement_store::{Prepared, Store},
-};
+#[cfg(test)]
+use super::rows;
+use super::{commands::Command, statement_store::Store, transaction};
 use crate::Error;
 use std::{
     fmt,
     future::Future,
     pin::Pin,
     sync::{
-        Arc, Condvar, Mutex,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc, Condvar, Mutex, Weak,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     task::{Context, Poll, Wake, Waker},
     time::Duration,
@@ -59,6 +57,98 @@ pub(super) struct Operation {
     id: u64,
     cancelled: AtomicBool,
     pub(super) cancelled_notify: Notify,
+    owner: Weak<Control>,
+    pending: AtomicBool,
+    started: AtomicBool,
+    close_on_cancel: AtomicBool,
+    worker_done: AtomicBool,
+    acknowledged: AtomicBool,
+    restoring: AtomicBool,
+}
+impl Operation {
+    pub(super) fn transaction_boundary(&self, control: &Control) {
+        // The symmetric SeqCst check in cancel closes the race between
+        // cancellation and classifying an imminent native boundary step.
+        self.close_on_cancel.store(true, Ordering::SeqCst);
+        if self.cancelled.load(Ordering::SeqCst) {
+            control.shutdown();
+        }
+    }
+
+    fn cancel(&self) -> bool {
+        self.cancelled.store(true, Ordering::SeqCst);
+        self.cancelled_notify.notify_one();
+        self.close_on_cancel.load(Ordering::SeqCst)
+    }
+
+    fn release(&self) {
+        if self.pending.swap(false, Ordering::AcqRel) {
+            if let Some(control) = self.owner.upgrade() {
+                control.inflight.fetch_sub(1, Ordering::Release);
+            }
+        }
+    }
+
+    pub(super) fn begin_restore(&self) {
+        if !self.restoring.swap(true, Ordering::AcqRel) {
+            if let Some(control) = self.owner.upgrade() {
+                control.pending_restore.fetch_add(1, Ordering::AcqRel);
+            }
+        }
+    }
+
+    fn finish_restore(&self) {
+        if self.restoring.swap(false, Ordering::AcqRel) {
+            if let Some(control) = self.owner.upgrade() {
+                control.pending_restore.fetch_sub(1, Ordering::Release);
+            }
+        }
+    }
+
+    fn worker_complete(&self) {
+        self.finish_restore();
+        self.worker_done.store(true, Ordering::SeqCst);
+        if !self.close_on_cancel.load(Ordering::SeqCst) || self.acknowledged.load(Ordering::SeqCst)
+        {
+            self.release();
+        }
+    }
+
+    pub(super) fn acknowledge(&self) {
+        self.acknowledged.store(true, Ordering::SeqCst);
+        if self.worker_done.load(Ordering::SeqCst) {
+            self.release();
+        }
+    }
+
+    #[cfg(test)]
+    fn detached(id: u64) -> Self {
+        Self {
+            id,
+            cancelled: AtomicBool::new(false),
+            cancelled_notify: Notify::new(),
+            owner: Weak::new(),
+            pending: AtomicBool::new(false),
+            started: AtomicBool::new(false),
+            close_on_cancel: AtomicBool::new(false),
+            worker_done: AtomicBool::new(false),
+            acknowledged: AtomicBool::new(false),
+            restoring: AtomicBool::new(false),
+        }
+    }
+}
+impl Drop for Operation {
+    fn drop(&mut self) {
+        // Unsubmitted work needs only release its token. Losing a started
+        // operation without publishing completion is worker failure.
+        if self.pending.load(Ordering::Acquire) && self.started.load(Ordering::Acquire) {
+            if let Some(control) = self.owner.upgrade() {
+                control.quarantine();
+            }
+        }
+        self.release();
+        self.finish_restore();
+    }
 }
 struct Active {
     operation: Arc<Operation>,
@@ -66,11 +156,14 @@ struct Active {
 }
 pub(super) struct Control {
     stopping: Arc<AtomicBool>,
-    closed: AtomicBool,
-    shutdown: watch::Sender<bool>,
+    pub(super) closed: AtomicBool,
+    pub(super) shutdown: watch::Sender<bool>,
     active: Mutex<Option<Active>>,
     signal: Arc<Signal>,
     next_id: AtomicU64,
+    inflight: AtomicUsize,
+    pub(super) pending_restore: AtomicUsize,
+    idle: AtomicBool,
     #[cfg(test)]
     before_step: Mutex<Option<StepGate>>,
     #[cfg(test)]
@@ -83,22 +176,37 @@ pub(super) struct Control {
     produced_rows: AtomicU64,
 }
 impl Control {
-    fn cancel(&self, operation: Option<&Operation>) {
+    pub(super) fn new_operation(self: &Arc<Self>) -> Arc<Operation> {
+        self.inflight.fetch_add(1, Ordering::AcqRel);
+        Arc::new(Operation {
+            id: self.next_id.fetch_add(1, Ordering::Relaxed),
+            cancelled: AtomicBool::new(false),
+            cancelled_notify: Notify::new(),
+            owner: Arc::downgrade(self),
+            pending: AtomicBool::new(true),
+            started: AtomicBool::new(false),
+            close_on_cancel: AtomicBool::new(false),
+            worker_done: AtomicBool::new(false),
+            acknowledged: AtomicBool::new(false),
+            restoring: AtomicBool::new(false),
+        })
+    }
+
+    pub(super) fn cancel(&self, operation: Option<&Operation>) {
         // Latch cancellation even if this command is queued or the native VM
         // has not yet marked its first root statement active.
-        if let Some(operation) = operation {
-            operation.cancelled.store(true, Ordering::Release);
-            operation.cancelled_notify.notify_one();
-        }
+        let mut close = operation.is_some_and(Operation::cancel);
         let active = self.active.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(active) = active.as_ref() {
             if operation.is_none_or(|op| op.id == active.operation.id) {
-                active.operation.cancelled.store(true, Ordering::Release);
-                active.operation.cancelled_notify.notify_one();
+                close |= active.operation.cancel();
                 active.connection.inner().interrupt();
             }
         }
         drop(active);
+        if close {
+            self.request_shutdown();
+        }
         self.signal.notify();
     }
 
@@ -106,15 +214,42 @@ impl Control {
         self.closed.store(true, Ordering::Release);
     }
 
-    fn shutdown(&self) {
+    fn request_shutdown(&self) {
         self.quarantine();
         self.stopping.store(true, Ordering::Release);
         self.shutdown.send_replace(true);
+    }
+
+    pub(super) fn shutdown(&self) {
+        self.request_shutdown();
         self.cancel(None);
     }
 
     pub(super) fn cancelled(&self, operation: &Operation) -> bool {
         self.stopping.load(Ordering::Acquire) || operation.cancelled.load(Ordering::Acquire)
+    }
+
+    // [spec:pgorm:sem:turso.cleanup] publish known native state before completion can wake a borrower
+    pub(super) fn complete(
+        &self,
+        connection: &PgConnection,
+        operation: &Operation,
+        store: &mut Store,
+    ) {
+        store.publish_invalidations(connection);
+        connection.inner().set_progress_handler(0, None);
+        self.idle.store(
+            connection.transaction_state() == turso_pg::TransactionState::Idle,
+            Ordering::Release,
+        );
+        *self.active.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        operation.worker_complete();
+    }
+
+    pub(super) fn is_clean(&self) -> bool {
+        self.inflight.load(Ordering::Acquire) == 0
+            && self.idle.load(Ordering::Acquire)
+            && !self.closed.load(Ordering::Acquire)
     }
 }
 
@@ -134,12 +269,13 @@ impl Drop for WorkerGuard {
 }
 
 pub(super) struct RequestGuard {
-    operation: Arc<Operation>,
-    control: Arc<Control>,
-    complete: bool,
+    pub(super) operation: Arc<Operation>,
+    pub(super) control: Arc<Control>,
+    pub(super) complete: bool,
 }
 impl RequestGuard {
     pub(super) fn complete(&mut self) {
+        self.operation.acknowledge();
         self.complete = true;
     }
     pub(super) fn worker_lost(&self) {
@@ -156,9 +292,9 @@ impl Drop for RequestGuard {
 
 // [spec:pgorm:sem:turso.lifecycle]
 pub(crate) struct Client {
-    sender: mpsc::Sender<Command>,
-    close_sender: mpsc::UnboundedSender<u64>,
-    control: Arc<Control>,
+    pub(super) sender: mpsc::Sender<Command>,
+    pub(super) close_sender: mpsc::UnboundedSender<u64>,
+    pub(super) control: Arc<Control>,
 }
 impl fmt::Debug for Client {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -170,157 +306,6 @@ impl fmt::Debug for Client {
 impl Drop for Client {
     fn drop(&mut self) {
         self.control.shutdown();
-    }
-}
-impl Client {
-    fn request_guard(&self) -> Result<RequestGuard, Error> {
-        if self.is_closed() {
-            return Err(Error::closed());
-        }
-        Ok(RequestGuard {
-            operation: Arc::new(Operation {
-                id: self.control.next_id.fetch_add(1, Ordering::Relaxed),
-                cancelled: AtomicBool::new(false),
-                cancelled_notify: Notify::new(),
-            }),
-            control: Arc::clone(&self.control),
-            complete: false,
-        })
-    }
-    async fn submit(
-        &self,
-        command: Command,
-        shutdown: &mut watch::Receiver<bool>,
-    ) -> Result<(), Error> {
-        if *shutdown.borrow() {
-            return Err(Error::closed());
-        }
-        tokio::select! {
-            biased;
-            _ = shutdown.changed() => Err(Error::closed()),
-            result = self.sender.send(command) => result.map_err(|_| Error::closed()),
-        }
-    }
-    async fn response<T>(
-        &self,
-        response: oneshot::Receiver<Result<T, Error>>,
-        shutdown: &mut watch::Receiver<bool>,
-    ) -> Result<T, Error> {
-        tokio::select! {
-            biased;
-            _ = shutdown.changed() => Err(Error::closed()),
-            result = response => match result {
-                Ok(result) => result,
-                Err(_) => { self.control.shutdown(); Err(Error::closed()) }
-            },
-        }
-    }
-    pub(crate) async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
-        let mut guard = self.request_guard()?;
-        let (reply, response) = oneshot::channel();
-        let mut shutdown = self.control.shutdown.subscribe();
-        self.submit(
-            Command::Batch {
-                sql: sql.to_owned(),
-                operation: Arc::clone(&guard.operation),
-                reply,
-            },
-            &mut shutdown,
-        )
-        .await?;
-        let outcome = self.response(response, &mut shutdown).await;
-        guard.complete();
-        outcome
-    }
-    pub(crate) async fn prepare(
-        &self,
-        sql: &str,
-        types: &[crate::types::Type],
-    ) -> Result<Prepared, Error> {
-        let mut guard = self.request_guard()?;
-        let (reply, response) = oneshot::channel();
-        let mut shutdown = self.control.shutdown.subscribe();
-        self.submit(
-            Command::Prepare {
-                sql: sql.to_owned(),
-                types: types.to_vec(),
-                operation: Arc::clone(&guard.operation),
-                reply,
-            },
-            &mut shutdown,
-        )
-        .await?;
-        let result = self.response(response, &mut shutdown).await;
-        guard.complete();
-        let (prepared, lease) = result?;
-        lease.disarm();
-        Ok(prepared)
-    }
-    pub(crate) fn close_statement(&self, id: u64) {
-        let _ = self.close_sender.send(id);
-    }
-    pub(crate) async fn query_prepared(
-        &self,
-        statement: crate::Statement,
-        params: Vec<turso_core::Value>,
-    ) -> Result<rows::Rows, Error> {
-        let id = statement.native_id(self)?;
-        let guard = self.request_guard()?;
-        let operation = Arc::clone(&guard.operation);
-        let (rows, output) = rows::channel(guard);
-        let (ready, response) = oneshot::channel();
-        let mut shutdown = self.control.shutdown.subscribe();
-        self.submit(
-            Command::Query {
-                id,
-                statement,
-                params,
-                operation,
-                ready,
-                output,
-            },
-            &mut shutdown,
-        )
-        .await?;
-        self.response(response, &mut shutdown).await?;
-        Ok(rows)
-    }
-    pub(crate) async fn execute_prepared(
-        &self,
-        statement: crate::Statement,
-        params: Vec<turso_core::Value>,
-    ) -> Result<u64, Error> {
-        let id = statement.native_id(self)?;
-        let mut guard = self.request_guard()?;
-        let (reply, response) = oneshot::channel();
-        let mut shutdown = self.control.shutdown.subscribe();
-        self.submit(
-            Command::Execute {
-                id,
-                params,
-                operation: Arc::clone(&guard.operation),
-                reply,
-                _statement: statement,
-            },
-            &mut shutdown,
-        )
-        .await?;
-        let outcome = self.response(response, &mut shutdown).await;
-        guard.complete();
-        outcome
-    }
-    pub(crate) async fn check_connection(&self) -> Result<(), Error> {
-        self.batch_execute("SELECT 1").await
-    }
-    pub(crate) fn is_closed(&self) -> bool {
-        self.control.closed.load(Ordering::Acquire) || self.sender.is_closed()
-    }
-    pub(crate) fn shutdown(&self) {
-        self.control.shutdown();
-    }
-    #[cfg(any(feature = "runtime", test))]
-    pub(crate) fn cancel(&self) {
-        self.control.cancel(None);
     }
 }
 
@@ -352,7 +337,6 @@ pub(crate) async fn connect(
 ) -> Result<(Arc<Client>, Connection), Error> {
     let (sender, receiver) = mpsc::channel(COMMAND_CAPACITY);
     let (close_sender, close_receiver) = mpsc::unbounded_channel();
-    let prepared_close = close_sender.clone();
     let (shutdown, shutdown_receiver) = watch::channel(false);
     let control = Arc::new(Control {
         stopping: Arc::new(AtomicBool::new(false)),
@@ -361,6 +345,9 @@ pub(crate) async fn connect(
         active: Mutex::new(None),
         signal: Arc::new(Signal::default()),
         next_id: AtomicU64::new(1),
+        inflight: AtomicUsize::new(0),
+        pending_restore: AtomicUsize::new(0),
+        idle: AtomicBool::new(false),
         #[cfg(test)]
         before_step: Mutex::new(None),
         #[cfg(test)]
@@ -386,7 +373,6 @@ pub(crate) async fn connect(
             database,
             commands: receiver,
             closing: close_receiver,
-            close_sender: prepared_close,
             shutdown: shutdown_receiver,
             ready: ready_sender,
             control,
@@ -430,7 +416,6 @@ struct WorkerInput {
     database: Arc<turso_core::Database>,
     commands: mpsc::Receiver<Command>,
     closing: mpsc::UnboundedReceiver<u64>,
-    close_sender: mpsc::UnboundedSender<u64>,
     shutdown: watch::Receiver<bool>,
     ready: oneshot::Sender<Result<(), Error>>,
     control: Arc<Control>,
@@ -442,7 +427,6 @@ fn run_worker(input: WorkerInput) -> Result<(), Error> {
         database,
         mut commands,
         mut closing,
-        close_sender,
         mut shutdown,
         ready,
         control,
@@ -460,6 +444,10 @@ fn run_worker(input: WorkerInput) -> Result<(), Error> {
             return Ok(());
         }
     };
+    control.idle.store(
+        connection.transaction_state() == turso_pg::TransactionState::Idle,
+        Ordering::Release,
+    );
     if ready.send(Ok(())).is_err() {
         control.shutdown();
     }
@@ -494,112 +482,23 @@ fn run_worker(input: WorkerInput) -> Result<(), Error> {
             Some(Event::Command(command)) => command,
         };
         let operation = Arc::clone(command.operation());
+        operation.started.store(true, Ordering::Release);
         *control.active.lock().unwrap_or_else(|e| e.into_inner()) = Some(Active {
             operation: Arc::clone(&operation),
             connection: connection.clone(),
         });
-        let fatal = match command {
-            Command::Batch { sql, reply, .. } => {
-                let result = execute_script(&connection, &sql, &operation, &control);
-                let fatal = result.as_ref().err().is_some_and(|error| error.fatal);
-                if fatal {
-                    control.quarantine();
-                }
-                let _ = reply.send(result.map_err(|failure| failure.error));
-                fatal
-            }
-            Command::Prepare {
-                sql, types, reply, ..
-            } => {
-                let result = if control.cancelled(&operation) {
-                    Err(Failure::recoverable(cancelled()))
-                } else {
-                    synchronize_preparation(&connection, &database, &operation, &control).and_then(
-                        |()| {
-                            store
-                                .prepare(&connection, &sql, types, &close_sender)
-                                .map_err(Failure::recoverable)
-                        },
-                    )
-                };
-                let fatal = result.as_ref().err().is_some_and(|error| error.fatal);
-                if fatal {
-                    control.quarantine();
-                }
-                let _ = reply.send(result.map_err(|failure| failure.error));
-                fatal
-            }
-            Command::Execute {
-                id,
-                params,
-                reply,
-                _statement: statement,
-                ..
-            } => {
-                let result = match store.get(id, &connection) {
-                    Ok(entry) => {
-                        let result =
-                            query::execute(&connection, entry, params, &operation, &control);
-                        // A native failure remains the primary error even if
-                        // step reprepared first; the public handle is still
-                        // stale and must leave the cache before another use.
-                        if !entry.metadata_is_current() {
-                            statement.mark_invalidated();
-                        }
-                        result
-                    }
-                    Err(error) => Err(Failure::recoverable(error)),
-                };
-                let fatal = result.as_ref().err().is_some_and(|error| error.fatal);
-                if fatal {
-                    control.quarantine();
-                }
-                if result
-                    .as_ref()
-                    .err()
-                    .is_some_and(|failure| failure.error.is_statement_invalidated())
-                {
-                    statement.mark_invalidated();
-                }
-                let _ = reply.send(result.map_err(|failure| failure.error));
-                fatal
-            }
-            Command::Query {
-                id,
-                statement,
-                params,
-                ready,
-                output,
-                ..
-            } => match store.get(id, &connection) {
-                Ok(entry) => query::query(
-                    entry,
-                    query::Request {
-                        statement,
-                        params,
-                        ready,
-                        output,
-                    },
-                    query::Context {
-                        connection: &connection,
-                        operation: &operation,
-                        control: &control,
-                        shutdown: &mut shutdown,
-                        runtime: &runtime,
-                    },
-                ),
-                Err(error) => {
-                    if error.is_statement_invalidated() {
-                        statement.mark_invalidated();
-                    }
-                    let _ = ready.send(Err(error));
-                    output.finish(Err(Error::closed()));
-                    false
-                }
+        let fatal = super::dispatch::run(
+            command,
+            super::dispatch::Context {
+                connection: &connection,
+                database: &database,
+                store: &mut store,
+                operation: &operation,
+                control: &control,
+                shutdown: &mut shutdown,
+                runtime: &runtime,
             },
-        };
-        connection.inner().set_progress_handler(0, None);
-        *control.active.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        );
         if fatal {
             control.quarantine();
             break;
@@ -626,7 +525,7 @@ fn run_worker(input: WorkerInput) -> Result<(), Error> {
     }
 }
 
-fn synchronize_preparation(
+pub(super) fn synchronize_preparation(
     connection: &PgConnection,
     database: &turso_core::Database,
     operation: &Arc<Operation>,
@@ -676,20 +575,42 @@ pub(super) fn finish_statement(
     if outcome.is_err() {
         connection.abort_transaction_block_on_error();
     }
-    match (outcome, cleanup) {
+    let result = match (outcome, cleanup) {
         (Ok(()), Ok(())) => Ok(()),
         (Err(error), Ok(())) => Err(Failure::recoverable(error)),
-        (Ok(()), Err(error)) => Err(Failure { error, fatal: true }),
+        (Ok(()), Err(error)) => Err(Failure {
+            error: Error::turso_cleanup_failed(error),
+            fatal: true,
+        }),
         (Err(primary), Err(cleanup)) => Err(Failure {
             error: Error::turso_cleanup(primary, cleanup),
             fatal: true,
         }),
+    };
+    match result {
+        Err(failure)
+            if !failure.error.is_turso_cleanup_failure()
+                && operation.close_on_cancel.load(Ordering::Acquire)
+                && transaction::is_boundary(statement)
+                && connection.transaction_state() != turso_pg::TransactionState::Idle =>
+        {
+            Err(Failure {
+                error: Error::turso_cleanup(
+                    failure.error,
+                    Error::turso_worker(std::io::Error::other(
+                        "native transaction boundary failed without establishing an ended transaction",
+                    )),
+                ),
+                fatal: true,
+            })
+        }
+        result => result,
     }
 }
 
 // [spec:pgorm:sem:turso.lifecycle] one worker drives the complete native operation
 // [spec:pgorm:sem:turso.execution] native script parsing stops on the first failure without claiming implicit atomicity
-fn execute_script(
+pub(super) fn execute_script(
     connection: &PgConnection,
     sql: &str,
     operation: &Arc<Operation>,
@@ -713,6 +634,9 @@ fn execute_script(
                 statement.parameters_count(),
             )));
         }
+        if transaction::is_boundary(&statement) {
+            operation.transaction_boundary(control);
+        }
         let outcome = step_statement(&mut statement, operation, control);
         finish_statement(connection, &mut statement, operation, control, outcome)?;
         install_progress(connection, operation, control);
@@ -720,7 +644,7 @@ fn execute_script(
     Ok(())
 }
 
-fn step_statement(
+pub(super) fn step_statement(
     statement: &mut Statement,
     operation: &Operation,
     control: &Control,
@@ -880,9 +804,13 @@ fn cleanup_statement(
     control: &Control,
     interrupted: bool,
 ) -> Result<(), Error> {
-    if interrupted {
+    let state = statement.execution_state();
+    if interrupted && (state.is_running() || state.is_terminal()) {
         drain_interrupted(statement, control)?;
     }
+    // A frontend aborted-transaction gate can refuse before the core VM
+    // starts. Do not turn Init into Interrupting and then ask that same gate
+    // to drain it. Frontend cleanup and checked core reset still run below.
     #[cfg(test)]
     if control.fail_next_cleanup.swap(false, Ordering::AcqRel) {
         return Err(Error::turso_worker(std::io::Error::other(
@@ -926,3 +854,5 @@ impl StepGate {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod transaction_tests;

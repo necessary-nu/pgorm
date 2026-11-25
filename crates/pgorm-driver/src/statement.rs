@@ -55,6 +55,24 @@ impl Drop for StatementInner {
 #[derive(Clone)]
 pub struct Statement(Arc<StatementInner>);
 
+#[cfg(feature = "turso")]
+pub(crate) struct WeakStatement(Weak<StatementInner>);
+
+#[cfg(feature = "turso")]
+impl WeakStatement {
+    pub(crate) fn new(statement: &Statement) -> Self {
+        Self(Arc::downgrade(&statement.0))
+    }
+
+    pub(crate) fn mark_invalidated(&self) {
+        if let Some(statement) = self.0.upgrade()
+            && let Some(native) = &statement.native
+        {
+            native.invalidated.store(true, Ordering::Release);
+        }
+    }
+}
+
 impl Statement {
     pub(crate) fn new(
         inner: &Arc<InnerClient>,
@@ -85,11 +103,11 @@ impl Statement {
 
     #[cfg(feature = "turso")]
     pub(crate) fn from_native(
-        client: &Arc<InnerClient>,
+        client: Weak<InnerClient>,
         prepared: crate::native::Prepared,
     ) -> Self {
         Self(Arc::new(StatementInner {
-            client: Arc::downgrade(client),
+            client,
             name: String::new(),
             params: prepared.params,
             columns: prepared.columns,

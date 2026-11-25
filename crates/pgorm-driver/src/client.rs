@@ -803,8 +803,7 @@ impl Client {
     pub fn __private_api_rollback(&self, name: Option<&str>) {
         #[cfg(feature = "turso")]
         if let Some(client) = self.inner.sender.native() {
-            // Disposal cannot leave an abandoned transaction available for reuse.
-            client.shutdown();
+            client.rollback_on_drop(name);
             return;
         }
         let buf = self.inner().with_buf(|buf| {

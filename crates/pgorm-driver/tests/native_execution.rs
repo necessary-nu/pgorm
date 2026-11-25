@@ -367,6 +367,8 @@ async fn known_invalidation_skips_later_codecs() {
         .batch_execute("DROP TABLE invalidator; CREATE TABLE invalidator(id bigint)")
         .await
         .unwrap();
+    assert!(statement.is_invalidated());
+    assert!(alias.is_invalidated());
     assert!(
         client
             .query(&statement, &[&value])
@@ -376,7 +378,7 @@ async fn known_invalidation_skips_later_codecs() {
     );
     assert!(statement.is_invalidated());
     assert!(alias.is_invalidated());
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert!(
         client
             .execute(&alias, &[&value])
@@ -384,7 +386,7 @@ async fn known_invalidation_skips_later_codecs() {
             .unwrap_err()
             .is_statement_invalidated()
     );
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
     finish(client, task).await;
 }
 

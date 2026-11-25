@@ -484,13 +484,13 @@ impl std::fmt::Display for DecodeRefusal {
 /// Implemented for [`Error`]; implement it for a domain error type to use that
 /// type as the closure error of
 /// [`DatabaseConnection::transaction_with_retry`](crate::DatabaseConnection::transaction_with_retry).
-// [spec:pgorm:sem:conn.tx.retry+3]    retryability predicate
+// [spec:pgorm:sem:conn.tx.retry+4]    retryability predicate
 pub trait RetryableError {
     /// Whether the transaction that produced this error is worth retrying.
     fn is_retryable(&self) -> bool;
 }
 
-// [spec:pgorm:sem:conn.tx.retry+3]
+// [spec:pgorm:sem:conn.tx.retry+4]
 impl RetryableError for Error {
     fn is_retryable(&self) -> bool {
         Error::is_retryable(self)
@@ -501,11 +501,18 @@ impl Error {
     /// Whether this is a transaction-rollback error PostgreSQL expects the
     /// client to retry: SQLSTATE `40001` (`serialization_failure`) or `40P01`
     /// (`deadlock_detected`).
-    // [spec:pgorm:sem:conn.tx.retry+3]    SQLSTATE classification
+    /// Native cleanup failures remain non-retryable even when they retain one
+    /// of those SQLSTATEs for diagnostics.
+    // [spec:pgorm:sem:conn.tx.retry+4]    SQLSTATE classification
+    // [spec:pgorm:sem:turso.transactions]
     pub fn is_retryable(&self) -> bool {
         let Error::Postgres(error) = self else {
             return false;
         };
+        #[cfg(feature = "turso")]
+        if error.is_turso_cleanup_failure() {
+            return false;
+        }
         let Some(db_error) = error.as_db_error() else {
             return false;
         };

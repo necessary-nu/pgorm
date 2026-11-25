@@ -26,6 +26,27 @@ impl Client {
         self.inner.native().is_some()
     }
 
+    /// Whether native cleanup has completed and the connection is idle.
+    ///
+    /// PostgreSQL returns true here; its transport health is checked separately.
+    /// Native pools must reject an unclean client even if it remains open.
+    // [spec:pgorm:sem:turso.cleanup]
+    pub fn is_turso_clean(&self) -> bool {
+        self.inner.native().is_none_or(|client| client.is_clean())
+    }
+
+    /// Whether queued native rollback may invalidate cached preparation.
+    ///
+    /// Pool caches must prepare afresh while this is true. That preparation
+    /// follows rollback in the native request queue, so it observes the
+    /// restored context. PostgreSQL always returns false.
+    // [spec:pgorm:sem:turso.cleanup]
+    pub fn has_pending_turso_restore(&self) -> bool {
+        self.inner
+            .native()
+            .is_some_and(|client| client.has_pending_restore())
+    }
+
     pub(crate) fn from_turso(client: Arc<native::Client>) -> Client {
         Client {
             inner: Arc::new(InnerClient {

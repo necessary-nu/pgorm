@@ -267,9 +267,9 @@ impl sealed::Open for DatabaseTransaction<'_> {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+5]    the awaited ends a closure's outcome selects
+// [spec:pgorm:sem:conn.tx.guard+6]    the awaited ends a closure's outcome selects
 impl sealed::Close for DatabaseTransaction<'_> {
-    // [spec:pgorm:sem:conn.tx.aborted+1]    a COMMIT or RELEASE an aborted transaction answers is an error
+    // [spec:pgorm:sem:conn.tx.aborted+2]    a COMMIT or RELEASE an aborted transaction answers is an error
     async fn commit(mut self, _: sealed::Token) -> Result<(), Error> {
         self.take().commit().await.map_err(|error| match error {
             CommitError::Aborted {

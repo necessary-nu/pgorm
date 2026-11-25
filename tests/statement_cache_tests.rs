@@ -27,7 +27,7 @@ async fn prepared_count(db: &DatabaseConnection, sql: &str) -> Result<i64, Error
     Ok(row.get(0))
 }
 
-// [spec:pgorm:sem:conn.pool.statement-cache+4/test]    one Parse per connection, not per call
+// [spec:pgorm:sem:conn.pool.statement-cache+5/test]    one Parse per connection, not per call
 // [spec:pgorm:def:conn.pool.conn-trait+11/test]    the text-carrying statement routes through the cache
 #[pgorm_macros::test]
 async fn repeated_queries_reuse_one_prepared_statement() -> Result<(), Error> {

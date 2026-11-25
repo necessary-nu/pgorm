@@ -6,12 +6,15 @@
 use crate::Error;
 use std::{fmt, path::Path, sync::Arc};
 
+mod client;
 pub(crate) mod codecs;
 mod commands;
 pub(crate) mod describe;
+mod dispatch;
 mod query;
 mod rows;
 mod statement_store;
+mod transaction;
 mod worker;
 pub(crate) use rows::Rows;
 pub(crate) use statement_store::Prepared;

@@ -68,7 +68,7 @@ fn assert_aborted<T: std::fmt::Debug>(outcome: Result<T, TransactionError<Error>
     }
 }
 
-// [spec:pgorm:sem:conn.tx.aborted+1/test]    the COMMIT of an aborted transaction is an error, nothing in it stands, and the connection carries on
+// [spec:pgorm:sem:conn.tx.aborted+2/test]    the COMMIT of an aborted transaction is an error, nothing in it stands, and the connection carries on
 #[pgorm_macros::test]
 pub async fn an_aborted_transaction_reports_its_rollback() -> Result<(), Error> {
     let ctx = TestContext::new("aborted_transaction_rollback").await;
@@ -95,7 +95,7 @@ pub async fn an_aborted_transaction_reports_its_rollback() -> Result<(), Error> 
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.aborted+1/test]    transaction_with and transaction_with_retry, which does not replay it
+// [spec:pgorm:sem:conn.tx.aborted+2/test]    transaction_with and transaction_with_retry, which does not replay it
 #[pgorm_macros::test]
 pub async fn an_aborted_configured_transaction_reports_its_rollback() -> Result<(), Error> {
     let ctx = TestContext::new("aborted_configured_transaction").await;
@@ -132,7 +132,7 @@ pub async fn an_aborted_configured_transaction_reports_its_rollback() -> Result<
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.aborted+1/test]    an instrumented connection's transactions, configured and retried ones included, report the same rollback
+// [spec:pgorm:sem:conn.tx.aborted+2/test]    an instrumented connection's transactions, configured and retried ones included, report the same rollback
 #[pgorm_macros::test]
 pub async fn an_aborted_instrumented_transaction_reports_its_rollback() -> Result<(), Error> {
     use pgorm::{
@@ -176,7 +176,7 @@ pub async fn an_aborted_instrumented_transaction_reports_its_rollback() -> Resul
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.aborted+1/test]    an aborted savepoint is rolled back to, and the transaction around it commits
+// [spec:pgorm:sem:conn.tx.aborted+2/test]    an aborted savepoint is rolled back to, and the transaction around it commits
 #[pgorm_macros::test]
 pub async fn an_aborted_savepoint_rolls_back_alone() -> Result<(), Error> {
     let ctx = TestContext::new("aborted_savepoint").await;
@@ -222,7 +222,7 @@ pub async fn an_aborted_savepoint_rolls_back_alone() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.aborted+1/test]    a COMMIT that fails is still the server's error, not an aborted transaction
+// [spec:pgorm:sem:conn.tx.aborted+2/test]    a COMMIT that fails is still the server's error, not an aborted transaction
 #[pgorm_macros::test]
 pub async fn a_failed_commit_is_still_its_own_error() -> Result<(), Error> {
     let ctx = TestContext::new("aborted_failed_commit").await;

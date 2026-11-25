@@ -22350,6 +22350,41 @@ children (
                         kind @note
                         text "Implement commit/rollback, supported transaction modes and nested savepoints through the native backend while retaining the existing transaction API. Unsupported modes must be refused rather than accepted and ignored. Define and test ordering when a transaction future or row stream is dropped, a task is cancelled, an operation fails or a connection closes. A connection must not return to useful pooled service with an unfinished operation or unknown transaction outcome; discard it when recovery cannot be established. Preserve causal error reporting and avoid automatically retrying failures the backend cannot classify. Use interleaved operations and multi-connection tests for the semantics actually promised by the experimental contract; document remaining native-engine divergences rather than emulating PostgreSQL isolation with misleading success."
                     }
+
+                    {
+                        at 2026-11-24T17:37:33.381042Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T17:39:02.665722Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the user-directed Turso dependency chain after 8e117f22; the unrelated global guide candidate remains outside this request. Use one native actor command for checked commit or aborted rollback, retain PostgreSQL commit probing unchanged, and queue drop rollback in the same bounded FIFO as execution. Native pool recycling must observe completed cleanup and idle state; unfinished work is disposed. Refuse unsupported transaction modes before beginning. Keep SQLSTATE diagnostics while excluding failed cleanup and unknown outcomes from transaction retry. Implement with three coordinated agents and preserve unrelated scope-security work."
+                    }
+
+                    {
+                        at 2026-11-24T18:30:47.555807Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "First integrated runtime run passed 36 pgorm-driver library tests and all seven native transaction tests, including aborted outcomes, nested rollback-on-drop, refused modes and RepeatableRead snapshots. Compiler checks exposed an inaccessible upstream enum and a blanket From conversion that made existing wire code inference ambiguous; both were resolved using public state predicates and an explicit native error conversion, leaving wire source unchanged. Native ORM/pool tests and deterministic boundary cancellation tests are in progress."
+                    }
+
+                    {
+                        at 2026-11-24T18:57:38.077371Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Native transaction tests exposed a real cache boundary: this engine revision advances its preparation context on ROLLBACK TO even without DDL. Public statements now share invalidation flags published before rollback completion, and a pending-restore counter makes cache preparation follow queued drop rollback. Existing Statement allocations are reused through weak handles; unchanged contexts skip cache scans. Validation so far: 48 driver unit tests, eight native transaction tests, 14 ORM/pool transaction tests, nine native ORM execution tests, 42 PostgreSQL ORM transaction/cache tests, and 35 PostgreSQL pool tests passed. Checked native commit preserves aborted outcomes and cleanup failures; uncertain outcomes close the client and do not authorize retry. Required nplan checks are running before delivery."
+                    }
+
+                    {
+                        at 2026-11-25T12:45:23.932412Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Delivery validation is green: all 14 required nplan checks passed or were content-witnessed. The complete native driver suite passes 92 tests, and ORM native transaction/execution suites pass 14/9. Real PostgreSQL regressions pass 42 ORM transaction/cache and 35 pool tests with Turso enabled. Full-suite checks caught an old expectation that encoding preceded local-DDL invalidation; the test now requires zero codec calls and an already-invalidated shared handle. Test-helper failure messages satisfy strict Clippy. No implementation or gate bypass was needed."
+                    }
                 )
             }
 

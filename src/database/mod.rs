@@ -6,6 +6,8 @@ mod db_connection;
 mod lifecycle;
 mod listen;
 mod transaction;
+#[cfg(all(test, feature = "turso"))]
+mod turso_transaction_tests;
 #[cfg(feature = "turso")]
 mod value_sql;
 

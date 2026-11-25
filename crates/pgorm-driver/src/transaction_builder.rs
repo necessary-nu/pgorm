@@ -62,7 +62,27 @@ impl<'a> TransactionBuilder<'a> {
     /// Begins the transaction.
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.
+    // [spec:pgorm:sem:turso.transactions] refuse unestablished modes before starting or installing rollback cleanup
     pub async fn start(self) -> Result<Transaction<'a>, Error> {
+        #[cfg(feature = "turso")]
+        if self.client.is_turso() {
+            if self.client.is_closed() {
+                return Err(Error::closed());
+            }
+            if self
+                .isolation_level
+                .is_some_and(|level| !matches!(level, IsolationLevel::RepeatableRead))
+            {
+                return Err(Error::turso_unsupported(
+                    "requested transaction isolation level",
+                ));
+            }
+            if self.read_only.is_some() || self.deferrable.is_some() {
+                return Err(Error::turso_unsupported(
+                    "explicit transaction access or deferrability mode",
+                ));
+            }
+        }
         let mut query = "START TRANSACTION".to_string();
         let mut first = true;
 

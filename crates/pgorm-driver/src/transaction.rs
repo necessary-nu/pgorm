@@ -14,6 +14,11 @@ use bytes::Buf;
 use futures_util::TryStreamExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+#[cfg(feature = "turso")]
+mod turso;
+#[cfg(feature = "turso")]
+pub use turso::TursoCommitError;
+
 /// A representation of a PostgreSQL database transaction.
 ///
 /// Transactions will implicitly roll back when dropped. Use the `commit` method to commit the changes made in the
@@ -52,6 +57,13 @@ impl<'a> Transaction<'a> {
 
     /// Consumes the transaction, committing all changes made within it.
     pub async fn commit(mut self) -> Result<(), Error> {
+        #[cfg(feature = "turso")]
+        if self.client.is_turso() {
+            return self
+                .commit_checked_turso()
+                .await
+                .map_err(TursoCommitError::into_error);
+        }
         self.done = true;
         let query = if let Some(sp) = self.savepoint.as_ref() {
             format!("RELEASE {}", sp.name)
@@ -64,8 +76,19 @@ impl<'a> Transaction<'a> {
     /// Rolls the transaction back, discarding all changes made within it.
     ///
     /// This is equivalent to `Transaction`'s `Drop` implementation, but provides any error encountered to the caller.
+    // [spec:pgorm:sem:turso.transactions]
     pub async fn rollback(mut self) -> Result<(), Error> {
         self.done = true;
+        #[cfg(feature = "turso")]
+        if let Some(client) = self.client.inner().native() {
+            return client
+                .rollback(
+                    self.savepoint
+                        .as_ref()
+                        .map(|savepoint| savepoint.name.as_str()),
+                )
+                .await;
+        }
         let query = if let Some(sp) = self.savepoint.as_ref() {
             format!("ROLLBACK TO {}", sp.name)
         } else {
@@ -336,6 +359,19 @@ impl<'a> Transaction<'a> {
         let depth = self.savepoint.as_ref().map_or(0, |sp| sp.depth) + 1;
         let name = name.unwrap_or_else(|| format!("sp_{depth}"));
         let query = format!("SAVEPOINT {name}");
+        #[cfg(feature = "turso")]
+        if self.client.is_turso() {
+            let mut guard = turso::SavepointGuard {
+                client: self.client,
+                name: &name,
+                complete: false,
+            };
+            self.batch_execute(&query).await?;
+            guard.complete = true;
+        } else {
+            self.batch_execute(&query).await?;
+        }
+        #[cfg(not(feature = "turso"))]
         self.batch_execute(&query).await?;
 
         Ok(Transaction {

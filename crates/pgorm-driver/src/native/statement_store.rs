@@ -2,9 +2,11 @@ use super::{
     codecs::{self, ScalarCodec},
     describe,
 };
-use crate::{Column, Error, types::Type};
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::mpsc;
+use crate::{Column, Error, Statement, client::InnerClient, statement::WeakStatement, types::Type};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Weak},
+};
 use turso_pg::PgConnection;
 
 pub(crate) struct Prepared {
@@ -15,8 +17,10 @@ pub(crate) struct Prepared {
 }
 
 pub(super) struct Entry {
+    handle: WeakStatement,
     pub(super) statement: turso_pg::Statement,
     pub(super) result_codecs: Box<[ScalarCodec]>,
+    pub(super) transaction_boundary: bool,
     // Retain the exact compiled program described to the public Statement.
     // Keeping the Arc also prevents pointer reuse from hiding a reprepare.
     described_program: Arc<turso_core::PreparedProgram>,
@@ -53,29 +57,11 @@ impl Entry {
     }
 }
 
-/// A response queued to an abandoned prepare future must close its statement.
-/// Successful receipt transfers this responsibility to the public Statement.
-pub(super) struct PreparedLease {
-    id: Option<u64>,
-    close: mpsc::UnboundedSender<u64>,
-}
-impl PreparedLease {
-    pub(super) fn disarm(mut self) {
-        self.id = None;
-    }
-}
-impl Drop for PreparedLease {
-    fn drop(&mut self) {
-        if let Some(id) = self.id {
-            let _ = self.close.send(id);
-        }
-    }
-}
-
 #[derive(Default)]
 pub(super) struct Store {
     entries: HashMap<u64, Entry>,
     next_id: u64,
+    context: Option<(turso_core::PrepareContext, u32)>,
 }
 impl Store {
     // [spec:pgorm:req:turso.parameters] explicit native types are established before client codecs run
@@ -83,10 +69,10 @@ impl Store {
     pub(super) fn prepare(
         &mut self,
         connection: &PgConnection,
+        owner: Weak<InnerClient>,
         sql: &str,
         types: Vec<Type>,
-        close: &mpsc::UnboundedSender<u64>,
-    ) -> Result<(Prepared, PreparedLease), Error> {
+    ) -> Result<Statement, Error> {
         if turso_pg::split_statements(sql).map_err(Error::turso)?.len() > 1 {
             return Err(Error::turso_unsupported(
                 "native prepared statements accept exactly one SQL command",
@@ -105,6 +91,7 @@ impl Store {
         let parameter_codecs = codecs::parameter_codecs(&types)?;
         let (columns, result_codecs) = describe::describe_columns(&statement, &types)?;
         let described_program = Arc::clone(statement.get_program().prepared());
+        let transaction_boundary = super::transaction::is_boundary(&statement);
         let described_schema_version = connection
             .inner()
             .with_schema(turso_core::MAIN_DB_ID, |schema| schema.schema_version);
@@ -112,27 +99,51 @@ impl Store {
             Error::turso_worker(std::io::Error::other("native statement ID space exhausted"))
         })?;
         self.next_id = id;
-        self.entries.insert(
-            id,
-            Entry {
-                statement,
-                result_codecs,
-                described_program,
-                described_schema_version,
-            },
-        );
-        Ok((
+        let handle = Statement::from_native(
+            owner,
             Prepared {
                 id,
                 params: types,
                 columns,
                 parameter_codecs,
             },
-            PreparedLease {
-                id: Some(id),
-                close: close.clone(),
+        );
+        self.entries.insert(
+            id,
+            Entry {
+                handle: WeakStatement::new(&handle),
+                statement,
+                result_codecs,
+                transaction_boundary,
+                described_program,
+                described_schema_version,
             },
-        ))
+        );
+        Ok(handle)
+    }
+
+    // [spec:pgorm:sem:turso.cleanup] context changes invalidate public handles before completion or rollback handoff
+    pub(super) fn publish_invalidations(&mut self, connection: &PgConnection) {
+        let current = (
+            turso_core::PrepareContext::from_connection(connection.inner()),
+            connection
+                .inner()
+                .with_schema(turso_core::MAIN_DB_ID, |schema| schema.schema_version),
+        );
+        if self.context.as_ref() == Some(&current) {
+            return;
+        }
+        for entry in self.entries.values() {
+            if !entry.metadata_is_current()
+                || entry.described_schema_version != current.1
+                || !entry
+                    .described_program
+                    .is_compatible_with(connection.inner())
+            {
+                entry.handle.mark_invalidated();
+            }
+        }
+        self.context = Some(current);
     }
 
     // [spec:pgorm:sem:turso.execution] reject stale context before binding or stepping a cached handle

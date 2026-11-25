@@ -202,7 +202,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## Connection lifecycle in pgorm-pool
 
-> [spec:pgorm:sem:conn.pool.lifecycle+4]
+> [spec:pgorm:sem:conn.pool.lifecycle+5]
 > `Manager::create` connects via `pgorm_driver`, spawns the connection
 > driver future onto a tokio task, and hands out a `ClientWrapper` owning the
 > client, the task's `JoinHandle`, and a fresh per-connection
@@ -217,10 +217,16 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > the cache was last cleared (`conn.pool.statement-cache.clear`), then runs
 > the recycling method's query, if any. `detach` unregisters the connection's
 > statement cache.
+>
+> Native recycling also requires completed cleanup and an idle transaction
+> state. A native client with unfinished work or an open transaction is
+> disposed rather than lent to another borrower (`turso.cleanup`). The check
+> MUST account for queued as well as active operations, and successful native
+> completion MUST publish cleanliness before notifying its caller.
 
-> [spec:pgorm:sem:conn.pool.recycle+1]
+> [spec:pgorm:sem:conn.pool.recycle+2]
 > `RecyclingMethod` selects the health check run on reuse: `Fast` (the
-> default, and what `connect` uses) performs no query — only the `is_closed()`
+> default, and what `connect` uses) performs no query — on PostgreSQL only the `is_closed()`
 > check; `Verified` executes an empty `simple_query` round trip; `Clean` runs
 > a `DISCARD ALL`-like statement sequence (`CLOSE ALL; SET SESSION
 > AUTHORIZATION DEFAULT; RESET ALL; UNLISTEN *; SELECT
@@ -229,8 +235,14 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > statements survive recycling; `Custom(sql)` runs caller-provided SQL.
 > `RecyclingMethod` is `#[non_exhaustive]`, so a further health check is not a
 > breaking change (`sql.surface`).
+>
+> Native Fast also checks the completed-cleanup and idle-state predicate
+> from `conn.pool.lifecycle`. Native Verified executes a native health
+> operation after that check; native Custom runs its SQL through native batch
+> execution. Both MUST leave the connection clean and idle. Native Clean is
+> refused because its PostgreSQL session operations are unsupported.
 
-> [spec:pgorm:sem:conn.pool.statement-cache+4]
+> [spec:pgorm:sem:conn.pool.statement-cache+5]
 > Each `ClientWrapper` carries an `Arc<StatementCache>` keyed by `(query text,
 > parameter types)`. `prepare_cached` / `prepare_typed_cached` return the
 > cached `pgorm_driver::Statement` on hit and prepare-then-insert on miss.
@@ -241,6 +253,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > or not a connection is checked out, and `clear_before_reuse()`, which clears
 > each cache before its connection is next lent
 > (`conn.pool.statement-cache.clear`).
+>
+> Native context restoration can invalidate prepared handles even without
+> DDL. The native worker MUST mark affected shared handles before reporting
+> completion, so the cache replaces them before reuse. While a dropped native
+> rollback is queued, cache lookup MUST prepare the requested key after that
+> rollback in the same FIFO rather than return a handle from the old context.
+> This does not replay an executed statement or clear unrelated healthy keys.
 >
 > The cache is on the ordinary execution path, not beside it, and it is the
 > whole of that path: each of `ConnectionTrait`'s six statement methods
@@ -813,7 +832,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > savepoint implementation to ignore or reject its argument, so it is offered
 > only where PostgreSQL honours it.
 
-> [spec:pgorm:sem:conn.tx.guard+5]
+> [spec:pgorm:sem:conn.tx.guard+6]
 > `DatabaseTransaction` wraps `Option<pgorm_pool::Transaction>` as the handle a
 > transaction closure is given, and a transaction has three ends. Two are
 > awaited and chosen by the closure (`conn.tx.closure`): `COMMIT` after `Ok`,
@@ -826,8 +845,8 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > a timeout, a cancelled task, a `select!` that took another branch — or a
 > panic unwinding through it.
 >
-> The two rollbacks are not equivalent. The closure's awaits the round trip.
-> The dropped handle's is fire-and-forget: `pgorm_driver::Transaction::drop`
+> The two rollbacks are not equivalent. The closure's awaits completion.
+> On PostgreSQL the dropped handle's is fire-and-forget: `pgorm_driver::Transaction::drop`
 > synchronously enqueues a raw `ROLLBACK` (`ROLLBACK TO <savepoint>` when
 > nested) onto the connection's unbounded request channel and discards both the
 > response stream and any send error, so the rollback's outcome is
@@ -842,6 +861,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > (`conn.pool.lifecycle`) — pool recycling borrows the wrapper rather than
 > replacing it — so a `ROLLBACK` queued as the handle drops is still flushed
 > after the connection returns to the pool and is handed to the next caller.
+>
+> Native drop rollback uses the same bounded FIFO as native execution. If it
+> cannot enqueue, or cleanup fails, the client becomes unusable. Native pool
+> reuse requires cleanup to have completed and the connection to be idle;
+> otherwise the client is disposed. Dropping an awaited native transaction
+> end with an unknown outcome also makes the client unusable. PostgreSQL's
+> channel ordering and reuse behavior above remain unchanged.
 
 > [spec:pgorm:sem:conn.tx.closure+6]
 > `TransactionTrait::transaction(f)` and `DatabaseConnection::transaction_with(opts,
@@ -950,7 +976,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `TransactionError::RollbackFailed` means: the connection's state is
 > unknown, and it is to be discarded.
 
-> [spec:pgorm:sem:conn.tx.aborted+1]
+> [spec:pgorm:sem:conn.tx.aborted+2]
 > A transaction whose closure returned `Ok` MUST NOT be reported as committed
 > when PostgreSQL rolled it back. A statement that fails inside a transaction
 > aborts it, and PostgreSQL refuses every later statement with SQLSTATE `25P02`
@@ -974,6 +1000,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > than before, a savepoint's `RELEASE` one, and the empty `SELECT` appears in
 > the server's statement log and statistics beside them.
 >
+> Native execution checks Turso's transaction state inside the same serialized
+> operation that commits or rolls back. An aborted state yields the native
+> connection's actual refusal and an awaited rollback, including rollback to
+> a nested savepoint. The driver and pool preserve the same aborted/error
+> distinction and any rollback failure without using PostgreSQL's wire probe.
+> A healthy native commit requires no additional SQL health probe.
+>
 > pgorm reports an aborted transaction as
 > `TransactionError::Connection(Error::TransactionAborted(refusal))`: under
 > `Connection` because its `COMMIT` is what failed, holding the server's
@@ -987,7 +1020,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > a savepoint's `TransactionAborted` reaches the closure around it as itself,
 > as `conn.tx.compose` flattens `Connection`.
 
-> [spec:pgorm:sem:conn.tx.retry+3]
+> [spec:pgorm:sem:conn.tx.retry+4]
 > `DatabaseConnection::transaction_with_retry(opts, max_retries, f)` is
 > `transaction_with` plus replay: it retries the whole begin/run/commit cycle —
 > not the failing statement — while the failure is retryable, for at most `1 +
@@ -1006,6 +1039,12 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > is `false` for every non-`Error::Postgres` variant and for any `Postgres`
 > error carrying no `DbError`. Anything else returns immediately, on the first
 > attempt, with its variant intact.
+>
+> A native error whose primary SQLSTATE is retained alongside a cleanup
+> failure MUST NOT be retryable. Native commit failure may be replayed only
+> after cleanup establishes a known transaction outcome; an unknown outcome
+> makes the connection unusable (`turso.cleanup`). Retaining database
+> diagnostics is not evidence that replay is safe.
 >
 > Both failure sites are classified, because a serialization failure can surface
 > either mid-transaction (a statement raises it, reaching the helper as the

@@ -349,7 +349,7 @@ platforms (
                 cmd "cargo clippy -p pgorm-driver --features turso --lib --tests -- -D warnings"
             }
             orm-clippy {
-                cmd "cargo clippy -p pgorm --features turso --lib --test turso_execution_tests -- -D warnings"
+                cmd "cargo clippy -p pgorm --features turso --lib --tests -- -D warnings"
             }
             lifecycle {
                 cmd "cargo test -p pgorm-driver --features turso --lib --tests"
@@ -359,6 +359,9 @@ platforms (
             }
             execution {
                 cmd "cargo test -p pgorm --features turso --test turso_execution_tests"
+            }
+            transactions {
+                cmd "cargo test -p pgorm --features turso --lib database::turso_transaction_tests"
             }
         }
     }

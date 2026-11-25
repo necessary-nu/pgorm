@@ -1,7 +1,7 @@
 use super::{
     codecs,
     rows::{BATCH_BYTES, BATCH_ROWS, Output},
-    statement_store::Entry,
+    statement_store::{Entry, Store},
     worker::{
         Control, Failure, Operation, cancelled, finish_statement, install_progress, next_row,
     },
@@ -40,6 +40,9 @@ fn run(
     control: &Control,
     mut row: impl FnMut(&turso_core::Row) -> Result<(), Error>,
 ) -> Result<u64, Failure> {
+    if entry.transaction_boundary {
+        operation.transaction_boundary(control);
+    }
     install_progress(connection, operation, control);
     let mut returned = 0_u64;
     let outcome = loop {
@@ -130,13 +133,14 @@ pub(super) struct Request {
 
 pub(super) struct Context<'a> {
     pub(super) connection: &'a PgConnection,
+    pub(super) store: &'a mut Store,
     pub(super) operation: &'a Arc<Operation>,
     pub(super) control: &'a Control,
     pub(super) shutdown: &'a mut watch::Receiver<bool>,
     pub(super) runtime: &'a Handle,
 }
 
-pub(super) fn query(entry: &mut Entry, request: Request, context: Context<'_>) -> bool {
+pub(super) fn query(id: u64, request: Request, context: Context<'_>) -> bool {
     let Request {
         statement,
         params,
@@ -145,16 +149,30 @@ pub(super) fn query(entry: &mut Entry, request: Request, context: Context<'_>) -
     } = request;
     let Context {
         connection,
+        store,
         operation,
         control,
         shutdown,
         runtime,
     } = context;
     if control.cancelled(operation) {
+        control.complete(connection, operation, store);
         let _ = ready.send(Err(cancelled()));
         output.finish(Err(cancelled()));
         return false;
     }
+    let entry = match store.get(id, connection) {
+        Ok(entry) => entry,
+        Err(error) => {
+            if error.is_statement_invalidated() {
+                statement.mark_invalidated();
+            }
+            control.complete(connection, operation, store);
+            let _ = ready.send(Err(error));
+            output.finish(Err(Error::closed()));
+            return false;
+        }
+    };
     if let Err(error) = bind(entry, params) {
         let result = finish_statement(
             connection,
@@ -167,6 +185,7 @@ pub(super) fn query(entry: &mut Entry, request: Request, context: Context<'_>) -
         if fatal {
             control.quarantine();
         }
+        control.complete(connection, operation, store);
         let _ = ready.send(result.map_err(|failure| failure.error));
         output.finish(Err(Error::closed()));
         return fatal;
@@ -183,6 +202,7 @@ pub(super) fn query(entry: &mut Entry, request: Request, context: Context<'_>) -
         if fatal {
             control.quarantine();
         }
+        control.complete(connection, operation, store);
         return fatal;
     }
     let mut batch = Vec::with_capacity(BATCH_ROWS);
@@ -226,6 +246,7 @@ pub(super) fn query(entry: &mut Entry, request: Request, context: Context<'_>) -
     {
         statement.mark_invalidated();
     }
+    control.complete(connection, operation, store);
     output.finish(result.map_err(|failure| failure.error));
     fatal
 }

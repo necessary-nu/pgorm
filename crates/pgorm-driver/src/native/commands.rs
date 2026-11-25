@@ -1,10 +1,6 @@
-use super::{
-    rows::Output,
-    statement_store::{Prepared, PreparedLease},
-    worker::Operation,
-};
+use super::{rows::Output, transaction::End, worker::Operation};
 use crate::{Error, Statement, types::Type};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tokio::sync::oneshot;
 
 pub(super) enum Command {
@@ -14,10 +10,11 @@ pub(super) enum Command {
         reply: oneshot::Sender<Result<(), Error>>,
     },
     Prepare {
+        owner: Weak<crate::client::InnerClient>,
         sql: String,
         types: Vec<Type>,
         operation: Arc<Operation>,
-        reply: oneshot::Sender<Result<(Prepared, PreparedLease), Error>>,
+        reply: oneshot::Sender<Result<Statement, Error>>,
     },
     Query {
         id: u64,
@@ -35,6 +32,10 @@ pub(super) enum Command {
         // Keep the public statement alive until the operation completes.
         _statement: Statement,
     },
+    End {
+        request: End,
+        operation: Arc<Operation>,
+    },
 }
 impl Command {
     pub(super) fn operation(&self) -> &Arc<Operation> {
@@ -42,7 +43,8 @@ impl Command {
             Self::Batch { operation, .. }
             | Self::Prepare { operation, .. }
             | Self::Query { operation, .. }
-            | Self::Execute { operation, .. } => operation,
+            | Self::Execute { operation, .. }
+            | Self::End { operation, .. } => operation,
         }
     }
 
@@ -61,6 +63,7 @@ impl Command {
             Self::Execute { reply, .. } => {
                 let _ = reply.send(Err(Error::closed()));
             }
+            Self::End { request, .. } => request.close(),
         }
     }
 }

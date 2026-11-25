@@ -65,8 +65,7 @@ pub async fn prepare(
 ) -> Result<Statement, Error> {
     #[cfg(feature = "turso")]
     if let Some(native) = client.native() {
-        let prepared = native.prepare(query, types).await?;
-        return Ok(Statement::from_native(client, prepared));
+        return native.prepare(Arc::downgrade(client), query, types).await;
     }
     let name = format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst));
     let buf = encode(client, &name, query, types)?;

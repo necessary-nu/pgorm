@@ -3,7 +3,7 @@ use std::path::Path;
 
 const LONG: &str = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<100000000) SELECT sum(x) FROM n";
 
-async fn actor() -> (Arc<Client>, JoinHandle<Result<(), Error>>) {
+pub(super) async fn actor() -> (Arc<Client>, JoinHandle<Result<(), Error>>) {
     let database = super::super::Database::open(Path::new(":memory:"))
         .await
         .unwrap();
@@ -11,7 +11,7 @@ async fn actor() -> (Arc<Client>, JoinHandle<Result<(), Error>>) {
     (client, tokio::spawn(connection))
 }
 
-fn gate() -> (StepGate, oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
+pub(super) fn gate() -> (StepGate, oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
     let (entered, ready) = oneshot::channel();
     let (resume, paused) = std::sync::mpsc::channel();
     (
@@ -24,7 +24,7 @@ fn gate() -> (StepGate, oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
     )
 }
 
-async fn finish(client: Arc<Client>, task: JoinHandle<Result<(), Error>>) {
+pub(super) async fn finish(client: Arc<Client>, task: JoinHandle<Result<(), Error>>) {
     drop(client);
     tokio::time::timeout(Duration::from_secs(3), task)
         .await
@@ -132,11 +132,7 @@ async fn stale_cancellation_does_not_affect_current_operation() {
     let op_client = Arc::clone(&client);
     let operation = tokio::spawn(async move { op_client.check_connection().await });
     entered.await.unwrap();
-    let stale = Operation {
-        id: u64::MAX,
-        cancelled: AtomicBool::new(false),
-        cancelled_notify: Notify::new(),
-    };
+    let stale = Operation::detached(u64::MAX);
     client.control.cancel(Some(&stale));
     resume.send(()).unwrap();
     operation.await.unwrap().unwrap();
@@ -153,11 +149,7 @@ async fn pending_native_completion_is_aborted_on_cancel() {
     let statement = native.prepare("SELECT 1").unwrap();
     let (client, lifetime) = database.connect().await.unwrap();
     let task = tokio::spawn(lifetime);
-    let operation = Arc::new(Operation {
-        id: u64::MAX,
-        cancelled: AtomicBool::new(false),
-        cancelled_notify: Notify::new(),
-    });
+    let operation = Arc::new(Operation::detached(u64::MAX));
     let completion = turso_core::Completion::new_wait();
     let pending = completion.clone();
     let operation_wait = Arc::clone(&operation);

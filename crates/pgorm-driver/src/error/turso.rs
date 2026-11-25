@@ -100,6 +100,20 @@ impl StdError for TursoCleanupError {
 }
 
 impl Error {
+    /// Whether a native failure left cleanup incomplete or the outcome unknown.
+    ///
+    /// The primary SQLSTATE is retained for diagnostics, but must not authorize
+    /// a transaction retry after cleanup failed.
+    // [spec:pgorm:sem:turso.transactions]
+    pub fn is_turso_cleanup_failure(&self) -> bool {
+        self.0.native_cleanup_failed || self.0.kind == Kind::TursoCleanup
+    }
+
+    pub(crate) fn turso_cleanup_failed(mut cause: Self) -> Self {
+        cause.0.native_cleanup_failed = true;
+        cause
+    }
+
     /// Whether a native statement's prepared metadata is no longer valid.
     ///
     /// Discard the cached statement before another call. This error can be
@@ -288,6 +302,32 @@ mod tests {
         assert!(error.as_db_error().is_none());
         assert!(error.code().is_none());
         assert!(error.is_closed());
+    }
+
+    // [spec:pgorm:sem:turso.transactions/test]
+    #[test]
+    fn cleanup_diagnostics_do_not_authorize_retry() {
+        let primary = Error::turso(dialect_error("40001", "serialization conflict"));
+        assert!(!primary.is_turso_cleanup_failure());
+        let error = Error::turso_cleanup(primary, Error::closed());
+        assert_eq!(error.code(), Some(&SqlState::T_R_SERIALIZATION_FAILURE));
+        assert!(error.is_turso_cleanup_failure());
+        assert!(error.is_closed());
+        let refusal = Error::turso_unsupported("isolation level");
+        assert!(!refusal.is_turso_cleanup_failure());
+        assert!(refusal.code().is_none());
+
+        let cleanup = Error::turso_cleanup_failed(Error::turso(dialect_error(
+            "40001",
+            "cleanup serialization failure",
+        )));
+        assert!(cleanup.is_turso_cleanup_failure());
+        assert_eq!(cleanup.code(), Some(&SqlState::T_R_SERIALIZATION_FAILURE));
+        assert_eq!(
+            cleanup.as_db_error().unwrap().message(),
+            "cleanup serialization failure"
+        );
+        assert!(cleanup.source().unwrap().is::<DbError>());
     }
 
     // [spec:pgorm:req:turso.errors/test]

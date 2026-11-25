@@ -438,18 +438,19 @@ impl Config {
 
 /// Possible methods of how a connection is recycled.
 ///
-/// The default is [`Fast`] which does not check the connection health or
-/// perform any clean-up queries.
+/// The default is [`Fast`], which performs no health or cleanup query.
+/// Native Turso recycling also requires completed work and an idle
+/// transaction state, regardless of the selected method.
 ///
 /// [`Fast`]: RecyclingMethod::Fast
 /// [`Verified`]: RecyclingMethod::Verified
-// [spec:pgorm:sem:conn.pool.recycle+1]
+// [spec:pgorm:sem:conn.pool.recycle+2]
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[non_exhaustive]
 pub enum RecyclingMethod {
-    /// Only run [`Client::is_closed()`][1] when recycling existing connections.
+    /// Check [`Client::is_closed()`][1] without executing a query.
     ///
-    /// Unless you have special needs this is a safe choice.
+    /// Native Turso also rejects unfinished work and open transactions.
     ///
     /// [1]: pgorm_driver::Client::is_closed
     #[default]
@@ -463,6 +464,9 @@ pub enum RecyclingMethod {
     /// network connections) it's possible that [`Client::is_closed()`][1]
     /// returns `false` while the connection is dead. You will receive an error
     /// on your first query then.
+    ///
+    /// Native Turso uses its native health operation and checks that cleanup
+    /// is complete and the transaction state is idle before and after it.
     ///
     /// [1]: pgorm_driver::Client::is_closed
     Verified,
@@ -483,10 +487,16 @@ pub enum RecyclingMethod {
     /// `DEALLOCATE ALL` and `DISCARD PLAN`, so that the statement cache is not
     /// rendered ineffective.
     ///
+    /// Native Turso refuses this method because these PostgreSQL session
+    /// operations are unsupported.
+    ///
     /// [`Verified`]: RecyclingMethod::Verified
     Clean,
 
     /// Like [`Verified`] but allows to specify a custom SQL to be executed.
+    ///
+    /// Native Turso executes the SQL as a batch and rejects the connection
+    /// if it leaves unfinished work or an open transaction.
     ///
     /// [`Verified`]: RecyclingMethod::Verified
     Custom(String),
@@ -503,7 +513,7 @@ impl RecyclingMethod {
         DISCARD SEQUENCES;\
     ";
 
-    /// Returns SQL query to be executed when recycling a connection.
+    /// SQL for PostgreSQL connection recycling.
     pub fn query(&self) -> Option<&str> {
         match self {
             Self::Fast => None,

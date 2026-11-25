@@ -135,7 +135,7 @@ async fn insert_then_drop(db: &mut DatabaseConnection, names: &[&str]) {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+5/test]    a dropped closure future rolls back, and the queued ROLLBACK lands ahead of the connection's next statement
+// [spec:pgorm:sem:conn.tx.guard+6/test]    a dropped closure future rolls back, and the queued ROLLBACK lands ahead of the connection's next statement
 #[pgorm_macros::test]
 pub async fn transaction_dropped_future_rolls_back() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_dropped_future_rolls_back").await;
@@ -154,7 +154,7 @@ pub async fn transaction_dropped_future_rolls_back() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.guard+5/test]    a closure stopped by a timeout rolls back
+// [spec:pgorm:sem:conn.tx.guard+6/test]    a closure stopped by a timeout rolls back
 #[pgorm_macros::test]
 pub async fn transaction_timed_out_rolls_back() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_timed_out_rolls_back").await;
@@ -253,7 +253,7 @@ pub async fn transaction_error_rollback() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.guard+5/test]    an Err rolls back, and the ROLLBACK is awaited before the call returns
+// [spec:pgorm:sem:conn.tx.guard+6/test]    an Err rolls back, and the ROLLBACK is awaited before the call returns
 #[pgorm_macros::test]
 pub async fn transaction_err_rolls_back() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_err_rolls_back_txrollback").await;
@@ -282,7 +282,7 @@ pub async fn transaction_err_rolls_back() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.guard+5/test]    the ROLLBACK a dropped future queues still lands after the connection returns to the pool
+// [spec:pgorm:sem:conn.tx.guard+6/test]    the ROLLBACK a dropped future queues still lands after the connection returns to the pool
 #[pgorm_macros::test]
 pub async fn transaction_drop_rollback_survives_handback() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_drop_rollback_survives_handback").await;
@@ -325,7 +325,7 @@ pub async fn transaction_drop_rollback_survives_handback() -> Result<(), Error> 
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.guard+5/test]    a failing COMMIT reaches the caller as TransactionError::Connection(Error::Postgres)
+// [spec:pgorm:sem:conn.tx.guard+6/test]    a failing COMMIT reaches the caller as TransactionError::Connection(Error::Postgres)
 #[pgorm_macros::test]
 pub async fn transaction_commit_failure_maps_error() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_commit_failure_maps_error").await;
@@ -990,7 +990,7 @@ pub async fn savepoint_failed_rollback_is_not_lost() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.retry+3/test]    SQLSTATE 40001 raised by a statement is retried
+// [spec:pgorm:sem:conn.tx.retry+4/test]    SQLSTATE 40001 raised by a statement is retried
 #[pgorm_macros::test]
 pub async fn transaction_retry_concurrent_update_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_retry_concurrent_update_txclosure").await;
@@ -1052,7 +1052,7 @@ pub async fn transaction_retry_concurrent_update_txclosure() -> Result<(), Error
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.retry+3/test]    write skew between two serializable transactions
+// [spec:pgorm:sem:conn.tx.retry+4/test]    write skew between two serializable transactions
 #[pgorm_macros::test]
 pub async fn transaction_retry_write_skew_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_retry_write_skew_txclosure").await;
@@ -1095,7 +1095,7 @@ pub async fn transaction_retry_write_skew_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.retry+3/test]    a non-retryable error is returned on the first attempt
+// [spec:pgorm:sem:conn.tx.retry+4/test]    a non-retryable error is returned on the first attempt
 #[pgorm_macros::test]
 pub async fn transaction_retry_non_retryable_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_retry_non_retryable_txclosure").await;

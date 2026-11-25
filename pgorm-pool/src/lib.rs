@@ -195,6 +195,36 @@ impl Manager {
             )
         });
     }
+
+    // [spec:pgorm:sem:turso.cleanup] a pool borrower never waits behind abandoned native work
+    #[cfg(feature = "turso")]
+    async fn recycle_turso(&self, client: &mut ClientWrapper) -> RecycleResult {
+        if !client.is_turso_clean() {
+            return Err(RecycleError::message(
+                "Native Turso connection is not clean",
+            ));
+        }
+        self.statement_caches.bring_up_to_date(client);
+        let result = match &self.config.recycling_method {
+            RecyclingMethod::Fast => return Ok(()),
+            RecyclingMethod::Verified => client.check_connection().await,
+            RecyclingMethod::Custom(sql) => client.batch_execute(sql).await,
+            RecyclingMethod::Clean => {
+                return Err(RecycleError::message(
+                    "Native Turso does not support PostgreSQL Clean recycling",
+                ));
+            }
+        };
+        if let Err(error) = result {
+            return Err(error.into());
+        }
+        if !client.is_turso_clean() {
+            return Err(RecycleError::message(
+                "Native Turso recycling left unfinished work or an open transaction",
+            ));
+        }
+        Ok(())
+    }
 }
 
 // [spec:pgorm:req:conn.pool.statement-cache.listen+1]    a dropped pool does not leak the listener
@@ -217,7 +247,7 @@ impl fmt::Debug for Manager {
     }
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+4]    create/recycle/detach
+// [spec:pgorm:sem:conn.pool.lifecycle+5]    create/recycle/detach
 impl managed::Manager for Manager {
     type Type = ClientWrapper;
     type Error = Error;
@@ -237,6 +267,10 @@ impl managed::Manager for Manager {
         if client.is_closed() {
             tracing::warn!(target: "deadpool.postgres", "Connection could not be recycled: Connection closed");
             return Err(RecycleError::message("Connection closed"));
+        }
+        #[cfg(feature = "turso")]
+        if client.is_turso() {
+            return self.recycle_turso(client).await;
         }
         self.statement_caches.bring_up_to_date(client);
         match self.config.recycling_method.query() {
@@ -327,7 +361,7 @@ where
 
 /// Structure holding a reference to all [`StatementCache`]s and providing
 /// access for clearing all caches and removing single statements from them.
-// [spec:pgorm:sem:conn.pool.statement-cache+4]    manager-level registry
+// [spec:pgorm:sem:conn.pool.statement-cache+5]    manager-level registry
 #[derive(Default, Debug)]
 pub struct StatementCaches {
     caches: Mutex<Vec<Weak<StatementCache>>>,
@@ -446,7 +480,7 @@ struct StatementCacheKey<'a> {
 /// Normally, you probably want to use the [`ClientWrapper::prepare_cached()`]
 /// and [`ClientWrapper::prepare_typed_cached()`] methods instead (or the
 /// similar ones on [`Transaction`]).
-// [spec:pgorm:sem:conn.pool.statement-cache+4]
+// [spec:pgorm:sem:conn.pool.statement-cache+5]
 pub struct StatementCache {
     map: RwLock<HashMap<StatementCacheKey<'static>, Statement>>,
     size: AtomicUsize,
@@ -608,6 +642,14 @@ impl StatementCache {
             return client.prepare_typed(query, types).await;
         }
 
+        // [spec:pgorm:sem:turso.cleanup] preparation follows queued rollback before using its restored context
+        #[cfg(feature = "turso")]
+        if client.has_pending_turso_restore() {
+            let stmt = client.prepare_typed(query, types).await?;
+            self.insert(query, types, stmt.clone());
+            return Ok(stmt);
+        }
+
         match self.get(query, types) {
             Some(statement) => Ok(statement),
             None => {
@@ -736,7 +778,7 @@ impl DerefMut for ClientWrapper {
     }
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+4]    connection task abort on drop
+// [spec:pgorm:sem:conn.pool.lifecycle+5]    connection task abort on drop
 impl Drop for ClientWrapper {
     fn drop(&mut self) {
         self.conn_task.abort()
