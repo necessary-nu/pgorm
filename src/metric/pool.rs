@@ -1,25 +1,28 @@
 use std::{sync::Arc, time::Instant};
 
 use super::{InstrumentedConnection, MetricsCollector};
-use crate::{DatabasePool, Error};
+use crate::{ConnectionPool, DatabasePool, Error};
 
-/// A connection pool wrapper that produces instrumented connections
-// [spec:pgorm:def:metric.layer+3]    pool wrapper
+/// A connection pool wrapper that produces instrumented connections: of a
+/// [`DatabasePool`] by default, or of a [`ReadOnlyPool`](crate::ReadOnlyPool),
+/// whose instrumented connections and transactions may still only read.
+// [spec:pgorm:def:metric.layer+4]    pool wrapper
+// [spec:pgorm:req:read-only.metrics]
 #[derive(Debug, Clone)]
 #[doc(alias = "set_metric_callback")]
-pub struct InstrumentedPool<M: MetricsCollector> {
-    pool: DatabasePool,
+pub struct InstrumentedPool<M: MetricsCollector, P = DatabasePool> {
+    pool: P,
     metrics: M,
 }
 
-impl<M: MetricsCollector> InstrumentedPool<M> {
+impl<M: MetricsCollector, P: ConnectionPool> InstrumentedPool<M, P> {
     /// Create a new instrumented pool
-    pub fn new(pool: DatabasePool, metrics: M) -> Self {
+    pub fn new(pool: P, metrics: M) -> Self {
         Self { pool, metrics }
     }
 
     /// Get an instrumented connection from the pool
-    pub async fn get(&self) -> Result<InstrumentedConnection<M>, Error> {
+    pub async fn get(&self) -> Result<InstrumentedConnection<M, P::Connection>, Error> {
         let start = Instant::now();
         let result = self.pool.get().await;
         let elapsed = start.elapsed();
@@ -53,7 +56,7 @@ impl<M: MetricsCollector> InstrumentedPool<M> {
     }
 
     /// Get a reference to the underlying pool
-    pub fn inner(&self) -> &DatabasePool {
+    pub fn inner(&self) -> &P {
         &self.pool
     }
 

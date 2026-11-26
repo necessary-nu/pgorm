@@ -5,11 +5,12 @@ pub use fingerprint::{QueryContext, QueryFingerprint};
 pub use pool::InstrumentedPool;
 
 use crate::{
-    Connection, DatabaseConnection, DatabaseTransaction, Error, RetryableError, SqlText, Transact,
-    TransactionError, TransactionMode,
+    Connection, ConnectionMut, DatabaseConnection, DatabaseTransaction, Error, IsolationLevel,
+    ReadOnlyConnection, ReadOnlyTransaction, RetryableError, RunsOn, SqlText, Transact,
+    TransactionError, TransactionMode, Unchecked,
     database::{
-        OpenWith,
-        sealed::{Close, Handle, Open, Token},
+        Kinded, OpenWith, drive,
+        sealed::{Close, Handle, Open, OpenReadOnly, ReadOnlyMode, Token},
         with_mode, with_retry,
     },
 };
@@ -19,7 +20,10 @@ use pgorm_driver::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };
-use std::time::{Duration, Instant};
+use std::{
+    marker::PhantomData,
+    time::{Duration, Instant},
+};
 
 /// The body every instrumented `Connection` method shares: build the
 /// context, time the awaited delegation, report the outcome under the hook it
@@ -29,7 +33,7 @@ use std::time::{Duration, Instant};
 /// operation name, where the SQL text comes from, and how a row count is read
 /// out of the `Ok` payload — so those are the parameters and the rest is
 /// written once. `$rows` is evaluated against the payload by reference.
-// [spec:pgorm:req:metric.layer.delegate+6]    the timing and reporting body
+// [spec:pgorm:req:metric.layer.delegate+7]    the timing and reporting body
 macro_rules! report {
     ($self:ident, $operation:literal, $sql:expr, $call:expr, $ok:pat => $rows:expr) => {{
         let query = QueryContext::new($operation, $sql);
@@ -107,7 +111,7 @@ pub trait MetricsCollector: Clone + Send + Sync + 'static {
     /// drops, every hook is `async`, and `Drop::drop` is not.
     ///
     /// [`record_query_error`]: MetricsCollector::record_query_error
-    // [spec:pgorm:sem:metric.layer.tx+6]    the semantic an implementor reads at the trait
+    // [spec:pgorm:sem:metric.layer.tx+7]    the semantic an implementor reads at the trait
     async fn record_transaction_rollback(&self, duration: Duration);
 }
 
@@ -201,17 +205,21 @@ impl MetricsCollector for LoggingMetrics {
     }
 }
 
-/// A connection wrapper that instruments all database operations
-// [spec:pgorm:def:metric.layer+3]    connection wrapper
+/// A connection wrapper that instruments all database operations: a
+/// [`DatabaseConnection`] by default, or the [`ReadOnlyConnection`] an
+/// [`InstrumentedPool`] over a [`ReadOnlyPool`](crate::ReadOnlyPool) lends,
+/// which stays a connection that may only read.
+// [spec:pgorm:def:metric.layer+4]    connection wrapper
+// [spec:pgorm:req:read-only.metrics]
 #[derive(Debug)]
-pub struct InstrumentedConnection<M: MetricsCollector> {
-    connection: DatabaseConnection,
+pub struct InstrumentedConnection<M: MetricsCollector, C = DatabaseConnection> {
+    connection: C,
     metrics: M,
 }
 
-impl<M: MetricsCollector> InstrumentedConnection<M> {
+impl<M: MetricsCollector, C> InstrumentedConnection<M, C> {
     /// Create a new instrumented connection
-    pub fn new(connection: DatabaseConnection, metrics: M) -> Self {
+    pub fn new(connection: C, metrics: M) -> Self {
         Self {
             connection,
             metrics,
@@ -219,14 +227,14 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
     }
 
     /// Get a reference to the underlying connection
-    pub fn inner(&self) -> &DatabaseConnection {
+    pub fn inner(&self) -> &C {
         &self.connection
     }
 
     /// The wrapped connection, given back: what runs on it from here is not
     /// reported.
-    // [spec:pgorm:def:metric.layer+3]    the connection wrapper given back
-    pub fn into_inner(self) -> DatabaseConnection {
+    // [spec:pgorm:def:metric.layer+4]    the connection wrapper given back
+    pub fn into_inner(self) -> C {
         self.connection
     }
 
@@ -234,12 +242,14 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
     pub fn metrics(&self) -> &M {
         &self.metrics
     }
+}
 
+impl<M: MetricsCollector> InstrumentedConnection<M> {
     /// [`DatabaseConnection::transaction_with`], reported as
     /// [`transaction`](Transact::transaction) reports: the closure is
     /// given an [`InstrumentedTransaction`], and the configured `BEGIN` is
     /// timed and reported as any opening is.
-    // [spec:pgorm:sem:metric.layer.tx+6]    a configured transaction on an instrumented connection
+    // [spec:pgorm:sem:metric.layer.tx+7]    a configured transaction on an instrumented connection
     pub async fn transaction_with<T, E, F>(
         &mut self,
         mode: TransactionMode,
@@ -254,7 +264,7 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
     /// [`DatabaseConnection::transaction_with_retry`], each attempt reported
     /// as one transaction: its opening, its statements, and its commit or
     /// rollback.
-    // [spec:pgorm:sem:metric.layer.tx+6]    every retried attempt reported as a transaction
+    // [spec:pgorm:sem:metric.layer.tx+7]    every retried attempt reported as a transaction
     pub async fn transaction_with_retry<T, E, F>(
         &mut self,
         mode: TransactionMode,
@@ -269,95 +279,170 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
     }
 }
 
-// [spec:pgorm:req:metric.layer.delegate+6]
+impl<M: MetricsCollector, C: OpenReadOnly> InstrumentedConnection<M, C> {
+    /// [`DatabaseConnection::read_only_transaction`], reported as any
+    /// transaction is: the closure is given an [`InstrumentedTransaction`]
+    /// over a [`ReadOnlyTransaction`], which may only read.
+    // [spec:pgorm:req:read-only.metrics]
+    pub async fn read_only_transaction<T, E, F>(
+        &mut self,
+        isolation: Option<IsolationLevel>,
+        f: F,
+    ) -> Result<T, TransactionError<E>>
+    where
+        F: AsyncFnOnce(
+            &mut InstrumentedTransaction<'_, M, ReadOnlyTransaction<'_>>,
+        ) -> Result<T, E>,
+    {
+        let txn = self
+            .open_read_only(ReadOnlyMode::Isolation(isolation))
+            .await
+            .map_err(TransactionError::Connection)?;
+        drive(txn, f).await
+    }
+
+    /// [`DatabaseConnection::snapshot`], reported as any transaction is.
+    // [spec:pgorm:req:read-only.metrics]
+    pub async fn snapshot<T, E, F>(&mut self, f: F) -> Result<T, TransactionError<E>>
+    where
+        F: AsyncFnOnce(
+            &mut InstrumentedTransaction<'_, M, ReadOnlyTransaction<'_>>,
+        ) -> Result<T, E>,
+    {
+        let txn = self
+            .open_read_only(ReadOnlyMode::Snapshot)
+            .await
+            .map_err(TransactionError::Connection)?;
+        drive(txn, f).await
+    }
+
+    /// A read-only transaction's opening, timed and reported.
+    async fn open_read_only(
+        &mut self,
+        mode: ReadOnlyMode,
+    ) -> Result<InstrumentedTransaction<'_, M, ReadOnlyTransaction<'_>>, Error> {
+        begun(self.metrics.clone(), self.connection.open_read_only(mode)).await
+    }
+}
+
+impl<M: MetricsCollector> InstrumentedConnection<M, ReadOnlyConnection> {
+    /// [`ReadOnlyConnection::unchecked`], reported: SQL text of any kind,
+    /// which the read-only session's server refuses to let write.
+    // [spec:pgorm:req:read-only.metrics]
+    pub fn unchecked(&self) -> Unchecked<'_, Self> {
+        Unchecked(self)
+    }
+}
+
+/// The `Connection` impl of an instrumented wrapper: each statement method
+/// reported through `report!`, the statement handed to the wrapped
+/// connection as a read once the wrapper's own bound has admitted it.
+macro_rules! instrumented {
+    ([$($generics:tt)*] $ty:ty, $field:ident) => {
+        #[async_trait]
+        impl<$($generics)*> Connection for $ty {
+            async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+            where
+                T: ?Sized + SqlText + Sync,
+                T::Kind: RunsOn<Self>,
+            {
+                report!(self, "execute", Some(statement.sql_text()),
+                    self.$field.execute(&Kinded::read(statement), params).await, rows => Some(*rows))
+            }
+
+            async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
+            where
+                T: ?Sized + SqlText + Sync,
+                T::Kind: RunsOn<Self>,
+                P: BorrowToSql,
+                I: IntoIterator<Item = P> + Send,
+                I::IntoIter: ExactSizeIterator,
+            {
+                report!(self, "execute_raw", Some(statement.sql_text()),
+                    self.$field.execute_raw(&Kinded::read(statement), params).await, rows => Some(*rows))
+            }
+
+            async fn query_one<T>(
+                &self,
+                statement: &T,
+                params: &[&(dyn ToSql + Sync)],
+            ) -> Result<Row, Error>
+            where
+                T: ?Sized + SqlText + Sync,
+                T::Kind: RunsOn<Self>,
+            {
+                report!(self, "query_one", Some(statement.sql_text()),
+                    self.$field.query_one(&Kinded::read(statement), params).await, _ => Some(1))
+            }
+
+            async fn query_opt<T>(
+                &self,
+                statement: &T,
+                params: &[&(dyn ToSql + Sync)],
+            ) -> Result<Option<Row>, Error>
+            where
+                T: ?Sized + SqlText + Sync,
+                T::Kind: RunsOn<Self>,
+            {
+                report!(self, "query_opt", Some(statement.sql_text()),
+                    self.$field.query_opt(&Kinded::read(statement), params).await, row => Some(if row.is_some() { 1 } else { 0 }))
+            }
+
+            async fn query_all<T>(
+                &self,
+                statement: &T,
+                params: &[&(dyn ToSql + Sync)],
+            ) -> Result<Vec<Row>, Error>
+            where
+                T: ?Sized + SqlText + Sync,
+                T::Kind: RunsOn<Self>,
+            {
+                report!(self, "query_all", Some(statement.sql_text()),
+                    self.$field.query_all(&Kinded::read(statement), params).await, rows => Some(rows.len() as u64))
+            }
+
+            // [spec:pgorm:sem:exec.stream.decode+2]    row count unknown at stream creation
+            async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+            where
+                T: ?Sized + SqlText + Sync,
+                T::Kind: RunsOn<Self>,
+                P: BorrowToSql,
+                I: IntoIterator<Item = P> + Send,
+                I::IntoIter: ExactSizeIterator,
+            {
+                report!(self, "query_raw", Some(statement.sql_text()),
+                    self.$field.query_raw(&Kinded::read(statement), params).await, _ => None)
+            }
+        }
+    };
+}
+
+// [spec:pgorm:req:metric.layer.delegate+7]
+instrumented!([M: MetricsCollector, C: Connection] InstrumentedConnection<M, C>, connection);
+
+// [spec:pgorm:req:metric.layer.delegate+7]
 #[async_trait]
-impl<M: MetricsCollector> Connection for InstrumentedConnection<M> {
-    async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        report!(self, "execute", Some(statement.sql_text()),
-            self.connection.execute(statement, params).await, rows => Some(*rows))
-    }
-
-    async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        report!(self, "execute_raw", Some(statement.sql_text()),
-            self.connection.execute_raw(statement, params).await, rows => Some(*rows))
-    }
-
-    async fn query_one<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Row, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        report!(self, "query_one", Some(statement.sql_text()),
-            self.connection.query_one(statement, params).await, _ => Some(1))
-    }
-
-    async fn query_opt<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        report!(self, "query_opt", Some(statement.sql_text()),
-            self.connection.query_opt(statement, params).await, row => Some(if row.is_some() { 1 } else { 0 }))
-    }
-
-    async fn query_all<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        report!(self, "query_all", Some(statement.sql_text()),
-            self.connection.query_all(statement, params).await, rows => Some(rows.len() as u64))
-    }
-
-    // [spec:pgorm:sem:exec.stream.decode+2]    row count unknown at stream creation
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        report!(self, "query_raw", Some(statement.sql_text()),
-            self.connection.query_raw(statement, params).await, _ => None)
-    }
-
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+impl<M: MetricsCollector, C: ConnectionMut> ConnectionMut for InstrumentedConnection<M, C> {
+    async fn run_batch(&self, sql: &str) -> Result<(), Error> {
         report!(self, "batch_execute", Some(sql),
             self.connection.batch_execute(sql).await, () => None)
     }
 }
 
 /// The handle a transaction closure on an [`InstrumentedConnection`] is given:
-/// a [`DatabaseTransaction`] whose statements, savepoints and ending are
-/// reported to the collector.
-// [spec:pgorm:sem:metric.layer.tx+6]    an instrumented handle for every instrumented transaction
+/// a [`DatabaseTransaction`] by default, or a [`ReadOnlyTransaction`], whose
+/// statements, savepoints and ending are reported to the collector.
+// [spec:pgorm:sem:metric.layer.tx+7]    an instrumented handle for every instrumented transaction
 #[derive(Debug)]
-pub struct InstrumentedTransaction<'a, M: MetricsCollector> {
-    transaction: DatabaseTransaction<'a>,
+pub struct InstrumentedTransaction<'a, M: MetricsCollector, T = DatabaseTransaction<'a>> {
+    transaction: T,
     metrics: M,
+    borrow: PhantomData<&'a ()>,
 }
 
-impl<'a, M: MetricsCollector> InstrumentedTransaction<'a, M> {
+impl<M: MetricsCollector, T> InstrumentedTransaction<'_, M, T> {
     /// Get a reference to the underlying transaction
-    pub fn inner(&self) -> &DatabaseTransaction<'a> {
+    pub fn inner(&self) -> &T {
         &self.transaction
     }
 
@@ -367,77 +452,21 @@ impl<'a, M: MetricsCollector> InstrumentedTransaction<'a, M> {
     }
 }
 
-// [spec:pgorm:req:metric.layer.delegate+6]    statements inside a transaction
+impl<'a, M: MetricsCollector> InstrumentedTransaction<'a, M, ReadOnlyTransaction<'a>> {
+    /// [`ReadOnlyTransaction::unchecked`], reported.
+    // [spec:pgorm:req:read-only.metrics]
+    pub fn unchecked(&self) -> Unchecked<'_, Self> {
+        Unchecked(self)
+    }
+}
+
+// [spec:pgorm:req:metric.layer.delegate+7]    statements inside a transaction
+instrumented!(['a, M: MetricsCollector, Tx: Connection] InstrumentedTransaction<'a, M, Tx>, transaction);
+
+// [spec:pgorm:req:metric.layer.delegate+7]
 #[async_trait]
-impl<M: MetricsCollector> Connection for InstrumentedTransaction<'_, M> {
-    async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        report!(self, "execute", Some(statement.sql_text()),
-            self.transaction.execute(statement, params).await, rows => Some(*rows))
-    }
-
-    async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        report!(self, "execute_raw", Some(statement.sql_text()),
-            self.transaction.execute_raw(statement, params).await, rows => Some(*rows))
-    }
-
-    async fn query_one<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Row, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        report!(self, "query_one", Some(statement.sql_text()),
-            self.transaction.query_one(statement, params).await, _ => Some(1))
-    }
-
-    async fn query_opt<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        report!(self, "query_opt", Some(statement.sql_text()),
-            self.transaction.query_opt(statement, params).await, row => Some(if row.is_some() { 1 } else { 0 }))
-    }
-
-    async fn query_all<T>(
-        &self,
-        statement: &T,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<Row>, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-    {
-        report!(self, "query_all", Some(statement.sql_text()),
-            self.transaction.query_all(statement, params).await, rows => Some(rows.len() as u64))
-    }
-
-    // [spec:pgorm:sem:exec.stream.decode+2]    row count unknown at stream creation
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
-    where
-        T: ?Sized + SqlText + Sync,
-        P: BorrowToSql,
-        I: IntoIterator<Item = P> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        report!(self, "query_raw", Some(statement.sql_text()),
-            self.transaction.query_raw(statement, params).await, _ => None)
-    }
-
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+impl<M: MetricsCollector, T: ConnectionMut> ConnectionMut for InstrumentedTransaction<'_, M, T> {
+    async fn run_batch(&self, sql: &str) -> Result<(), Error> {
         report!(self, "batch_execute", Some(sql),
             self.transaction.batch_execute(sql).await, () => None)
     }
@@ -447,15 +476,15 @@ impl<M: MetricsCollector> Connection for InstrumentedTransaction<'_, M> {
 // only to code after its definition, a child module's included.
 mod copy;
 
-// [spec:pgorm:sem:metric.layer.tx+6]    a transaction opened on an instrumented connection
-impl<M: MetricsCollector> Transact for InstrumentedConnection<M> {}
+// [spec:pgorm:sem:metric.layer.tx+7]    a transaction opened on an instrumented connection
+impl<M: MetricsCollector, C: Open + Send> Transact for InstrumentedConnection<M, C> {}
 
-impl<M: MetricsCollector> Handle for InstrumentedConnection<M> {
-    type Transaction<'t> = InstrumentedTransaction<'t, M>;
+impl<M: MetricsCollector, C: Handle> Handle for InstrumentedConnection<M, C> {
+    type Transaction<'t> = InstrumentedTransaction<'t, M, C::Transaction<'t>>;
 }
 
-impl<M: MetricsCollector> Open for InstrumentedConnection<M> {
-    async fn open(&mut self, token: Token) -> Result<InstrumentedTransaction<'_, M>, Error> {
+impl<M: MetricsCollector, C: Open + Send> Open for InstrumentedConnection<M, C> {
+    async fn open(&mut self, token: Token) -> Result<Self::Transaction<'_>, Error> {
         begun(self.metrics.clone(), self.connection.open(token)).await
     }
 }
@@ -469,26 +498,26 @@ impl<M: MetricsCollector> OpenWith for InstrumentedConnection<M> {
     }
 }
 
-// [spec:pgorm:sem:metric.layer.tx+6]    a savepoint inside an instrumented transaction
-impl<M: MetricsCollector> Transact for InstrumentedTransaction<'_, M> {}
+// [spec:pgorm:sem:metric.layer.tx+7]    a savepoint inside an instrumented transaction
+impl<M: MetricsCollector, T: Open + Send> Transact for InstrumentedTransaction<'_, M, T> {}
 
-impl<M: MetricsCollector> Handle for InstrumentedTransaction<'_, M> {
-    type Transaction<'t> = InstrumentedTransaction<'t, M>;
+impl<M: MetricsCollector, T: Handle> Handle for InstrumentedTransaction<'_, M, T> {
+    type Transaction<'t> = InstrumentedTransaction<'t, M, T::Transaction<'t>>;
 }
 
-impl<M: MetricsCollector> Open for InstrumentedTransaction<'_, M> {
-    async fn open(&mut self, token: Token) -> Result<InstrumentedTransaction<'_, M>, Error> {
+impl<M: MetricsCollector, T: Open + Send> Open for InstrumentedTransaction<'_, M, T> {
+    async fn open(&mut self, token: Token) -> Result<Self::Transaction<'_>, Error> {
         begun(self.metrics.clone(), self.transaction.open(token)).await
     }
 }
 
 /// Time `opening` and report it: `record_transaction_begin` once it is open,
 /// `record_query_error` under `"begin"` if the server refused it.
-// [spec:pgorm:sem:metric.layer.tx+6]    a timed BEGIN or SAVEPOINT
-async fn begun<'t, M: MetricsCollector>(
+// [spec:pgorm:sem:metric.layer.tx+7]    a timed BEGIN or SAVEPOINT
+async fn begun<'t, M: MetricsCollector, T>(
     metrics: M,
-    opening: impl Future<Output = Result<DatabaseTransaction<'t>, Error>>,
-) -> Result<InstrumentedTransaction<'t, M>, Error> {
+    opening: impl Future<Output = Result<T, Error>>,
+) -> Result<InstrumentedTransaction<'t, M, T>, Error> {
     let start = Instant::now();
     let opened = opening.await;
     let elapsed = start.elapsed();
@@ -499,6 +528,7 @@ async fn begun<'t, M: MetricsCollector>(
             Ok(InstrumentedTransaction {
                 transaction,
                 metrics,
+                borrow: PhantomData,
             })
         }
         Err(error) => {
@@ -510,8 +540,8 @@ async fn begun<'t, M: MetricsCollector>(
     }
 }
 
-// [spec:pgorm:sem:metric.layer.tx+6]    the ending a closure's outcome selects, reported
-impl<M: MetricsCollector> Close for InstrumentedTransaction<'_, M> {
+// [spec:pgorm:sem:metric.layer.tx+7]    the ending a closure's outcome selects, reported
+impl<M: MetricsCollector, T: Close + Send> Close for InstrumentedTransaction<'_, M, T> {
     /// A successful commit reports `record_transaction_commit`. A failed one
     /// reports the error through `record_query_error` under `"commit"` and then
     /// `record_transaction_rollback`, the pair a failed rollback reports,

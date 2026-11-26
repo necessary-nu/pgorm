@@ -562,7 +562,7 @@ async fn exec_result_is_a_transparent_row_count() {
 // every builder that has one; each returning form names what it yields, one
 // for a single row and a `Vec` for a batch
 #[allow(dead_code)]
-async fn exec_terminals_name_their_shape<C: Connection>(db: &C) -> Result<(), Error> {
+async fn exec_terminals_name_their_shape<C: ConnectionMut>(db: &C) -> Result<(), Error> {
     let insert = || Insert::<bakery::ActiveModel, OneRow>::one(bakery_model("Shape", 1.0));
 
     let _rows: u64 = insert().exec(db).await?;

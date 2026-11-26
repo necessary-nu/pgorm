@@ -5,18 +5,24 @@ mod database_ref;
 mod db_connection;
 mod lifecycle;
 mod listen;
+mod read_only;
 mod transaction;
 #[cfg(all(test, feature = "turso"))]
 mod turso_transaction_tests;
 #[cfg(feature = "turso")]
 mod value_sql;
 
-pub use connection::*;
-pub use copy::{CopyConnection, CopyInSink, CopyOutStream};
+pub(crate) use connection::Kinded;
+pub use connection::{Connection, ConnectionMut, Reads, RunsOn, RunsText, Sql, SqlText, Writes};
+pub use copy::{CopyConnection, CopyConnectionMut, CopyInSink, CopyOutStream};
 pub use copy_rows::{CopyColumn, CopyRowDecoder, CopyRowEncoder, CopyRowSink, CopyRowStream};
 pub use database_ref::DatabaseRef;
 pub use db_connection::*;
 pub use listen::{Listener, Notifications, connect_listener, notify};
+pub use read_only::{
+    ConnectionPool, ReadOnly, ReadOnlyConnection, ReadOnlyPool, ReadOnlyTransaction, Unchecked,
+    connect_read_only, connect_read_only_with, connect_read_only_with_builder,
+};
 pub use transaction::{Transact, TransactionError};
 pub(crate) use transaction::{drive, rolled_back, sealed};
 #[cfg(feature = "turso")]
@@ -24,12 +30,12 @@ pub use value_sql::ValueSql;
 
 /// What a [`Notifications`] stream yields: the channel, the payload, and the
 /// process id of the session that sent it.
-// [spec:pgorm:req:conn.listen+3]
+// [spec:pgorm:req:conn.listen+4]
 pub use pgorm_driver::Notification;
 
 /// The chunk type COPY's data travels in, both ways, re-exported so writing a
 /// [`CopyInSink`] needs no direct dependency on `bytes`.
-// [spec:pgorm:req:conn.copy+5]
+// [spec:pgorm:req:conn.copy+6]
 pub use bytes::Bytes;
 
 /// The buffer [`CopyRowEncoder`] writes a binary COPY's header, rows and

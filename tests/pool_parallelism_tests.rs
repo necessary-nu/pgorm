@@ -11,7 +11,7 @@ const CONNECTIONS: usize = 4;
 
 async fn insert_bakery<C>(db: &C, name: &str, profit_margin: f64) -> Result<(), Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     bakery::ActiveModel {
         name: set(name),
@@ -26,7 +26,7 @@ where
 
 async fn count_bakeries<C>(db: &C, search_name: &str) -> Result<usize, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     Ok(Bakery::find()
         .filter(bakery::Column::Name.contains(search_name))

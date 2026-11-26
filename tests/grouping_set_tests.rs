@@ -23,7 +23,7 @@ use pgorm::pgorm_query::{
     Expr, Func, Grouping, GroupingElement, Name, Order, OrderedStatement, Query, SelectStatement,
     SimpleExpr,
 };
-use pgorm::{Connection, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 /// Four sales: three regions once NULL counts as one, two products, and a

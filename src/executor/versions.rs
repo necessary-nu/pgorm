@@ -8,7 +8,7 @@
 //! `n_`, and decodes a model from each.
 
 use crate::{
-    ActiveModel, Column, Connection, Entity, FromQueryResult, Insert, IntoActiveModel, Iterable,
+    ActiveModel, Column, ConnectionMut, Entity, FromQueryResult, Insert, IntoActiveModel, Iterable,
     ManyRows, OneRow, QueryResult, UpdateMany, UpdateOne, error::*,
 };
 use pgorm_driver::types::ToSql;
@@ -102,7 +102,7 @@ fn change_of<M: FromQueryResult>(row: QueryResult) -> Result<Change<M>, Error> {
 }
 
 /// Run `sql` and return every row.
-async fn rows_of<C: Connection>(
+async fn rows_of<C: ConnectionMut>(
     sql: &str,
     values: Values,
     db: &C,
@@ -140,7 +140,7 @@ where
     ) -> Result<Change<<A::Entity as Entity>::Model>, Error>
     where
         <A::Entity as Entity>::Model: IntoActiveModel<A>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         if self.query.get_values().is_empty() {
@@ -173,7 +173,7 @@ where
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     pub async fn exec_returning_changes<C>(mut self, db: &C) -> Result<Vec<Change<E::Model>>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         if self.query.get_values().is_empty() {
@@ -198,7 +198,7 @@ async fn exec_upserts<A, C>(
 ) -> Result<Vec<Upserted<<A::Entity as Entity>::Model>>, Error>
 where
     A: ActiveModel,
-    C: Connection,
+    C: ConnectionMut,
 {
     statement.returning(both_versions::<A::Entity>());
     let (sql, values) = statement.build();
@@ -232,7 +232,7 @@ where
         db: &C,
     ) -> Result<Option<Upserted<<A::Entity as Entity>::Model>>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         Ok(exec_upserts::<A, C>(self.query, db).await?.pop())
@@ -258,7 +258,7 @@ where
         db: &C,
     ) -> Result<Vec<Upserted<<A::Entity as Entity>::Model>>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;

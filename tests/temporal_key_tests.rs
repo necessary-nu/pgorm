@@ -18,7 +18,7 @@ use pgorm::pgorm_query::{
     ForeignKeyCreateStatement, Name, OnConflict, Primary, Query, RangeType, Table,
     TableCreateStatement, TableKey, Unique, extension::Extension,
 };
-use pgorm::{Connection, Transact, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Transact, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 

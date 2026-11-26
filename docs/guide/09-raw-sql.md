@@ -328,16 +328,22 @@ assert_eq!(renamed, 1);
 A typo in a SQL string normally shows up when the statement first runs.
 [`sql!`](crate::sql) moves it to compile time: it holds a string literal to
 PostgreSQL 19's own grammar while your crate compiles, and expands to the
-literal unchanged, a `&'static str` that costs nothing at run time.
+literal unchanged, a `&'static` [`Sql`](crate::Sql) that costs nothing at run
+time. The `Sql` says what the statement does: `Sql<Reads>` when it only reads
+— a `SELECT`, `VALUES`, `TABLE`, `SHOW`, or `EXPLAIN` without `ANALYZE`, with
+no data-modifying `WITH` and no row lock — which runs on any
+[`Connection`](crate::Connection), a connection that may only read included,
+and `Sql<Writes>` otherwise, which runs only where text that may write runs.
+It dereferences to `str`, and `as_str` gives the text in a `const`.
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("raw_sql_sql_macro").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{Connection, sql};
+use pgorm::{Connection, Reads, Sql, sql};
 
-const BAKERS_AT: &str = sql!("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name");
+const BAKERS_AT: &Sql<Reads> = sql!("SELECT name FROM baker WHERE bakery_id = $1 ORDER BY name");
 
 let rows = db.query_all(BAKERS_AT, &[&1_i32]).await?;
 let names: Vec<String> = rows.iter().map(|row| row.get(0)).collect();
@@ -352,7 +358,7 @@ SQL the grammar rejects does not compile; the error reprints the line, with
 a caret under the token the parser stopped at:
 
 ```rust,compile_fail
-const BAKERS_AT: &str = pgorm::sql!("SELEC name FROM baker WHERE bakery_id = $1");
+const BAKERS_AT: &str = pgorm::sql!("SELEC name FROM baker WHERE bakery_id = $1").as_str();
 ```
 
 The check is of the grammar alone. `sql!` knows nothing of your schema, so
@@ -360,6 +366,11 @@ a table or column that does not exist still compiles, and is the server's to
 refuse. It takes no values: write `$1` placeholders in the SQL and pass the
 values where it runs. A literal holding a `;`-separated script is checked
 whole, for `batch_execute`.
+
+Text a program has only once it runs is not known to read, so it runs on a
+connection that may write, and on a connection that may only read only
+through its `unchecked()`, where the server refuses a write
+([Transactions](crate::guide::transactions) shows read-only connections).
 
 Text a program has only once it runs, such as a statement read from a file,
 is checked the same way at run time by
@@ -381,9 +392,10 @@ assert_eq!((refused.token(), refused.offset()), (Some("SELEC"), Some(0)));
 [PRQL](https://prql-lang.org) is a query language that reads as a pipeline
 of steps, each taking the relation the one before it produced.
 [`prql!`](crate::prql) compiles a PRQL literal to PostgreSQL SQL while your
-crate compiles, checks the SQL against PostgreSQL's grammar as `sql!` does,
-and expands to the `(sql, values)` pair, its arguments converted into the
-`Values` in the order of their `$N` placeholders:
+crate compiles, checks and classifies the SQL as `sql!` does, and expands to
+the `(sql, values)` pair, the SQL an `Sql<Reads>` unless an s-string brings a
+write in, its arguments converted into the `Values` in the order of their
+`$N` placeholders:
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]

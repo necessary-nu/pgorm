@@ -3,8 +3,8 @@
 use pgorm_query::Values;
 
 use crate::{
-    Connection, DecodeRaw, Error, FromQueryResult, SelectGetableTuple, SelectModel, SelectorRaw,
-    TryGetableMany,
+    Connection, Error, FromQueryResult, Reads, SelectGetableTuple, SelectModel, SelectorRaw,
+    TryGetableMany, database::Kinded,
 };
 
 use super::adapter;
@@ -170,21 +170,29 @@ impl Pipeline {
     /// [`select_sources`](Pipeline::select_sources) decodes each source's
     /// model instead.
     // [spec:pgorm:sem:pipeline.terminal+2]
-    pub fn into_model<M>(self) -> Result<SelectorRaw<SelectModel<M>>, PipelineError>
+    pub fn into_model<M>(self) -> Result<SelectorRaw<SelectModel<M>, Reads>, PipelineError>
     where
         M: FromQueryResult,
     {
-        Ok(self.into_sql_for::<M>()?.into_model::<M>())
+        let (sql, values) = self.into_sql_for::<M>()?;
+        Ok(SelectorRaw::<SelectModel<M>>::from_statement(
+            &Kinded::read(sql.as_str()),
+            values,
+        ))
     }
 
     /// Compile and stage the pipeline for decoding into a tuple by column
     /// position.
     // [spec:pgorm:sem:pipeline.terminal+2]
-    pub fn into_tuple<T>(self) -> Result<SelectorRaw<SelectGetableTuple<T>>, PipelineError>
+    pub fn into_tuple<T>(self) -> Result<SelectorRaw<SelectGetableTuple<T>, Reads>, PipelineError>
     where
         T: TryGetableMany,
     {
-        Ok(self.into_sql()?.into_tuple::<T>())
+        let (sql, values) = self.into_sql()?;
+        Ok(SelectorRaw::<SelectGetableTuple<T>>::into_tuple(
+            &Kinded::read(sql.as_str()),
+            values,
+        ))
     }
 
     /// Compile, execute and decode every row into `M`, under the casts

@@ -1,6 +1,7 @@
 use crate::{
-    ActiveModel, Column, Connection, Entity, Insert, IntoActiveModel, Iterable, ManyRows, OneRow,
-    PrimaryKey, PrimaryKeyToColumn, QueryResult, SelectModel, SelectorRaw, TryInsert, error::*,
+    ActiveModel, Column, ConnectionMut, Entity, Insert, IntoActiveModel, Iterable, ManyRows,
+    OneRow, PrimaryKey, PrimaryKeyToColumn, QueryResult, SelectModel, SelectorRaw, TryInsert,
+    error::*,
 };
 use pgorm_driver::types::ToSql;
 use pgorm_query::{InsertStatement, Query, SqlName};
@@ -47,7 +48,7 @@ where
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     pub async fn exec<C>(self, db: &C) -> Result<TryInsertResult<u64>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -87,7 +88,7 @@ where
         db: &C,
     ) -> Result<TryInsertResult<InsertedPrimaryKey<A>>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         if self.insert_struct.is_empty() {
@@ -109,7 +110,7 @@ where
     ) -> Result<TryInsertResult<InsertedModel<A>>, Error>
     where
         InsertedModel<A>: IntoActiveModel<A>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         if self.insert_struct.is_empty() {
@@ -140,7 +141,7 @@ where
         db: &C,
     ) -> Result<TryInsertResult<Vec<InsertedPrimaryKey<A>>>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -162,7 +163,7 @@ where
     ) -> Result<TryInsertResult<Vec<InsertedModel<A>>>, Error>
     where
         InsertedModel<A>: IntoActiveModel<A>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -175,6 +176,7 @@ where
     }
 }
 
+// [spec:pgorm:req:read-only.writes]    every insert terminal takes a connection that may write
 impl<A, R> Insert<A, R>
 where
     A: ActiveModel,
@@ -199,7 +201,7 @@ where
     #[doc(alias = "exec_without_returning")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -225,7 +227,7 @@ where
     #[doc(alias("last_insert_id", "InsertResult"))]
     pub async fn exec_returning_pk<C>(self, db: &C) -> Result<InsertedPrimaryKey<A>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         exec_insert_returning_pks::<A, _>(self.query, db)
@@ -245,7 +247,7 @@ where
     pub async fn exec_returning_model<C>(self, db: &C) -> Result<InsertedModel<A>, Error>
     where
         InsertedModel<A>: IntoActiveModel<A>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         exec_insert_returning_models::<A, _>(self.query, db)
@@ -273,7 +275,7 @@ where
     // [spec:pgorm:req:query.build.insert.uniform-columns+4]
     pub async fn exec_returning_pks<C>(self, db: &C) -> Result<Vec<InsertedPrimaryKey<A>>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -297,7 +299,7 @@ where
     pub async fn exec_returning_models<C>(self, db: &C) -> Result<Vec<InsertedModel<A>>, Error>
     where
         InsertedModel<A>: IntoActiveModel<A>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -318,7 +320,7 @@ async fn exec_insert_returning_pks<A, C>(
     db: &C,
 ) -> Result<Vec<InsertedPrimaryKey<A>>, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
     A: ActiveModel,
 {
     type PrimaryKey<A> = <<A as ActiveModel>::Entity as Entity>::PrimaryKey;
@@ -356,7 +358,7 @@ async fn exec_insert_without_returning<C>(
     db: &C,
 ) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let (stmt, values) = insert_statement.build();
     let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
@@ -381,7 +383,7 @@ async fn exec_insert_returning_models<A, C>(
 ) -> Result<Vec<InsertedModel<A>>, Error>
 where
     InsertedModel<A>: IntoActiveModel<A>,
-    C: Connection,
+    C: ConnectionMut,
     A: ActiveModel,
 {
     let returning = Query::returning()

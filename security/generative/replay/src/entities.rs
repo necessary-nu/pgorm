@@ -69,7 +69,7 @@ pub mod account {
     impl ActiveModelBehavior for ActiveModel {
         async fn before_save<C>(mut self, _: &C, insert: bool) -> Result<Self, pgorm::Error>
         where
-            C: pgorm::Connection,
+            C: pgorm::ConnectionMut,
         {
             if insert {
                 if let Some(name) = self.name.try_as_ref() {

@@ -17,7 +17,8 @@ use pgorm::pgorm_query::{
     extension::{RangeDefinition, Type},
 };
 use pgorm::{
-    Connection, DecodeRaw, QuerySelect, Schema, TryGetable, TryGetableMany, entity::prelude::*,
+    Connection, ConnectionMut, DecodeRaw, QuerySelect, Schema, TryGetable, TryGetableMany,
+    entity::prelude::*,
 };
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;

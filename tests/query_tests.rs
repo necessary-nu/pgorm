@@ -4,7 +4,7 @@ pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use pgorm::entity::*;
-pub use pgorm::{Connection, Error, QueryFilter, QueryOrder, QuerySelect, set};
+pub use pgorm::{Connection, ConnectionMut, Error, QueryFilter, QueryOrder, QuerySelect, set};
 
 // Run the test locally:
 // DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test query_tests

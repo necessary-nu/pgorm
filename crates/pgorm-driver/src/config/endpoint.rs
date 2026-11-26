@@ -2,8 +2,22 @@
 use super::{ChannelBinding, LoadBalanceHosts, SslMode, SslNegotiation, TargetSessionAttrs};
 use super::{Config, Error, Path, PathBuf};
 
+/// Refuse a read-only `:memory:` database, which would be an empty one
+/// nothing could ever write, before the engine is asked to open it.
+// [spec:pgorm:req:read-only.turso]
+pub(crate) fn refuse_read_only_memory(path: &Path) -> Result<(), Error> {
+    if path
+        .to_str()
+        .is_some_and(|path| path.starts_with(":memory:"))
+    {
+        return Err(Error::turso_unsupported("a read-only `:memory:` database"));
+    }
+    Ok(())
+}
+
 pub(super) struct NativeConfig {
     pub(super) path: PathBuf,
+    pub(super) read_only: bool,
     #[cfg(feature = "turso")]
     pub(super) database: tokio::sync::OnceCell<crate::TursoDatabase>,
 }
@@ -12,6 +26,7 @@ impl NativeConfig {
     pub(super) fn new(path: PathBuf) -> Self {
         Self {
             path,
+            read_only: false,
             #[cfg(feature = "turso")]
             database: tokio::sync::OnceCell::new(),
         }
@@ -22,13 +37,16 @@ impl Clone for NativeConfig {
     // [spec:pgorm:req:turso.pool+1] cloning settings cannot share a live in-memory database
     fn clone(&self) -> Self {
         // Cloned configuration describes a new owner, not a shared memory database.
-        Self::new(self.path.clone())
+        Self {
+            read_only: self.read_only,
+            ..Self::new(self.path.clone())
+        }
     }
 }
 
 impl PartialEq for NativeConfig {
     fn eq(&self, other: &Self) -> bool {
-        self.path == other.path
+        self.path == other.path && self.read_only == other.read_only
     }
 }
 impl Eq for NativeConfig {}
@@ -45,6 +63,29 @@ impl Config {
     /// The embedded database path, or `None` for a PostgreSQL connection.
     pub fn get_turso_path(&self) -> Option<&Path> {
         self.turso.as_ref().map(|native| native.path.as_path())
+    }
+
+    /// Open the embedded database read-only, so the engine refuses every
+    /// write with SQLSTATE `25006`.
+    ///
+    /// Refused at once for `:memory:`, which read-only would be an empty
+    /// database nothing could write, and for a PostgreSQL configuration,
+    /// which has no file to open.
+    // [spec:pgorm:req:read-only.turso]
+    pub fn turso_read_only(&mut self) -> Result<&mut Config, Error> {
+        let Some(native) = self.turso.as_mut() else {
+            return Err(Error::turso_unsupported(
+                "opening a PostgreSQL connection as a read-only embedded database",
+            ));
+        };
+        refuse_read_only_memory(&native.path)?;
+        native.read_only = true;
+        Ok(self)
+    }
+
+    /// Whether the embedded database opens read-only.
+    pub fn get_turso_read_only(&self) -> bool {
+        self.turso.as_ref().is_some_and(|native| native.read_only)
     }
 
     #[cfg(feature = "runtime")]

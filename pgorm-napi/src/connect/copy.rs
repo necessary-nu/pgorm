@@ -34,7 +34,7 @@ use neon::{
     prelude::*,
     types::{Finalize, JsUint8Array, buffer::TypedArray},
 };
-use pgorm::{CopyConnection, CopyOutStream, CopyRowDecoder, CopyRowEncoder};
+use pgorm::{CopyConnection, CopyConnectionMut, CopyOutStream, CopyRowDecoder, CopyRowEncoder};
 use tokio::sync::{Mutex, Semaphore, TryAcquireError, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
@@ -317,7 +317,7 @@ pub(crate) async fn copy_in<C>(
     secrets: &Redactions,
 ) -> Settle
 where
-    C: CopyConnection + Send,
+    C: CopyConnectionMut + Send,
 {
     let InLink {
         mut messages,

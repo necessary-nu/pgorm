@@ -135,7 +135,7 @@ export function queryOptions(options) {
  * which pgorm rolled back (`25P02`); a
  * ROLLBACK that fails does too, rejecting with a `SuppressedError` over the
  * rollback's failure and what `use` threw.
- * [spec:pgorm:req:napi.transactions+3]
+ * [spec:pgorm:req:napi.transactions+4]
  *
  * @template T
  * @param {unknown} handle
@@ -153,7 +153,7 @@ export async function scoped(handle, transaction, use) {
   try {
     await native.transactionFinish(handle, true);
   } catch (error) {
-    // [spec:pgorm:req:bindings.transactions+2]    an aborted transaction's rollback leaves its connection in a known state
+    // [spec:pgorm:req:bindings.transactions+3]    an aborted transaction's rollback leaves its connection in a known state
     if (!(error instanceof DatabaseError && error.sqlstate === "25P02")) await native.transactionAbort(handle);
     throw error;
   }

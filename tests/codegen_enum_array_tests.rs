@@ -13,7 +13,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::Name;
-use pgorm::{Connection, Schema, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 /// The files pgorm-codegen generates from its enum-array schema: the ones its
@@ -31,7 +31,7 @@ const SCHEMA: &str = include_str!("../pgorm-codegen/tests/sql/enum_array/schema.
 
 /// The schema the file's qualified enum lives in, which the file itself does
 /// not create.
-async fn schema(db: &impl Connection) -> Result<(), Error> {
+async fn schema(db: &impl ConnectionMut) -> Result<(), Error> {
     db.batch_execute(&pgorm::pgorm_query::Schema::create(Name::runtime("crm")).to_string())
         .await?;
     db.batch_execute(SCHEMA).await
@@ -39,7 +39,7 @@ async fn schema(db: &impl Connection) -> Result<(), Error> {
 
 /// Each column of `survey` with its type as the server prints it and whether
 /// it is `NOT NULL`.
-async fn columns_of(db: &impl Connection) -> Result<Vec<(String, String, bool)>, Error> {
+async fn columns_of(db: &impl ConnectionMut) -> Result<Vec<(String, String, bool)>, Error> {
     let rows = db
         .query_all(
             "SELECT attname::text, format_type(atttypid, atttypmod), attnotnull \

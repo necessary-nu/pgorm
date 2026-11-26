@@ -10,8 +10,8 @@ use pgorm::pgorm_query::{
     ColumnDef, Expr, IntoName, Order, Query, Schema, SelectStatement, SqlName, Table, TableName,
 };
 use pgorm::{
-    ActiveModel, Connection, DatabasePool, DatabaseTransaction, Error, FromQueryResult, Insert,
-    Iterable, Name, Transact, TransactionError, set,
+    ActiveModel, Connection, ConnectionMut, DatabasePool, DatabaseTransaction, Error,
+    FromQueryResult, Insert, Iterable, Name, Transact, TransactionError, set,
 };
 
 /// The name of the ledger's nullable digest column, as PostgreSQL stores it.
@@ -217,7 +217,7 @@ pub trait Migrator: Send + Sync {
     // [spec:pgorm:req:migration.read-only+1]    a read locates the ledger, never creates it
     async fn get_migration_models(
         &self,
-        db: &(impl Connection),
+        db: &(impl ConnectionMut),
     ) -> Result<Vec<ledger::Model>, Error> {
         let Some(ledger) = ReadableLedger::locate(db, LedgerTable::of(self)).await? else {
             return Ok(Vec::new());
@@ -254,7 +254,7 @@ pub trait Migrator: Send + Sync {
     // [spec:pgorm:req:migration.unknown-applied+1]    refused or warned of as `unknown_migrations()` says
     async fn get_migration_with_status(
         &self,
-        db: &(impl Connection),
+        db: &(impl ConnectionMut),
     ) -> Result<Vec<MigrationWithStatus>, Error> {
         let reading = Reading::of(self, db).await?;
         reading.refuse(self.unknown_migrations())?;
@@ -271,7 +271,7 @@ pub trait Migrator: Send + Sync {
     // [spec:pgorm:req:migration.read-only+1]
     async fn get_pending_migrations(
         &self,
-        db: &(impl Connection),
+        db: &(impl ConnectionMut),
     ) -> Result<Vec<MigrationWithStatus>, Error> {
         Ok(self
             .get_migration_with_status(db)
@@ -287,7 +287,7 @@ pub trait Migrator: Send + Sync {
     // [spec:pgorm:req:migration.read-only+1]
     async fn get_applied_migrations(
         &self,
-        db: &(impl Connection),
+        db: &(impl ConnectionMut),
     ) -> Result<Vec<MigrationWithStatus>, Error> {
         Ok(self
             .get_migration_with_status(db)
@@ -309,7 +309,7 @@ pub trait Migrator: Send + Sync {
     /// not touched.
     // [spec:pgorm:req:migration.ledger-upgrade+2]    detect, then rename in place
     #[doc(alias = "seaql_migrations")]
-    async fn adopt_legacy_ledger(&self, db: &(impl Connection)) -> Result<(), Error> {
+    async fn adopt_legacy_ledger(&self, db: &(impl ConnectionMut)) -> Result<(), Error> {
         if !LedgerTable::of(self).adopts_legacy() {
             return Ok(());
         }
@@ -377,7 +377,7 @@ pub trait Migrator: Send + Sync {
     // [spec:pgorm:req:migration.checksum+2]    a ledger predating the column is widened in place
     // [spec:pgorm:req:migration.ledger-upgrade+2]    adoption precedes creation, widening follows it
     // [spec:pgorm:req:migration.read-only+1]    the write path a read is split away from
-    async fn install(&self, db: &(impl Connection)) -> Result<(), Error> {
+    async fn install(&self, db: &(impl ConnectionMut)) -> Result<(), Error> {
         // Ahead of the create, or the create would answer a legacy database
         // with an empty ledger beside the populated one.
         self.adopt_legacy_ledger(db).await?;
@@ -422,7 +422,7 @@ pub trait Migrator: Send + Sync {
     /// no DDL privileges at all.
     // [spec:pgorm:req:migration.read-only+1]
     // [spec:pgorm:req:migration.unknown-applied+1]    the listing warns of each unknown migration once
-    async fn status(&self, db: &(impl Connection)) -> Result<(), Error> {
+    async fn status(&self, db: &(impl ConnectionMut)) -> Result<(), Error> {
         info!("Checking migration status");
 
         let reading = Reading::of(self, db).await?;
@@ -553,7 +553,10 @@ struct Reading {
 }
 
 impl Reading {
-    async fn of<M: Migrator + ?Sized>(migrator: &M, db: &impl Connection) -> Result<Self, Error> {
+    async fn of<M: Migrator + ?Sized>(
+        migrator: &M,
+        db: &impl ConnectionMut,
+    ) -> Result<Self, Error> {
         let mut migrations = migrator.get_migration_files()?;
         let mut applied: HashMap<String, Option<String>> = migrator
             .get_migration_models(db)
@@ -667,7 +670,7 @@ impl LedgerTable {
 /// role that owns a schema made for it, without `CREATE` on the database, would
 /// be refused on every run although there is nothing to create.
 // [spec:pgorm:def:migration.runner+6]    the schema is created before the ledger
-async fn create_ledger_schema(db: &impl Connection, ledger: &LedgerTable) -> Result<(), Error> {
+async fn create_ledger_schema(db: &impl ConnectionMut, ledger: &LedgerTable) -> Result<(), Error> {
     let (Some(schema), Some(schema_text)) = (&ledger.schema, ledger.schema_text()) else {
         return Ok(());
     };
@@ -696,7 +699,7 @@ async fn create_ledger_schema(db: &impl Connection, ledger: &LedgerTable) -> Res
 // [spec:pgorm:req:migration.checksum+2]    the catalogue is what says the column exists
 // [spec:pgorm:req:migration.read-only+1]    the column is looked for in the ledger's own schema
 async fn has_checksum_column(
-    db: &impl Connection,
+    db: &impl ConnectionMut,
     schema: Option<&str>,
     table: &str,
 ) -> Result<bool, Error> {
@@ -747,7 +750,7 @@ impl ReadableLedger {
     // [spec:pgorm:req:migration.read-only+1]
     // [spec:pgorm:req:migration.ledger-upgrade+2]    an unadopted ledger is read, not renamed
     async fn locate(
-        db: &impl Connection,
+        db: &impl ConnectionMut,
         configured: LedgerTable,
     ) -> Result<Option<ReadableLedger>, Error> {
         let schema = configured.schema_text();

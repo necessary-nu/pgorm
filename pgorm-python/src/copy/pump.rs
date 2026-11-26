@@ -4,7 +4,7 @@
 use std::sync::{Arc, OnceLock};
 
 use futures_util::{SinkExt, StreamExt};
-use pgorm::{Bytes, CopyColumn, CopyConnection, CopyInSink, CopyOutStream, Error};
+use pgorm::{Bytes, CopyColumn, CopyConnectionMut, CopyInSink, CopyOutStream, Error};
 use tokio::sync::mpsc;
 
 use super::{CopyFrom, CopyTo};
@@ -21,7 +21,7 @@ pub(crate) enum Described {
 // [spec:pgorm:req:bindings.copy-rows+3]
 pub(crate) async fn describe<C>(db: &mut C, statement: &Described) -> Result<Vec<CopyColumn>, Error>
 where
-    C: CopyConnection + Send,
+    C: CopyConnectionMut + Send,
 {
     match statement {
         Described::From(statement) => statement.columns(db).await,
@@ -80,7 +80,7 @@ pub(crate) async fn open_in<'a, C>(
     rows: Option<&Columns>,
 ) -> Result<CopyInSink<'a>, Unopened>
 where
-    C: CopyConnection + Send,
+    C: CopyConnectionMut + Send,
 {
     if let Some(rows) = rows {
         let columns = statement.columns(db).await;
@@ -96,7 +96,7 @@ pub(crate) async fn open_out<'a, C>(
     rows: Option<&Columns>,
 ) -> Result<CopyOutStream<'a>, Unopened>
 where
-    C: CopyConnection + Send,
+    C: CopyConnectionMut + Send,
 {
     if let Some(rows) = rows {
         let columns = statement.columns(db).await;

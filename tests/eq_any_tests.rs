@@ -15,10 +15,12 @@ pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use pgorm::entity::*;
-pub use pgorm::{Connection, Error, Paginate, QueryFilter, QueryOrder, QuerySelect, set};
+pub use pgorm::{
+    Connection, ConnectionMut, Error, Paginate, QueryFilter, QueryOrder, QuerySelect, set,
+};
 use pgorm::{Statement, pgorm_query::Query};
 
-async fn seed(db: &impl Connection) -> Vec<i32> {
+async fn seed(db: &impl ConnectionMut) -> Vec<i32> {
     let mut ids = Vec::new();
     for name in ["SeaSide Bakery", "Top Bakery", "Corner Bakery"] {
         let bakery = bakery::ActiveModel {

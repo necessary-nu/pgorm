@@ -223,3 +223,31 @@ mod native {
         close(client, lifetime).await
     }
 }
+
+// [spec:pgorm:req:read-only.turso/test]    a native file is marked read-only, which the configuration's equality and clone keep; `:memory:` and a PostgreSQL target are refused before anything opens
+#[test]
+fn read_only_marks_files_and_refuses_memory() -> Result {
+    let mut config: Config = "./shop.db".parse()?;
+    assert!(!config.get_turso_read_only());
+    config.turso_read_only()?;
+    assert!(config.get_turso_read_only());
+    assert_eq!(config.clone(), config);
+    assert_ne!(config, "./shop.db".parse::<Config>()?);
+    assert!(format!("{config:?}").contains("turso_read_only: true"));
+
+    let mut memory: Config = ":memory:".parse()?;
+    assert_eq!(
+        memory
+            .turso_read_only()
+            .map(|_| ())
+            .unwrap_err()
+            .to_string(),
+        "native Turso does not support a read-only `:memory:` database"
+    );
+    assert!(!memory.get_turso_read_only());
+
+    let mut postgres: Config = "postgres://localhost/shop".parse()?;
+    assert!(postgres.turso_read_only().is_err());
+    assert!(!postgres.get_turso_read_only());
+    Ok(())
+}

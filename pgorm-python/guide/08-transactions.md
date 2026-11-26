@@ -316,9 +316,14 @@ isolation level given to `"default"` or `"deferrable"` raises
 the two choices for type annotations. A savepoint takes neither argument.
 
 Here Python differs from Rust in spelling: Rust passes a `TransactionMode`
-value to `transaction_with`, a method of a connection alone. Python
-passes the same choices as keyword arguments, to a pool's `transaction` as
-well as a connection's.
+value to `transaction_with`, a method of a connection alone, and opens the two
+read-only modes with `read_only_transaction` and `snapshot`, whose handle runs
+no write. Python passes the same choices as keyword arguments, to a pool's
+`transaction` as well as a connection's. The Python binding has no read-only
+pool yet: where Rust's `connect_read_only` lends connections whose type runs no
+write ([Read-only transactions](../../docs/guide/07-transactions.md#read-only-transactions)),
+a Python transaction in `"read_only"` mode is one the server refuses a write in
+when the write is sent.
 
 ```python
 import asyncio

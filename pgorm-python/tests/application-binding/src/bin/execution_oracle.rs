@@ -6,9 +6,9 @@ use pgorm::pgorm_query::{
 };
 use pgorm::pipeline::{self as pl, ExprOps, IntoSource, JoinSide};
 use pgorm::{
-    ActiveModel, ActiveModelBehavior, Change, Column, Connection, DatabaseConnection, Entity,
-    Insert, Model, QueryFilter, QueryOrder, Schema, Transact, TransactionError, TransactionMode,
-    Update, Upserted, ValueHolder, Values, set,
+    ActiveModel, ActiveModelBehavior, Change, Column, Connection, ConnectionMut,
+    DatabaseConnection, Entity, Insert, Model, QueryFilter, QueryOrder, Schema, Transact,
+    TransactionError, Update, Upserted, ValueHolder, Values, set,
 };
 use serde_json::{Value, json};
 
@@ -38,12 +38,12 @@ fn parameters(values: Values) -> Vec<ValueHolder> {
     values.0.into_iter().map(ValueHolder).collect()
 }
 
-async fn execute<C: Connection>(db: &C, query: (String, Values)) -> Result<u64> {
+async fn execute<C: ConnectionMut>(db: &C, query: (String, Values)) -> Result<u64> {
     let values = parameters(query.1);
     Ok(db.execute_raw(&query.0, values.iter()).await?)
 }
 
-async fn runtime<C: Connection>(db: &C) -> Result<Value> {
+async fn runtime<C: ConnectionMut>(db: &C) -> Result<Value> {
     let table = (Name::runtime("python_entities"), Name::runtime("runtime"));
     let ddl = Table::create(table.clone())
         .col(ColumnDef::new_with_type(
@@ -116,7 +116,7 @@ fn model(row: account::Model) -> Value {
     json!({"id": row.id, "name": row.name, "note": row.note, "version": row.version})
 }
 
-async fn models<C: Connection>(db: &C) -> Result<Value> {
+async fn models<C: ConnectionMut>(db: &C) -> Result<Value> {
     db.execute(
         "TRUNCATE python_entities.notes, python_entities.accounts",
         &[],
@@ -239,7 +239,7 @@ fn renamed() -> OnConflict {
         .into()
 }
 
-async fn versions<C: Connection>(db: &C) -> Result<Value> {
+async fn versions<C: ConnectionMut>(db: &C) -> Result<Value> {
     db.execute(
         "TRUNCATE python_entities.notes, python_entities.accounts",
         &[],
@@ -281,7 +281,7 @@ async fn versions<C: Connection>(db: &C) -> Result<Value> {
     }))
 }
 
-async fn exercise<C: Connection>(db: &C) -> Result<Value> {
+async fn exercise<C: ConnectionMut>(db: &C) -> Result<Value> {
     Ok(json!({
         "runtime": runtime(db).await?,
         "models": models(db).await?,
@@ -339,17 +339,14 @@ async fn compare(db: &mut DatabaseConnection, report: &Value) -> Result {
     let rollback = account::Entity::find_by_id(4).one_opt(db).await?.is_none();
     let mut mode = false;
     let outcome = db
-        .transaction_with(
-            TransactionMode::ReadOnly { isolation: None },
-            async |read_only| {
-                mode = read_only
-                    .query_one("SHOW transaction_read_only", &[])
-                    .await?
-                    .try_get::<_, String>(0)?
-                    == "on";
-                Err::<(), Failure>(ROLL_BACK.into())
-            },
-        )
+        .read_only_transaction(None, async |read_only| {
+            mode = read_only
+                .query_one(pgorm::sql!("SHOW transaction_read_only"), &[])
+                .await?
+                .try_get::<_, String>(0)?
+                == "on";
+            Err::<(), Failure>(ROLL_BACK.into())
+        })
         .await;
     if !rolled_back(&outcome) {
         return Err(format!("the read-only transaction did not roll back: {outcome:?}").into());

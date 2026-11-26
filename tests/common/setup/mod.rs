@@ -1,5 +1,6 @@
 use pgorm::{
-    Column, ColumnType, Connection, DatabasePool, Entity, Error, Iterable, Schema, TransactionError,
+    Column, ColumnType, Connection, ConnectionMut, DatabasePool, Entity, Error, Iterable, Schema,
+    TransactionError,
 };
 use pgorm_query::{
     Name, QueryBuilder, TableCreateStatement,
@@ -40,7 +41,7 @@ pub async fn create_enum<C, E>(
     entity: E,
 ) -> Result<(), Error>
 where
-    C: Connection,
+    C: ConnectionMut,
     E: Entity,
 {
     for col in E::Column::iter() {
@@ -83,7 +84,7 @@ pub async fn create_table<C, E>(
     entity: E,
 ) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
     E: Entity,
 {
     let schema = Schema::new();
@@ -100,7 +101,7 @@ pub async fn create_table_without_asserts<C>(
     create: &TableCreateStatement,
 ) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     db.execute(&create.to_string(), &[]).await
 }

@@ -7,12 +7,15 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Collector contract
 
-> [spec:pgorm:def:metric.layer+3]
+> [spec:pgorm:def:metric.layer+4]
 > The metrics layer consists of a `MetricsCollector` trait (`Clone + Send +
-> Sync + 'static`) and three wrappers parameterized by it:
-> `InstrumentedPool<M>` (wrapping `DatabasePool`), `InstrumentedConnection<M>`
-> (wrapping `DatabaseConnection`), and `InstrumentedTransaction<'a, M>`
-> (wrapping `DatabaseTransaction<'a>`). Each wrapper exposes `inner()` and
+> Sync + 'static`) and three wrappers parameterized by it and by what they
+> wrap: `InstrumentedPool<M, P>` (wrapping a `ConnectionPool`, `DatabasePool`
+> by default), `InstrumentedConnection<M, C>` (wrapping the pool's connection,
+> `DatabaseConnection` by default), and `InstrumentedTransaction<'a, M, T>`
+> (wrapping a transaction, `DatabaseTransaction<'a>` by default). Over a
+> `ReadOnlyPool` each stays a connection that may only read
+> (`read-only.metrics`). Each wrapper exposes `inner()` and
 > `metrics()` accessors to reach the wrapped value and the collector, and the
 > connection wrapper `into_inner()`, which gives its connection back so that
 > what runs on it from then on is not reported; the pool
@@ -130,12 +133,13 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Delegation contract
 
-> [spec:pgorm:req:metric.layer.delegate+6]
+> [spec:pgorm:req:metric.layer.delegate+7]
 > Instrumented wrappers MUST delegate every operation to the wrapped type and
 > return its result unchanged — wrapping preserves `Connection`
 > semantics, adding only timing and collector calls around each awaited
 > operation. Both `InstrumentedConnection` and `InstrumentedTransaction`
-> implement `Connection`, and so does the `&mut InstrumentedTransaction`
+> implement `Connection` where what they wrap does, and `ConnectionMut`, with
+> `batch_execute`, where what they wrap may write, and so does the `&mut InstrumentedTransaction`
 > a transaction closure is given, through the `&mut` forwarding of
 > `conn.pool.conn-trait`: inside an instrumented closure `find().all(&txn)`
 > and a helper taking `&C` are passed `&txn`, as inside a plain one, and run
@@ -157,9 +161,10 @@ chooses to construct, so unused metrics cost nothing.
 
 ## COPY instrumentation
 
-> [spec:pgorm:req:metric.layer.copy+1]
+> [spec:pgorm:req:metric.layer.copy+2]
 > `InstrumentedConnection` and `InstrumentedTransaction` MUST implement
-> `CopyConnection` (`conn.copy`) by delegating to the wrapped connection or
+> `CopyConnection` (`conn.copy`) where what they wrap does, and
+> `CopyConnectionMut` where what they wrap may write, by delegating to the wrapped connection or
 > transaction and returning its sink or stream unchanged, timing the start
 > and reporting it as `metric.layer.delegate` reports a statement: on success
 > `record_query_success` under the operation `"copy_in"` or `"copy_out"`, with
@@ -174,22 +179,25 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Transaction instrumentation
 
-> [spec:pgorm:sem:metric.layer.tx+6]
+> [spec:pgorm:sem:metric.layer.tx+7]
 > `InstrumentedConnection` and `InstrumentedTransaction` are `Transact`
 > implementors (`conn.tx`) whose closure is given an
-> `InstrumentedTransaction<'_, M>` sharing a clone of the collector, so the
+> `InstrumentedTransaction<'_, M, T>`, over the transaction `T` the wrapped
+> one opens, sharing a clone of the collector, so the
 > statements, COPYs and savepoints inside an instrumented transaction are
 > instrumented with no wrapping by the caller. `InstrumentedConnection` also
 > has `DatabaseConnection`'s configured forms, `transaction_with(mode, f)` and
 > `transaction_with_retry(mode, max_retries, f)` (`conn.tx`, `conn.tx.retry`),
 > whose closures are given the same handle: the configured `BEGIN` is reported
 > as any opening is, and each attempt a retry makes is reported as a
-> transaction of its own, its opening, its statements and its ending. Like
+> transaction of its own, its opening, its statements and its ending, and
+> `read_only_transaction` and `snapshot`, whose closures are given an
+> `InstrumentedTransaction` over a `ReadOnlyTransaction` (`read-only.metrics`),
+> reported alike. Like
 > `DatabaseConnection`'s, each returns a future that is `Send` whenever its
 > closure's is. `InstrumentedTransaction` has no
 > public constructor: it exists only as that handle, and its `inner()` reaches
-> the plain `DatabaseTransaction` beneath, whose statements bypass the
-> collector.
+> the transaction beneath, whose statements bypass the collector.
 >
 > Opening a transaction — `BEGIN` on the connection, a savepoint inside a
 > transaction — is timed and reports `record_transaction_begin` on success; a

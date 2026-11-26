@@ -17,7 +17,9 @@ use pgorm::pgorm_query::{
     Expr, ExtendedWindow, FrameType, Func, Name, Order, OrderedStatement, Query, SelectStatement,
     WindowDefinition, WindowStatement, error::Error as QueryError,
 };
-use pgorm::{Connection, FromQueryResult, SelectModel, Selector, entity::prelude::*};
+use pgorm::{
+    Connection, ConnectionMut, FromQueryResult, SelectModel, Selector, entity::prelude::*,
+};
 use pgorm_driver::error::SqlState;
 
 /// Five readings of two kinds, `a` holding ids 1, 3 and 5.

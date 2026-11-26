@@ -15,12 +15,12 @@
 
 use std::{fmt, sync::Arc};
 
-use pgorm::{RetryableError, TransactionError, TransactionMode};
+use pgorm::{RetryableError, TransactionError};
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    Attempted, Finished, Root, State, Tx,
+    Attempted, Finished, Mode, Root, State, Tx,
     frame::{Exit, Frame, Halt, UNREPRESENTED},
 };
 use crate::{
@@ -56,13 +56,19 @@ struct Attempts<O> {
 
 impl<O: Send + Sync + 'static> Attempts<O> {
     /// One call of pgorm's closure: answer the attempt before it, which pgorm
-    /// has ended, with `true`, and serve this attempt's frame.
-    async fn serve(&mut self, tx: Tx<'_, '_>) -> Result<(), Again> {
+    /// has ended, with `true`, settle the transaction as `mode` says, and
+    /// serve this attempt's frame. A refused `SET TRANSACTION` is the
+    /// attempt's refusal, sent where a refused `BEGIN` is.
+    async fn serve(&mut self, mode: Mode, tx: Tx<'_, '_>) -> Result<(), Again> {
         if let Some(previous) = self.last.take() {
             previous.state.released.cancel();
             if previous.reply.send(Ok(true)).is_err() {
                 return Err(Again(false));
             }
+        }
+        if let Err(error) = mode.settle(tx.plain()).await {
+            let _ = self.sender.send(Err(self.connection.pool.failure(&error)));
+            return Err(Again(false));
         }
         let (state, receiver) =
             State::rooted(self.connection.clone(), None, self.root.clone(), false);
@@ -88,7 +94,7 @@ impl<O: Send + Sync + 'static> Attempts<O> {
                 });
                 Err(Again(retryable))
             }
-            Err(Exit::Abandoned) => Err(Again(false)),
+            Err(Exit::Abandoned | Exit::Refused(_)) => Err(Again(false)),
         }
     }
 }
@@ -112,10 +118,19 @@ impl<O: Send + Sync + 'static> Retrying<O> {
     /// it fails retryably, through pgorm's `transaction_with_retry`, on the
     /// connection `operation` took.
     // [spec:pgorm:req:bindings.transaction-retry]
-    pub fn begin(mut operation: Operation<O>, mode: TransactionMode, retries: u32) -> Arc<Self> {
+    pub fn begin(mut operation: Operation<O>, mode: Mode, retries: u32) -> Arc<Self> {
         let connection = operation.state.clone();
         let root = Arc::new(Root::default());
         let (sender, receiver) = mpsc::unbounded_channel();
+        if let Err(refused) = connection.pool.refuse_native_access(mode) {
+            let _ = sender.send(Err(refused));
+            operation.restore();
+            return Arc::new(Self {
+                attempts: Mutex::new(receiver),
+                root,
+                connection,
+            });
+        }
         let shared = Arc::new(Mutex::new(Attempts {
             sender: sender.clone(),
             halt: Halt::default(),
@@ -141,14 +156,14 @@ impl<O: Send + Sync + 'static> Retrying<O> {
                     };
                     match db {
                         Held::Plain(db) => {
-                            halt.run(db.transaction_with_retry(mode, retries, async move |tx| {
-                                attempts.lock().await.serve(Tx::Plain(tx)).await
+                            halt.run(db.transaction_with_retry(mode.opening(), retries, async move |tx| {
+                                attempts.lock().await.serve(mode, Tx::Plain(tx)).await
                             }))
                             .await
                         }
                         Held::Metered(db) => {
-                            halt.run(db.transaction_with_retry(mode, retries, async move |tx| {
-                                attempts.lock().await.serve(Tx::Metered(tx)).await
+                            halt.run(db.transaction_with_retry(mode.opening(), retries, async move |tx| {
+                                attempts.lock().await.serve(mode, Tx::Metered(tx)).await
                             }))
                             .await
                         }
@@ -162,7 +177,7 @@ impl<O: Send + Sync + 'static> Retrying<O> {
                 Some(Ok(()) | Err(TransactionError::Transaction(_))) => (true, Some(Ok(false))),
                 // A COMMIT the aborted transaction answered by rolling back
                 // leaves the connection in a known state.
-                // [spec:pgorm:req:bindings.transactions+2]
+                // [spec:pgorm:req:bindings.transactions+3]
                 Some(Err(TransactionError::Connection(
                     error @ pgorm::Error::TransactionAborted(_),
                 ))) => (true, Some(Err(failure(&error)))),

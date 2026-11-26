@@ -13,7 +13,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ColumnDef, ColumnType, Name, Table, Values, extension::Type};
-use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, SelectGetableTuple, SelectorRaw, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pgorm_driver::types::WrongType;
 use std::error::Error as _;

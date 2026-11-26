@@ -1,6 +1,7 @@
 use crate::{
-    Connection, Entity, FromQueryResult, PartialModel, QueryResult, ScopeError, Select,
-    SelectProjected, SqlText, Statement, TryGetableMany, error::*,
+    Connection, Entity, FromQueryResult, PartialModel, QueryResult, Reads, RunsOn, ScopeError,
+    Select, SelectProjected, SqlText, Statement, TryGetableMany, Writes, database::Kinded,
+    error::*,
 };
 use futures::{Stream, StreamExt};
 use pgorm_driver::types::ToSql;
@@ -89,9 +90,15 @@ where
     pub(crate) refused: Option<ScopeError>,
 }
 
-/// Performs a raw `SELECT` operation on a model
-#[derive(Clone, Debug)]
-pub struct SelectorRaw<S>
+/// Performs a raw `SELECT` operation on a model.
+///
+/// `K` is the [`SqlText::Kind`] of its statement, which decides the
+/// connections its terminals run on: [`Reads`] for a statement `sql!`
+/// classified as a read or one pgorm built, which runs on every
+/// [`Connection`]; [`Writes`], the default, for text known only at run time,
+/// which runs only where such text does ([`RunsOn`]).
+// [spec:pgorm:req:read-only.text]
+pub struct SelectorRaw<S, K = Writes>
 where
     S: DecodeRow,
 {
@@ -99,6 +106,28 @@ where
     pub(crate) values: Values,
     #[allow(dead_code)]
     pub(crate) selector: S,
+    pub(crate) kind: PhantomData<fn() -> K>,
+}
+
+impl<S: DecodeRow + Clone, K> Clone for SelectorRaw<S, K> {
+    fn clone(&self) -> Self {
+        Self {
+            stmt: self.stmt.clone(),
+            values: self.values.clone(),
+            selector: self.selector.clone(),
+            kind: PhantomData,
+        }
+    }
+}
+
+impl<S: DecodeRow + std::fmt::Debug, K> std::fmt::Debug for SelectorRaw<S, K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SelectorRaw")
+            .field("stmt", &self.stmt)
+            .field("values", &self.values)
+            .field("selector", &self.selector)
+            .finish()
+    }
 }
 
 /// A Trait for any type that can perform SELECT queries
@@ -184,7 +213,11 @@ where
     /// values bound into it, in place of the query built so far.
     // [spec:pgorm:sem:exec.crud.selector-entry+4]
     #[allow(clippy::wrong_self_convention)]
-    pub fn from_raw_sql<T>(self, sql: &T, values: Values) -> SelectorRaw<SelectModel<E::Model>>
+    pub fn from_raw_sql<T>(
+        self,
+        sql: &T,
+        values: Values,
+    ) -> SelectorRaw<SelectModel<E::Model>, T::Kind>
     where
         T: ?Sized + SqlText,
     {
@@ -646,7 +679,7 @@ where
     }
 
     // [spec:pgorm:req:scope.refusals]
-    fn into_selector_raw(self) -> Result<SelectorRaw<S>, Error> {
+    fn into_selector_raw(self) -> Result<SelectorRaw<S, Reads>, Error> {
         if let Some(refused) = self.refused {
             return Err(Error::Scope(refused));
         }
@@ -657,6 +690,7 @@ where
             stmt,
             values,
             selector: self.selector,
+            kind: PhantomData,
         })
     }
 
@@ -733,7 +767,7 @@ where
     /// # }
     /// ```
     // [spec:pgorm:sem:exec.crud.selector-entry+4]
-    pub fn from_statement<T>(sql: &T, values: Values) -> Self
+    pub fn from_statement<T>(sql: &T, values: Values) -> SelectorRaw<SelectModel<M>, T::Kind>
     where
         T: ?Sized + SqlText,
     {
@@ -741,6 +775,7 @@ where
             stmt: sql.sql_text().to_owned(),
             values,
             selector: SelectModel { model: PhantomData },
+            kind: PhantomData,
         }
     }
 }
@@ -773,7 +808,7 @@ where
     /// # }
     /// ```
     // [spec:pgorm:sem:exec.crud.selector-entry+4]
-    pub fn into_tuple<Q>(sql: &Q, values: Values) -> Self
+    pub fn into_tuple<Q>(sql: &Q, values: Values) -> SelectorRaw<SelectGetableTuple<T>, Q::Kind>
     where
         Q: ?Sized + SqlText,
     {
@@ -781,6 +816,7 @@ where
             stmt: sql.sql_text().to_owned(),
             values,
             selector: SelectGetableTuple { model: PhantomData },
+            kind: PhantomData,
         }
     }
 }
@@ -794,7 +830,10 @@ where
     /// Decode a raw statement's rows into a tuple, by the column names of the
     /// column enum `C`.
     // [spec:pgorm:sem:exec.crud.selector-entry+4]
-    pub fn with_columns<Q>(sql: &Q, values: Values) -> Self
+    pub fn with_columns<Q>(
+        sql: &Q,
+        values: Values,
+    ) -> SelectorRaw<SelectGetableValue<T, C>, Q::Kind>
     where
         Q: ?Sized + SqlText,
     {
@@ -805,11 +844,12 @@ where
                 columns: PhantomData,
                 model: PhantomData,
             },
+            kind: PhantomData,
         }
     }
 }
 
-impl<S> SelectorRaw<S>
+impl<S, K> SelectorRaw<S, K>
 where
     S: DecodeRow,
 {
@@ -842,7 +882,7 @@ where
     /// # }
     /// # }
     /// ```
-    pub fn into_model<M>(self) -> SelectorRaw<SelectModel<M>>
+    pub fn into_model<M>(self) -> SelectorRaw<SelectModel<M>, K>
     where
         M: FromQueryResult,
     {
@@ -850,6 +890,7 @@ where
             stmt: self.stmt,
             values: self.values,
             selector: SelectModel { model: PhantomData },
+            kind: PhantomData,
         }
     }
 
@@ -880,6 +921,7 @@ where
     pub async fn one<C>(self, db: &C) -> Result<S::Item, Error>
     where
         C: Connection,
+        K: RunsOn<C>,
     {
         let values = self
             .values
@@ -888,9 +930,10 @@ where
             .map(ValueHolder)
             .collect::<Vec<_>>();
         #[cfg(feature = "turso")]
-        let stmt = &crate::database::ValueSql::new(&self.stmt, &values);
+        let text = &crate::database::ValueSql::new(&self.stmt, &values);
         #[cfg(not(feature = "turso"))]
-        let stmt = &self.stmt;
+        let text = self.stmt.as_str();
+        let stmt = &Kinded::<_, K>::new(text);
         let values = values.iter().map(|x| x as _).collect::<Vec<_>>();
         let row = db.query_opt(stmt, &values).await?;
         match row {
@@ -921,6 +964,7 @@ where
     pub async fn one_opt<C>(self, db: &C) -> Result<Option<S::Item>, Error>
     where
         C: Connection,
+        K: RunsOn<C>,
     {
         let values = self
             .values
@@ -929,9 +973,10 @@ where
             .map(ValueHolder)
             .collect::<Vec<_>>();
         #[cfg(feature = "turso")]
-        let stmt = &crate::database::ValueSql::new(&self.stmt, &values);
+        let text = &crate::database::ValueSql::new(&self.stmt, &values);
         #[cfg(not(feature = "turso"))]
-        let stmt = &self.stmt;
+        let text = self.stmt.as_str();
+        let stmt = &Kinded::<_, K>::new(text);
         let values = values.iter().map(|x| x as _).collect::<Vec<_>>();
         let row = db.query_opt(stmt, &values).await?;
         match row {
@@ -962,8 +1007,8 @@ where
     pub async fn all<C>(self, db: &C) -> Result<Vec<S::Item>, Error>
     where
         C: Connection,
+        K: RunsOn<C>,
     {
-        // tracing::warn!("Querying all");
         let values = self
             .values
             .0
@@ -971,17 +1016,16 @@ where
             .map(ValueHolder)
             .collect::<Vec<_>>();
         #[cfg(feature = "turso")]
-        let stmt = &crate::database::ValueSql::new(&self.stmt, &values);
+        let text = &crate::database::ValueSql::new(&self.stmt, &values);
         #[cfg(not(feature = "turso"))]
-        let stmt = &self.stmt;
+        let text = self.stmt.as_str();
+        let stmt = &Kinded::<_, K>::new(text);
         let values = values.iter().map(|x| x as _).collect::<Vec<_>>();
         let rows = db.query_all(stmt, &values).await?;
-        // tracing::warn!("Got rows!");
         let mut models = Vec::new();
         for row in rows.into_iter() {
             models.push(S::from_raw_query_result(QueryResult { row })?);
         }
-        // tracing::warn!("Got models!");
         Ok(models)
     }
 
@@ -994,6 +1038,7 @@ where
     ) -> Result<PinBoxSendStream<'b, Result<S::Item, Error>>, Error>
     where
         C: Connection,
+        K: RunsOn<C>,
         S: 'b,
     {
         let values = self
@@ -1003,9 +1048,10 @@ where
             .map(ValueHolder)
             .collect::<Vec<_>>();
         #[cfg(feature = "turso")]
-        let stmt = &crate::database::ValueSql::new(&self.stmt, &values);
+        let text = &crate::database::ValueSql::new(&self.stmt, &values);
         #[cfg(not(feature = "turso"))]
-        let stmt = &self.stmt;
+        let text = self.stmt.as_str();
+        let stmt = &Kinded::<_, K>::new(text);
         let rows = db
             .query_raw(stmt, values.iter().map(|x| x as &(dyn ToSql + Sync)))
             .await?;

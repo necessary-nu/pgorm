@@ -10,7 +10,9 @@ pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::OnConflict;
-use pgorm::{Connection, Error, Schema, Statement, TryInsertResult, entity::prelude::*};
+use pgorm::{
+    Connection, ConnectionMut, Error, Schema, Statement, TryInsertResult, entity::prelude::*,
+};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::borrow::Cow;
@@ -197,7 +199,7 @@ mod placement {
 
 async fn create_from_entity<C, E>(db: &C, entity: E) -> Result<(), Error>
 where
-    C: Connection,
+    C: ConnectionMut,
     E: Entity,
 {
     let stmt = Schema::new().create_table_from_entity(entity)?;
@@ -360,7 +362,7 @@ async fn identity_forms_answer_a_supplied_key_part() -> Result<(), Error> {
 /// one tenant.
 async fn seed_library<C>(db: &C) -> Result<Library, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     for entity_stmt in [
         Schema::new().create_table_from_entity(shelf::Entity)?,

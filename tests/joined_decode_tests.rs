@@ -13,8 +13,8 @@ pub mod common;
 use futures::StreamExt;
 use pgorm::tests_cfg::{cake, cake_filling, filling, fruit, vendor};
 use pgorm::{
-    Column, Connection, DatabaseConnection, Entity, Error, FromQueryResult, QueryFilter,
-    QueryResult, QuerySelect, Relation, Value, Values, alias,
+    Column, Connection, ConnectionMut, DatabaseConnection, Entity, Error, FromQueryResult,
+    QueryFilter, QueryResult, QuerySelect, Relation, Value, Values, alias,
 };
 use pretty_assertions::assert_eq;
 

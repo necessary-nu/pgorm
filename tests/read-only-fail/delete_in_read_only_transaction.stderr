@@ -1,0 +1,82 @@
+error[E0277]: `ReadOnlyTransaction<'_>` may only read, so it cannot run this write
+ --> tests/read-only-fail/delete_in_read_only_transaction.rs:7:41
+  |
+7 |         Delete::many(cake::Entity).exec(tx).await?;
+  |                                    ---- ^^ this writes, which needs a `ConnectionMut`
+  |                                    |
+  |                                    required by a bound introduced by this call
+  |
+  = help: the trait `ConnectionMut` is not implemented for `ReadOnlyTransaction<'_>`
+  = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+  = help: the following other types implement trait `ConnectionMut`:
+            &mut C
+            &pgorm::DatabaseConnection
+            DatabaseRef<'_, M>
+            DatabaseTransaction<'_>
+            HookConnection<'_>
+            pgorm::DatabaseConnection
+            pgorm::metric::InstrumentedConnection<M, C>
+            pgorm::metric::InstrumentedTransaction<'_, M, T>
+note: required by a bound in `pgorm::executor::delete::<impl DeleteMany<E>>::exec`
+ --> src/executor/delete.rs
+  |
+  | impl<E> DeleteMany<E>
+...
+  |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+  |     where
+  |         C: ConnectionMut,
+  |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::delete::<impl DeleteMany<E>>::exec`
+
+error[E0277]: `ReadOnlyTransaction<'_>` may only read, so it cannot run this write
+ --> tests/read-only-fail/delete_in_read_only_transaction.rs:7:9
+  |
+7 |         Delete::many(cake::Entity).exec(tx).await?;
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this writes, which needs a `ConnectionMut`
+  |
+  = help: the trait `ConnectionMut` is not implemented for `ReadOnlyTransaction<'_>`
+  = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+  = help: the following other types implement trait `ConnectionMut`:
+            &mut C
+            &pgorm::DatabaseConnection
+            DatabaseRef<'_, M>
+            DatabaseTransaction<'_>
+            HookConnection<'_>
+            pgorm::DatabaseConnection
+            pgorm::metric::InstrumentedConnection<M, C>
+            pgorm::metric::InstrumentedTransaction<'_, M, T>
+note: required by a bound in `pgorm::executor::delete::<impl DeleteMany<E>>::exec`
+ --> src/executor/delete.rs
+  |
+  | impl<E> DeleteMany<E>
+...
+  |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+  |     where
+  |         C: ConnectionMut,
+  |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::delete::<impl DeleteMany<E>>::exec`
+
+error[E0277]: `ReadOnlyTransaction<'_>` may only read, so it cannot run this write
+ --> tests/read-only-fail/delete_in_read_only_transaction.rs:7:45
+  |
+7 |         Delete::many(cake::Entity).exec(tx).await?;
+  |                                             ^^^^^ this writes, which needs a `ConnectionMut`
+  |
+  = help: the trait `ConnectionMut` is not implemented for `ReadOnlyTransaction<'_>`
+  = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+  = help: the following other types implement trait `ConnectionMut`:
+            &mut C
+            &pgorm::DatabaseConnection
+            DatabaseRef<'_, M>
+            DatabaseTransaction<'_>
+            HookConnection<'_>
+            pgorm::DatabaseConnection
+            pgorm::metric::InstrumentedConnection<M, C>
+            pgorm::metric::InstrumentedTransaction<'_, M, T>
+note: required by a bound in `pgorm::executor::delete::<impl DeleteMany<E>>::exec`
+ --> src/executor/delete.rs
+  |
+  | impl<E> DeleteMany<E>
+...
+  |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+  |     where
+  |         C: ConnectionMut,
+  |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::delete::<impl DeleteMany<E>>::exec`

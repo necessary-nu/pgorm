@@ -1,6 +1,6 @@
 use super::*;
 use crate::common::setup::{create_enum, create_table, create_table_without_asserts};
-use pgorm::{Connection, DatabasePool, EntityName, Schema, error::*, pgorm_query};
+use pgorm::{Connection, ConnectionMut, DatabasePool, EntityName, Schema, error::*, pgorm_query};
 use pgorm_query::{
     ColumnDef, ColumnType, ForeignKeyCreateStatement, IntoName, Name, QueryBuilder, StringLen,
     alias, extension::Type,
@@ -56,7 +56,7 @@ pub async fn create_tables(db: &DatabasePool) -> Result<(), Error> {
 
 pub async fn create_log_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(applog::Entity)
         .comment("app logs")
@@ -93,7 +93,7 @@ where
 
 pub async fn create_metadata_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(metadata::Entity)
         .col(ColumnDef::new(metadata::Column::Uuid).uuid().not_null())
@@ -111,7 +111,7 @@ where
 
 pub async fn create_repository_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(repository::Entity)
         .col(ColumnDef::new(repository::Column::Id).string().not_null())
@@ -130,7 +130,7 @@ where
 
 pub async fn create_self_join_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(self_join::Entity)
         .col(ColumnDef::new(self_join::Column::Uuid).uuid().not_null())
@@ -154,7 +154,7 @@ where
 
 pub async fn create_byte_primary_key_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let mut primary_key_col = ColumnDef::new(byte_primary_key::Column::Id);
     primary_key_col.bytea();
@@ -174,7 +174,7 @@ where
 
 pub async fn create_active_enum_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(active_enum::Entity.table_ref())
         .col(
@@ -197,7 +197,7 @@ where
 
 pub async fn create_active_enum_child_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(active_enum_child::Entity.table_ref())
         .col(
@@ -235,7 +235,7 @@ where
 
 pub async fn create_transaction_log_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(transaction_log::Entity)
         .col(
@@ -272,7 +272,7 @@ where
 
 pub async fn create_insert_default_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(insert_default::Entity.table_ref())
         .col(
@@ -289,7 +289,7 @@ where
 
 pub async fn create_json_vec_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(json_vec::Entity.table_ref())
         .col(
@@ -307,7 +307,7 @@ where
 
 pub async fn create_json_struct_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(json_struct::Entity)
         .col(
@@ -331,7 +331,7 @@ where
 
 pub async fn create_json_string_vec_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(JsonStringVec.table_ref())
         .col(
@@ -349,7 +349,7 @@ where
 
 pub async fn create_json_struct_vec_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(JsonStructVec.table_ref())
         .col(
@@ -371,7 +371,7 @@ where
 
 pub async fn create_collection_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     db.execute("CREATE EXTENSION IF NOT EXISTS citext", &[])
         .await?;
@@ -442,7 +442,7 @@ where
 
 pub async fn create_pi_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(pi::Entity)
         .col(
@@ -465,7 +465,7 @@ where
 
 pub async fn create_event_trigger_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(event_trigger::Entity)
         .col(
@@ -487,7 +487,7 @@ where
 
 pub async fn create_uuid_fmt_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(uuid_fmt::Entity)
         .col(
@@ -521,7 +521,7 @@ where
 
 pub async fn create_edit_log_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = pgorm_query::Table::create(edit_log::Entity)
         .col(
@@ -540,7 +540,7 @@ where
 
 pub async fn create_teas_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(teas::Entity.table_ref())
         .col(
@@ -558,7 +558,7 @@ where
 
 pub async fn create_categories_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(categories::Entity.table_ref())
         .col(ColumnDef::new(categories::Column::Id).integer().not_null())
@@ -574,7 +574,7 @@ where
 
 pub async fn create_binary_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(binary::Entity.table_ref())
         .col(
@@ -598,7 +598,7 @@ where
 
 pub async fn create_bits_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let create_table_stmt = pgorm_query::Table::create(bits::Entity.table_ref())
         .col(
@@ -621,7 +621,7 @@ where
 
 pub async fn create_dyn_table_name_lazy_static_table<C>(db: &C) -> Result<(), Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     use dyn_table_name_lazy_static::*;
 
@@ -653,7 +653,7 @@ where
 
 pub async fn create_value_type_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let general_stmt = pgorm_query::Table::create(value_type::value_type_general::Entity)
         .col(
@@ -674,7 +674,7 @@ where
 }
 pub async fn create_value_type_postgres_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let postgres_stmt = pgorm_query::Table::create(value_type::value_type_pg::Entity)
         .col(

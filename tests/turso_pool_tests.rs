@@ -3,8 +3,8 @@
 
 use futures::TryStreamExt;
 use pgorm::{
-    Connection, DecodeRaw, Error, Hook, HookConnection, HookError, ManagerConfig, PoolBuilder,
-    PoolError, RecyclingMethod, Runtime, TimeoutType, Transact, connect, connect_with,
+    Connection, ConnectionMut, DecodeRaw, Error, Hook, HookConnection, HookError, ManagerConfig,
+    PoolBuilder, PoolError, RecyclingMethod, Runtime, TimeoutType, Transact, connect, connect_with,
 };
 use pgorm_driver::{Config, NoTls, Statement, types::Type};
 use pgorm_query::Values;
@@ -43,7 +43,7 @@ impl Drop for Scratch {
     }
 }
 
-async fn typed_value(db: &impl Connection, value: i32) -> Result<i32, Error> {
+async fn typed_value(db: &impl ConnectionMut, value: i32) -> Result<i32, Error> {
     (TYPED_SQL, Values(vec![value.into()]))
         .into_tuple::<i32>()
         .one(db)
@@ -515,5 +515,65 @@ async fn retained_hook_stream_refuses_without_waiting() -> Result<(), Error> {
     assert!(matches!(error, Error::Pool(_)));
     assert!(error.to_string().contains("unfinished work"));
     drop(retained.lock().expect("release the retained stream").take());
+    Ok(())
+}
+
+// [spec:pgorm:req:read-only.turso/test]    a read-only pool over a native file opens it read-only at its first acquisition: it reads, its server refuses a write, a read-write pool cannot share the file, and `:memory:` is refused before anything opens
+#[tokio::test]
+async fn read_only_pool_opens_native_file_read_only() -> Result<(), Error> {
+    let scratch = Scratch::new();
+    let path = scratch.path().join("read_only.db");
+    let config: Config = path.to_str().expect("UTF-8 fixture path").parse()?;
+    {
+        let writer = connect(config.clone());
+        let db = writer.get().await?;
+        db.batch_execute("CREATE TABLE kept (id integer PRIMARY KEY); INSERT INTO kept VALUES (1)")
+            .await?;
+        let shared = pgorm::connect_read_only(config.clone())?;
+        let refused = shared
+            .get()
+            .await
+            .expect_err("the file is open read-write in this process");
+        assert!(
+            refused
+                .to_string()
+                .contains("opening a file read-only while this process has it open read-write"),
+            "{refused}"
+        );
+    }
+
+    let reader = pgorm::connect_read_only(config.clone())?;
+    assert!(config.clone().turso_read_only().is_ok());
+    let ro = reader.get().await?;
+    let kept: i32 = ro
+        .query_one(pgorm::sql!("SELECT id FROM kept"), &[])
+        .await?
+        .get(0);
+    assert_eq!(kept, 1);
+    let write = ro
+        .unchecked()
+        .execute("INSERT INTO kept VALUES (2)", &[])
+        .await
+        .expect_err("the engine refuses a write on a read-only file");
+    assert!(write.read_only_refusal().is_some(), "{write}");
+    let writer = connect(config);
+    let refused = writer
+        .get()
+        .await
+        .expect_err("the file is open read-only in this process");
+    assert!(
+        refused
+            .to_string()
+            .contains("opening a file read-write while this process has it open read-only"),
+        "{refused}"
+    );
+
+    let memory = pgorm::connect_read_only(":memory:".parse()?).expect_err("`:memory:` is refused");
+    assert!(
+        memory
+            .to_string()
+            .contains("a read-only `:memory:` database"),
+        "{memory}"
+    );
     Ok(())
 }

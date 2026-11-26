@@ -26,7 +26,7 @@ use std::{
 };
 
 use pgorm::{
-    Connection, DatabasePool, Entity, NoTls, Relation, SelectModel,
+    Connection, ConnectionMut, DatabasePool, Entity, NoTls, Relation, SelectModel,
     pgorm_query::{Asterisk, IntoKey, Name, Query},
     tests_cfg::{cake, fruit},
 };

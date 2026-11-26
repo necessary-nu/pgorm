@@ -147,6 +147,9 @@ ipnetwork = "0.21.1"
 mac_address = "1.2.0"
 pgvector = { version = "0.4.2", default-features = false }
 toml = "1.1"
+# The compile errors a write on a connection that may only read is
+# (tests/read_only_compile_fail_tests.rs).
+trybuild = "1.0.122"
 # The identifier render oracle registers the migration ledger's custom table
 # name, which only the migrator renders (tests/identifier_oracle/live_capture.rs).
 pgorm-migration = { path = "pgorm-migration" }

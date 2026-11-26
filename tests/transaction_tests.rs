@@ -9,7 +9,7 @@ use pretty_assertions::assert_eq;
 
 async fn insert_bakery<C>(db: &C, name: &str, profit_margin: f64) -> Result<(), Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     bakery::ActiveModel {
         name: set(name),
@@ -33,9 +33,12 @@ where
         .len())
 }
 
+/// `SHOW setting` on any connection text runs on: one that may write, or a
+/// read-only one's `unchecked()`.
 async fn show<C>(db: &C, setting: &str) -> Result<String, Error>
 where
     C: Connection,
+    pgorm::Writes: pgorm::RunsOn<C>,
 {
     let row = db
         .query_one(format!("SHOW {setting}").as_str(), &[])
@@ -371,25 +374,27 @@ pub async fn transaction_commit_failure_maps_error() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+5/test]    ReadOnly emits both clauses, and the server enforces the access mode
+// [spec:pgorm:req:read-only.transactions/test]    `read_only_transaction` emits both clauses, and the server enforces the access mode on text the types cannot see
 #[pgorm_macros::test]
 pub async fn transaction_read_only_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_read_only_txconfig").await;
     create_tables(&ctx.db).await?;
     let mut db = ctx.db.get().await?;
 
-    let read_only = TransactionMode::ReadOnly {
-        isolation: Some(IsolationLevel::RepeatableRead),
-    };
     let outcome = db
-        .transaction_with(read_only, async |txn| {
+        .read_only_transaction(Some(IsolationLevel::RepeatableRead), async |txn| {
             assert_eq!(
-                show(&txn, "transaction_isolation").await?,
+                show(&txn.unchecked(), "transaction_isolation").await?,
                 "repeatable read"
             );
-            assert_eq!(show(&txn, "transaction_read_only").await?, "on");
+            assert_eq!(show(&txn.unchecked(), "transaction_read_only").await?, "on");
 
-            let err = insert_bakery(&txn, "Read Only Bakery", 10.4)
+            let err = txn
+                .unchecked()
+                .execute(
+                    "INSERT INTO bakery (name, profit_margin) VALUES ('Read Only Bakery', 10.4)",
+                    &[],
+                )
                 .await
                 .expect_err("INSERT must be rejected in a read-only transaction");
 
@@ -408,7 +413,7 @@ pub async fn transaction_read_only_txconfig() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+5/test]    ReadWrite carries the isolation level, and still commits
+// [spec:pgorm:req:conn.tx+6/test]    ReadWrite carries the isolation level, and still commits
 #[pgorm_macros::test]
 pub async fn transaction_serializable_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_serializable_txconfig").await;
@@ -436,7 +441,7 @@ pub async fn transaction_serializable_txconfig() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+5/test]    Default appends no clause, so the session default stands
+// [spec:pgorm:req:conn.tx+6/test]    Default appends no clause, so the session default stands
 #[pgorm_macros::test]
 pub async fn transaction_default_inherits_session_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_default_inherits_session_txconfig").await;
@@ -473,7 +478,7 @@ pub async fn transaction_default_inherits_session_txconfig() -> Result<(), Error
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+5/test]    ReadWrite overrides a read-only session default
+// [spec:pgorm:req:conn.tx+6/test]    ReadWrite overrides a read-only session default
 #[pgorm_macros::test]
 pub async fn transaction_read_write_overrides_default_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_read_write_overrides_default_txconfig").await;
@@ -1129,7 +1134,7 @@ pub async fn transaction_retry_non_retryable_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+5/test]    a savepoint under a configured outer transaction
+// [spec:pgorm:req:conn.tx+6/test]    a savepoint under a configured outer transaction
 #[pgorm_macros::test]
 pub async fn transaction_nested_under_config_txtests() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_nested_under_config_txtests").await;
@@ -1177,7 +1182,8 @@ pub async fn transaction_nested_under_config_txtests() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+5/test]    DeferrableSnapshot carries serializable + read only, the one combination DEFERRABLE needs
+// [spec:pgorm:req:conn.tx+6/test]    `snapshot` carries serializable + read only, the one combination DEFERRABLE needs
+// [spec:pgorm:req:read-only.transactions/test]    the deferrable snapshot's handle reads
 #[pgorm_macros::test]
 pub async fn transaction_deferrable_txtests() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_deferrable_txtests").await;
@@ -1186,10 +1192,16 @@ pub async fn transaction_deferrable_txtests() -> Result<(), Error> {
 
     insert_bakery(&db, "SeaSide Bakery", 10.4).await?;
 
-    db.transaction_with(TransactionMode::DeferrableSnapshot, async |txn| {
-        assert_eq!(show(&txn, "transaction_isolation").await?, "serializable");
-        assert_eq!(show(&txn, "transaction_read_only").await?, "on");
-        assert_eq!(show(&txn, "transaction_deferrable").await?, "on");
+    db.snapshot(async |txn| {
+        assert_eq!(
+            show(&txn.unchecked(), "transaction_isolation").await?,
+            "serializable"
+        );
+        assert_eq!(show(&txn.unchecked(), "transaction_read_only").await?, "on");
+        assert_eq!(
+            show(&txn.unchecked(), "transaction_deferrable").await?,
+            "on"
+        );
 
         assert_eq!(count_bakeries(&txn, "Bakery").await?, 1);
 

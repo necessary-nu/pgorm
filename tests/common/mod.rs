@@ -34,6 +34,12 @@ impl TestContext {
         &self.db_name
     }
 
+    /// The configuration of the database this context provisioned, for a
+    /// test that builds a pool of another kind against it.
+    pub fn config(&self) -> pgorm::Config {
+        setup::config(&self.base_url, &self.db_name)
+    }
+
     /// Drop the database, taking the context by value so its pool — and every
     /// connection idling in it — is closed before the server is asked to drop
     /// the database out from under it.

@@ -171,7 +171,7 @@ pub enum VerifyError {
 
 /// Why a [`Listener`](crate::Listener) refused a channel name, or why its
 /// [`Notifications`](crate::Notifications) ended.
-// [spec:pgorm:req:conn.listen+3]
+// [spec:pgorm:req:conn.listen+4]
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ListenError {
@@ -334,6 +334,38 @@ impl SqlError {
             datatype: db_error.datatype().map(str::to_owned),
             constraint: db_error.constraint().map(str::to_owned),
         }))
+    }
+}
+
+/// What the server refused because the transaction may only read:
+/// SQLSTATE `25006` (`read_only_sql_transaction`), a write the types could
+/// not see — a `SELECT` calling a function that writes, a row lock, text run
+/// through a read-only connection's `unchecked()` — on a
+/// [`ReadOnlyConnection`](crate::ReadOnlyConnection) or inside a read-only
+/// transaction.
+// [spec:pgorm:req:read-only.refusal]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ReadOnlyRefusal {
+    /// The server's message, such as `cannot execute INSERT in a read-only
+    /// transaction`.
+    pub message: String,
+}
+
+impl ReadOnlyRefusal {
+    /// The refusal `error` is, or `None` for any other failure.
+    // [spec:pgorm:req:read-only.refusal]
+    pub fn of(error: &pgorm_driver::Error) -> Option<Self> {
+        let db_error = error.as_db_error()?;
+        (*db_error.code() == SqlState::READ_ONLY_SQL_TRANSACTION).then(|| Self {
+            message: db_error.message().to_owned(),
+        })
+    }
+}
+
+impl std::fmt::Display for ReadOnlyRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "the transaction may only read: {}", self.message)
     }
 }
 
@@ -549,6 +581,17 @@ impl Error {
     pub fn decode_refusal(&self) -> Option<DecodeRefusal> {
         match self {
             Error::Postgres(e) => DecodeRefusal::of(e),
+            _ => None,
+        }
+    }
+
+    /// The server's refusal of a write in a transaction that may only read,
+    /// when this is that failure: [`ReadOnlyRefusal::of`] the driver's
+    /// error, and `None` for any other variant.
+    // [spec:pgorm:req:read-only.refusal]
+    pub fn read_only_refusal(&self) -> Option<ReadOnlyRefusal> {
+        match self {
+            Error::Postgres(e) => ReadOnlyRefusal::of(e),
             _ => None,
         }
     }

@@ -16,8 +16,8 @@ use pgorm_query::{Name, SqlName, Values};
 use crate::executor::result_name::result_column_name;
 use crate::query::graph::{source_prefix, source_read_cast};
 use crate::{
-    Connection, DecodeRow, Entity, Error, FromQueryResult, Iterable, QueryResult, SelectorRaw,
-    StaticName,
+    Connection, DecodeRow, Entity, Error, FromQueryResult, Iterable, QueryResult, Reads,
+    SelectorRaw, StaticName,
 };
 
 use super::adapter::{self, Piece, PlExpr};
@@ -409,10 +409,11 @@ impl<T: SourceList> SelectedSources<T> {
         C: Connection,
     {
         let (sql, values) = self.into_sql()?;
-        SelectorRaw {
+        SelectorRaw::<_, Reads> {
             stmt: sql,
             values,
             selector: SourcesRow::<T>(PhantomData),
+            kind: PhantomData,
         }
         .all(db)
         .await
@@ -430,10 +431,11 @@ impl<T: SourceList> SelectedSources<T> {
     {
         self.pipeline = self.pipeline.take(1);
         let (sql, values) = self.into_sql()?;
-        SelectorRaw {
+        SelectorRaw::<_, Reads> {
             stmt: sql,
             values,
             selector: SourcesRow::<T>(PhantomData),
+            kind: PhantomData,
         }
         .one(db)
         .await
@@ -448,10 +450,11 @@ impl<T: SourceList> SelectedSources<T> {
     {
         self.pipeline = self.pipeline.take(1);
         let (sql, values) = self.into_sql()?;
-        SelectorRaw {
+        SelectorRaw::<_, Reads> {
             stmt: sql,
             values,
             selector: SourcesRow::<T>(PhantomData),
+            kind: PhantomData,
         }
         .one_opt(db)
         .await

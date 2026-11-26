@@ -510,7 +510,7 @@ fn internal_message<T: std::fmt::Debug>(outcome: Result<T, Error>, context: &str
 
 async fn create_ledger_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = Schema::new().create_table_from_entity(ledger::Entity)?;
     create_table_without_asserts(db, &stmt).await
@@ -518,7 +518,7 @@ where
 
 async fn create_padded_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = Schema::new().create_table_from_entity(padded::Entity)?;
     create_table_without_asserts(db, &stmt).await
@@ -526,7 +526,7 @@ where
 
 async fn create_tagged_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = Schema::new().create_table_from_entity(tagged::Entity)?;
     create_table_without_asserts(db, &stmt).await

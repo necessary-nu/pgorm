@@ -227,9 +227,14 @@ in a mode PostgreSQL acts on. `mode` is one of:
 
 `isolation` is `"readUncommitted"`, `"readCommitted"`, `"repeatableRead"` or
 `"serializable"`, and goes only with `"readWrite"` or `"readOnly"`. These are
-Rust's `TransactionMode` and `IsolationLevel`, spelled as strings. A
-savepoint takes neither, so a transaction's own `transaction` has no such
-options, as Rust's `transaction_with` is a method of a connection alone.
+Rust's `TransactionMode`, its `read_only_transaction` and `snapshot`, and
+`IsolationLevel`, spelled as strings. A savepoint takes neither, so a
+transaction's own `transaction` has no such options, as Rust's
+`transaction_with` is a method of a connection alone. The JavaScript binding
+has no read-only pool yet: where Rust's `connect_read_only` lends connections
+whose type runs no write ([Read-only transactions](../../docs/guide/07-transactions.md#read-only-transactions)),
+a JavaScript transaction in `"readOnly"` mode is one the server refuses a
+write in when the write is sent.
 
 ```ts
 import assert from "node:assert/strict";

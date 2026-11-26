@@ -85,6 +85,8 @@ pub struct Built {
     pub secrets: Redactions,
     /// [`PoolOptions::acquire_timeout`], as the options gave it.
     pub acquire_timeout: Duration,
+    /// Whether the pool opens a native database rather than PostgreSQL.
+    pub native: bool,
 }
 
 /// What Rust's `PoolBuilder` closure says of one pool: its size, its three
@@ -245,8 +247,10 @@ impl PoolSettings {
     ) -> Result<Built, Failure> {
         options.check(dialect)?;
         let mut secrets = None;
+        let mut native = false;
         let pool = self.build(
             |config| {
+                native = config.is_turso();
                 let redactions = Redactions::from_config(config);
                 let shape = options.shape(&hook, &redactions);
                 secrets = Some(redactions);
@@ -258,6 +262,7 @@ impl PoolSettings {
             pool,
             secrets: secrets.ok_or_else(unshaped)?,
             acquire_timeout: options.acquire_timeout,
+            native,
         })
     }
 
@@ -285,9 +290,11 @@ impl PoolSettings {
             options.check(dialect)?;
         }
         let mut secrets = None;
+        let mut native = false;
         let pools = multi_pool(
             self,
             |config| {
+                native = config.is_turso();
                 let redactions = Redactions::from_config(config);
                 let shapes = options
                     .iter()
@@ -311,6 +318,7 @@ impl PoolSettings {
                         pool: pool.clone(),
                         secrets: secrets.clone(),
                         acquire_timeout: options.acquire_timeout,
+                        native,
                     },
                 ))
             })

@@ -20,7 +20,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, Expr, Func, Name, Order, OrderedStatement, Query, SimpleExpr, Table,
 };
-use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, SelectGetableTuple, SelectorRaw, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]

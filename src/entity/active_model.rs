@@ -1,5 +1,5 @@
 use crate::{
-    Connection, Delete, Entity, Insert, IntoActiveModel, IntoActiveValue, Iterable, NoContext,
+    ConnectionMut, Delete, Entity, Insert, IntoActiveModel, IntoActiveValue, Iterable, NoContext,
     PrimaryKey, PrimaryKeyArity, PrimaryKeyToColumn, ScopeContext, ScopedIn, Update, Value,
     error::*,
 };
@@ -255,13 +255,14 @@ pub trait ActiveModel: Clone + Debug {
     /// [txn]: crate::DatabaseTransaction
     // [spec:pgorm:req:entity.active-model.persistence+4]
     // [spec:pgorm:req:entity.active-model.hooks+2]
+    // [spec:pgorm:req:read-only.writes]    an ActiveModel's writes, and the hooks inside them
     #[doc(alias = "save")]
     async fn insert<'a, C>(self, db: &'a C) -> Result<<Self::Entity as Entity>::Model, Error>
     where
         <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.insert_in(Self::Entity::default(), db).await
     }
@@ -281,7 +282,7 @@ pub trait ActiveModel: Clone + Debug {
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<Cx> + Entity<ActiveModel = Self>,
         Cx: ScopeContext + Sync,
-        C: Connection,
+        C: ConnectionMut,
     {
         let am = ActiveModelBehavior::before_save(self, db, true).await?;
         let model = Insert::one_for(cx, am).exec_returning_model(db).await?;
@@ -302,7 +303,7 @@ pub trait ActiveModel: Clone + Debug {
         <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: Connection,
+        C: ConnectionMut,
     {
         let am = ActiveModelBehavior::before_save(self, db, true).await?;
         let model = Insert::one_in(entity, am).exec_returning_model(db).await?;
@@ -345,7 +346,7 @@ pub trait ActiveModel: Clone + Debug {
         <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.update_in(Self::Entity::default(), db).await
     }
@@ -366,7 +367,7 @@ pub trait ActiveModel: Clone + Debug {
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<Cx>,
         Cx: ScopeContext + Sync,
-        C: Connection,
+        C: ConnectionMut,
     {
         let am = ActiveModelBehavior::before_save(self, db, false).await?;
         let model: <Self::Entity as Entity>::Model =
@@ -387,7 +388,7 @@ pub trait ActiveModel: Clone + Debug {
         <Self::Entity as Entity>::Model: IntoActiveModel<Self>,
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: Connection,
+        C: ConnectionMut,
     {
         let am = ActiveModelBehavior::before_save(self, db, false).await?;
         let model: <Self::Entity as Entity>::Model =
@@ -426,7 +427,7 @@ pub trait ActiveModel: Clone + Debug {
     where
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.delete_in(Self::Entity::default(), db).await
     }
@@ -441,7 +442,7 @@ pub trait ActiveModel: Clone + Debug {
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<Cx>,
         Cx: ScopeContext + Sync,
-        C: Connection,
+        C: ConnectionMut,
     {
         let am = ActiveModelBehavior::before_delete(self, db).await?;
         let am_clone = am.clone();
@@ -457,7 +458,7 @@ pub trait ActiveModel: Clone + Debug {
     where
         Self: ActiveModelBehavior + 'a,
         Self::Entity: ScopedIn<NoContext>,
-        C: Connection,
+        C: ConnectionMut,
     {
         let am = ActiveModelBehavior::before_delete(self, db).await?;
         let am_clone = am.clone();
@@ -577,7 +578,7 @@ pub trait ActiveModel: Clone + Debug {
 /// impl ActiveModelBehavior for ActiveModel {
 ///     async fn before_save<C>(mut self, _db: &C, _insert: bool) -> Result<Self, Error>
 ///     where
-///         C: Connection,
+///         C: ConnectionMut,
 ///     {
 ///         if let ActiveValue::Set(name) = &self.name {
 ///             self.name = set(name.trim());
@@ -642,7 +643,7 @@ pub trait ActiveModelBehavior: ActiveModel {
     /// any SQL is sent.
     async fn before_save<C>(self, db: &C, insert: bool) -> Result<Self, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         Ok(self)
     }
@@ -656,7 +657,7 @@ pub trait ActiveModelBehavior: ActiveModel {
         insert: bool,
     ) -> Result<<Self::Entity as Entity>::Model, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         Ok(model)
     }
@@ -665,7 +666,7 @@ pub trait ActiveModelBehavior: ActiveModel {
     /// before any SQL is sent.
     async fn before_delete<C>(self, db: &C) -> Result<Self, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         Ok(self)
     }
@@ -674,7 +675,7 @@ pub trait ActiveModelBehavior: ActiveModel {
     /// caller but does not bring the deleted row back.
     async fn after_delete<C>(self, db: &C) -> Result<Self, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         Ok(self)
     }

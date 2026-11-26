@@ -6,7 +6,7 @@ use crate::query::graph::{Tiebreak, Tiebreaks, qualified_pk_tiebreaks};
 use crate::{
     Column, Connection, DecodeRow, Entity, Error, FromQueryResult, IntoBoundary, IntoKey, Key,
     KeyOf, PartialModel, QueryOrder, QuerySelect, ScopeError, Select, SelectGraph, SelectModel,
-    SelectProjected, Slot, SlotAt, Slots, Unsliced, error::query_err,
+    SelectProjected, Slot, SlotAt, Slots, Unsliced, database::Kinded, error::query_err,
 };
 use pgorm_driver::types::{IsNull, Kind, ToSql, Type, to_sql_checked};
 use pgorm_query::{
@@ -567,7 +567,7 @@ where
             .map(|x| x as _)
             .collect::<Vec<&(dyn ToSql + Sync)>>();
 
-        let rows = db.query_all(&stmt, &values).await?;
+        let rows = db.query_all(&Kinded::read(&stmt), &values).await?;
         let mut buffer = Vec::with_capacity(rows.len());
         for row in rows.into_iter() {
             buffer.push(S::from_raw_query_result(QueryResult { row })?);

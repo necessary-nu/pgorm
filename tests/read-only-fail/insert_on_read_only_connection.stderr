@@ -1,0 +1,28 @@
+error[E0277]: `pgorm::ReadOnlyConnection` may only read, so it cannot run this write
+ --> tests/read-only-fail/insert_on_read_only_connection.rs:9:13
+  |
+9 |     .insert(db)
+  |      ------ ^^ this writes, which needs a `ConnectionMut`
+  |      |
+  |      required by a bound introduced by this call
+  |
+  = help: the trait `ConnectionMut` is not implemented for `pgorm::ReadOnlyConnection`
+  = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+  = help: the following other types implement trait `ConnectionMut`:
+            &DatabaseConnection
+            &mut C
+            DatabaseConnection
+            DatabaseRef<'_, M>
+            DatabaseTransaction<'_>
+            HookConnection<'_>
+            pgorm::metric::InstrumentedConnection<M, C>
+            pgorm::metric::InstrumentedTransaction<'_, M, T>
+note: required by a bound in `pgorm::ActiveModel::insert`
+ --> src/entity/active_model.rs
+  |
+  | pub trait ActiveModel: Clone + Debug {
+...
+  |     async fn insert<'a, C>(self, db: &'a C) -> Result<<Self::Entity as Entity>::Model, Error>
+...
+  |         C: ConnectionMut,
+  |            ^^^^^^^^^^^^^ required by this bound in `ActiveModel::insert`

@@ -35,6 +35,16 @@ impl fmt::Debug for Database {
 impl Database {
     // [spec:pgorm:sem:turso.lifecycle] opening and catalog initialization may block
     pub(crate) async fn open(path: &Path) -> Result<Self, Error> {
+        Self::open_with(path, false).await
+    }
+
+    // [spec:pgorm:req:read-only.turso]
+    pub(crate) async fn open_read_only(path: &Path) -> Result<Self, Error> {
+        crate::config::refuse_read_only_memory(path)?;
+        Self::open_with(path, true).await
+    }
+
+    async fn open_with(path: &Path, read_only: bool) -> Result<Self, Error> {
         let path = path
             .to_str()
             .ok_or_else(|| {
@@ -44,22 +54,32 @@ impl Database {
                 ))
             })?
             .to_owned();
+        let flags = if read_only {
+            turso_pg::OpenFlags::ReadOnly
+        } else {
+            turso_pg::OpenFlags::default()
+        };
         let inner = tokio::task::spawn_blocking(move || {
             // No custom VFS is exposed: the pinned API selects MemoryIO or
             // synchronous PlatformIO. A syscall can block this worker, never
             // a Tokio executor worker. Async VFS cancellation is a separate
             // capability, not inferred from step_with_waker's existence.
-            turso_pg::open_database(
-                &path,
-                None,
-                turso_pg::OpenFlags::default(),
-                turso_pg::tursopg_database_opts(),
-            )
-            .map(|(_, database)| database)
-            .map_err(Error::turso)
+            turso_pg::open_database(&path, None, flags, turso_pg::tursopg_database_opts())
+                .map(|(_, database)| database)
+                .map_err(Error::turso)
         })
         .await
         .map_err(Error::turso_worker)??;
+        // The engine keeps one database per file for the whole process and
+        // hands an open one back whatever flags the later open asked for.
+        // [spec:pgorm:req:read-only.turso]
+        if inner.is_readonly() != read_only {
+            return Err(Error::turso_unsupported(if read_only {
+                "opening a file read-only while this process has it open read-write"
+            } else {
+                "opening a file read-write while this process has it open read-only"
+            }));
+        }
         Ok(Self { inner })
     }
 

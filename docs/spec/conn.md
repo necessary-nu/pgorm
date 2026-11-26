@@ -553,10 +553,12 @@ connection handles plus the `Connection` / `Transact` surface;
 
 ## Statement execution surface
 
-> [spec:pgorm:def:conn.sql-text+6]
+> [spec:pgorm:def:conn.sql-text+7]
 > `SqlText` answers `fn sql_text(&self) -> &str` for a statement, and is what
-> `Connection` means by one. It MUST be sealed against implementations
-> outside pgorm. Its public statement forms include `str` and `String`.
+> `Connection` means by one; its `Kind` says whether the statement is known
+> to only read (`read-only.kinds`). It MUST be sealed against implementations
+> outside pgorm. Its public statement forms include `str` and `String`, and
+> the `Sql` that `sql!` and `prql!` expand to (`read-only.sql-macro`).
 > With the experimental `turso` feature, `ValueSql` MAY retain SQL and borrowed
 > values, directly or through a borrowed-value mapper, until native parameter
 > types are resolved under `turso.parameters`. A mapper returning no value MUST
@@ -608,10 +610,11 @@ connection handles plus the `Connection` / `Transact` surface;
 > error it returns. A `DatabaseRef` holds one (`conn.database-ref`), which is
 > how the bindings run a hook's statements (`bindings.pool-hooks`).
 
-> [spec:pgorm:def:conn.pool.conn-trait+12]
+> [spec:pgorm:def:conn.pool.conn-trait+13]
 > `Connection` is the uniform statement-execution surface over
-> connections and transactions. It defines seven async methods. Six are
-> generic over `T: ?Sized + SqlText + Sync` — the statement retains SQL text
+> connections and transactions. Six of its async methods are generic
+> over `T: ?Sized + SqlText + Sync` whose `T::Kind` runs on the connection
+> (`read-only.text`) — the statement retains SQL text
 > (`conn.sql-text`), which is why `ToStatement` is named nowhere
 > in this trait and a `Statement` prepared on some other connection does not
 > typecheck — with parameter binding
@@ -637,7 +640,10 @@ connection handles plus the `Connection` / `Transact` surface;
 > `conn.pool.statement-cache.invalidate`: PostgreSQL retries only outside a
 > transaction; native invalidation is evicted and returned without retry.
 >
-> The seventh, `batch_execute(sql: &str) -> ()`, is neither generic nor
+> A seventh, `batch_execute(sql: &str) -> ()`, runs only on a connection that
+> may write: it is bounded by `Self: ConnectionMut` (`read-only.traits`), so on
+> any other it is a compile error, and each `ConnectionMut` implements it through
+> a hidden method of its own. It is neither generic nor
 > parameterized: on PostgreSQL it sends `sql` through the simple-query
 > protocol; on native Turso the embedded parser and execution API run the
 > script. The string MAY hold several `;`-separated statements and returns no rows.
@@ -653,7 +659,7 @@ connection handles plus the `Connection` / `Transact` surface;
 > is the unit of work; since values can reach it only by interpolation, `sql`
 > must be built from trusted input.
 >
-> It is implemented for `DatabaseConnection`, `&DatabaseConnection`,
+> Both are implemented for `DatabaseConnection`, `&DatabaseConnection`,
 > `DatabaseTransaction` and `HookConnection` (`conn.pool.hook-connection`),
 > each resolving through the cache its underlying `pgorm-pool` client or
 > transaction owns and then delegating to it — they share one cache per
@@ -664,7 +670,9 @@ connection handles plus the `Connection` / `Transact` surface;
 > crate-private, and a hook's connection's through its client's own.
 >
 > One further impl carries no execution of its own: `&mut C`, for every
-> implementor `C`, forwards every method through the exclusive borrow. It
+> implementor `C`, forwards every method through the exclusive borrow, and
+> is a `ConnectionMut` where `C` is; it may run what `C` may, so it hands each
+> statement on as a read once its own bound has admitted it. It
 > exists because a transaction closure is given its handle as `&mut` — `&mut
 > DatabaseTransaction<'_>` on a connection or a transaction, `&mut
 > InstrumentedTransaction<'_, M>` on the metrics wrappers (`metric.layer.tx`)
@@ -695,7 +703,7 @@ connection handles plus the `Connection` / `Transact` surface;
 > per-connection `StatementCache` (`conn.pool.statement-cache`) and nested
 > transactions go through the wrapper's savepoint logic.
 
-> [spec:pgorm:def:conn.database-ref+2]
+> [spec:pgorm:def:conn.database-ref+3]
 > `DatabaseRef<'a, M>` is a borrowed executor of any kind: a
 > `&DatabaseConnection` or a `&DatabaseTransaction` (a transaction or a
 > savepoint), the metrics layer's `&InstrumentedConnection<M>` or
@@ -703,7 +711,8 @@ connection handles plus the `Connection` / `Transact` surface;
 > connection a pool hook is about while it runs
 > (`conn.pool.hook-connection`); `M` is the collector, `NoOpMetrics` by
 > default, and each converts into it by `From`. It MUST
-> implement `Connection`, every method delegating to the borrowed
+> implement `Connection` and, since every executor it borrows may write,
+> `ConnectionMut`, every method delegating to the borrowed
 > executor's own, so code that picks at run time where a statement runs — a
 > language binding holding whichever handle its caller passed — reaches
 > pgorm's generic terminals through one type, and the bindings hold no
@@ -764,11 +773,12 @@ connection handles plus the `Connection` / `Transact` surface;
 
 ## Transactions
 
-> [spec:pgorm:req:conn.tx+5]
+> [spec:pgorm:req:conn.tx+6]
 > A transaction MUST be opened only by running a closure inside one:
 > `Transact::transaction(f)`, and on a `DatabaseConnection` the
 > inherent `transaction_with(mode, f)` and `transaction_with_retry`
-> (`conn.tx.closure`, `conn.tx.retry`). No public method returns a transaction
+> (`conn.tx.closure`, `conn.tx.retry`), and `read_only_transaction` and
+> `snapshot`, whose handle may only read (`read-only.transactions`). No public method returns a transaction
 > handle, commits one or rolls one back. The closure is given
 > `&mut DatabaseTransaction<'_>`, borrowing the parent exclusively, so no other
 > statement can run on the connection while the transaction is open, and what
@@ -778,9 +788,9 @@ connection handles plus the `Connection` / `Transact` surface;
 > transaction levels share the connection's statement cache.
 >
 > `Transact` is sealed, and its handle is the receiver's kind:
-> `DatabaseTransaction` on a connection or a transaction, the
-> `InstrumentedTransaction` of `metric.layer.tx` on the metrics wrappers, each a
-> `Transact` itself. Opening and ending a transaction are methods of
+> `DatabaseTransaction` on a connection or a transaction, `ReadOnlyTransaction`
+> on a read-only one, the `InstrumentedTransaction` of `metric.layer.tx` on the
+> metrics wrappers, each a `Transact` itself and `Send`. Opening and ending a transaction are methods of
 > crate-private traits that take a token no other crate can construct, so even
 > code generic over `Transact`, which has those methods in reach
 > through its bound, cannot call them. The handle type is declared on a trait
@@ -795,9 +805,9 @@ connection handles plus the `Connection` / `Transact` surface;
 > `DatabaseConnection::transaction_with(mode: TransactionMode, f)` is the
 > configured counterpart, opening the transaction through `pgorm_pool`'s
 > `TransactionBuilder`, which emits `START TRANSACTION` followed by the clauses
-> the mode selects. `TransactionMode` MUST be a closed `Debug + Clone + Copy +
-> Default` enum of exactly four variants, each one a combination PostgreSQL
-> acts on:
+> the mode selects. Its handle may write, so `TransactionMode` MUST be a closed
+> `Debug + Clone + Copy + Default` enum of exactly the two modes of a
+> transaction that may write, each one a combination PostgreSQL acts on:
 >
 > - `Default` — the `Default::default()` variant — appends no clause. The bare
 >   `START TRANSACTION` inherits `default_transaction_isolation`,
@@ -808,23 +818,18 @@ connection handles plus the `Connection` / `Transact` surface;
 >   emitted unconditionally rather than elided as the usual server default, so
 >   the mode overrides a session running under `SET
 >   default_transaction_read_only = on` instead of inheriting it.
-> - `ReadOnly { isolation: Option<IsolationLevel> }` appends `ISOLATION LEVEL
->   <level>` when `isolation` is `Some`, then `READ ONLY`. A write inside such a
->   transaction is rejected by the server with SQLSTATE `25006`
->   (`read_only_sql_transaction`).
-> - `DeferrableSnapshot` appends `ISOLATION LEVEL SERIALIZABLE, READ ONLY,
->   DEFERRABLE`, and takes no parameter. Opening it may block until the snapshot
->   is safe, after which the transaction cannot be aborted by a serialization
->   failure.
 >
-> `DeferrableSnapshot` MUST be the only shape that reaches `DEFERRABLE`, and it
-> MUST carry the isolation level and access mode itself rather than accepting
+> A `READ ONLY` transaction is no mode of it: its handle would offer writes the
+> server refuses. `read_only_transaction(isolation, f)` and `snapshot(f)` open
+> one, their handle a `ReadOnlyTransaction` (`read-only.transactions`).
+> `snapshot` MUST be the only shape that reaches `DEFERRABLE`, and it MUST
+> carry the isolation level and access mode itself rather than accepting
 > either from the caller. PostgreSQL honours `DEFERRABLE` only when the
 > transaction is both `SERIALIZABLE` and `READ ONLY`; in every other
 > combination the server parses the clause and ignores it. Deferrability as an
 > independent flag would therefore be constructible, accepted, and a silent
 > no-op — an invalid state the type MUST NOT be able to represent. For the same
-> reason no variant offers `NOT DEFERRABLE`: it is the server default, and
+> reason nothing offers `NOT DEFERRABLE`: it is the server default, and
 > selecting it says nothing.
 >
 > `IsolationLevel` is `pgorm_driver::IsolationLevel`, re-exported from
@@ -1066,14 +1071,17 @@ connection handles plus the `Connection` / `Transact` surface;
 
 ## COPY
 
-> [spec:pgorm:req:conn.copy+5]
-> `CopyConnection` is COPY's data flow on a connection: `copy_in(&mut self,
+> [spec:pgorm:req:conn.copy+6]
+> `CopyConnection` is COPY's data flow on a connection, its data flow in
+> running only where the connection is a `CopyConnectionMut: CopyConnection`
+> too, split as `Connection` and `ConnectionMut` are (`read-only.copy`): `copy_in(&mut self,
 > &CopyFromStatement<F>)` starts `COPY … FROM STDIN` and returns a
 > `CopyInSink<'_>`, and `copy_out(&mut self, &CopyToStatement<F>)` starts `COPY
 > … TO STDOUT` and returns a `CopyOutStream<'_>`, over the typed statements of
-> `sql.ast.copy`. It MUST be implemented for `DatabaseConnection` and
+> `sql.ast.copy`. Both MUST be implemented for `DatabaseConnection` and
 > `DatabaseTransaction`, savepoints included, and for the metrics wrappers
-> (`metric.layer.copy`). A COPY's rows travel as `CopyData` messages beside the
+> (`metric.layer.copy`); a read-only connection implements `CopyConnection`
+> alone. A COPY's rows travel as `CopyData` messages beside the
 > statement, which no `Connection` method sends or returns (`sql.scope`).
 >
 > Native Turso exposes the same methods but MUST refuse streaming COPY before
@@ -1093,8 +1101,8 @@ connection handles plus the `Connection` / `Transact` surface;
 > unread waits behind data the caller has not yet read, so within one task
 > either never completes; a transaction committed while its COPY is open waits
 > the same way. The exclusive borrow makes each a compile error, and is why
-> `CopyConnection` is a trait of its own rather than two more `Connection`
-> methods, which borrow shared and which `&DatabaseConnection` implements.
+> COPY's traits are their own rather than more `Connection` methods, which
+> borrow shared and which `&DatabaseConnection` implements.
 >
 > `copy_out` MUST run `CopyToStatement::check_source` before anything is
 > sent, so a `SELECT` source whose tie limit or WINDOW clause the grammar
@@ -1324,7 +1332,7 @@ connection handles plus the `Connection` / `Transact` surface;
 ## LISTEN and NOTIFY
 ## LISTEN and NOTIFY
 
-> [spec:pgorm:req:conn.listen+3]
+> [spec:pgorm:req:conn.listen+4]
 > On PostgreSQL, a notification is delivered to the session that ran `LISTEN`, as an
 > asynchronous message outside any statement's result, so no
 > `Connection` method returns one (`sql.scope`), and a pooled connection
@@ -1400,7 +1408,8 @@ connection handles plus the `Connection` / `Transact` surface;
 > session's place in it at once.
 >
 > `notify(db, channel, payload)` sends a notification from any
-> `Connection` implementor as `SELECT pg_notify($1, $2)`, both values
+> `ConnectionMut` implementor (`read-only.writes`), since a notification acts
+> on other sessions, as `SELECT pg_notify($1, $2)`, both values
 > bound. `NOTIFY channel, 'payload'` takes no parameter, so its payload would
 > have to be escaped into the statement, and each payload would be a statement
 > text of its own in the bounded statement cache

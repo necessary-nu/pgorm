@@ -48,7 +48,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn before_save<C>(mut self, _: &C, insert: bool) -> Result<Self, pgorm::Error>
     where
-        C: pgorm::Connection,
+        C: pgorm::ConnectionMut,
     {
         let name = self.name.try_as_ref().cloned().unwrap_or_default();
         if name == "reject_before" {
@@ -67,7 +67,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn after_save<C>(model: Model, _: &C, _: bool) -> Result<Model, pgorm::Error>
     where
-        C: pgorm::Connection,
+        C: pgorm::ConnectionMut,
     {
         if model.name.starts_with("reject_after") {
             return Err(pgorm::Error::Custom("after_save refused".into()));
@@ -77,7 +77,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn before_delete<C>(self, _: &C) -> Result<Self, pgorm::Error>
     where
-        C: pgorm::Connection,
+        C: pgorm::ConnectionMut,
     {
         if self.id.try_as_ref() == Some(&99) {
             return Err(pgorm::Error::Custom("before_delete refused".into()));
@@ -87,7 +87,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn after_delete<C>(self, _: &C) -> Result<Self, pgorm::Error>
     where
-        C: pgorm::Connection,
+        C: pgorm::ConnectionMut,
     {
         if self.id.try_as_ref() == Some(&98) {
             return Err(pgorm::Error::Custom("after_delete refused".into()));

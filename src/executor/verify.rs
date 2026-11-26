@@ -4,8 +4,8 @@ use pgorm_query::TypeName;
 
 use crate::query::graph::source_read_cast;
 use crate::{
-    Column, DatabaseConnection, DatabaseTransaction, Error, FromQueryResult, VerifyError,
-    error::query_err,
+    Column, DatabaseConnection, DatabaseTransaction, Error, FromQueryResult, ReadOnlyConnection,
+    ReadOnlyTransaction, VerifyError, error::query_err,
 };
 
 /// One column a [`FromQueryResult`] target reads out of a row, as the target
@@ -272,6 +272,34 @@ impl VerifyStatement for DatabaseTransaction<'_> {
 
         let statement = GenericClient::prepare(transaction, sql).await?;
         Ok(described(&statement))
+    }
+}
+
+// [spec:pgorm:def:exec.verify+1]    a read-only connection: preparing runs nothing
+impl VerifyStatement for ReadOnlyConnection {
+    async fn verify<M>(&self, sql: &str) -> Result<(), Error>
+    where
+        M: FromQueryResult + 'static,
+    {
+        self.0.verify::<M>(sql).await
+    }
+
+    async fn describe(&self, sql: &str) -> Result<Vec<DescribedColumn>, Error> {
+        self.0.describe(sql).await
+    }
+}
+
+// [spec:pgorm:def:exec.verify+1]    preparing inside a transaction that may only read runs nothing either
+impl VerifyStatement for ReadOnlyTransaction<'_> {
+    async fn verify<M>(&self, sql: &str) -> Result<(), Error>
+    where
+        M: FromQueryResult + 'static,
+    {
+        self.0.verify::<M>(sql).await
+    }
+
+    async fn describe(&self, sql: &str) -> Result<Vec<DescribedColumn>, Error> {
+        self.0.describe(sql).await
     }
 }
 

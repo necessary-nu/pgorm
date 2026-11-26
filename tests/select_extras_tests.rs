@@ -16,8 +16,8 @@ pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{
-    Connection, Error, Paginate, RuntimeError, SelectGetableTuple, Selector, Statement,
-    entity::prelude::*,
+    Connection, ConnectionMut, Error, Paginate, RuntimeError, SelectGetableTuple, Selector,
+    Statement, entity::prelude::*,
 };
 use pgorm_driver::error::SqlState;
 use pgorm_query::{

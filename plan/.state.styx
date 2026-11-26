@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-25T17:00:53.61082Z
+last_sync_at 2026-11-26T01:29:53.674489Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -119,7 +119,7 @@ rule_versions (
     {id bindings.template, version 0}
     {id bindings.tls, version 1}
     {id bindings.transaction-retry, version 0}
-    {id bindings.transactions, version 2}
+    {id bindings.transactions, version 3}
     {id bindings.value-tags, version 1}
     {id bindings.values, version 0}
     {id bindings.verify, version 0}
@@ -161,16 +161,16 @@ rule_versions (
     {id codegen.models.one-of, version 0}
     {id codegen.models.refused, version 0}
     {id codegen.models.relations, version 0}
-    {id conn.copy, version 5}
+    {id conn.copy, version 6}
     {id conn.copy.rows, version 7}
     {id conn.copy.rows.kind, version 0}
     {id conn.copy.statement, version 3}
-    {id conn.database-ref, version 2}
+    {id conn.database-ref, version 3}
     {id conn.driver-source, version 0}
     {id conn.driver-types, version 2}
-    {id conn.listen, version 3}
+    {id conn.listen, version 4}
     {id conn.pool, version 7}
-    {id conn.pool.conn-trait, version 12}
+    {id conn.pool.conn-trait, version 13}
     {id conn.pool.generic-client, version 1}
     {id conn.pool.get, version 1}
     {id conn.pool.hook-connection, version 2}
@@ -181,7 +181,7 @@ rule_versions (
     {id conn.pool.statement-cache, version 6}
     {id conn.pool.statement-cache.clear, version 2}
     {id conn.pool.statement-cache.listen, version 1}
-    {id conn.tx, version 5}
+    {id conn.tx, version 6}
     {id conn.tx.aborted, version 2}
     {id conn.tx.closure, version 7}
     {id conn.tx.compose, version 0}
@@ -323,12 +323,12 @@ rule_versions (
     {id macros.derive.test-attr, version 1}
     {id macros.derive.value-type, version 7}
     {id macros.runtime, version 2}
-    {id macros.sql, version 9}
-    {id metric.layer, version 3}
+    {id macros.sql, version 10}
+    {id metric.layer, version 4}
     {id metric.layer.collector, version 3}
-    {id metric.layer.copy, version 1}
-    {id metric.layer.delegate, version 6}
-    {id metric.layer.tx, version 6}
+    {id metric.layer.copy, version 2}
+    {id metric.layer.delegate, version 7}
+    {id metric.layer.tx, version 7}
     {id migration.commit-after, version 0}
     {id migration.frozen, version 0}
     {id migration.name, version 5}
@@ -368,7 +368,7 @@ rule_versions (
     {id napi.runtimes, version 2}
     {id napi.support, version 0}
     {id napi.temporal, version 1}
-    {id napi.transactions, version 3}
+    {id napi.transactions, version 4}
     {id napi.typing, version 1}
     {id napi.values, version 1}
     {id pipeline.compose, version 2}
@@ -421,6 +421,21 @@ rule_versions (
     {id query.loader.many-to-many, version 3}
     {id query.loader.regroup, version 6}
     {id query.loader.table-ref-limitation, version 4}
+    {id read-only.classify, version 0}
+    {id read-only.copy, version 0}
+    {id read-only.diagnostics, version 0}
+    {id read-only.downgrade, version 0}
+    {id read-only.kinds, version 0}
+    {id read-only.metrics, version 0}
+    {id read-only.pool, version 0}
+    {id read-only.refusal, version 0}
+    {id read-only.sql-macro, version 0}
+    {id read-only.text, version 0}
+    {id read-only.traits, version 0}
+    {id read-only.transactions, version 0}
+    {id read-only.turso, version 0}
+    {id read-only.unchecked, version 0}
+    {id read-only.writes, version 0}
     {id schema.from-entity, version 13}
     {id schema.from-entity.enum, version 3}
     {id schema.from-entity.index, version 2}
@@ -433,7 +448,7 @@ rule_versions (
     {id scope.immutable, version 0}
     {id scope.insert, version 0}
     {id scope.join, version 0}
-    {id scope.raw, version 1}
+    {id scope.raw, version 2}
     {id scope.read, version 0}
     {id scope.refusals, version 0}
     {id scope.write, version 0}
@@ -649,6 +664,11 @@ derived_priorities (
     {id bug.relation-pairing, priority 2, derived_at 2026-09-02T14:40:48.714779Z}
     {id bug.test-harness, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
     {id bug.window-position, priority 2, derived_at 2026-09-02T14:40:48.714779Z}
+    {id build-speed.check-dedupe, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
+    {id build-speed.debuginfo, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
+    {id build-speed.no-incremental, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
+    {id build-speed.test-binaries, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id build-speed.tool-thrash, priority 1, derived_at 2026-11-26T01:29:53.674489Z}
     {id cache-listener-keepalive, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id campaign-evidence-durable, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id campaign-refuses-stale-build, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -680,6 +700,7 @@ derived_priorities (
     {id codegen-schema-qualifiers, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-unique-parts-dropped, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id codegen.test-helpers-shared, priority 2, derived_at 2026-11-05T00:28:09.491091Z}
+    {id codeql-test-code, priority 2, derived_at 2026-11-26T01:29:53.674489Z}
     {id column-default-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id coming-from-seaorm, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id composite-attribute-alteration, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
@@ -839,7 +860,6 @@ derived_priorities (
     {id guide.python-gaps.pipeline-model-column-types, priority 3, derived_at 2026-11-06T10:04:10.322425Z}
     {id guide.python-gaps.pipeline-typed, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.pool-config, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
-    {id guide.python-gaps.postgres-target, priority 2, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.raw-param-count-error, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.raw-sql, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
     {id guide.python-gaps.registered-reads, priority 3, derived_at 2026-11-05T18:29:37.556433Z}
@@ -1150,6 +1170,11 @@ derived_priorities (
     {id raw-entry-points-one-shape, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id raw-identifier-casts, priority 0, derived_at 2026-09-08T15:20:53.390093Z}
     {id raw-pagination-placeholder-lexing, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
+    {id read-only.binding-native-refusal, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id read-only.double-downgrade, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id read-only.hook-connection, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id read-only.lock-clauses, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id read-only.migration-status, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
     {id read-only.napi, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
     {id read-only.python, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
     {id read-only.rust, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
@@ -1161,6 +1186,7 @@ derived_priorities (
     {id retire-try-from-u64, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id runtime-entity-name-per-query, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id rust, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id rust-1-100, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
     {id rust-view-body-check, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id same-named-tables-across-schemas, priority 0, derived_at 2026-11-03T03:52:36.39422Z}
     {id save-as-predicate-casts, priority 0, derived_at 2026-09-07T15:33:15.757479Z}
@@ -1251,6 +1277,7 @@ derived_priorities (
     {id trait-names, priority 1, derived_at 2026-11-24T03:02:44.138946Z}
     {id transaction-stale-plan-recovery, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id turso.capabilities, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
+    {id turso.ci-gaps, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
     {id turso.connect, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
     {id turso.docs, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
     {id turso.execution, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
@@ -1260,6 +1287,7 @@ derived_priorities (
     {id turso.performance-baseline, priority 2, derived_at 2026-11-24T18:53:22.443726Z}
     {id turso.python, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
     {id turso.spec, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
+    {id turso.suite-gaps, priority 0, derived_at 2026-11-26T00:06:13.507564Z}
     {id turso.tests, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
     {id turso.transactions, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
     {id turso.types, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
@@ -1377,6 +1405,9 @@ assertions (
     {id bug.relation-pairing, kind @complete, author "brendan@necessary.nu", at 2026-09-02T19:11:36.703806Z}
     {id bug.test-harness, kind @complete, author "brendan@necessary.nu", at 2026-09-02T19:15:03.593799Z}
     {id bug.window-position, kind @complete, author "brendan@necessary.nu", at 2026-09-02T17:26:32.961595Z}
+    {id build-speed.check-dedupe, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:03.949446Z}
+    {id build-speed.debuginfo, kind @complete, author "brendan@necessary.nu", at 2026-11-25T18:45:15.263922Z}
+    {id build-speed.no-incremental, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:04.865718Z}
     {id cache-listener-keepalive, kind @complete, author "brendan@necessary.nu", at 2026-10-25T22:49:56.472812Z}
     {id campaign-evidence-durable, kind @complete, author "brendan@necessary.nu", at 2026-09-17T12:43:20.982163Z}
     {id campaign-refuses-stale-build, kind @complete, author "brendan@necessary.nu", at 2026-09-17T00:41:30.128736Z}
@@ -1407,6 +1438,7 @@ assertions (
     {id codegen-schema-qualifiers, kind @complete, author "brendan@necessary.nu", at 2026-09-06T12:21:48.870962Z}
     {id codegen-unique-parts-dropped, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:26:29.172994Z}
     {id codegen.test-helpers-shared, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:40:28.8974Z}
+    {id codeql-test-code, kind @complete, author "brendan@necessary.nu", at 2026-11-26T00:30:38.591967Z}
     {id column-default-parens, kind @complete, author "brendan@necessary.nu", at 2026-10-19T08:10:00.524269Z}
     {id coming-from-seaorm, kind @complete, author "brendan@necessary.nu", at 2026-10-23T20:28:06.091883Z}
     {id composite-attribute-alteration, kind @complete, author "brendan@necessary.nu", at 2026-10-08T20:08:16.695854Z}
@@ -1756,6 +1788,7 @@ assertions (
     {id repair.tests-root, kind @complete, author "brendan@necessary.nu", at 2026-09-01T20:52:56.738375Z}
     {id retire-try-from-u64, kind @complete, author "brendan@necessary.nu", at 2026-11-05T16:31:41.480605Z}
     {id rust, kind @complete, author "brendan@necessary.nu", at 2026-09-14T23:12:39.836152Z}
+    {id rust-1-100, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:02.500195Z}
     {id rust-view-body-check, kind @complete, author "brendan@necessary.nu", at 2026-10-19T10:25:48.363181Z}
     {id same-named-tables-across-schemas, kind @complete, author "brendan@necessary.nu", at 2026-11-03T10:49:39.276142Z}
     {id save-as-predicate-casts, kind @complete, author "brendan@necessary.nu", at 2026-09-07T13:39:08.287478Z}
@@ -1822,8 +1855,10 @@ assertions (
     {id tokenizer-backslash-standard, kind @complete, author "brendan@necessary.nu", at 2026-09-23T23:26:31.551166Z}
     {id trait-names, kind @complete, author "brendan@necessary.nu", at 2026-11-25T16:18:11.061453Z}
     {id transaction-stale-plan-recovery, kind @complete, author "brendan@necessary.nu", at 2026-09-06T12:12:04.84501Z}
+    {id turso.ci-gaps, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:01.940354Z}
     {id turso.performance-baseline, kind @complete, author "brendan@necessary.nu", at 2026-11-24T14:40:05.916004Z}
     {id turso.spec, kind @complete, author "brendan@necessary.nu", at 2026-11-24T15:31:35.020061Z}
+    {id turso.suite-gaps, kind @complete, author "brendan@necessary.nu", at 2026-11-25T17:47:26.405738Z}
     {id tx-closure-only, kind @complete, author "brendan@necessary.nu", at 2026-11-05T12:30:14.075005Z}
     {id tx-closure-send, kind @complete, author "brendan@necessary.nu", at 2026-10-24T15:30:08.176678Z}
     {id type-part-keyword-names, kind @complete, author "brendan@necessary.nu", at 2026-09-24T22:48:03.368721Z}
@@ -1884,13 +1919,8 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id turso.suite-gaps, kind @complete, author "brendan@necessary.nu", at 2026-11-25T17:47:26.405738Z}
-    {id build-speed.debuginfo, kind @complete, author "brendan@necessary.nu", at 2026-11-25T18:45:15.263922Z}
-    {id build-speed.check-dedupe, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:03.949446Z}
-    {id build-speed.no-incremental, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:04.865718Z}
-    {id turso.ci-gaps, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:01.940354Z}
-    {id rust-1-100, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:02.500195Z}
-    {id codeql-test-code, kind @complete, author "brendan@necessary.nu", at 2026-11-26T00:30:38.591967Z}
+    {id build-speed.tool-thrash, kind @complete, author "brendan@necessary.nu", at 2026-11-26T02:44:54.741627Z}
+    {id python-dist-shared-deps, kind @complete, author "brendan@necessary.nu", at 2026-11-26T03:41:57.040908Z}
 )
 
 impl_evidence (
@@ -3590,6 +3620,55 @@ impl_evidence (
     ), covered_claims (
         {impl_name main, rule exec.crud.selector-entry}
         {impl_name main, rule macros.sql}
+    )}
+    {id read-only.rust, covered_rules (
+        read-only.classify
+        read-only.copy
+        read-only.diagnostics
+        read-only.downgrade
+        read-only.kinds
+        read-only.metrics
+        read-only.pool
+        read-only.refusal
+        read-only.sql-macro
+        read-only.text
+        read-only.traits
+        read-only.transactions
+        read-only.turso
+        read-only.unchecked
+        read-only.writes
+    ), covered_claims (
+        {impl_name main, rule read-only.classify}
+        {impl_name main, rule read-only.copy}
+        {impl_name main, rule read-only.diagnostics}
+        {impl_name main, rule read-only.downgrade}
+        {impl_name main, rule read-only.kinds}
+        {impl_name main, rule read-only.metrics}
+        {impl_name main, rule read-only.pool}
+        {impl_name main, rule read-only.refusal}
+        {impl_name main, rule read-only.sql-macro}
+        {impl_name main, rule read-only.text}
+        {impl_name main, rule read-only.traits}
+        {impl_name main, rule read-only.transactions}
+        {impl_name main, rule read-only.turso}
+        {impl_name main, rule read-only.unchecked}
+        {impl_name main, rule read-only.writes}
+    ), rule_versions_seen (
+        {id read-only.classify, version 0}
+        {id read-only.copy, version 0}
+        {id read-only.diagnostics, version 0}
+        {id read-only.downgrade, version 0}
+        {id read-only.kinds, version 0}
+        {id read-only.metrics, version 0}
+        {id read-only.pool, version 0}
+        {id read-only.refusal, version 0}
+        {id read-only.sql-macro, version 0}
+        {id read-only.text, version 0}
+        {id read-only.traits, version 0}
+        {id read-only.transactions, version 0}
+        {id read-only.turso, version 0}
+        {id read-only.unchecked, version 0}
+        {id read-only.writes, version 0}
     )}
     {id runtime-entity-name-per-query, covered_rules (
         pipeline.qualify

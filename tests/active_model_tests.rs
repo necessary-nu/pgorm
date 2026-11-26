@@ -1022,7 +1022,7 @@ fn active_model_json_reads_serde_keys() {
 
 async fn create_row_table<C>(db: &C) -> Result<(), Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let stmt = Schema::new().create_table_from_entity(row::Entity)?;
     db.execute(&stmt.to_string(), &[]).await?;
@@ -1238,7 +1238,7 @@ mod hooked {
     impl ActiveModelBehavior for ActiveModel {
         async fn before_save<C>(self, _db: &C, insert: bool) -> Result<Self, Error>
         where
-            C: Connection,
+            C: ConnectionMut,
         {
             record(&format!("before_save(insert={insert})"));
             Ok(self)
@@ -1250,7 +1250,7 @@ mod hooked {
             insert: bool,
         ) -> Result<<Self::Entity as pgorm::Entity>::Model, Error>
         where
-            C: Connection,
+            C: ConnectionMut,
         {
             record(&format!("after_save(insert={insert}, id={})", model.id));
             Ok(model)
@@ -1258,7 +1258,7 @@ mod hooked {
 
         async fn before_delete<C>(self, _db: &C) -> Result<Self, Error>
         where
-            C: Connection,
+            C: ConnectionMut,
         {
             record("before_delete");
             Ok(self)
@@ -1266,7 +1266,7 @@ mod hooked {
 
         async fn after_delete<C>(self, _db: &C) -> Result<Self, Error>
         where
-            C: Connection,
+            C: ConnectionMut,
         {
             record(&format!("after_delete(name_set={})", self.name.is_set()));
             Ok(self)
@@ -1355,14 +1355,14 @@ mod hook_abort {
     impl ActiveModelBehavior for ActiveModel {
         async fn before_save<C>(self, _db: &C, _insert: bool) -> Result<Self, Error>
         where
-            C: Connection,
+            C: ConnectionMut,
         {
             Err(Error::Custom("before_save refused".to_owned()))
         }
 
         async fn before_delete<C>(self, _db: &C) -> Result<Self, Error>
         where
-            C: Connection,
+            C: ConnectionMut,
         {
             Err(Error::Custom("before_delete refused".to_owned()))
         }
@@ -1445,14 +1445,14 @@ mod after_hook_abort {
     impl ActiveModelBehavior for ActiveModel {
         async fn after_save<C>(_model: Model, _db: &C, _insert: bool) -> Result<Model, Error>
         where
-            C: Connection,
+            C: ConnectionMut,
         {
             Err(Error::Custom("after_save refused".to_owned()))
         }
 
         async fn after_delete<C>(self, _db: &C) -> Result<Self, Error>
         where
-            C: Connection,
+            C: ConnectionMut,
         {
             Err(Error::Custom("after_delete refused".to_owned()))
         }

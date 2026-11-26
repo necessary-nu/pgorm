@@ -12,7 +12,7 @@ pub mod common;
 pub use common::TestContext;
 
 use pgorm::tests_cfg::vehicle::{self, Vehicle, VehicleKind};
-use pgorm::{Connection, Error, Schema, check_disjoint, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Error, Schema, check_disjoint, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 

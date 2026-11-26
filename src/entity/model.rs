@@ -1,7 +1,7 @@
 use crate::{
-    ActiveModel, ActiveModelBehavior, Connection, Entity, Error, ExpectedColumn, IntoActiveModel,
-    Linked, NoContext, QueryFilter, QueryResult, Related, ScopeContext, ScopedIn, Select,
-    SelectModel, SelectorRaw, SqlText,
+    ActiveModel, ActiveModelBehavior, ConnectionMut, Entity, Error, ExpectedColumn,
+    IntoActiveModel, Linked, NoContext, QueryFilter, QueryResult, Related, ScopeContext, ScopedIn,
+    Select, SelectModel, SelectorRaw, SqlText,
 };
 use async_trait::async_trait;
 pub use pgorm_query::Value;
@@ -100,7 +100,7 @@ pub trait Model: Clone + Send + Debug {
     where
         Self: IntoActiveModel<A>,
         Self::Entity: ScopedIn<NoContext>,
-        C: Connection,
+        C: ConnectionMut,
         A: ActiveModel<Entity = Self::Entity> + ActiveModelBehavior + Send + 'a,
     {
         self.into_active_model().delete(db).await
@@ -114,7 +114,7 @@ pub trait Model: Clone + Send + Debug {
         Self: IntoActiveModel<A>,
         Self::Entity: ScopedIn<Cx>,
         Cx: ScopeContext + Sync,
-        C: Connection,
+        C: ConnectionMut,
         A: ActiveModel<Entity = Self::Entity> + ActiveModelBehavior + Send + 'a,
     {
         self.into_active_model().delete_for(cx, db).await
@@ -243,7 +243,7 @@ pub trait FromQueryResult: Sized {
     /// # }
     /// ```
     // [spec:pgorm:sem:exec.crud.selector-entry+4]
-    fn find_by_statement<T>(sql: &T, values: Values) -> SelectorRaw<SelectModel<Self>>
+    fn find_by_statement<T>(sql: &T, values: Values) -> SelectorRaw<SelectModel<Self>, T::Kind>
     where
         T: ?Sized + SqlText,
     {

@@ -893,7 +893,7 @@ explicit limitations.
 
 ## Prelude
 
-> [spec:pgorm:def:entity.prelude+13]
+> [spec:pgorm:def:entity.prelude+14]
 > `pgorm::entity::prelude` (`src/entity/prelude.rs`) is the glob a file that
 > talks to the database imports instead of naming what it needs one item at a
 > time. Membership is chosen from what code actually writes, and is public API:
@@ -910,7 +910,8 @@ explicit limitations.
 > `Select`, `Insert`, `Update`, `Delete`; the decode surface `FromQueryResult`,
 > `QueryResult`, `DecodeSelect`, `DecodeRaw` (`exec.crud.selector-entry`); the
 > connection types `DatabasePool`, `DatabaseConnection`, `DatabaseTransaction`,
-> `Connection`, `Transact`; `Iterable`, `Condition`, `JoinType`,
+> `ReadOnlyPool`, `ReadOnlyConnection`, `ReadOnlyTransaction`, `Connection`,
+> `ConnectionMut`, `Transact` (`read-only.traits`); `Iterable`, `Condition`, `JoinType`,
 > `Value`, the `error` module's contents, `Expression`, without which a
 > function call, a cast or a column's aggregate could be built but not
 > compared (`Column::Id.count().gt(2)`, `sql.ast.expr.operators`), and the

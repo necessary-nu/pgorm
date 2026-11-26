@@ -1,8 +1,8 @@
 //! Real ORM transactions over a test-only native connection factory.
 
 use crate::{
-    Connection, DatabaseConnection, DatabasePool, DecodeRaw, Error, IsolationLevel, Transact,
-    TransactionError, TransactionMode,
+    Connection, ConnectionMut, DatabaseConnection, DatabasePool, DecodeRaw, Error, IsolationLevel,
+    Transact, TransactionError, TransactionMode,
 };
 use futures::{TryStreamExt, future::BoxFuture};
 use pgorm_driver::{Client, Config, TursoDatabase, error::SqlState};
@@ -85,7 +85,7 @@ async fn acquire(pool: &DatabasePool) -> DatabaseConnection {
         .expect("acquire native fixture connection")
 }
 
-async fn insert(db: &impl Connection, id: i32) -> Result<(), Error> {
+async fn insert(db: &impl ConnectionMut, id: i32) -> Result<(), Error> {
     let inserted = (
         "INSERT INTO tx_values VALUES ($1) RETURNING id",
         Values(vec![id.into()]),
@@ -97,7 +97,7 @@ async fn insert(db: &impl Connection, id: i32) -> Result<(), Error> {
     Ok(())
 }
 
-async fn ids(db: &impl Connection) -> Result<Vec<i32>, Error> {
+async fn ids(db: &impl ConnectionMut) -> Result<Vec<i32>, Error> {
     Ok(db
         .query_all("SELECT id FROM tx_values ORDER BY id", &[])
         .await?
@@ -223,11 +223,6 @@ async fn unsupported_modes_never_enter_the_closure() -> Result<(), Error> {
         TransactionMode::ReadWrite {
             isolation: Some(IsolationLevel::RepeatableRead),
         },
-        TransactionMode::ReadOnly { isolation: None },
-        TransactionMode::ReadOnly {
-            isolation: Some(IsolationLevel::Serializable),
-        },
-        TransactionMode::DeferrableSnapshot,
     ];
     for mode in modes {
         let mut calls = 0;
@@ -241,6 +236,26 @@ async fn unsupported_modes_never_enter_the_closure() -> Result<(), Error> {
         assert_eq!(calls, 0);
         assert!(ids(&db).await?.is_empty());
     }
+    for isolation in [None, Some(IsolationLevel::Serializable)] {
+        let mut calls = 0;
+        let result = db
+            .read_only_transaction(isolation, async |_| {
+                calls += 1;
+                Ok::<_, Error>(())
+            })
+            .await;
+        assert!(matches!(result, Err(TransactionError::Connection(_))));
+        assert_eq!(calls, 0);
+    }
+    let mut calls = 0;
+    let result = db
+        .snapshot(async |_| {
+            calls += 1;
+            Ok::<_, Error>(())
+        })
+        .await;
+    assert!(matches!(result, Err(TransactionError::Connection(_))));
+    assert_eq!(calls, 0);
     db.transaction_with(TransactionMode::Default, async |txn| insert(txn, 1).await)
         .await?;
     assert_eq!(ids(&db).await?, [1]);

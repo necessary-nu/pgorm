@@ -20,7 +20,10 @@ use std::{
 };
 
 use futures_util::future::BoxFuture;
-use pgorm::{DatabaseTransaction, metric::InstrumentedTransaction};
+use pgorm::{
+    Connection, DatabaseTransaction, IsolationLevel, TransactionMode,
+    metric::InstrumentedTransaction,
+};
 use tokio::sync::{Mutex, OwnedMutexGuard, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
@@ -45,12 +48,97 @@ pub enum Tx<'a, 't> {
 }
 
 impl Tx<'_, '_> {
+    /// The transaction itself, beneath any metrics wrapper, so what the
+    /// binding runs on it of its own accord is not reported.
+    fn plain(&self) -> &DatabaseTransaction<'_> {
+        match self {
+            Self::Plain(tx) => tx,
+            Self::Metered(tx) => tx.inner(),
+        }
+    }
+
     /// The transaction as the executor statements run on.
     pub fn database(&self) -> Database<'_> {
         match self {
             Self::Plain(tx) => Database::Transaction(tx),
             Self::Metered(tx) => Database::InstrumentedTransaction(tx),
         }
+    }
+}
+
+/// How a binding's transaction opens: pgorm's [`TransactionMode`]s, which
+/// may write, and the two that may only read, which a binding still serves
+/// through a handle that may write. pgorm opens those as a
+/// [`ReadOnlyTransaction`](pgorm::ReadOnlyTransaction), whose handle runs no
+/// write a binding's commands could send, so the binding opens a plain
+/// transaction and makes it read-only with `SET TRANSACTION` as its first
+/// statement, the server refusing each write (SQLSTATE `25006`).
+// [spec:pgorm:req:bindings.transactions+3]
+#[derive(Debug, Clone, Copy)]
+pub enum Mode {
+    /// [`TransactionMode::Default`].
+    Default,
+    /// `READ WRITE`, overriding a session whose default is read-only, at
+    /// `isolation` when one is given.
+    ReadWrite {
+        /// `ISOLATION LEVEL <level>`; `None` inherits the session default.
+        isolation: Option<IsolationLevel>,
+    },
+    /// `READ ONLY`, at `isolation` when one is given.
+    ReadOnly {
+        /// `ISOLATION LEVEL <level>`; `None` inherits the session default.
+        isolation: Option<IsolationLevel>,
+    },
+    /// `SERIALIZABLE, READ ONLY, DEFERRABLE`.
+    Snapshot,
+}
+
+impl Mode {
+    /// The mode pgorm's `START TRANSACTION` takes: a mode that may only read
+    /// opens under the session's defaults, and [`settle`](Self::settle) makes
+    /// it read-only.
+    fn opening(self) -> TransactionMode {
+        match self {
+            Self::ReadWrite { isolation } => TransactionMode::ReadWrite { isolation },
+            Self::Default | Self::ReadOnly { .. } | Self::Snapshot => TransactionMode::Default,
+        }
+    }
+
+    /// Whether the transaction may only read.
+    pub(crate) fn reads_only(self) -> bool {
+        matches!(self, Self::ReadOnly { .. } | Self::Snapshot)
+    }
+
+    /// Make `tx`, just opened, the transaction this mode says: a
+    /// `SET TRANSACTION` for a mode that may only read, nothing otherwise.
+    async fn settle(self, tx: &DatabaseTransaction<'_>) -> Result<(), pgorm::Error> {
+        let setting = match self {
+            Self::Default | Self::ReadWrite { .. } => return Ok(()),
+            Self::ReadOnly { isolation: None } => "SET TRANSACTION READ ONLY",
+            Self::ReadOnly {
+                isolation: Some(level),
+            } => match level {
+                IsolationLevel::ReadUncommitted => {
+                    "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED, READ ONLY"
+                }
+                IsolationLevel::ReadCommitted => {
+                    "SET TRANSACTION ISOLATION LEVEL READ COMMITTED, READ ONLY"
+                }
+                IsolationLevel::RepeatableRead => {
+                    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"
+                }
+                IsolationLevel::Serializable => {
+                    "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ ONLY"
+                }
+                other => {
+                    return Err(pgorm::Error::Custom(format!(
+                        "no SET TRANSACTION for the isolation level {other:?}"
+                    )));
+                }
+            },
+            Self::Snapshot => "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE",
+        };
+        tx.batch_execute(setting).await
     }
 }
 
@@ -265,7 +353,7 @@ impl<O: Send + Sync + 'static> State<O> {
     /// The frame's lock, refused rather than waited for when a request or an
     /// open savepoint holds it. Taken as the language makes each request, so
     /// requests are refused in the order it made them.
-    // [spec:pgorm:req:bindings.transactions+2]
+    // [spec:pgorm:req:bindings.transactions+3]
     pub fn lock(&self) -> Result<OwnedMutexGuard<()>, Failure> {
         self.ensure_open()?;
         self.busy.clone().try_lock_owned().map_err(|_| {

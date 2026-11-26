@@ -13,7 +13,7 @@ pub use async_trait;
 // `SqlName` and `StaticName` are pgorm's: pgorm-query's glob carries derives
 // of the same names, which the explicit import shadows.
 pub use pgorm::{
-    self, Connection, DatabasePool, DatabaseTransaction, Error, MigrationFile, SqlName, StaticName,
-    Transact,
+    self, Connection, ConnectionMut, DatabasePool, DatabaseTransaction, Error, MigrationFile,
+    SqlName, StaticName, Transact,
     pgorm_query::{self, *},
 };

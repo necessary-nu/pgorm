@@ -16,7 +16,7 @@ use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Name, RangeType, Table,
     extension::{RangeDefinition, Type},
 };
-use pgorm::{Connection, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 

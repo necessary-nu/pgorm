@@ -6,7 +6,9 @@ use std::future::Future;
 
 use pgorm_pool::CommitError;
 
-use crate::{DatabaseConnection, DatabaseTransaction, Error};
+use crate::{
+    DatabaseConnection, DatabaseTransaction, Error, ReadOnlyConnection, ReadOnlyTransaction,
+};
 
 /// The means the closure form is built on — opening a transaction on a parent
 /// and ending it — kept out of every other crate's reach.
@@ -48,7 +50,7 @@ pub(crate) mod sealed {
         /// or a transaction, and
         /// [`InstrumentedTransaction`](crate::metric::InstrumentedTransaction)
         /// on the metrics wrappers.
-        type Transaction<'t>: Connection + Transact + Close;
+        type Transaction<'t>: Connection + Transact + Close + Send;
     }
 
     /// A parent a transaction opens on: `BEGIN` on a connection, a savepoint
@@ -68,6 +70,25 @@ pub(crate) mod sealed {
         fn commit(self, token: Token) -> impl Future<Output = Result<(), Error>> + Send;
 
         fn rollback(self, token: Token) -> impl Future<Output = Result<(), Error>> + Send;
+    }
+
+    /// How a read-only transaction opens on a connection: `READ ONLY` at an
+    /// isolation level, or the deferrable snapshot.
+    #[derive(Debug, Clone, Copy)]
+    pub enum ReadOnlyMode {
+        /// `ISOLATION LEVEL <level>` when given, then `READ ONLY`.
+        Isolation(Option<pgorm_driver::IsolationLevel>),
+        /// `ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE`.
+        Snapshot,
+    }
+
+    /// A connection a read-only transaction opens on, whichever kind of
+    /// connection it is: the handle may only read either way.
+    pub trait OpenReadOnly {
+        fn open_read_only(
+            &mut self,
+            mode: ReadOnlyMode,
+        ) -> impl Future<Output = Result<crate::ReadOnlyTransaction<'_>, Error>> + Send;
     }
 }
 
@@ -93,7 +114,7 @@ pub(crate) mod sealed {
 /// `C: Transact` gets a future the compiler does not know to be
 /// `Send`: promising it would mean bounding an async closure's future, which
 /// stable Rust cannot express.
-// [spec:pgorm:req:conn.tx+5]
+// [spec:pgorm:req:conn.tx+6]
 pub trait Transact: sealed::Open {
     /// Run `f` inside a transaction, committing when it returns `Ok` and
     /// rolling back when it returns `Err`.
@@ -239,7 +260,7 @@ impl<E: Into<Error>> From<TransactionError<E>> for Error {
     }
 }
 
-// [spec:pgorm:req:conn.tx+5]    BEGIN on the pooled client
+// [spec:pgorm:req:conn.tx+6]    BEGIN on the pooled client
 impl Transact for DatabaseConnection {}
 
 impl sealed::Handle for DatabaseConnection {
@@ -252,7 +273,7 @@ impl sealed::Open for DatabaseConnection {
     }
 }
 
-// [spec:pgorm:req:conn.tx+5]    a savepoint inside a transaction
+// [spec:pgorm:req:conn.tx+6]    a savepoint inside a transaction
 impl Transact for DatabaseTransaction<'_> {}
 
 impl sealed::Handle for DatabaseTransaction<'_> {
@@ -289,5 +310,45 @@ impl sealed::Close for DatabaseTransaction<'_> {
 
     async fn rollback(mut self, _: sealed::Token) -> Result<(), Error> {
         Ok(self.take().rollback().await?)
+    }
+}
+
+// [spec:pgorm:req:read-only.transactions]    BEGIN on a read-only session
+impl Transact for ReadOnlyConnection {}
+
+impl sealed::Handle for ReadOnlyConnection {
+    type Transaction<'t> = ReadOnlyTransaction<'t>;
+}
+
+impl sealed::Open for ReadOnlyConnection {
+    async fn open(&mut self, token: sealed::Token) -> Result<ReadOnlyTransaction<'_>, Error> {
+        sealed::Open::open(&mut self.0, token)
+            .await
+            .map(ReadOnlyTransaction)
+    }
+}
+
+// [spec:pgorm:req:read-only.transactions]    a savepoint inside a read-only transaction
+impl Transact for ReadOnlyTransaction<'_> {}
+
+impl sealed::Handle for ReadOnlyTransaction<'_> {
+    type Transaction<'t> = ReadOnlyTransaction<'t>;
+}
+
+impl sealed::Open for ReadOnlyTransaction<'_> {
+    async fn open(&mut self, token: sealed::Token) -> Result<ReadOnlyTransaction<'_>, Error> {
+        sealed::Open::open(&mut self.0, token)
+            .await
+            .map(ReadOnlyTransaction)
+    }
+}
+
+impl sealed::Close for ReadOnlyTransaction<'_> {
+    async fn commit(self, token: sealed::Token) -> Result<(), Error> {
+        sealed::Close::commit(self.0, token).await
+    }
+
+    async fn rollback(self, token: sealed::Token) -> Result<(), Error> {
+        sealed::Close::rollback(self.0, token).await
     }
 }

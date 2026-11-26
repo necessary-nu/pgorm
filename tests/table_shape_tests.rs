@@ -5,8 +5,8 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::{
-    ColumnPairs, ColumnTypeExt, Connection, Error, RelationDef, Schema, TableColumn, TableShape,
-    alias,
+    ColumnPairs, ColumnTypeExt, Connection, ConnectionMut, Error, RelationDef, Schema, TableColumn,
+    TableShape, alias,
     entity::prelude::*,
     pgorm_query::{ColumnType, Expr, ForeignKeyAction, GeneratedKind, Name, RangeType, TableName},
     tests_cfg::{cake, cake_filling_price, indexes},

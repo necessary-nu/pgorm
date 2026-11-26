@@ -547,7 +547,7 @@ test("a delete removes the rows its condition matches and returns what it remove
 });
 
 // [spec:pgorm:req:bindings.model-writes+3/test]
-// [spec:pgorm:req:bindings.transactions+2/test]
+// [spec:pgorm:req:bindings.transactions+3/test]
 test("a model's writes run in a transaction and roll back with it", async () => {
   await assert.rejects(
     pool().transaction(async (transaction) => {

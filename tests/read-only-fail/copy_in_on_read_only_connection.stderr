@@ -1,0 +1,45 @@
+error[E0277]: `ReadOnlyConnection` may only read, so it cannot run COPY FROM
+ --> tests/read-only-fail/copy_in_on_read_only_connection.rs:6:8
+  |
+6 |     db.copy_in(&copy).await?.finish().await
+  |        ^^^^^^^ COPY FROM writes, which needs a `CopyConnectionMut`
+  |
+  = help: the trait `CopyConnectionMut` is not implemented for `ReadOnlyConnection`
+  = note: `copy_out`, `copy_out_rows` and `copy_out_columns` read, through `CopyConnection`, which a read-only connection implements
+help: the following other types implement trait `CopyConnectionMut`
+ --> src/database/copy.rs
+  |
+  |   impl CopyConnectionMut for DatabaseConnection {
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `DatabaseConnection`
+...
+  |   impl CopyConnectionMut for DatabaseTransaction<'_> {
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `DatabaseTransaction<'_>`
+  |
+ ::: src/metric/copy.rs
+  |
+  | /         impl<$($generics)*> CopyConnectionMut for $ty {
+  | |             async fn run_copy_in<F>(
+  | |                 &mut self,
+  | |                 statement: &CopyFromStatement<F>,
+... |
+  | |         }
+  | |         ^
+  | |         |
+  | |_________`pgorm::metric::InstrumentedConnection<M, C>`
+  |           `pgorm::metric::InstrumentedTransaction<'a, M, Tx>`
+...
+  |   instrumented_copy_mut!([M: MetricsCollector, C: CopyConnectionMut + Send] InstrumentedConnection<M, C>, connection);
+  |   ------------------------------------------------------------------------------------------------------------------- in this macro invocation
+  |   instrumented_copy!(['a, M: MetricsCollector, Tx: CopyConnection + Send] InstrumentedTransaction<'a, M, Tx>, transaction);
+  |   instrumented_copy_mut!(['a, M: MetricsCollector, Tx: CopyConnectionMut + Send] InstrumentedTransaction<'a, M, Tx>, transaction);
+  |   ------------------------------------------------------------------------------------------------------------------------------- in this macro invocation
+note: required by a bound in `copy_in`
+ --> src/database/copy.rs
+  |
+  | pub trait CopyConnection {
+...
+  |     async fn copy_in<F>(
+...
+  |         Self: CopyConnectionMut,
+  |               ^^^^^^^^^^^^^^^^^ required by this bound in `CopyConnection::copy_in`
+  = note: this error originates in the macro `instrumented_copy_mut` (in Nightly builds, run with -Z macro-backtrace for more info)

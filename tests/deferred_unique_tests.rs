@@ -20,7 +20,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, Deferrability, Index, Name, OnConflict, Query, Table, TableKey, Unique,
 };
-use pgorm::{Connection, Transact, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Transact, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
@@ -79,7 +79,7 @@ async fn slots(
 }
 
 /// Moves slot 2 onto position 1, which duplicates it until slot 1 moves off.
-async fn collide<C: Connection>(db: &C, table: &str) -> Result<u64, Error> {
+async fn collide<C: ConnectionMut>(db: &C, table: &str) -> Result<u64, Error> {
     db.execute(
         &format!("UPDATE {table} SET position = 1 WHERE id = 2"),
         &[],

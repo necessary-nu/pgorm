@@ -311,7 +311,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
     }
     // The server's 25P02 refused the statement pgorm asked with, not the
     // block's work, so pgorm's account of the rollback is the message.
-    // [spec:pgorm:req:bindings.transactions+2]
+    // [spec:pgorm:req:bindings.transactions+3]
     if let Error::TransactionAborted(refusal) = error {
         return marked(postgres_failure(refusal, Some(&error.to_string()), secrets));
     }

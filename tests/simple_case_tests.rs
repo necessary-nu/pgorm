@@ -17,7 +17,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Expr, Keyword, Name, Order, OrderedStatement, Query, SelectStatement, SimpleExpr, Values,
 };
-use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, SelectGetableTuple, SelectorRaw, entity::prelude::*};
 
 /// Four notes: two that arms will name, one NULL, and one no arm names.
 const SEED: &str = "

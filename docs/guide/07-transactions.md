@@ -403,23 +403,32 @@ A closure whose error is a type of your own gets the same `?` by converting
 a `TransactionError` of it into it, as `Error` does: keep `RollbackFailed`'s
 two errors rather than only its cause.
 
-## Choosing the isolation level and access mode
+## Choosing the isolation level
 
-[`transaction_with`](crate::DatabaseConnection::transaction_with) opens the
-transaction in a [`TransactionMode`](crate::TransactionMode), which lists
-the combinations PostgreSQL acts on:
+[`transaction_with`](crate::DatabaseConnection::transaction_with) opens a
+transaction that may write in a [`TransactionMode`](crate::TransactionMode):
 
 | Mode | Opens |
 | --- | --- |
 | `Default` | a transaction under the session's defaults, as `transaction` does |
 | `ReadWrite { isolation }` | `READ WRITE`, at the [`IsolationLevel`](crate::IsolationLevel) given or the session's |
-| `ReadOnly { isolation }` | `READ ONLY`, in which every write is refused |
-| `DeferrableSnapshot` | `SERIALIZABLE READ ONLY DEFERRABLE`: it may wait for a safe snapshot, and then no serialization failure can end it |
 
 `transaction_with` is a method of a connection alone, `DatabaseConnection`
 and the metrics layer's
 [`InstrumentedConnection`](crate::metric::InstrumentedConnection): a
-savepoint takes no isolation level or access mode.
+savepoint takes no isolation level or access mode. A transaction that may
+only read is not one of its modes, since its handle would offer writes the
+server then refuses; it has methods of its own, which the next section shows.
+
+## Read-only transactions
+
+[`read_only_transaction`](crate::DatabaseConnection::read_only_transaction)
+opens `READ ONLY` at the isolation level given, and
+[`snapshot`](crate::DatabaseConnection::snapshot) opens `SERIALIZABLE READ
+ONLY DEFERRABLE`, which may wait for a safe snapshot and then cannot fail with
+a serialization error. Their closure is given a
+[`ReadOnlyTransaction`](crate::ReadOnlyTransaction), which runs every read and
+no write.
 
 ```rust
 # use pgorm_guide_support::cake;
@@ -427,16 +436,13 @@ savepoint takes no isolation level or access mode.
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("transactions_read_only").await;
 # let pool = scratch.pool.clone();
-use pgorm::{IsolationLevel, TransactionError, TransactionMode, entity::prelude::*};
+use pgorm::{IsolationLevel, entity::prelude::*};
 
 let mut db = pool.get().await?;
-let report = TransactionMode::ReadOnly {
-    isolation: Some(IsolationLevel::RepeatableRead),
-};
 
 // Two reads that see the same snapshot of the database.
 let (cakes, total) = db
-    .transaction_with(report, async |txn| {
+    .read_only_transaction(Some(IsolationLevel::RepeatableRead), async |txn| {
         let cakes = cake::Entity::find().count(&txn).await?;
         let total: Option<Decimal> = cake::Entity::find()
             .select(cake::Column::Price.sum())
@@ -448,19 +454,156 @@ let (cakes, total) = db
     .await?;
 assert_eq!((cakes, total.map(|t| t.to_string())), (5, Some("20.40".to_owned())));
 
-// A write in a read-only transaction is refused.
-let refused = db
-    .transaction_with(report, async |txn| cake::Entity::delete_by_id(1).exec(&txn).await)
-    .await;
-let Err(TransactionError::Transaction(Error::Postgres(error))) = refused else {
-    panic!("expected the server to refuse the write, got {refused:?}");
-};
-assert_eq!(error.code().map(|code| code.code()), Some("25006"));
+let names = db
+    .snapshot(async |txn| {
+        cake::Entity::find()
+            .order_by_asc(cake::Column::Id)
+            .limit(2)
+            .all(&txn)
+            .await
+    })
+    .await?;
+assert_eq!(names.len(), 2);
 # drop(db);
 # scratch.finish().await;
 # Ok(())
 # }
 ```
+
+A write inside one does not compile: a `ReadOnlyTransaction` implements
+[`Connection`](crate::Connection), what reads, and not
+[`ConnectionMut`](crate::ConnectionMut), what may write, and the compiler
+says so in those words, "`` `&mut ReadOnlyTransaction<'_>` may only read, so
+it cannot run this write ``".
+
+```rust,compile_fail,E0277
+# use pgorm_guide_support::cake;
+# use pgorm::entity::prelude::*;
+# async fn purge(db: &mut DatabaseConnection) -> Result<(), pgorm::TransactionError<Error>> {
+db.read_only_transaction(None, async |txn| {
+    cake::Entity::delete_by_id(1).exec(txn).await?;
+    Ok(())
+})
+.await
+# }
+```
+
+## Connections that may only read
+
+Every read pgorm builds takes a [`Connection`](crate::Connection) — finds,
+counts, pages, cursors, graphs, loaders and pipelines — and every write a
+[`ConnectionMut`](crate::ConnectionMut), which each connection that may
+write implements beside it: inserts, updates and deletes, an `ActiveModel`'s
+`save`, `batch_execute`, `notify` and migrations. A function that only reads
+says so in its bound, and then cannot write through what it is given, a
+connection that may write included:
+
+```rust
+# use pgorm_guide_support::cake;
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("transactions_connection_reads").await;
+# let pool = scratch.pool.clone();
+use pgorm::entity::prelude::*;
+
+async fn menu(db: &impl Connection) -> Result<Vec<String>, Error> {
+    Ok(cake::Entity::find()
+        .order_by_asc(cake::Column::Name)
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|cake| cake.name)
+        .collect())
+}
+
+let db = pool.get().await?;
+assert_eq!(menu(&db).await?.len(), 5);
+// A connection that may write, borrowed as one that may only read, by its
+// type alone.
+assert_eq!(menu(&db.read_only()).await?.len(), 5);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+[`connect_read_only`](crate::connect_read_only) builds a
+[`ReadOnlyPool`](crate::ReadOnlyPool), with
+[`connect_read_only_with_builder`](crate::connect_read_only_with_builder)
+and [`connect_read_only_with`](crate::connect_read_only_with) beside it as
+`connect_with_builder` and `connect_with` are beside `connect`. Its
+connections implement `Connection` alone, and each session opens with
+`default_transaction_read_only = on`, so the server refuses what the types
+cannot see — a `SELECT` calling a function that writes, a row lock taken
+through the builder — with SQLSTATE `25006`, which
+[`Error::read_only_refusal`](crate::Error::read_only_refusal) matches. A
+replica, or a role granted only `SELECT`, is what such a pool fits; the role
+is the boundary, since SQL text the server is handed can set the session
+back.
+
+SQL text is held to what it is known to do. [`sql!`](crate::sql) classifies
+its statement as the crate compiles: a `SELECT`, `VALUES`, `TABLE`, `SHOW`,
+or `EXPLAIN` without `ANALYZE`, with no data-modifying `WITH` and no row
+lock, is a read, a [`Sql<Reads>`](crate::Sql), which runs on any
+connection; anything else is a `Sql<Writes>`. Text known only at run time is
+not known to read, so it runs on a connection that may write, or through a
+read-only connection's [`unchecked`](crate::ReadOnlyConnection::unchecked),
+where the server refuses a write:
+
+```rust
+# use pgorm_guide_support::cake;
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::bakery("transactions_read_only_pool").await;
+use pgorm::{connect_read_only, entity::prelude::*, sql};
+
+let replica = connect_read_only(scratch.config())?;
+let mut ro = replica.get().await?;
+
+assert_eq!(cake::Entity::find().count(&ro).await?, 5);
+let shown: String = ro
+    .query_one(sql!("SHOW default_transaction_read_only"), &[])
+    .await?
+    .get(0);
+assert_eq!(shown, "on");
+
+let table = "cake";
+let refused = ro
+    .unchecked()
+    .execute(&format!("DELETE FROM {table}"), &[])
+    .await
+    .expect_err("the server refuses the delete");
+assert!(refused.read_only_refusal().is_some());
+
+// A transaction on a read-only connection reads under the session's default.
+let cakes = ro
+    .transaction(async |txn| cake::Entity::find().count(&txn).await)
+    .await?;
+assert_eq!(cakes, 5);
+# drop(ro);
+# drop(replica);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+Text on a connection that may only read does not compile:
+
+```rust,compile_fail,E0277
+# use pgorm::{Connection, Error, ReadOnlyConnection};
+async fn count(db: &ReadOnlyConnection, table: &str) -> Result<i64, Error> {
+    let sql = format!("SELECT count(*) FROM {table}");
+    Ok(db.query_one(&sql, &[]).await?.get(0))
+}
+```
+
+The [metrics](crate::guide::metrics) layer keeps a read-only pool
+read-only: `InstrumentedPool::new(replica, collector)` lends instrumented
+connections and transactions that still implement `Connection` alone. COPY
+splits the same way: [`CopyConnection`](crate::CopyConnection)'s
+`copy_out` reads and runs on a read-only connection, while its `copy_in`
+runs only on a [`CopyConnectionMut`](crate::CopyConnectionMut), as
+`batch_execute` runs only on a `ConnectionMut`.
 
 ## Retrying serializable transactions
 

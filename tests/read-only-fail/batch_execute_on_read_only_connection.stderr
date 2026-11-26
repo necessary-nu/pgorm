@@ -1,0 +1,26 @@
+error[E0277]: `ReadOnlyConnection` may only read, so it cannot run this write
+ --> tests/read-only-fail/batch_execute_on_read_only_connection.rs:4:8
+  |
+4 |     db.batch_execute("DROP TABLE cake").await
+  |        ^^^^^^^^^^^^^ this writes, which needs a `ConnectionMut`
+  |
+  = help: the trait `ConnectionMut` is not implemented for `ReadOnlyConnection`
+  = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+  = help: the following other types implement trait `ConnectionMut`:
+            &DatabaseConnection
+            &mut C
+            DatabaseConnection
+            DatabaseRef<'_, M>
+            DatabaseTransaction<'_>
+            HookConnection<'_>
+            pgorm::metric::InstrumentedConnection<M, C>
+            pgorm::metric::InstrumentedTransaction<'_, M, T>
+note: required by a bound in `batch_execute`
+ --> src/database/connection.rs
+  |
+  | pub trait Connection: Sync {
+...
+  |     async fn batch_execute(&self, sql: &str) -> Result<(), Error>
+  |     where
+  |         Self: ConnectionMut,
+  |               ^^^^^^^^^^^^^ required by this bound in `Connection::batch_execute`

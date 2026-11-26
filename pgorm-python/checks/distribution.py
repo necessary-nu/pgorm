@@ -160,11 +160,12 @@ def main():
             environment,
         )
         outcomes["wheel"] = check_install(root, wheel, direct, environment)
-        source_env = {
-            **environment,
-            "CARGO_TARGET_DIR": str(root / "target/python-sdist-build"),
-        }
-        build(source, work / "from-source", source_env, "--wheel")
+        # The wheel from the sdist shares the direct build's target directory.
+        # The sdist's own crates still compile from its unpacked sources, whose
+        # paths differ from the checkout's, so a file the sdist left out still
+        # fails the build; only registry and git dependencies, which no sdist
+        # carries, come from the first build.
+        build(source, work / "from-source", wheel_env, "--wheel")
         rebuilt = one(work / "from-source", "pgorm-*.whl")
         compare_packages(wheel, rebuilt)
         source_output = output / "sdist"

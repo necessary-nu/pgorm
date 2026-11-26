@@ -16,7 +16,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, Schema, Sequence};
-use pgorm::{Connection, Transact, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Transact, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
@@ -64,7 +64,7 @@ fn refused_with(error: &Error, state: &SqlState) {
 }
 
 /// Every schema in the database that is not PostgreSQL's own, by name.
-async fn schemas(db: &impl Connection) -> Result<Vec<String>, Error> {
+async fn schemas(db: &impl ConnectionMut) -> Result<Vec<String>, Error> {
     let rows = db
         .query_all(
             "SELECT nspname::text FROM pg_namespace \
@@ -79,7 +79,7 @@ async fn schemas(db: &impl Connection) -> Result<Vec<String>, Error> {
 /// `billing`, created by the builder, and inside it the enum type and the
 /// table pgorm generates from the entity, and a sequence, each qualified by
 /// the schema's name.
-async fn billing(db: &impl Connection) -> Result<(), Error> {
+async fn billing(db: &impl ConnectionMut) -> Result<(), Error> {
     let create = Schema::create(n("billing")).to_string();
     assert_eq!(create, r#"CREATE SCHEMA "billing""#);
     db.batch_execute(&create).await?;
@@ -99,7 +99,7 @@ async fn billing(db: &impl Connection) -> Result<(), Error> {
 }
 
 /// What `billing` holds, by kind and name.
-async fn contents(db: &impl Connection, schema: &str) -> Result<Vec<String>, Error> {
+async fn contents(db: &impl ConnectionMut, schema: &str) -> Result<Vec<String>, Error> {
     let rows = db
         .query_all(
             "SELECT item FROM ( \

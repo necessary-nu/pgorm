@@ -14,8 +14,9 @@ pub mod common;
 
 use futures::TryStreamExt;
 use pgorm::{
-    Column, Connection, DatabaseConnection, Entity, Error, LoadRelated, Paginate, QueryFilter,
-    QueryOrder, Relation, Schema, TryInsertResult, entity::prelude::*, entity::*, query::*,
+    Column, Connection, ConnectionMut, DatabaseConnection, Entity, Error, LoadRelated, Paginate,
+    QueryFilter, QueryOrder, Relation, Schema, TryInsertResult, entity::prelude::*, entity::*,
+    query::*,
 };
 use pretty_assertions::assert_eq;
 

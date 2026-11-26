@@ -1,4 +1,4 @@
-use super::connection::{SqlText, private};
+use super::connection::{SqlText, Writes, private};
 use crate::ValueHolder;
 use pgorm_driver::{Error, types::Type};
 use pgorm_query::Value;
@@ -36,8 +36,11 @@ impl<'a, P> ValueSql<'a, P> {
     }
 }
 
-// [spec:pgorm:def:conn.sql-text+6]
+// [spec:pgorm:def:conn.sql-text+7]
+// [spec:pgorm:def:read-only.kinds]    text a program holds at run time
 impl<P> SqlText for ValueSql<'_, P> {
+    type Kind = Writes;
+
     fn sql_text(&self) -> &str {
         self.sql
     }

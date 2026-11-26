@@ -27,7 +27,7 @@ use crate::errors::FailureJs as _;
 use std::{future::Future, ops::Deref, sync::Arc};
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{Connection, metric::InstrumentedPool, types::ToSql};
+use pgorm::{Connection, ConnectionMut, metric::InstrumentedPool, types::ToSql};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -162,7 +162,7 @@ impl Statement {
     // [spec:pgorm:req:bindings.results+3]
     pub(crate) async fn run<C>(self, db: &C, secrets: &Redactions) -> Result<Outcome, Failure>
     where
-        C: Connection + ?Sized,
+        C: ConnectionMut + ?Sized,
     {
         #[cfg(feature = "turso")]
         let sql = &pgorm::ValueSql::mapped(&self.sql, &self.params, Param::native_value);

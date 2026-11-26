@@ -1,0 +1,66 @@
+error[E0277]: `C` may only read, so it cannot run this write
+ --> tests/read-only-fail/write_through_generic_connection.rs:7:15
+  |
+7 |         .exec(db)
+  |          ---- ^^ this writes, which needs a `ConnectionMut`
+  |          |
+  |          required by a bound introduced by this call
+  |
+  = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+note: required by a bound in `pgorm::executor::update::<impl UpdateMany<E>>::exec`
+ --> src/executor/update.rs
+  |
+  | impl<E> UpdateMany<E>
+...
+  |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+  |     where
+  |         C: ConnectionMut,
+  |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::update::<impl UpdateMany<E>>::exec`
+help: consider further restricting type parameter `C` with trait `ConnectionMut`
+  |
+4 | async fn rename<C: Connection + pgorm::ConnectionMut>(db: &C) -> Result<(), Error> {
+  |                               ++++++++++++++++++++++
+
+error[E0277]: `C` may only read, so it cannot run this write
+ --> tests/read-only-fail/write_through_generic_connection.rs:5:5
+  |
+5 | /     Update::many(cake::Entity)
+6 | |         .col_expr(cake::Column::Name, Expr::value("Lemon"))
+7 | |         .exec(db)
+  | |_________________^ this writes, which needs a `ConnectionMut`
+  |
+  = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+note: required by a bound in `pgorm::executor::update::<impl UpdateMany<E>>::exec`
+ --> src/executor/update.rs
+  |
+  | impl<E> UpdateMany<E>
+...
+  |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+  |     where
+  |         C: ConnectionMut,
+  |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::update::<impl UpdateMany<E>>::exec`
+help: consider further restricting type parameter `C` with trait `ConnectionMut`
+  |
+4 | async fn rename<C: Connection + pgorm::ConnectionMut>(db: &C) -> Result<(), Error> {
+  |                               ++++++++++++++++++++++
+
+error[E0277]: `C` may only read, so it cannot run this write
+ --> tests/read-only-fail/write_through_generic_connection.rs:8:10
+  |
+8 |         .await?;
+  |          ^^^^^ this writes, which needs a `ConnectionMut`
+  |
+  = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+note: required by a bound in `pgorm::executor::update::<impl UpdateMany<E>>::exec`
+ --> src/executor/update.rs
+  |
+  | impl<E> UpdateMany<E>
+...
+  |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+  |     where
+  |         C: ConnectionMut,
+  |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::update::<impl UpdateMany<E>>::exec`
+help: consider further restricting type parameter `C` with trait `ConnectionMut`
+  |
+4 | async fn rename<C: Connection + pgorm::ConnectionMut>(db: &C) -> Result<(), Error> {
+  |                               ++++++++++++++++++++++

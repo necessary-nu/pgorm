@@ -20,9 +20,9 @@ use pgorm::tests_cfg::{
     archive_exhibit, cake, cake_filling, filling, fruit, gallery_exhibit, loan_exhibit, vendor,
 };
 use pgorm::{
-    Column, Connection, DatabaseConnection, Entity, Error, Linked, LinkedAlias, LoadRelated,
-    NoContext, Opt, Paginate, QueryFilter, QueryOrder, QuerySelect, Relation, ScopedIn,
-    SelectGraph, alias,
+    Column, Connection, ConnectionMut, DatabaseConnection, Entity, Error, Linked, LinkedAlias,
+    LoadRelated, NoContext, Opt, Paginate, QueryFilter, QueryOrder, QuerySelect, Relation,
+    ScopedIn, SelectGraph, alias,
 };
 use pgorm_driver::error::SqlState;
 use pgorm_query::{Expr, Expression, IntoCondition};

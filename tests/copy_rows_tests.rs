@@ -15,7 +15,8 @@ use std::str::FromStr;
 
 use futures::{StreamExt, TryStreamExt};
 use pgorm::{
-    Connection, CopyColumn, CopyConnection, DatabaseConnection, DecodeRaw, Error, Transact,
+    Connection, ConnectionMut, CopyColumn, CopyConnection, CopyConnectionMut, DatabaseConnection,
+    DecodeRaw, Error, Transact,
     entity::prelude::*,
     metric::{InstrumentedPool, NoOpMetrics},
     pgorm_query::{
@@ -218,7 +219,7 @@ async fn rows_of<C>(
     copy: &CopyToStatement<CopyBinary>,
 ) -> Result<Vec<Vec<Value>>, Error>
 where
-    C: CopyConnection + Send,
+    C: CopyConnectionMut + Send,
 {
     db.copy_out_rows(copy).await?.try_collect().await
 }
