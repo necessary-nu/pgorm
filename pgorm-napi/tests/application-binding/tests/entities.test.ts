@@ -137,6 +137,8 @@ test("the module names its registrations and describes each, and refuses a name 
     "app.Pallet",
     "app.Parcel",
     "app.Sale",
+    "app.ScopedCompany",
+    "app.ScopedNote",
     "app.Shipment",
     "app.Temper",
     "app.TenantNote",

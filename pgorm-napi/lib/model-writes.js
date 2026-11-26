@@ -7,11 +7,14 @@
 // and `exec_returning_upsert(s)` read them.
 // [spec:pgorm:req:bindings.model-writes+3]
 
+import { arg } from "./builder.js";
 import { runStatement } from "./runs.js";
 import { ConstructionError, DecodeError } from "./errors.js";
 import { columnValue, omissible, saved } from "./model-columns.js";
 import { decodeAll, decodeOne, decodeOptional } from "./model-decode.js";
-import { fieldOf, isModel, shapeOf } from "./model-shape.js";
+import { fieldOf, filled, heldOn, isModel, shapeOf, unscopedJoin } from "./model-shape.js";
+import { native } from "./operations.js";
+import { heldOf } from "./scopes.js";
 import { predicateOf } from "./model-clauses.js";
 import { Conflict, ConflictUpdate } from "./conflicts.js";
 import { change, NEW, OLD, picked, returned, rowsOf, upserted, versions, written } from "./model-rows.js";
@@ -41,6 +44,8 @@ function assignments(shape, values, write) {
       throw new ConstructionError(`${field.field} is generated always: the server writes it`);
     }
   }
+  // [spec:pgorm:req:napi.scopes]    a scope column is written by its insert alone
+  if (write === "update" && shape.scopes.length > 0) native.scopeImmutable(shape.name, shape.scopes, Object.keys(given));
   if (write === "insert") {
     for (const field of shape.fields) {
       const { column } = field;
@@ -110,6 +115,7 @@ class Inserting {
       throw new TypeError("a conflict's action is Conflict.doNothing(), or a target's doNothing() or update(..)");
     }
     const { shape, statement, columns } = this.#state;
+    if (shape.scopes.length > 0) native.scopeUpsert(shape.name, shape.scopes, arg(action));
     const Kind = /** @type {new (...args: unknown[]) => this} */ (this.constructor);
     return new Kind(shape, statement && statement.onConflict(action), columns, action, MADE);
   }
@@ -121,7 +127,18 @@ class Inserting {
    * @param {unknown} values
    */
   add(values) {
-    return this.addMany([values]);
+    return this.#added(null, [values]);
+  }
+
+  /**
+   * Rust's `Insert::add_for`: `add` of a row whose scope columns `cx`
+   * fills.
+   *
+   * @param {unknown} cx
+   * @param {unknown} values
+   */
+  addFor(cx, values) {
+    return this.#added(heldOf(cx), [values]);
   }
 
   /**
@@ -131,9 +148,30 @@ class Inserting {
    * @param {unknown} rows
    */
   addMany(rows) {
+    return this.#added(null, rows);
+  }
+
+  /**
+   * Rust's `Insert::add_many_for`: `addMany` of rows whose scope columns
+   * `cx` fills.
+   *
+   * @param {unknown} cx
+   * @param {unknown} rows
+   */
+  addManyFor(cx, rows) {
+    return this.#added(heldOf(cx), rows);
+  }
+
+  /**
+   * @param {import("./model-shape.js").Held} held
+   * @param {unknown} rows
+   */
+  #added(held, rows) {
     if (!Array.isArray(rows)) throw new TypeError("addMany takes an array of rows");
     const { shape, statement, columns, conflict } = this.#state;
-    return new ModelInsertMany(shape, ...appended(shape, statement, columns, rows, conflict), conflict, MADE);
+    heldOn(shape, held);
+    const rowsFilled = rows.map((row) => filled(shape, held, row));
+    return new ModelInsertMany(shape, ...appended(shape, statement, columns, rowsFilled, conflict), conflict, MADE);
   }
 
   /** @param {...string} fields */
@@ -301,7 +339,10 @@ export class ModelInsertMany extends Inserting {
  * @param {unknown} source
  */
 function sourceOf(source) {
-  return isModel(source) ? shapeOf(source).table : source;
+  if (!isModel(source)) return source;
+  const shape = shapeOf(source);
+  unscopedJoin(shape);
+  return shape.table;
 }
 
 /** A model's UPDATE. */
@@ -518,47 +559,59 @@ function appended(shape, statement, columns, rows, conflict = null) {
 }
 
 /**
- * An INSERT of one row, Rust's `Insert::one`.
+ * An INSERT of one row under `held`, Rust's `Insert::one_for`, or
+ * `Insert::one` under `null`.
  *
  * @param {import("./model-shape.js").Shape} shape
+ * @param {import("./model-shape.js").Held} held
  * @param {unknown} values
  */
-export function insertOne(shape, values) {
-  return new ModelInsert(shape, ...appended(shape, null, null, [values]), null, MADE);
+export function insertOne(shape, held, values) {
+  return new ModelInsert(shape, ...appended(shape, null, null, [filled(shape, held, values)]), null, MADE);
 }
 
 /**
- * An INSERT of every row of `rows`, which set the same fields, Rust's
- * `Insert::many`; no rows writes nothing.
+ * An INSERT of every row of `rows`, which set the same fields, under
+ * `held`, Rust's `Insert::many_for`; no rows writes nothing.
  *
  * @param {import("./model-shape.js").Shape} shape
+ * @param {import("./model-shape.js").Held} held
  * @param {unknown} rows
  */
-export function insertMany(shape, rows) {
+export function insertMany(shape, held, rows) {
   if (!Array.isArray(rows)) throw new TypeError("insertMany takes an array of rows");
-  return new ModelInsertMany(shape, ...appended(shape, null, null, rows), null, MADE);
+  heldOn(shape, held);
+  const rowsFilled = rows.map((row) => filled(shape, held, row));
+  return new ModelInsertMany(shape, ...appended(shape, null, null, rowsFilled), null, MADE);
 }
 
 /**
- * An UPDATE setting the fields `values` names; it needs a `where` or
- * `allRows()` before it runs.
+ * An UPDATE setting the fields `values` names under `held`, its scopes the
+ * update's first condition; it needs a `where` or `allRows()` before it
+ * runs where they add none.
  *
  * @param {import("./model-shape.js").Shape} shape
+ * @param {import("./model-shape.js").Held} held
  * @param {unknown} values
  */
-export function updateSet(shape, values) {
+export function updateSet(shape, held, values) {
+  const scoped = heldOn(shape, held);
   const set = assignments(shape, values, "update");
   if (set.length === 0) throw new ConstructionError("an update sets at least one field");
   let statement = update(shape.table);
   for (const [field, value] of set) statement = statement.set(field.sql, value);
-  return new ModelUpdate(shape, statement, MADE);
+  return new ModelUpdate(shape, scoped === null ? statement : statement.where(scoped), MADE);
 }
 
 /**
- * A DELETE; it needs a `where` or `allRows()` before it runs.
+ * A DELETE under `held`, its scopes the delete's first condition; it needs
+ * a `where` or `allRows()` before it runs where they add none.
  *
  * @param {import("./model-shape.js").Shape} shape
+ * @param {import("./model-shape.js").Held} held
  */
-export function deleteRows(shape) {
-  return new ModelDelete(shape, deleteFrom(shape.table), MADE);
+export function deleteRows(shape, held) {
+  const scoped = heldOn(shape, held);
+  const statement = deleteFrom(shape.table);
+  return new ModelDelete(shape, scoped === null ? statement : statement.where(scoped), MADE);
 }

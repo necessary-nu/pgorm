@@ -92,8 +92,9 @@ fn written<'cx>(
     }
 }
 
-/// `entityInsertJob(entity, actives, conflict, one, answer, attempt)`:
-/// `Insert::one` of the one ActiveModel or `Insert::many` of them all, as
+/// `entityInsertJob(entity, actives, conflict, one, answer, attempt,
+/// scoping)`: `Insert::one_for` of the one ActiveModel or `Insert::many_for`
+/// of them all under the scoping `entityScoping` made, as
 /// the `TryInsert` `on_conflict_do_nothing` or `on_empty_do_nothing` makes
 /// of it with `attempt`, with the conflict clause if given — `"primaryKey"`
 /// for `on_conflict_do_nothing`'s — then the terminal `answer` names, of
@@ -177,10 +178,11 @@ fn insert_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
         one,
         write,
     };
+    let scoping = held!(cx, crate::scopes::ScopingHandle, 6);
     let job: Job = Box::new(move |db, secrets| {
         Box::pin(async move {
             let inserted = entity
-                .insert(db, insertion, &pgorm_bindings::scope::Scoping::default())
+                .insert(db, insertion, &scoping)
                 .await
                 .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Inserted(entity.info().clone(), inserted, attempt)) as Output)

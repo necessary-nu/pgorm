@@ -78,6 +78,18 @@
     "indexes": [],
     "table": "CREATE TABLE \"napi_listings\".\"sales\" ( \"id\" integer NOT NULL, \"price\" integer NOT NULL, PRIMARY KEY (\"id\") )"
   },
+  "app.ScopedCompany": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_scopes\".\"company\" ( \"id\" bigint NOT NULL, \"name\" varchar NOT NULL, PRIMARY KEY (\"id\") )"
+  },
+  "app.ScopedNote": {
+    "comments": [],
+    "enums": [],
+    "indexes": [],
+    "table": "CREATE TABLE \"napi_scopes\".\"note\" ( \"id\" bigserial NOT NULL, \"company_id\" bigint NOT NULL, \"author_id\" bigint NOT NULL, \"body\" varchar NOT NULL, PRIMARY KEY (\"id\"), CONSTRAINT \"fk-note-company_id\" FOREIGN KEY (\"company_id\") REFERENCES \"napi_scopes\".\"company\" (\"id\") )"
+  },
   "app.Shipment": {
     "comments": [],
     "enums": [

@@ -21929,7 +21929,18 @@ children (
             {
                 id scopes.napi
                 title "A JavaScript model's scoped columns hold its statements to a scopes context, checked by TypeScript and refused at build time"
+                implements {
+                    javascript ([spec:pgorm:req:napi.scopes])
+                }
                 deps (scopes.rust trait-names)
+                log (
+                    {
+                        at 2026-11-26T09:06:30.744086Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
 
             {

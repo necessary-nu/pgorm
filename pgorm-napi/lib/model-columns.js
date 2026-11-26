@@ -9,6 +9,7 @@ import { arg, TRUSTED } from "./builder.js";
 import { ConstructionError, DecodeError } from "./errors.js";
 import { Expr, Quantified, all, any, bind, listedValues } from "./expressions.js";
 import { native } from "./operations.js";
+import { Scope } from "./scopes.js";
 import { Select } from "./select.js";
 import { CreatedMultirange, CreatedRange, TypeName, Value } from "./values.js";
 
@@ -19,7 +20,7 @@ const OPTIONS = new Set([
   "name", "nullable", "array", "primaryKey", "default", "generated", "values",
   "columnType", "defaultValue", "defaultExpr", "generatedStored", "generatedVirtual",
   "autoIncrement", "indexed", "comment", "withoutOverlaps",
-  "selectAs", "saveAs", "selectWith", "saveWith", "saveArrayWith", "decode", "encode",
+  "selectAs", "saveAs", "selectWith", "saveWith", "saveArrayWith", "decode", "encode", "scope",
 ]);
 
 /**
@@ -233,6 +234,12 @@ export class Column {
     if (this.saveArrayWith !== null && this.saveWith === null) {
       throw new ConstructionError("saveArrayWith writes an array of the values saveWith writes one of: name saveWith beside it");
     }
+    if (declared.scope !== undefined && !(declared.scope instanceof Scope)) {
+      throw new TypeError('a column\'s scope is a scope("..")');
+    }
+    /** @readonly @type {Scope | null} */
+    this.scope = declared.scope ?? null;
+    if (this.scope !== null) native.scopeColumn(this.nullable, this.array, this.generated !== null);
     checkDdl(this);
     this.#key = native.modelKindKey(kind, this.array);
     /** @readonly @type {Value | null} */

@@ -14,9 +14,10 @@ import { Condition } from "./conditions.js";
 import { ConstructionError } from "./errors.js";
 import { decodeAll, decodeCount, decodeOne, decodeOptional, decodeStream } from "./model-decode.js";
 import { countOf, orderingsOf, predicateOf } from "./model-clauses.js";
-import { fieldOf, projected, qualified, sameTable } from "./model-shape.js";
+import { fieldOf, heldOn, projected, qualified, sameTable } from "./model-shape.js";
 import { native } from "./operations.js";
-import { answering, conditionOf, keyText, Related, relationOn, shapesOf, startOf } from "./relations.js";
+import { keyText } from "./relation-reads.js";
+import { answering, conditionOf, Related, relationOn, shapesOf, startOf } from "./relations.js";
 import { select } from "./select.js";
 
 /** Marks a construction from within the module. */
@@ -42,6 +43,9 @@ const MADE = Symbol("pgorm-napi graph");
  * @property {number | bigint | null} offset
  * @property {boolean} sliced Set by `limit` or `offset`, whatever their value:
  *   the caller has taken charge of the row range.
+ * @property {import("./model-shape.js").Held} held The context the graph is read
+ *   under, which each slot's and hop's join is held to as the root is: `null`
+ *   for a graph built under none.
  */
 
 /** Why each read that decides the row range itself refuses a sliced graph. */
@@ -187,6 +191,9 @@ export class Graph {
     if (extra !== null) {
       on = Condition.all(on, conditionOf(extra(answering(start, left.qualifier), answering(end, qualifier)), "a join's condition"));
     }
+    // [spec:pgorm:req:napi.scopes]    each slot and hop is held to the graph's context in its ON
+    const scoped = heldOn(end, this.#state.held, qualifier);
+    if (scoped !== null) on = Condition.all(on, scoped);
     return this.#with({
       tables: [...tables, { shape: end, qualifier, role, optional }],
       joins: [...joins, { table, on, kind: joinKind ?? (role === "slot" && !optional ? "inner" : "left") }],
@@ -491,18 +498,21 @@ export class Graph {
 }
 
 /**
- * A graph rooted at `shape`.
+ * A graph rooted at `shape`, read under `held`.
  *
  * @param {import("./model-shape.js").Shape} shape
+ * @param {import("./model-shape.js").Held} held
  */
-export function graphOf(shape) {
+export function graphOf(shape, held) {
+  const scoped = heldOn(shape, held);
   return new Graph({
     tables: [{ shape, qualifier: shape.qualifier, role: "root", optional: false }],
     joins: [],
-    wheres: [],
+    wheres: scoped === null ? [] : [scoped],
     orders: [],
     limit: null,
     offset: null,
     sliced: false,
+    held,
   }, MADE);
 }

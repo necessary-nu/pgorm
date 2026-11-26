@@ -38,18 +38,22 @@ export class EntityUpdate {
   #name;
   /** @type {unknown} */
   #active;
+  /** @type {unknown} The Rust scope values it runs under, as `entityScoping` made them. */
+  #scoping;
 
   /**
    * @param {unknown} entity
    * @param {string} name
    * @param {unknown} active
+   * @param {unknown} scoping
    * @param {symbol} token
    */
-  constructor(entity, name, active, token) {
+  constructor(entity, name, active, scoping, token) {
     if (token !== VERSIONS) throw new TypeError("an EntityUpdate comes from an entity's update()");
     this.#entity = entity;
     this.#name = name;
     this.#active = active;
+    this.#scoping = scoping;
   }
 
   /**
@@ -60,7 +64,7 @@ export class EntityUpdate {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async returningChange(db, options) {
-    const outcome = await runJob(db, native.entityChangeJob(this.#entity, this.#active), options);
+    const outcome = await runJob(db, native.entityChangeJob(this.#entity, this.#active, this.#scoping), options);
     const [[old, now]] = versionsOf(this.#name, outcome);
     return Object.freeze({ old, new: now });
   }
@@ -76,20 +80,24 @@ export class EntityUpdateMany {
   #assignments;
   /** @type {Expr | Condition | typeof ALL_ROWS | null} */
   #predicate;
+  /** @type {unknown} The Rust scope values it runs under, as `entityScoping` made them. */
+  #scoping;
 
   /**
    * @param {unknown} entity
    * @param {string} name
    * @param {readonly [string, unknown][]} assignments
    * @param {Expr | Condition | typeof ALL_ROWS | null} predicate
+   * @param {unknown} scoping
    * @param {symbol} token
    */
-  constructor(entity, name, assignments, predicate, token) {
+  constructor(entity, name, assignments, predicate, scoping, token) {
     if (token !== VERSIONS) throw new TypeError("an EntityUpdateMany comes from an entity's updateMany()");
     this.#entity = entity;
     this.#name = name;
     this.#assignments = Object.freeze(assignments);
     this.#predicate = predicate;
+    this.#scoping = scoping;
   }
 
   /**
@@ -101,7 +109,7 @@ export class EntityUpdateMany {
    */
   set(column, value) {
     if (typeof column !== "string") throw new TypeError("a column is named by a string");
-    return new EntityUpdateMany(this.#entity, this.#name, [...this.#assignments, [column, value]], this.#predicate, VERSIONS);
+    return new EntityUpdateMany(this.#entity, this.#name, [...this.#assignments, [column, value]], this.#predicate, this.#scoping, VERSIONS);
   }
 
   /**
@@ -112,12 +120,12 @@ export class EntityUpdateMany {
   where(predicate) {
     const next = predicateOf(predicate);
     const combined = this.#predicate === null || this.#predicate === ALL_ROWS ? next : Condition.all(this.#predicate, next);
-    return new EntityUpdateMany(this.#entity, this.#name, this.#assignments, combined, VERSIONS);
+    return new EntityUpdateMany(this.#entity, this.#name, this.#assignments, combined, this.#scoping, VERSIONS);
   }
 
   /** Every row, said outright. */
   allRows() {
-    return new EntityUpdateMany(this.#entity, this.#name, this.#assignments, ALL_ROWS, VERSIONS);
+    return new EntityUpdateMany(this.#entity, this.#name, this.#assignments, ALL_ROWS, this.#scoping, VERSIONS);
   }
 
   // [spec:pgorm:req:bindings.entity-versions+3]
@@ -135,7 +143,7 @@ export class EntityUpdateMany {
     }
     const assignments = this.#assignments.map(([column, value]) => [column, arg(value)]);
     const predicate = this.#predicate === ALL_ROWS ? Condition.all() : this.#predicate;
-    const job = native.entityChangesJob(this.#entity, assignments, arg(predicate));
+    const job = native.entityChangesJob(this.#entity, assignments, arg(predicate), this.#scoping);
     return versionsOf(this.#name, await runJob(db, job, options)).map(([old, now]) => Object.freeze({ old, new: now }));
   }
 }

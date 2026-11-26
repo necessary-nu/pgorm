@@ -65,6 +65,7 @@ export {
 export { prql, sql } from "./raw-sql.js";
 export { fromStatement, SelectorRaw } from "./raw.js";
 export { Builder } from "./builder.js";
+export { Every, every, Scope, scope, ScopeValue } from "./scopes.js";
 export { LikeExpr, likeExpr } from "./predicates.js";
 export { FromItem, Select, select, Table, With } from "./select.js";
 export { GroupingElement } from "./grouping.js";

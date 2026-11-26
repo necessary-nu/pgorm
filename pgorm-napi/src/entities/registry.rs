@@ -4,12 +4,13 @@
 //! only use the ones compiled in.
 
 use pgorm::{
-    DecodeRow, Disjoint, Entity, GraphItem, GraphRow, IntoActiveModel, NoContext, OneOf, ScopedIn,
-    SelectGraph, pipeline::SourceList,
+    ActiveModelBehavior, DecodeRow, Disjoint, Entity, GraphItem, GraphRow, IntoActiveModel,
+    NoContext, OneOf, Scope, ScopedIn, SelectGraph, pgorm_query::ValueType, pipeline::SourceList,
 };
 use pgorm_bindings::{
     Failure,
     entity::{GraphSlots, SourceTypes},
+    scope::Scoping,
 };
 
 use crate::connect::DIALECT;
@@ -59,7 +60,37 @@ impl Registry {
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
-        self.entity_in(name, E::default())
+        self.0.entity::<E>(name)?;
+        Ok(self)
+    }
+
+    /// Register the Rust scope `S`, so a JavaScript value of its kind
+    /// becomes one in a context; a scoped entity's scopes are registered
+    /// before it, and a scope of a name registered already is refused.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    pub fn scope<S>(&mut self) -> Result<&mut Self, RegistrationError>
+    where
+        S: Scope + ValueType + Send + Sync,
+    {
+        self.0.scope::<S>()?;
+        Ok(self)
+    }
+
+    /// Register the scoped entity `E` under `name`: every statement
+    /// JavaScript builds on it starts from a `For` form given a context
+    /// holding its scopes, and one built without is refused, so it stays
+    /// held to them. Its scopes are registered first; an unscoped entity is
+    /// registered by `entity`.
+    // [spec:pgorm:req:bindings.entities+6]
+    // [spec:pgorm:req:bindings.scopes-registered]
+    pub fn scoped<E>(&mut self, name: &str) -> Result<&mut Self, RegistrationError>
+    where
+        E: Entity + ScopedIn<Scoping> + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: ActiveModelBehavior + Send + Sync + 'static,
+    {
+        self.0.scoped::<E>(name)?;
+        Ok(self)
     }
 
     /// Register `entity`, an instance of an entity whose names are computed

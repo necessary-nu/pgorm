@@ -54,6 +54,7 @@ use crate::{
     connect::job::{JobHandle, Output},
     errors::{Failure, throw},
     rows,
+    scopes::ScopingHandle,
     statements::{self, Ddl, Node},
     values::read,
 };
@@ -183,13 +184,26 @@ impl EntitySource {
 }
 
 /// The registered entity `value` is, as a pipeline source, or `None` when
-/// `value` is no entity.
+/// `value` is no entity; a scoped entity is a source through `fromFor`
+/// alone, and refused here.
+// [spec:pgorm:req:bindings.scopes-registered]
 pub(crate) fn entity_source<'cx>(
     cx: &mut Cx<'cx>,
     value: Handle<'cx, JsValue>,
-) -> Option<EntitySource> {
-    let entity = value.downcast::<JsBox<EntityHandle>, _>(cx).ok()?;
-    Some(EntitySource(entity.0.clone()))
+) -> NeonResult<Option<EntitySource>> {
+    let Ok(entity) = value.downcast::<JsBox<EntityHandle>, _>(cx) else {
+        return Ok(None);
+    };
+    let entity = entity.0.clone();
+    if let Err(failure) = pgorm_bindings::scope::check::<()>(
+        &entity.info().name,
+        &entity.info().scoped,
+        None,
+        DIALECT,
+    ) {
+        return throw(cx, failure);
+    }
+    Ok(Some(EntitySource(entity)))
 }
 
 /// `entityNames(registry)`: every registered entity's name.
@@ -446,13 +460,12 @@ pub(crate) fn pipeline_column(
     }
 }
 
+/// `entityFind(entity, scoping)`: `Entity::find_for` under the scoping
+/// `entityScoping` made.
 fn entity_find(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
-    Ok(cx
-        .boxed(SelectHandle(
-            entity.select(&pgorm_bindings::scope::Scoping::default()),
-        ))
-        .upcast())
+    let scoping = held!(cx, ScopingHandle, 1);
+    Ok(cx.boxed(SelectHandle(entity.select(&scoping))).upcast())
 }
 
 /// `entityActive(entity)`: an ActiveModel from `ActiveModelBehavior::new`,
@@ -655,8 +668,9 @@ fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     }
 }
 
-/// `entityActiveJob(active, write)`: `insert`, `update` or `delete` through
-/// `ActiveModel`, its `ActiveModelBehavior` hooks around it.
+/// `entityActiveJob(active, write, scoping)`: `insert`, `update` or `delete`
+/// through `ActiveModel`, its `ActiveModelBehavior` hooks around it, under
+/// the scoping `entityScoping` made.
 // [spec:pgorm:req:bindings.entity-writes+2]
 fn active_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
@@ -666,10 +680,11 @@ fn active_job(mut cx: FunctionContext) -> JsResult<JsValue> {
         "delete" => Write::Delete,
         _ => return cx.throw_type_error("a write is insert, update or delete"),
     };
+    let scoping = held!(cx, ScopingHandle, 2);
     let job: crate::connect::job::Job = Box::new(move |db, secrets| {
         Box::pin(async move {
             let written = active
-                .run(db, write, &pgorm_bindings::scope::Scoping::default())
+                .run(db, write, &scoping)
                 .await
                 .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Wrote(written)) as Output)

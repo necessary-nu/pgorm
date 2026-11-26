@@ -177,7 +177,7 @@ fn conflict_update(cx: &mut FunctionContext) -> NeonResult<Node> {
 
 /// The completed action `value` holds; an arbiter without its action is
 /// refused.
-pub(super) fn clause<'cx>(
+pub(crate) fn clause<'cx>(
     cx: &mut FunctionContext<'cx>,
     value: Handle<'cx, JsValue>,
 ) -> NeonResult<OnConflict> {

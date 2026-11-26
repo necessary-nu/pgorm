@@ -134,8 +134,9 @@ pub fn unheld(table: &str, scopes: &[&str], label: Option<&str>, dialect: Dialec
         Some(label) => format!("`{table}` is scoped by {list}, which `{label}` does not hold"),
         None => format!(
             "`{table}` is scoped by {list}, which a statement taking no context does not hold: \
-             a statement on `{table}` starts from a `_for` form, given a context holding its \
+             a statement on `{table}` starts from a `{}` form, given a context holding its \
              scopes first: `{}(cx)`, `{}(cx, values)`, `{}(cx, values)`",
+            dialect.option("_for"),
             dialect.option("find_for"),
             dialect.option("insert_for"),
             dialect.option("update_for"),
@@ -368,6 +369,23 @@ pub fn immutable(table: &str, column: &str) -> Failure {
     ))
 }
 
+/// Refuse a declared column holding a scope where it is nullable, an array
+/// or generated: a row is in one value of its scope, which the insert under
+/// its context writes.
+// [spec:pgorm:req:bindings.scopes]
+pub fn check_column(nullable: bool, array: bool, generated: bool) -> Result<(), Failure> {
+    let refusal = if nullable {
+        "a scope column is never NULL: a row is in one value of its scope"
+    } else if array {
+        "a scope column holds one value of its scope, not an array"
+    } else if generated {
+        "a scope column is written by the insert under its context, never generated"
+    } else {
+        return Ok(());
+    };
+    Err(Failure::Construction(refusal.to_owned()))
+}
+
 /// A Rust scope type an application registers, so a program's value of its
 /// kind becomes one: its name, as pgorm names a scope, and the kind its
 /// values are given as, its `ValueType`'s column type.
@@ -575,7 +593,7 @@ mod tests {
             scopes.condition::<i64>(None, Dialect::JavaScript).err(),
             Some(Failure::Construction(
                 "`note` is scoped by `CompanyId` and `UserId`, which a statement taking no \
-                 context does not hold: a statement on `note` starts from a `_for` form, given \
+                 context does not hold: a statement on `note` starts from a `For` form, given \
                  a context holding its scopes first: `findFor(cx)`, `insertFor(cx, values)`, \
                  `updateFor(cx, values)`"
                     .to_owned()

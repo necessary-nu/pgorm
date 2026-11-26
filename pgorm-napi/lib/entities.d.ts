@@ -11,6 +11,7 @@
 import type { Compiled, ComparisonOperand, Expr, Operand, OrderBy, Predicate } from "./expressions.d.ts";
 import type { Conflict, ConflictUpdate } from "./writes.d.ts";
 import type { Change, TryInsertResult, Upserted } from "./models.d.ts";
+import type { ScopeContext } from "./scopes.d.ts";
 import type { Connection, Multirange, OperationOptions, PlainValue, Pool, Queryable, Range, Row, RowStream, Value } from "./index.d.ts";
 
 /** A registered entity's record when no generated module types it: its values by SQL column name. */
@@ -179,8 +180,12 @@ export declare class Entity<T extends EntityTypes<any, any> = EntityTypes> {
   describe(): EntityDescription;
   /** A column as its `pgorm::Column` names it. */
   col<C extends EntityColumnName<T>>(column: C): EntityColumn<ColumnOperand<T, C>>;
-  /** `E::find()`. */
+  /** The scopes the entity declares, by name: none for an unscoped one. */
+  readonly scopes: readonly string[];
+  /** `E::find()`; a scoped entity's is refused, its reads starting from {@link findFor}. */
   find(): EntityQuery<EntityRecordOf<T>>;
+  /** `E::find_for(cx)`: the rows `cx`'s scopes hold. */
+  findFor(cx: ScopeContext): EntityQuery<EntityRecordOf<T>>;
   /** The relation the entity's `Relation` enum declares under `name`, for a query to join. */
   relation(name: string): EntityRelation;
   /** An ActiveModel from `ActiveModelBehavior::new`, its defaults included. */
@@ -193,12 +198,20 @@ export declare class Entity<T extends EntityTypes<any, any> = EntityTypes> {
   tagged(record: EntityRecordOf<T>, column: EntityColumnName<T>): Value;
   /** An update of the ActiveModel's row by its key. */
   update(active: ActiveModel<T>): EntityUpdate<EntityRecordOf<T>>;
+  /** `Update::one_for(cx, active)`: the update by key under `cx`, a row outside its scopes no row. */
+  updateFor(cx: ScopeContext, active: ActiveModel<T>): EntityUpdate<EntityRecordOf<T>>;
   /** An update of every row its condition admits. */
   updateMany(): EntityUpdateMany<T>;
+  /** `Update::many_for(cx, ..)`: `cx`'s scopes are its first condition, so even `allRows()` reaches no row outside them. */
+  updateManyFor(cx: ScopeContext): EntityUpdateMany<T>;
   /** An insert of one ActiveModel, by `Insert::one`. */
   insert(active: ActiveModel<T>): EntityInsert<T>;
+  /** `Insert::one_for(cx, active)`: a scope column the ActiveModel leaves unset is written from `cx`, one set to another value refused. */
+  insertFor(cx: ScopeContext, active: ActiveModel<T>): EntityInsert<T>;
   /** An insert of ActiveModels, by `Insert::many`; a batch of none writes nothing. */
   insertMany(actives: readonly ActiveModel<T>[]): EntityInsertMany<T>;
+  /** `Insert::many_for(cx, actives)`: each row as {@link insertFor} writes one; under `every(..)` each sets that scope's column itself. */
+  insertManyFor(cx: ScopeContext, actives: readonly ActiveModel<T>[]): EntityInsertMany<T>;
 }
 
 /** A registered entity's `Select<E>`. Every method returns a new query. */
@@ -220,6 +233,8 @@ export declare class EntityQuery<R = EntityRecord> {
   optional(db: Queryable, options?: OperationOptions): Promise<R | null>;
   /** The relation's far end joined, by `QuerySelect::join`; the rows stay this entity's records. */
   join(relation: EntityRelation, options?: { readonly kind?: "inner" | "left" | "right" | "full" }): EntityQuery<R>;
+  /** `QuerySelect::join_for`: the relation's far end joined under `cx`, its scopes ANDed into the join's `ON`. */
+  joinFor(cx: ScopeContext, relation: EntityRelation, options?: { readonly kind?: "inner" | "left" | "right" | "full" }): EntityQuery<R>;
   /** The query projected onto `columns`, by `select_only` and `columns`, read as plain records. */
   select(...columns: string[]): EntitySelection;
   /** How many rows the query reads, its limit, offset and ordering aside, by `pgorm::Paginate::count`. */
@@ -313,6 +328,12 @@ export declare class ActiveModel<T extends EntityTypes<any, any> = EntityTypes> 
   update(db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>>;
   /** `pgorm::ActiveModel::delete`: the rows deleted. */
   delete(db: Queryable, options?: OperationOptions): Promise<number>;
+  /** `ActiveModel::insert_for`: the row's scope columns filled from `cx`. */
+  insertFor(cx: ScopeContext, db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>>;
+  /** `ActiveModel::update_for`: a row outside `cx`'s scopes is no row, a `DecodeError`. */
+  updateFor(cx: ScopeContext, db: Queryable, options?: OperationOptions): Promise<EntityRecordOf<T>>;
+  /** `ActiveModel::delete_for`: a row outside `cx`'s scopes is not deleted. */
+  deleteFor(cx: ScopeContext, db: Queryable, options?: OperationOptions): Promise<number>;
 }
 
 /** An update of one ActiveModel's row by its key. */

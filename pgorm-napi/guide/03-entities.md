@@ -566,10 +566,313 @@ column by `"other"`.
 
 ## Scopes
 
-A Rust entity can declare scopes, conditions such as `company_id = $me` that
-every statement on its table is held to and that no statement can be built
-without, as the [Rust guide's Scopes](../../docs/guide/02-entities.md#scopes)
-section shows. The JavaScript binding has no scopes yet: a model declares
-none, and a Rust entity that declares one cannot be registered, since a
-registration's statements take no context, so its registration does not
-compile.
+Some tables are read only under a condition the program supplies: a
+company's notes by its members, a user's notes by that user. Forgetting the
+condition once lets a statement read another company's rows. A *scope*
+holds a table's statements to it: every statement on a scoped model is
+built from a *context* holding its scopes, and every way to build one
+without such a context is refused as the statement is built, before
+anything is sent, in the words the [Rust guide's
+Scopes](../../docs/guide/02-entities.md#scopes) section shows Rust's compiler
+using. pgorm writes the condition; holding the rows to it in the database,
+with row-level security or otherwise, stays the program's.
+
+Here JavaScript differs from Rust: JavaScript has no compile time, so where
+Rust's compiler stops a statement, the builder throws a `ConstructionError`
+as the statement is built. TypeScript catches most of it before then: a
+scoped model's forms taking no context, a context missing one of its scopes,
+and a plain join into a scoped model are type errors.
+
+### Declaring scopes
+
+`scope("CompanyId")` declares a scope, named as Rust names one by its type.
+A column holds a scope where its options say so with `scope`, and the
+column's kind converts the scope's values as it converts a value written to
+it. A column's kind alone never makes it a scope column:
+
+```ts
+import assert from "node:assert/strict";
+import { column, model, scope } from "@necessary/pgorm";
+
+const CompanyId = scope("CompanyId");
+const UserId = scope("UserId");
+
+const Note = model("note", {
+  columns: {
+    id: column("i64", { primaryKey: true, generated: "byDefault" }),
+    companyId: column("i64", { name: "company_id", scope: CompanyId }),
+    authorId: column("i64", { name: "author_id", scope: UserId }),
+    body: column("text"),
+  },
+});
+
+assert.deepEqual(Note.scopes, ["CompanyId", "UserId"]);
+// A scope column is never NULL: a row is in one value of its scope.
+assert.throws(() => column("i64", { scope: UserId, nullable: true }), /never NULL/);
+```
+
+A model holds each scope in one column. A scope column is written when its
+row is inserted and never changed after, since a row cannot leave its
+scope; a nullable, array or generated one is refused where it is declared.
+A primary key can be a scope column too: a company's `id` is a `CompanyId`,
+so a member reads their own company's row and no other.
+
+### Contexts
+
+A *context* is what a statement on a scoped model is built under. Calling a
+scope makes a value of it, `CompanyId(1n)`, and a value is a context holding
+itself; a plain object of values is a context holding each of them.
+`every(UserId)` holds every value of `UserId`: the context lifts that scope
+on purpose, and the statement gets no condition for it. A member is signed
+in to one company as one user, and a company's administrator sees every one
+of its users:
+
+```ts
+import assert from "node:assert/strict";
+import { column, every, model, scope } from "@necessary/pgorm";
+
+const CompanyId = scope("CompanyId");
+const UserId = scope("UserId");
+
+const Company = model("company", {
+  columns: { id: column("i64", { primaryKey: true, scope: CompanyId }), name: column("text") },
+});
+const Note = model("note", {
+  columns: {
+    id: column("i64", { primaryKey: true, generated: "byDefault" }),
+    companyId: column("i64", { name: "company_id", scope: CompanyId }),
+    authorId: column("i64", { name: "author_id", scope: UserId }),
+    body: column("text"),
+  },
+});
+
+const ada = { company: CompanyId(1n), user: UserId(10n) };
+const admin = { company: CompanyId(1n), users: every(UserId) };
+assert.equal(
+  Note.findFor(ada).inspect().sql,
+  `SELECT "note"."id", "note"."company_id", "note"."author_id", "note"."body" FROM "note" WHERE "note"."company_id" = $1 AND "note"."author_id" = $2`,
+);
+assert.equal(
+  Note.findFor(admin).inspect().sql,
+  `SELECT "note"."id", "note"."company_id", "note"."author_id", "note"."body" FROM "note" WHERE "note"."company_id" = $1`,
+);
+// A scope's value alone is a context, and the company's key is its scope.
+assert.equal(
+  Company.findFor(CompanyId(1n)).inspect().sql,
+  `SELECT "company"."id", "company"."name" FROM "company" WHERE "company"."id" = $1`,
+);
+```
+
+A context holds each scope once, as one value or as every value; an object
+holding one twice is refused when a statement is built under it. A context
+is a scope's value, an `every(..)` or an object of them, and anything else is
+a `TypeError`.
+
+### Every statement takes its context first
+
+Each statement constructor has a form ending in `For` that takes the
+context first: a model's `selectFor`, `findFor`, `findByKeyFor`, `graphFor`,
+`insertFor`, `insertManyFor`, `updateFor` and `deleteFor`; an insert's
+`addFor` and `addManyFor`, and a try-insert's; an active model's
+`insertFor`, `updateFor` and `deleteFor`; a query's `joinFor` and
+`joinRevFor`; a relation's and a related path's `findFor`; a linked chain's
+`findFor` and `findLinkedFor`; and `pipeline.fromFor`. An unscoped model
+takes any context, and its forms taking none are the ones it always had.
+
+On a scoped model, the forms taking no context are refused, and so is a
+`For` form given a context missing one of its scopes:
+
+```ts
+import assert from "node:assert/strict";
+import { column, model, scope } from "@necessary/pgorm";
+
+const CompanyId = scope("CompanyId");
+const UserId = scope("UserId");
+
+const Note = model("note", {
+  columns: {
+    id: column("i64", { primaryKey: true, generated: "byDefault" }),
+    companyId: column("i64", { name: "company_id", scope: CompanyId }),
+    authorId: column("i64", { name: "author_id", scope: UserId }),
+    body: column("text"),
+  },
+});
+
+// @ts-expect-error: a scoped model's find() takes a context: findFor(cx)
+assert.throws(() => Note.find(), {
+  message:
+    "`note` is scoped by `CompanyId` and `UserId`, which a statement taking no context does not hold: a statement on `note` starts from a `For` form, given a context holding its scopes first: `findFor(cx)`, `insertFor(cx, values)`, `updateFor(cx, values)`",
+});
+// @ts-expect-error: the context holds no UserId
+assert.throws(() => Note.findFor(CompanyId(1n)), {
+  message: "`note` is scoped by `CompanyId` and `UserId`, which `CompanyId` does not hold",
+});
+```
+
+The refusal names the table, its scopes and the context, as Rust's compile
+error names the entity and the context's type. Each `@ts-expect-error` is
+TypeScript's own refusal of the same call: a model's columns carry the scopes
+they hold, so `find` is typed for a model holding none, and `findFor` for a
+context holding every scope the model's columns name. A loader is given a
+query rather than a model: hand a relation's `load` a `findFor` query, since
+the model alone is every row and is refused for a scoped one.
+
+### Reading and joining
+
+A read ANDs each scope its context holds the value of into the `WHERE`, so
+Ada reads her own notes and the administrator reads the company's. A graph
+keeps its context, and each slot's scopes go in its join's `ON`; a query's
+`joinFor` puts the joined table's there too, and a plain `join` into a
+scoped table is refused:
+
+```ts
+import assert from "node:assert/strict";
+import { column, DecodeError, every, fromModel, model, scope } from "@necessary/pgorm";
+
+const CompanyId = scope("CompanyId");
+const UserId = scope("UserId");
+
+const Company = model("company", {
+  columns: { id: column("i64", { primaryKey: true, scope: CompanyId }), name: column("text") },
+});
+const Note = model("note", {
+  columns: {
+    id: column("i64", { primaryKey: true, generated: "byDefault" }),
+    companyId: column("i64", { name: "company_id", scope: CompanyId }),
+    authorId: column("i64", { name: "author_id", scope: UserId }),
+    body: column("text"),
+  },
+});
+const companyNotes = Company.hasMany(Note, { from: "id", to: "companyId" });
+
+for (const declared of [Company, Note]) await pool.execute(fromModel(declared).table);
+for (const [id, name] of [[1n, "Acme"], [2n, "Globex"]] as const) {
+  await Company.insertFor(CompanyId(id), { name }).execute(pool);
+}
+for (const [company, user, body] of [[1n, 10n, "Ada's plan"], [1n, 11n, "Bo's draft"], [2n, 20n, "Cy's memo"]] as const) {
+  await Note.insertFor({ company: CompanyId(company), user: UserId(user) }, { body }).execute(pool);
+}
+
+const ada = { company: CompanyId(1n), user: UserId(10n) };
+const admin = { company: CompanyId(1n), users: every(UserId) };
+const hers = await Note.findFor(ada).all(pool);
+assert.deepEqual(hers.map((note) => note.body), ["Ada's plan"]);
+const theirs = await Note.findFor(admin).orderBy(Note.col("id").asc()).all(pool);
+assert.equal(theirs.length, 2, "Ada's and Bo's notes, and not Globex's");
+
+// Cy's note belongs to Globex, so Ada finds no note of its key.
+await assert.rejects(Note.findByKeyFor(ada, { id: 3n }).one(pool), DecodeError);
+
+// A graph keeps its context, and each slot's scopes go in its join's ON.
+const acme = await Company.graphFor(ada).joinMaybe(companyNotes).all(pool);
+assert.deepEqual(acme.map(([company, note]) => [company.name, note?.authorId]), [["Acme", 10n]]);
+
+assert.equal((await Company.findFor(ada).joinFor(ada, companyNotes).all(pool)).length, 1);
+// @ts-expect-error: a scoped model joins by joinFor
+assert.throws(() => Company.findFor(ada).join(companyNotes), /join it with a form taking the statement's context, such as `joinFor`/);
+```
+
+A pipeline reads a scoped model through `pipeline.fromFor`, which filters
+its rows by each scope value the context holds, binding the value; the model
+given to `pipeline.from` or as a join's source is refused, and another scoped
+model joins the pipeline as a pipeline of its own, `pipeline.fromFor(cx,
+other)`.
+
+### Writing
+
+An insert under a context fills each scope column the row leaves out with
+the value the context holds, and refuses a row setting one to another value.
+Under `every` of a scope the insert fills nothing: the row sets the column
+itself, and a row that does not is refused.
+
+An update or a delete under a context carries the scopes in its `WHERE`,
+before any condition of its own, so a row outside them matches nothing: an
+active model's `updateFor` of such a key is a `DecodeError`, as Rust's
+`RecordNotFound` is, and a delete counts `0`. A scope column is written when
+its row is inserted and never changed after: an update setting one, and an
+upsert whose `ON CONFLICT .. DO UPDATE` names one, are refused before
+anything is sent.
+
+```ts
+import assert from "node:assert/strict";
+import { column, DecodeError, every, fromModel, model, scope } from "@necessary/pgorm";
+
+const CompanyId = scope("CompanyId");
+const UserId = scope("UserId");
+
+const Note = model("note", {
+  columns: {
+    id: column("i64", { primaryKey: true, generated: "byDefault" }),
+    companyId: column("i64", { name: "company_id", scope: CompanyId }),
+    authorId: column("i64", { name: "author_id", scope: UserId }),
+    body: column("text"),
+  },
+});
+
+await pool.execute(fromModel(Note).table);
+const ada = { company: CompanyId(1n), user: UserId(10n) };
+const bo = { company: CompanyId(1n), user: UserId(11n) };
+const admin = { company: CompanyId(1n), users: every(UserId) };
+await Note.insertFor(bo, { body: "Bo's draft" }).execute(pool);
+
+const written = await Note.insertFor(ada, { body: "Ada's plan" }).returning().one(pool);
+assert.deepEqual([written.companyId, written.authorId], [1n, 10n]);
+assert.throws(
+  () => Note.insertFor(ada, { companyId: 2n, body: "for Globex" }),
+  /the row sets `note`.`company_id` to a value outside the context's `CompanyId`/,
+);
+assert.throws(
+  () => Note.insertFor(admin, { body: "whose?" }),
+  /the context holds every `UserId`, so the row sets `note`.`author_id` itself/,
+);
+
+// Bo's note is the company's, so the administrator edits it and Ada cannot.
+const edit = Note.active({ id: 1n, body: "Bo's draft, reviewed" });
+await assert.rejects(edit.updateFor(ada, pool), DecodeError);
+assert.equal((await edit.updateFor(admin, pool)).body, "Bo's draft, reviewed");
+
+// Handing Bo's note to Ada would move it out of Bo's scope.
+assert.throws(
+  // @ts-expect-error: a scope field is never updated
+  () => Note.updateFor(admin, { authorId: 10n }),
+  /`note`.`author_id` is written when its row is inserted and never changed/,
+);
+assert.equal(await Note.deleteFor(ada).where(Note.col("id").eq(1n)).execute(pool), 0);
+```
+
+A scope written by hand, Rust's `ScopeOn` with a condition of its own such
+as a message's sender or recipient, is Rust's alone: a declared model's
+scopes are its scope columns. A declared disjoint model or one-of reference
+reads its models under no context, so one over a scoped model is refused as
+it is declared.
+
+### Registered entities
+
+A Rust entity that declares scopes stays held to them from JavaScript. The
+application crate registers each scope type before the entity, and the
+entity by `scoped` rather than `entity`:
+
+```rust
+registry.scope::<notes::CompanyId>()?;
+registry.scope::<notes::UserId>()?;
+registry.scoped::<notes::note::Entity>("app.Note")?;
+```
+
+A context names a registered scope by its Rust type's name, so
+`scope("CompanyId")` is the Rust `CompanyId`, its value converted by its
+`ValueType`. Every statement on the registration is the Rust entity's own
+`_for` form under that context: `findFor`, `insertFor`, `insertManyFor`,
+`updateFor`, `updateManyFor`, an active model's `insertFor`, `updateFor` and
+`deleteFor`, a query's `joinFor` and `pipeline.fromFor`, its written scopes
+included. The forms taking no context are refused as they are built, as a
+declared model's are, and a registration's `scopes` lists the scopes its
+entity declares. A graph, a source tuple, a disjoint enum and a one-of
+reference register over unscoped entities alone. [Registered Rust
+entities](24-registered-entities.md) says how to build such a module.
+
+### Raw SQL
+
+SQL text with its parameters, `findByStatement` and the statement builders
+used directly are outside scopes: pgorm does not read the SQL they hold. A
+read meant to cross scopes, such as a report over every company, is written
+with them.

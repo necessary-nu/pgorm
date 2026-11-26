@@ -12,9 +12,10 @@ import { Condition } from "./conditions.js";
 import { ConstructionError } from "./errors.js";
 import { Expr, OrderBy } from "./expressions.js";
 import { cursorOver, paginatorOver } from "./cursors.js";
-import { fieldOf, projected, qualified, sameTable } from "./model-shape.js";
+import { fieldOf, heldOn, projected, qualified, sameTable, unscopedJoin } from "./model-shape.js";
 import { native } from "./operations.js";
 import { relationOn, shapesOf, startOf } from "./relation-parts.js";
+import { heldOf } from "./scopes.js";
 import { Select, select } from "./select.js";
 
 const JOINS = ["inner", "left", "right", "full"];
@@ -251,18 +252,26 @@ export class Clauses {
    * Join the table at the other end of `relation`, from the query's model or
    * a table it joined, without reading its columns: what a condition on a
    * related row needs. The join starts from the first table of the
-   * relation's model the query reads, or the one its `fromAlias` names.
+   * relation's model the query reads, or the one its `fromAlias` names. A
+   * scoped far end is joined by `joinFor`.
    *
    * @param {import("./relations.js").Relation} relation
    * @param {{ kind?: "inner" | "left" | "right" | "full", alias?: string }} [options]
    */
-  join(relation, { kind = "inner", alias } = {}) {
-    const [from, to] = shapesOf(relation);
-    const start = this.#start(from, "starts", kind, startOf(relation));
-    const qualifier = alias ?? to.qualifier;
-    const table = alias === undefined ? to.table : to.table.as(alias);
-    const on = relationOn(relation, start, qualifier);
-    return this.#with({ joins: [...this.#recipe.joins, { table, on, kind, shape: to, qualifier }] });
+  join(relation, options) {
+    return this.#join(null, relation, options, false);
+  }
+
+  /**
+   * Rust's `join_for`: `join` with the far end's scopes, as `cx` holds them,
+   * ANDed into the join's `ON`.
+   *
+   * @param {unknown} cx
+   * @param {import("./relations.js").Relation} relation
+   * @param {{ kind?: "inner" | "left" | "right" | "full", alias?: string }} [options]
+   */
+  joinFor(cx, relation, options) {
+    return this.#join(heldOf(cx), relation, options, false);
   }
 
   /**
@@ -273,13 +282,40 @@ export class Clauses {
    * @param {import("./relations.js").Relation} relation
    * @param {{ kind?: "inner" | "left" | "right" | "full", alias?: string }} [options]
    */
-  joinRev(relation, { kind = "inner", alias } = {}) {
+  joinRev(relation, options) {
+    return this.#join(null, relation, options, true);
+  }
+
+  /**
+   * Rust's `join_rev_for`: `joinRev` with the joined table's scopes, as `cx`
+   * holds them, ANDed into the join's `ON`.
+   *
+   * @param {unknown} cx
+   * @param {import("./relations.js").Relation} relation
+   * @param {{ kind?: "inner" | "left" | "right" | "full", alias?: string }} [options]
+   */
+  joinRevFor(cx, relation, options) {
+    return this.#join(heldOf(cx), relation, options, true);
+  }
+
+  // [spec:pgorm:req:napi.scopes]
+  /**
+   * @param {import("./model-shape.js").Held} held
+   * @param {import("./relations.js").Relation} relation
+   * @param {{ kind?: "inner" | "left" | "right" | "full", alias?: string }} options
+   * @param {boolean} reverse
+   */
+  #join(held, relation, { kind = "inner", alias } = {}, reverse) {
     const [from, to] = shapesOf(relation);
-    const start = this.#start(to, "ends", kind);
-    const qualifier = alias ?? from.qualifier;
-    const table = alias === undefined ? from.table : from.table.as(alias);
-    const on = relationOn(relation, qualifier, start);
-    return this.#with({ joins: [...this.#recipe.joins, { table, on, kind, shape: from, qualifier }] });
+    const start = reverse ? this.#start(to, "ends", kind) : this.#start(from, "starts", kind, startOf(relation));
+    const end = reverse ? from : to;
+    const qualifier = alias ?? end.qualifier;
+    const table = alias === undefined ? end.table : end.table.as(alias);
+    let on = reverse ? relationOn(relation, qualifier, start) : relationOn(relation, start, qualifier);
+    if (held === null) unscopedJoin(end);
+    const scoped = heldOn(end, held, qualifier);
+    if (scoped !== null) on = Condition.all(on, scoped);
+    return this.#with({ joins: [...this.#recipe.joins, { table, on, kind, shape: end, qualifier }] });
   }
 
   /**

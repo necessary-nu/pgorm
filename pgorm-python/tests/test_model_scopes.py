@@ -114,6 +114,7 @@ class Construction(unittest.TestCase):
             lambda: Note.find_by_key({"id": 1}),
             lambda: Note.insert({"body": "x"}),
             lambda: Note.insert_many([{"body": "x"}]),
+            lambda: Note.insert_many([]),
             lambda: Note.update({"body": "x"}),
             lambda: Note.delete(),
             lambda: Note.graph(),

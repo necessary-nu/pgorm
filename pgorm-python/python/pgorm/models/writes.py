@@ -160,6 +160,7 @@ class _Insert(_Write[p.Insert | None]):
     ) -> ModelInsertMany:
         if not isinstance(rows, (list, tuple)):
             raise TypeError("add_many takes a list or tuple of rows")
+        self.model._held(cx)
         filled = [self.model._filled(cx, row) for row in rows]
         statement, fields = appended(self.model, self.statement, self.fields, filled, self.conflict)
         return ModelInsertMany(self.model, statement, fields, self.conflict)

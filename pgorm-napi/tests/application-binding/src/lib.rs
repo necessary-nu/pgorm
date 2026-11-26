@@ -11,6 +11,7 @@ pub mod listings;
 pub mod membership;
 pub mod note;
 pub mod parcel;
+pub mod scoped;
 pub mod shipping;
 pub mod sources;
 pub mod temper;
@@ -53,6 +54,11 @@ pub fn registry() -> Result<Registry, RegistrationError> {
     registry.entity::<listings::auction::Entity>("app.Auction")?;
     registry.entity::<listings::sale::Entity>("app.Sale")?;
     registry.disjoint::<listings::listing::Listing>("app.Listings")?;
+    // [spec:pgorm:req:bindings.scopes-registered/test]    a scoped entity registers after its scopes, by scoped
+    registry.scope::<scoped::CompanyId>()?;
+    registry.scope::<scoped::UserId>()?;
+    registry.scoped::<scoped::company::Entity>("app.ScopedCompany")?;
+    registry.scoped::<scoped::note::Entity>("app.ScopedNote")?;
     graphs::register(&mut registry)?;
     sources::register(&mut registry)?;
     Ok(registry)
@@ -131,6 +137,17 @@ mod tests {
                 .one_of::<labels::label::Labelled>("app.Others")
                 .is_err()
         );
+        // [spec:pgorm:req:bindings.scopes-registered/test]    a scoped entity before its scopes, an unscoped one by scoped, and a scope named twice are each refused
+        assert!(
+            registry
+                .scoped::<scoped::note::Entity>("app.ScopedNote")
+                .is_err()
+        );
+        registry.scope::<scoped::CompanyId>()?;
+        assert!(registry.scope::<scoped::CompanyId>().is_err());
+        registry.scope::<scoped::UserId>()?;
+        assert!(registry.scoped::<account::Entity>("app.Scoped").is_err());
+        registry.scoped::<scoped::note::Entity>("app.ScopedNote")?;
         graphs::register(&mut Registry::default()).expect_err("graphs need their entities");
         assert!(
             registry

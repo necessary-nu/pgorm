@@ -364,6 +364,7 @@ class Model[S: Scope[Any] = Any]:
 
         if not isinstance(rows, (list, tuple)):
             raise TypeError("insert_many takes a list or tuple of rows")
+        self._held(cx)
         filled = [self._filled(cx, row) for row in rows]
         statement, fields = appended(self, None, None, filled)
         return ModelInsertMany(self, statement, fields)

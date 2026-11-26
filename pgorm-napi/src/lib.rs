@@ -23,6 +23,7 @@ mod probes;
 mod raw;
 mod rows;
 mod runtime;
+mod scopes;
 mod settle;
 mod statements;
 mod values;
@@ -57,6 +58,7 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
     values::export(cx)?;
     statements::export(cx)?;
     models::export(cx)?;
+    scopes::export(cx)?;
     entities::install(cx, registry)?;
     disjoint::export(cx)?;
     migration_file::export(cx)?;

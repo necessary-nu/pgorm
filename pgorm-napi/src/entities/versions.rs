@@ -28,11 +28,12 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
 fn versions_job(
     entity: std::sync::Arc<dyn super::EntityBackend>,
     write: VersionWrite,
+    scoping: std::sync::Arc<pgorm_bindings::scope::Scoping>,
 ) -> JobHandle {
     let job: Job = Box::new(move |db, secrets| {
         Box::pin(async move {
             let versions = entity
-                .versions(db, write, &pgorm_bindings::scope::Scoping::default())
+                .versions(db, write, &scoping)
                 .await
                 .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(VersionRows(entity.info().clone(), versions)) as Output)
@@ -56,16 +57,18 @@ fn own_active(cx: &mut FunctionContext, index: usize) -> NeonResult<Active> {
     Ok(active)
 }
 
-/// `entityChangeJob(entity, active)`: `Update::one(active)
-/// .exec_returning_change`.
+/// `entityChangeJob(entity, active, scoping)`: `Update::one_for(scoping,
+/// active).exec_returning_change`.
 // [spec:pgorm:req:bindings.entity-versions+3]
 fn change_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
     let entity = held!(cx, super::EntityHandle, 0);
     let active = own_active(&mut cx, 1)?;
-    Ok(cx.boxed(versions_job(entity, VersionWrite::Change(active))))
+    let scoping = held!(cx, crate::scopes::ScopingHandle, 2);
+    Ok(cx.boxed(versions_job(entity, VersionWrite::Change(active), scoping)))
 }
 
-/// `entityChangesJob(entity, assignments, predicate)`: `Update::many`, each
+/// `entityChangesJob(entity, assignments, predicate, scoping)`:
+/// `Update::many_for`, each
 /// assignment `[column, value]` written through the column's `save_as` or
 /// an expression as written, filtered by the predicate, then
 /// `exec_returning_changes`.
@@ -93,8 +96,10 @@ fn changes_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
     }
     let predicate = cx.argument::<JsValue>(2)?;
     let filter = condition(&mut cx, predicate)?;
+    let scoping = held!(cx, crate::scopes::ScopingHandle, 3);
     Ok(cx.boxed(versions_job(
         entity,
         VersionWrite::Changes(assignments, filter),
+        scoping,
     )))
 }

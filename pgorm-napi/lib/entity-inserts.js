@@ -82,6 +82,8 @@ export class Inserted {
   #conflict;
   /** @type {boolean} */
   #tried;
+  /** @type {unknown} The Rust scope values the insert runs under, as `entityScoping` made them. */
+  #scoping;
 
   /**
    * @param {unknown} entity
@@ -90,8 +92,9 @@ export class Inserted {
    * @param {readonly unknown[]} actives
    * @param {Conflict | ConflictUpdate | typeof PRIMARY_KEY | null} conflict
    * @param {boolean} tried
+   * @param {unknown} scoping
    */
-  constructor(entity, name, columns, actives, conflict, tried) {
+  constructor(entity, name, columns, actives, conflict, tried, scoping) {
     uniform(actives, columns);
     this.#entity = entity;
     this.#name = name;
@@ -99,6 +102,7 @@ export class Inserted {
     this.#actives = Object.freeze([...actives]);
     this.#conflict = conflict;
     this.#tried = tried;
+    this.#scoping = scoping;
   }
 
   /**
@@ -111,7 +115,7 @@ export class Inserted {
     if (!(action instanceof Conflict) && !(action instanceof ConflictUpdate)) {
       throw new TypeError("a conflict's action is Conflict.doNothing(), or a target's doNothing() or update(..)");
     }
-    return new Inserted(this.#entity, this.#name, this.#columns, this.#actives, action, this.#tried);
+    return new Inserted(this.#entity, this.#name, this.#columns, this.#actives, action, this.#tried, this.#scoping);
   }
 
   /**
@@ -123,7 +127,7 @@ export class Inserted {
    */
   attempted(key) {
     const conflict = key ? PRIMARY_KEY : this.#conflict;
-    return new Inserted(this.#entity, this.#name, this.#columns, this.#actives, conflict, true);
+    return new Inserted(this.#entity, this.#name, this.#columns, this.#actives, conflict, true, this.#scoping);
   }
 
   /**
@@ -137,7 +141,7 @@ export class Inserted {
     if (!Array.isArray(actives)) throw new TypeError("addMany takes an array of ActiveModels");
     const owned = actives.map((active) => ownActive(active, this.#name));
     const all = [...this.#actives, ...owned];
-    return new Inserted(this.#entity, this.#name, this.#columns, all, this.#conflict, this.#tried);
+    return new Inserted(this.#entity, this.#name, this.#columns, all, this.#conflict, this.#tried, this.#scoping);
   }
 
   /**
@@ -151,7 +155,7 @@ export class Inserted {
    */
   async run(one, answer, db, options) {
     const conflict = this.#conflict === null ? null : this.#conflict === PRIMARY_KEY ? "primaryKey" : arg(this.#conflict);
-    const job = native.entityInsertJob(this.#entity, this.#actives, conflict, one, answer, this.#tried);
+    const job = native.entityInsertJob(this.#entity, this.#actives, conflict, one, answer, this.#tried, this.#scoping);
     return await runJob(db, job, options);
   }
 
@@ -438,7 +442,8 @@ export class EntityInsertMany {
  * @param {string} name
  * @param {readonly string[]} columns
  * @param {readonly unknown[]} actives
+ * @param {unknown} scoping The Rust scope values it runs under, as `entityScoping` made them.
  */
-export function inserted(entity, name, columns, actives) {
-  return new Inserted(entity, name, columns, actives, null, false);
+export function inserted(entity, name, columns, actives, scoping) {
+  return new Inserted(entity, name, columns, actives, null, false, scoping);
 }

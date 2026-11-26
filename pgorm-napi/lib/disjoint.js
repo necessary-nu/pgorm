@@ -29,6 +29,13 @@ import { TypeName } from "./values.js";
 export function modelOf(model, what) {
   if (!(model instanceof Model)) throw new TypeError(`${what} is a Model`);
   const shape = shapeOf(model);
+  // [spec:pgorm:req:napi.scopes]    a declaration whose reads take no context is over unscoped models
+  if (shape.scopes.length > 0) {
+    throw new ConstructionError(
+      `${what}, ${shape.name}, is scoped by ${shape.scopes.map(([, , name]) => name).join(", ")}, and a declared ` +
+        "disjoint model or one-of reference reads it under no context: declare it over unscoped models",
+    );
+  }
   if (shape.alias !== null) {
     throw new ConstructionError(`${what} reads its table by its name: a disjoint read names each table bare`);
   }

@@ -4187,6 +4187,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
+    {id scopes.napi, covered_rules (
+        napi.scopes
+    ), covered_claims (
+        {impl_name javascript, rule napi.scopes}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

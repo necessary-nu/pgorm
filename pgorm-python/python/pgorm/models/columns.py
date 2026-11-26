@@ -231,15 +231,7 @@ class Column[S: Scope[Any] = Never]:
         if self.scope is None:
             return
         scope_name(self.scope)
-        if self.nullable:
-            raise p.ConstructionError("a scope column is never NULL: a row is in one value of its scope")
-        if self.array:
-            raise p.ConstructionError("a scope column holds one value of its scope, not an array")
-        generated = (self.generated, self.generated_stored, self.generated_virtual)
-        if generated != (None, None, None):
-            raise p.ConstructionError(
-                "a scope column is written by the insert under its context, never generated"
-            )
+        p._ModelScopes.column(self)
 
     def _check_ddl(self) -> None:
         """Refuse what the column's DDL options cannot say of its kind."""

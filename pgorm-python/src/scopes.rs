@@ -223,6 +223,18 @@ impl PyModelScopes {
         self.inner.upsert(&conflict_clause(action)?).py()
     }
 
+    /// Refuse `column`, a `pgorm.Column` declared to hold a scope, where it
+    /// is nullable, an array or generated, an identity or by either of its
+    /// generated expressions.
+    #[staticmethod]
+    fn column(column: &Bound<'_, PyAny>) -> PyResult<()> {
+        let set = |option: &str| -> PyResult<bool> { Ok(!column.getattr(option)?.is_none()) };
+        let generated = set("generated")? || set("generated_stored")? || set("generated_virtual")?;
+        let nullable = column.getattr("nullable")?.is_truthy()?;
+        let array = column.getattr("array")?.is_truthy()?;
+        scope::check_column(nullable, array, generated).py()
+    }
+
     /// Refuse a join into the table by a form taking no context, where the
     /// table is scoped.
     fn join(&self) -> PyResult<()> {

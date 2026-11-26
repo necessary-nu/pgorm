@@ -122,8 +122,29 @@ export class ModelActive {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async insert(db, options) {
+    return await this.#insert((values) => this.#model.insert(values), db, options);
+  }
+
+  /**
+   * `pgorm::ActiveModel::insert_for`: `insert` with the row's scope columns
+   * filled from `cx`, after `beforeSave` has had it.
+   *
+   * @param {unknown} cx
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async insertFor(cx, db, options) {
+    return await this.#insert((values) => this.#model.insertFor(cx, values), db, options);
+  }
+
+  /**
+   * @param {(values: Record<string, unknown>) => any} insert
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async #insert(insert, db, options) {
     const values = await this.#before("beforeSave", true);
-    const record = await this.#model.insert(values).returning().one(db, options);
+    const record = await insert(values).returning().one(db, options);
     return await this.#saved(record, true);
   }
 
@@ -137,10 +158,31 @@ export class ModelActive {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async update(db, options) {
+    return await this.#update((changes) => this.#model.update(changes), db, options);
+  }
+
+  /**
+   * `pgorm::ActiveModel::update_for`: `update` of the row the key names
+   * where `cx`'s scopes hold it, a row outside them no row.
+   *
+   * @param {unknown} cx
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async updateFor(cx, db, options) {
+    return await this.#update((changes) => this.#model.updateFor(cx, changes), db, options);
+  }
+
+  /**
+   * @param {(changes: Record<string, unknown>) => any} update
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async #update(update, db, options) {
     const values = await this.#before("beforeSave", false);
     const key = this.#key(values, "update");
     const changes = Object.fromEntries(Object.entries(values).filter(([field]) => !Object.hasOwn(key, field)));
-    const rows = await this.#model.update(changes).where(this.#model.key(key)).returning().all(db, options);
+    const rows = await update(changes).where(this.#model.key(key)).returning().all(db, options);
     if (rows.length !== 1) throw new DecodeError(`no ${shapeOf(this.#model).name} row has the key ${JSON.stringify(key, (_, value) => typeof value === "bigint" ? `${value}` : value)} to update`);
     return await this.#saved(rows[0], false);
   }
@@ -153,9 +195,30 @@ export class ModelActive {
    * @param {{ signal?: AbortSignal }} [options]
    */
   async delete(db, options) {
+    return await this.#delete(() => this.#model.delete(), db, options);
+  }
+
+  /**
+   * `pgorm::ActiveModel::delete_for`: `delete` where `cx`'s scopes hold the
+   * row, which counts none outside them.
+   *
+   * @param {unknown} cx
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async deleteFor(cx, db, options) {
+    return await this.#delete(() => this.#model.deleteFor(cx), db, options);
+  }
+
+  /**
+   * @param {() => any} remove
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async #delete(remove, db, options) {
     const values = await this.#before("beforeDelete");
     const key = this.#key(values, "delete");
-    const deleted = await this.#model.delete().where(this.#model.key(key)).execute(db, options);
+    const deleted = await remove().where(this.#model.key(key)).execute(db, options);
     const hook = shapeOf(this.#model).hooks.afterDelete;
     if (hook !== undefined) await hook(Object.freeze(values));
     return deleted;

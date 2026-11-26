@@ -117,7 +117,7 @@ fn pipeline_at<'cx>(cx: &mut FunctionContext<'cx>, index: usize) -> NeonResult<p
 // [spec:pgorm:req:bindings.pipeline+1]
 // [spec:pgorm:req:bindings.pipeline-sources+3]
 fn relation<'cx>(cx: &mut Cx<'cx>, value: Handle<'cx, JsValue>) -> NeonResult<Source> {
-    if let Some(entity) = crate::entities::entity_source(cx, value) {
+    if let Some(entity) = crate::entities::entity_source(cx, value)? {
         return Ok(Source {
             relation: Relation::Entity(entity),
             alias: None,
