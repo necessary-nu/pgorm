@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-26T01:29:53.674489Z
+last_sync_at 2026-11-26T06:03:08.940433Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -1098,6 +1098,7 @@ derived_priorities (
     {id python-created-ranges, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id python-datatype-export, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id python-ddl-factories, priority 0, derived_at 2026-10-31T22:52:03.347907Z}
+    {id python-dist-shared-deps, priority 0, derived_at 2026-11-26T06:03:08.940433Z}
     {id python-expr-collate, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id python-hook-refusal-class, priority 0, derived_at 2026-10-31T22:52:03.347907Z}
     {id python-json-table, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
