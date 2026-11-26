@@ -42,8 +42,9 @@ fn entity_relation(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(cx.undefined().upcast())
 }
 
-/// `entitySelectJoin(select, entity, relation, kind)`: `QuerySelect::join`
-/// of the relation `entity` declares as `relation`.
+/// `entitySelectJoin(select, entity, relation, kind, scoping)`:
+/// `QuerySelect::join` of the relation `entity` declares as `relation`, or
+/// `join_for` under the scoping `entityJoinScoping` made, `null` for none.
 // [spec:pgorm:req:bindings.entity-reads+5]
 fn select_join(mut cx: FunctionContext) -> JsResult<JsValue> {
     let select = held!(cx, SelectHandle, 0);
@@ -59,7 +60,12 @@ fn select_join(mut cx: FunctionContext) -> JsResult<JsValue> {
     if let Err(failure) = entity.relation(&relation) {
         return throw(&mut cx, failure);
     }
-    let joined = select.change(Change::Join(kind, entity, relation));
+    let scoping = cx.argument::<JsValue>(4)?;
+    let scoping = match scoping.downcast::<JsBox<crate::scopes::ScopingHandle>, _>(&mut cx) {
+        Ok(scoping) => Some(scoping.0.clone()),
+        Err(_) => None,
+    };
+    let joined = select.change(Change::Join(kind, entity, relation, scoping));
     Ok(cx.boxed(SelectHandle(joined)).upcast())
 }
 

@@ -18,6 +18,7 @@ import { EntityRelation, READS } from "./entity-reads.js";
 import { EntityInsert, EntityInsertMany, inserted } from "./entity-inserts.js";
 import { EntityUpdate, EntityUpdateMany, VERSIONS } from "./entity-versions.js";
 import { native } from "./operations.js";
+import { heldOf } from "./scopes.js";
 
 /** Marks a construction from within the module. */
 const MADE = Symbol("pgorm-napi entity");
@@ -158,9 +159,33 @@ export class Entity extends Handle {
     return new EntityColumn(native.entityCol(this.#native, column), this.#native, column, TRUSTED);
   }
 
+  /** The scopes the entity declares, by name: none for an unscoped one. */
+  get scopes() {
+    return Object.freeze(/** @type {string[]} */ (native.entityScopes(this.#native)));
+  }
+
+  /**
+   * The Rust scope values a statement under `held` runs under, refused under
+   * `null` where the entity is scoped.
+   *
+   * @param {import("./model-shape.js").Held} held
+   */
+  #scoping(held) {
+    return native.entityScoping(this.#native, held);
+  }
+
   /** `E::find()`. */
   find() {
-    return new EntityQuery(native.entityFind(this.#native), this.#name, QUERIES);
+    return new EntityQuery(native.entityFind(this.#native, this.#scoping(null)), this.#name, QUERIES);
+  }
+
+  /**
+   * `E::find_for(cx)`: the rows `cx`'s scopes hold.
+   *
+   * @param {unknown} cx
+   */
+  findFor(cx) {
+    return new EntityQuery(native.entityFind(this.#native, this.#scoping(heldOf(cx))), this.#name, QUERIES);
   }
 
   /**
@@ -220,12 +245,33 @@ export class Entity extends Handle {
    * @param {ActiveModel} active
    */
   update(active) {
-    return new EntityUpdate(this.#native, this.#name, ownActive(active, this.#name), VERSIONS);
+    return new EntityUpdate(this.#native, this.#name, ownActive(active, this.#name), this.#scoping(null), VERSIONS);
+  }
+
+  /**
+   * `Update::one_for(cx, active)`: the update by key under `cx`, a row
+   * outside its scopes no row.
+   *
+   * @param {unknown} cx
+   * @param {ActiveModel} active
+   */
+  updateFor(cx, active) {
+    return new EntityUpdate(this.#native, this.#name, ownActive(active, this.#name), this.#scoping(heldOf(cx)), VERSIONS);
   }
 
   /** An update of every row its condition admits, whose terminal returns each row's two versions. */
   updateMany() {
-    return new EntityUpdateMany(this.#native, this.#name, [], null, VERSIONS);
+    return new EntityUpdateMany(this.#native, this.#name, [], null, this.#scoping(null), VERSIONS);
+  }
+
+  /**
+   * `Update::many_for(cx, ..)`: `cx`'s scopes are its first condition, so
+   * even `allRows()` reaches no row outside them.
+   *
+   * @param {unknown} cx
+   */
+  updateManyFor(cx) {
+    return new EntityUpdateMany(this.#native, this.#name, [], null, this.#scoping(heldOf(cx)), VERSIONS);
   }
 
   /**
@@ -235,7 +281,18 @@ export class Entity extends Handle {
    * @param {ActiveModel} active
    */
   insert(active) {
-    return new EntityInsert(inserted(this.#native, this.#name, this.columns, [ownActive(active, this.#name)]), VERSIONS);
+    return this.#insert(null, [ownActive(active, this.#name)]);
+  }
+
+  /**
+   * `Insert::one_for(cx, active)`: a scope column the ActiveModel leaves
+   * unset is written from `cx`, one set to another value refused.
+   *
+   * @param {unknown} cx
+   * @param {ActiveModel} active
+   */
+  insertFor(cx, active) {
+    return this.#insert(heldOf(cx), [ownActive(active, this.#name)]);
   }
 
   /**
@@ -245,9 +302,36 @@ export class Entity extends Handle {
    * @param {readonly ActiveModel[]} actives
    */
   insertMany(actives) {
+    return this.#insertMany(null, actives);
+  }
+
+  /**
+   * `Insert::many_for(cx, actives)`: each row as {@link insertFor} writes
+   * one; under `every(..)` each sets that scope's column itself.
+   *
+   * @param {unknown} cx
+   * @param {readonly ActiveModel[]} actives
+   */
+  insertManyFor(cx, actives) {
+    return this.#insertMany(heldOf(cx), actives);
+  }
+
+  /**
+   * @param {import("./model-shape.js").Held} held
+   * @param {readonly unknown[]} owned
+   */
+  #insert(held, owned) {
+    return new EntityInsert(inserted(this.#native, this.#name, this.columns, owned, this.#scoping(held)), VERSIONS);
+  }
+
+  /**
+   * @param {import("./model-shape.js").Held} held
+   * @param {unknown} actives
+   */
+  #insertMany(held, actives) {
     if (!Array.isArray(actives)) throw new TypeError("insertMany takes an array of ActiveModels");
     const owned = actives.map((active) => ownActive(active, this.#name));
-    return new EntityInsertMany(inserted(this.#native, this.#name, this.columns, owned), VERSIONS);
+    return new EntityInsertMany(inserted(this.#native, this.#name, this.columns, owned, this.#scoping(held)), VERSIONS);
   }
 }
 
@@ -365,9 +449,11 @@ export class ActiveModel {
    * @param {"insert" | "update" | "delete"} write
    * @param {unknown} db
    * @param {unknown} options
+   * @param {import("./model-shape.js").Held} [held] The context it is written under, none by default.
    */
-  async #write(write, db, options) {
-    return await runJob(db, native.entityActiveJob(this.#native, write), options);
+  async #write(write, db, options, held = null) {
+    const scoping = native.entityScoping(this.#native, held);
+    return await runJob(db, native.entityActiveJob(this.#native, write, scoping), options);
   }
 
   /**
@@ -398,5 +484,41 @@ export class ActiveModel {
    */
   async delete(db, options) {
     return /** @type {number} */ (await this.#write("delete", db, options));
+  }
+
+  /**
+   * `pgorm::ActiveModel::insert_for`: the row's scope columns filled from
+   * `cx`.
+   *
+   * @param {unknown} cx
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async insertFor(cx, db, options) {
+    return recordsOf(this.#entity, await this.#write("insert", db, options, heldOf(cx)))[0];
+  }
+
+  /**
+   * `pgorm::ActiveModel::update_for`: a row outside `cx`'s scopes is no row,
+   * a `DecodeError`.
+   *
+   * @param {unknown} cx
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async updateFor(cx, db, options) {
+    return recordsOf(this.#entity, await this.#write("update", db, options, heldOf(cx)))[0];
+  }
+
+  /**
+   * `pgorm::ActiveModel::delete_for`: a row outside `cx`'s scopes is not
+   * deleted.
+   *
+   * @param {unknown} cx
+   * @param {unknown} db
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async deleteFor(cx, db, options) {
+    return /** @type {number} */ (await this.#write("delete", db, options, heldOf(cx)));
   }
 }

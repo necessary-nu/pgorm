@@ -173,7 +173,7 @@ fn checking_trait(table_name: Option<&str>) -> Ident {
 /// which every context providing each of its scopes is; that impl is the one
 /// marked, so rustc reports the entity's own trait, and its message, rather
 /// than the `Provides` a context lacks.
-// [spec:pgorm:req:scope.compile]
+// [spec:pgorm:req:scope.compile+1]
 // [spec:pgorm:def:scope.declare+1]
 pub(crate) fn expand_entity_scopes(
     scopes: &DeclaredScopes,

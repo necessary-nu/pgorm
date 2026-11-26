@@ -19,7 +19,8 @@ import type { Builder, BindValue, Compiled, Expr } from "./expressions.d.ts";
 import type { Table } from "./select.d.ts";
 import type { Entity, EntityColumn, EntityRecord, SourceRegistrations } from "./entities.d.ts";
 import type { OperationOptions, Queryable, QueryOptions, RowFor, TypeName } from "./index.d.ts";
-import type { Columns, FieldOf, FieldOperand, Model, Row, RowOf } from "./models.d.ts";
+import type { Columns, FieldOf, FieldOperand, Model, Row, RowOf, ScopesOf } from "./models.d.ts";
+import type { ScopeContext } from "./scopes.d.ts";
 
 /** An operand: a pipeline expression, or a value the stage that takes it binds. */
 export type PipelineOperand = PipelineExpr | BindValue;
@@ -31,6 +32,10 @@ export type PipelineOperand = PipelineExpr | BindValue;
  * its schema from the registration.
  */
 export type SourceInput = Table | string | Pipeline | Source | Model<any> | Entity<any>;
+
+/** What `from` intersects its source with: a model whose columns hold a scope fails to match it, since it starts from {@link fromFor}. */
+type UnscopedSource<S> = S extends Model<infer C> ? ([ScopesOf<C>] extends [never] ? unknown : { readonly "read through fromFor, scoped by": ScopesOf<C> })
+  : unknown;
 
 /** A name a stage introduces or a column has: an identifier, or an {@link alias}. */
 export type PipelineName = string | PipelineExpr;
@@ -339,7 +344,12 @@ export declare class SelectedSources<Row extends readonly unknown[] = (EntityRec
 }
 
 /** A pipeline reading `source`; a pipeline source is embedded whole, its bound values with it. */
-export declare function from(source: SourceInput): Pipeline;
+export declare function from<S extends SourceInput>(source: S & UnscopedSource<S>): Pipeline;
+/**
+ * Rust's `Pipeline::from_for`: the rows `cx`'s scopes hold of a model or a
+ * registered entity, each scope value a `filter` stage binding it.
+ */
+export declare function fromFor(cx: ScopeContext, source: Model<any> | Entity<any>): Pipeline;
 /** A relation as a source, to read under a name of its own with `named`. */
 export declare function source(relation: SourceInput): Source;
 /** A window over the whole relation, until `by` partitions it. */

@@ -15,6 +15,7 @@ import { graphOf } from "./graphs.js";
 import { Column, columnKey } from "./model-columns.js";
 import { query } from "./model-queries.js";
 import { described, fieldOf, qualified, register, shapeOf } from "./model-shape.js";
+import { heldOf } from "./scopes.js";
 import { findByStatement } from "./raw.js";
 import { picked } from "./model-rows.js";
 import { active, hooksOf } from "./model-active.js";
@@ -144,6 +145,9 @@ export class Model {
     for (const field of fields) qualified(field, qualifier);
     const primaryKey = fields.filter((field) => field.column.primaryKey);
     checkKey(primaryKey);
+    /** @type {[string, string, string][]} */
+    const scopes = fields.flatMap(({ field, sql, column }) => (column.scope === null ? [] : [[field, sql, column.scope.scopeName]]));
+    if (scopes.length > 0) native.scopeDeclared(name, scopes);
     /** @type {import("./model-shape.js").Shape} */
     const shape = {
       model: this,
@@ -158,6 +162,7 @@ export class Model {
       uniqueKeys,
       comment,
       hooks,
+      scopes,
     };
     native.modelTable(described(shape));
     register(this, shape);
@@ -195,6 +200,11 @@ export class Model {
   /** The primary key's fields, in declaration order. */
   get primaryKey() {
     return Object.freeze(shapeOf(this).primaryKey.map((field) => field.field));
+  }
+
+  /** The scopes its columns hold, by name, in declaration order: none for an unscoped model. */
+  get scopes() {
+    return Object.freeze(shapeOf(this).scopes.map(([, , name]) => name));
   }
 
   /**
@@ -242,7 +252,17 @@ export class Model {
   /** Every field of every row. */
   find() {
     const shape = shapeOf(this);
-    return query(shape, shape.fields);
+    return query(shape, shape.fields, null);
+  }
+
+  /**
+   * Rust's `find_for`: every field of the rows `cx`'s scopes hold.
+   *
+   * @param {unknown} cx
+   */
+  findFor(cx) {
+    const shape = shapeOf(this);
+    return query(shape, shape.fields, heldOf(cx));
   }
 
   /**
@@ -251,9 +271,27 @@ export class Model {
    * @param {...string} fields
    */
   select(...fields) {
+    return this.#select(null, fields);
+  }
+
+  /**
+   * `select` under `cx`, its scopes ANDed into the `WHERE`.
+   *
+   * @param {unknown} cx
+   * @param {...string} fields
+   */
+  selectFor(cx, ...fields) {
+    return this.#select(heldOf(cx), fields);
+  }
+
+  /**
+   * @param {import("./model-shape.js").Held} held
+   * @param {readonly string[]} fields
+   */
+  #select(held, fields) {
     const shape = shapeOf(this);
     if (fields.length === 0) throw new ConstructionError("select names at least one field");
-    return query(shape, picked(shape, fields));
+    return query(shape, picked(shape, fields), held);
   }
 
   /**
@@ -262,7 +300,19 @@ export class Model {
    * @param {unknown} values
    */
   findByKey(values) {
-    return this.find().where(this.key(values));
+    const shape = shapeOf(this);
+    return query(shape, shape.fields, null).where(this.key(values));
+  }
+
+  /**
+   * Rust's `find_by_id_for`: the row of the key, read only where `cx`'s
+   * scopes hold it, so `one` finds no row outside them.
+   *
+   * @param {unknown} cx
+   * @param {unknown} values
+   */
+  findByKeyFor(cx, values) {
+    return this.findFor(cx).where(this.key(values));
   }
 
   /**
@@ -270,7 +320,7 @@ export class Model {
    * model's records, as Rust's
    * `FromQueryResult::find_by_statement` decodes them: each field read from
    * the column of its SQL name and held to its declared kind, other columns
-   * left unread.
+   * left unread. Raw SQL is outside scopes.
    * [spec:pgorm:req:bindings.raw-models]
    *
    * @param {unknown} statement
@@ -288,7 +338,18 @@ export class Model {
    * @param {unknown} values
    */
   insert(values) {
-    return insertOne(shapeOf(this), values);
+    return insertOne(shapeOf(this), null, values);
+  }
+
+  /**
+   * Rust's `Insert::one_for`: the row's scope columns filled from `cx`, a
+   * row setting one to another value refused.
+   *
+   * @param {unknown} cx
+   * @param {unknown} values
+   */
+  insertFor(cx, values) {
+    return insertOne(shapeOf(this), heldOf(cx), values);
   }
 
   /**
@@ -297,7 +358,18 @@ export class Model {
    * @param {unknown} rows
    */
   insertMany(rows) {
-    return insertMany(shapeOf(this), rows);
+    return insertMany(shapeOf(this), null, rows);
+  }
+
+  /**
+   * Rust's `Insert::many_for`: each row as {@link insertFor} writes one;
+   * under `every(..)` each sets that scope's field itself.
+   *
+   * @param {unknown} cx
+   * @param {unknown} rows
+   */
+  insertManyFor(cx, rows) {
+    return insertMany(shapeOf(this), heldOf(cx), rows);
   }
 
   /**
@@ -307,12 +379,24 @@ export class Model {
    * @param {unknown} values
    */
   update(values) {
-    return updateSet(shapeOf(this), values);
+    return updateSet(shapeOf(this), null, values);
+  }
+
+  /**
+   * Rust's `Update::many_for`: the rows `cx`'s scopes hold, their condition
+   * the update's first. A scope column is never set.
+   *
+   * @param {unknown} cx
+   * @param {unknown} values
+   */
+  updateFor(cx, values) {
+    return updateSet(shapeOf(this), heldOf(cx), values);
   }
 
   /**
    * The fields one record write sets, whose `insert`, `update` and `delete`
-   * run the model's hooks around the write, as a Rust `ActiveModel`'s do.
+   * run the model's hooks around the write, as a Rust `ActiveModel`'s do;
+   * on a scoped model `insertFor`, `updateFor` and `deleteFor`.
    *
    * @param {unknown} [values]
    */
@@ -320,9 +404,19 @@ export class Model {
     return active(this, values);
   }
 
-  /** A DELETE, which needs a `where` or `allRows()` before it runs. */
+  /** A DELETE, which needs `where` or `allRows()` before it runs. */
   delete() {
-    return deleteRows(shapeOf(this));
+    return deleteRows(shapeOf(this), null);
+  }
+
+  /**
+   * Rust's `Delete::many_for`: the rows `cx`'s scopes hold, their condition
+   * the delete's first.
+   *
+   * @param {unknown} cx
+   */
+  deleteFor(cx) {
+    return deleteRows(shapeOf(this), heldOf(cx));
   }
 
   /**
@@ -382,7 +476,17 @@ export class Model {
 
   /** A graph rooted at this model. */
   graph() {
-    return graphOf(shapeOf(this));
+    return graphOf(shapeOf(this), null);
+  }
+
+  /**
+   * Rust's `graph_for`: a graph under `cx`, its root's scopes in the
+   * `WHERE` and each slot's and hop's in its join's `ON`.
+   *
+   * @param {unknown} cx
+   */
+  graphFor(cx) {
+    return graphOf(shapeOf(this), heldOf(cx));
   }
 
   /** The declaration as data: the table, its keys, and each field's column. */

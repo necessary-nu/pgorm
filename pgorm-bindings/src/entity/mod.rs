@@ -7,11 +7,13 @@
 //! language reaches the entity's own semantics rather than a
 //! reimplementation of them.
 
+mod active;
 mod adapter;
 mod disjoint;
 mod graph;
 mod info;
 mod one_of;
+mod reach;
 mod reads;
 mod registry;
 mod sources;
@@ -26,7 +28,8 @@ use pgorm::pgorm_query::{
 };
 use pgorm::{ActiveValue, Error, RelationDef};
 
-pub use adapter::{EntityAdapter, model_of};
+pub use active::model_of;
+pub use adapter::EntityAdapter;
 pub use disjoint::{
     DisjointCore, Entity, EntityRow, Judged, KindRow, Kinded, RowCodec, active_values,
     foreign_active,
@@ -43,7 +46,7 @@ pub use sources::{
     Selected, SelectedBackend, SourceBindings, SourceTypes, SourcesBackend, SourcesInfo,
 };
 
-use crate::{Database, Failure};
+use crate::{Database, Failure, scope::Scoping};
 
 /// A registered entity's model behind its type-erased handle.
 pub type Model = Arc<dyn ModelBackend>;
@@ -183,8 +186,14 @@ pub enum Change {
     Limit(Option<u64>),
     /// `QuerySelect::offset`, or no offset with `None`.
     Offset(Option<u64>),
-    /// `QuerySelect::join` of the relation the registered entity names so.
-    Join(JoinType, Arc<dyn EntityBackend>, String),
+    /// `QuerySelect::join` of the relation the registered entity names so,
+    /// or `join_for` under the context given.
+    Join(
+        JoinType,
+        Arc<dyn EntityBackend>,
+        String,
+        Option<Arc<Scoping>>,
+    ),
 }
 
 /// What `UpdateMany::col_expr` sets a column to: a value, written through
@@ -254,10 +263,16 @@ pub trait EntityBackend: Debug + Send + Sync {
     /// The entity's schema, or the error `Schema::create_table_from_entity`
     /// refuses its table with.
     fn schema(&self) -> Result<EntitySchema, Error>;
-    /// The entity as a pipeline source, by its own `IntoSource`.
-    fn source(&self) -> pgorm::pipeline::Source;
-    /// `Entity::find_in` of the registered entity value.
-    fn select(&self) -> Select;
+    /// The pipeline reading the entity's rows under `cx`:
+    /// `Pipeline::from_for`, or `Pipeline::from` the registered instance.
+    fn pipeline(&self, cx: &Scoping) -> pgorm::pipeline::Pipeline;
+    /// The entity as another pipeline's source under `cx`: a scoped
+    /// entity's pipeline embedded, or the registered instance's own
+    /// `IntoSource`.
+    fn source(&self, cx: &Scoping) -> pgorm::pipeline::Source;
+    /// `Entity::find_for` under `cx`, or `find_in` of the registered
+    /// instance.
+    fn select(&self, cx: &Scoping) -> Select;
     /// `ActiveModelBehavior::new`: an ActiveModel no column of which is set
     /// but what the entity's hooks set.
     fn active(&self) -> Active;
@@ -307,13 +322,16 @@ pub trait EntityBackend: Debug + Send + Sync {
         &'a self,
         db: Database<'a>,
         write: VersionWrite,
+        cx: &'a Scoping,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>>;
-    /// `Insert::one` of one ActiveModel or `Insert::many` of a batch, with
-    /// the conflict clause if given, through the terminal `insertion` names.
+    /// `Insert::one` of one ActiveModel or `Insert::many` of a batch under
+    /// `cx`, with the conflict clause if given, through the terminal
+    /// `insertion` names.
     fn insert<'a>(
         &'a self,
         db: Database<'a>,
         insertion: Insertion,
+        cx: &'a Scoping,
     ) -> BoxFuture<'a, Result<Insertions, Error>>;
     /// The model `row` holds under `prefix`, as the entity's own
     /// `FromQueryResult` reads it: one source of a read that decodes several,
@@ -382,9 +400,14 @@ pub trait ActiveBackend: Debug + Send + Sync {
     fn set_if_not_equals(&self, column: &str, value: Value) -> Result<Active, Failure>;
     /// `ActiveModel::is_changed`: whether any column is set.
     fn is_changed(&self) -> bool;
-    /// The write `write` names, through the entity's `ActiveModelBehavior`
-    /// hooks.
-    fn run<'a>(&'a self, db: Database<'a>, write: Write) -> BoxFuture<'a, Result<Written, Error>>;
+    /// The write `write` names under `cx`, through the entity's
+    /// `ActiveModelBehavior` hooks.
+    fn run<'a>(
+        &'a self,
+        db: Database<'a>,
+        write: Write,
+        cx: &'a Scoping,
+    ) -> BoxFuture<'a, Result<Written, Error>>;
     /// The concrete adapter, so an entity's batch write can take its own
     /// ActiveModels back out of type-erased handles.
     fn as_any(&self) -> &dyn Any;

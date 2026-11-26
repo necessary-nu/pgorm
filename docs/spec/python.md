@@ -181,6 +181,28 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > `pgorm.pipeline.null()` MUST be `literal(None)` under a name of its own; a
 > pipeline's own terminals are both bindings' (`bindings.pipeline-terminals`).
 
+## Scopes
+
+> [spec:pgorm:req:python.scopes]
+> Python MUST spell a scope as a subclass of `pgorm.Scope[T]`, named by its
+> class and `T` its values' type; a scope value as an instance,
+> `CompanyId(7)`, which is frozen and equal to another of its class and
+> value; every value of one as `pgorm.Every(UserId)`; and a context of
+> several as a subclass of `pgorm.ScopeContext`, each of its fields, a
+> dataclass's or else its instance attributes, a scope value or an `Every`
+> (`bindings.scopes`). A column holds a scope as `Column(kind,
+> scope=CompanyId)`, and a model's `scopes` lists its scopes by name. A
+> `_for` form, a registered entity's included, takes any of the three as its
+> context, and anything else is a `TypeError`.
+>
+> `Column` is generic in the scope it holds, `Never` for none, and `Model`
+> and an active model in their columns', so strict mypy MUST refuse a form
+> taking no context on a scoped declared model, a model's and an active
+> model's alike, and a scoped model given to a pipeline as a source, as
+> well as a context of another type and an `Every` of no scope. Whether a
+> context holds each scope a statement needs, a join's and a graph's
+> included, is refused when the statement is built alone.
+
 ## Execution and lifecycle
 
 > [spec:pgorm:req:python.runtime+2]

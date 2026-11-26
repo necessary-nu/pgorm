@@ -140,7 +140,10 @@ from ._query_types import (
     Compiled as Compiled, LikeExpr as LikeExpr,
     Aliased as Aliased, OrderBy as OrderBy,
 )
-from ._models import _model_result_names as _model_result_names, _model_count as _model_count
+from ._models import (
+    _model_result_names as _model_result_names, _model_count as _model_count,
+    _ScopeContext as _ScopeContext, _ModelScopes as _ModelScopes,
+)
 from ._expressions import (
     Expr as Expr, _DeclaredColumn as _DeclaredColumn, Condition as Condition, col as col, bind as bind,
     literal as literal, call as call, func as func, template as template,

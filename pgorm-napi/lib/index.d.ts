@@ -36,6 +36,7 @@ export * from "./windows.d.ts";
 export * from "./select.d.ts";
 export * from "./writes.d.ts";
 export * from "./models.d.ts";
+export * from "./scopes.d.ts";
 export * from "./graphs.d.ts";
 export * from "./entities.d.ts";
 export * from "./disjoint.d.ts";

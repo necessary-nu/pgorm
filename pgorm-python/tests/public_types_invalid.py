@@ -6,6 +6,16 @@ import pgorm as p
 from pgorm import codegen, pipeline as pl, schema as s
 
 
+class TenantId(p.Scope[int]):
+    pass
+
+
+Scoped = p.Model("scoped", {
+    "id": p.Column("i64", primary_key=True),
+    "tenant_id": p.Column("i64", scope=TenantId),
+})
+
+
 async def invalid(connection: p.Connection) -> None:
     await connection.execute("SELECT 1")  # expected-error: arg-type
     pending = p.merge(p.Table("t"), p.Table("s"), p.col("id") == 1)
@@ -212,3 +222,15 @@ async def invalid(connection: p.Connection) -> None:
     # [spec:pgorm:req:bindings.models-from-sql/test]    models_from_sql reads DDL text, and an unkinded set's tables are names or (schema, name) pairs
     codegen.models_from_sql(b"CREATE TABLE a (id int)")  # expected-error: arg-type
     codegen.models_from_sql("", unkinded_disjoint=[{"base": 1, "kinds": []}])  # expected-error: typeddict-item
+    # [spec:pgorm:req:python.scopes/test]    a form taking no context on a scoped model, a scoped pipeline source, a context of another type and an Every or a scope column of no scope are refused
+    Scoped.find()  # expected-error: misc
+    Scoped.insert({"id": 1})  # expected-error: misc
+    Scoped.update({"id": 2})  # expected-error: misc
+    Scoped.delete()  # expected-error: misc
+    Scoped.graph()  # expected-error: misc
+    await Scoped.active({"id": 1}).insert(connection)  # expected-error: misc
+    pl.from_(Scoped)  # expected-error: arg-type
+    Scoped.find_for(7)  # expected-error: arg-type
+    p.Every(int)  # expected-error: type-var
+    p.Column("i64", scope=int)  # expected-error: type-var
+    Scoped.find_for(TenantId(1))

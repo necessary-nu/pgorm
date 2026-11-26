@@ -9,8 +9,8 @@ use pgorm::{Entity, Schema};
 use serde_json::{Value as Json, json};
 
 use crate::{
-    account, booking, labels, listings, membership, note, parcel, shipping, temper, tenant_note,
-    till,
+    account, booking, labels, listings, membership, note, parcel, scoped, shipping, temper,
+    tenant_note, till,
 };
 
 /// The entity's table, enum, index and comment statements as SQL, or the
@@ -72,6 +72,14 @@ fn entity_schemas_match_the_golden_file() {
             generated::<shipping::pallet::Entity>(),
         ),
         ("app.Label".to_owned(), generated::<labels::label::Entity>()),
+        (
+            "app.ScopedCompany".to_owned(),
+            generated::<scoped::company::Entity>(),
+        ),
+        (
+            "app.ScopedNote".to_owned(),
+            generated::<scoped::note::Entity>(),
+        ),
         (
             "app.TenantNote".to_owned(),
             generated::<tenant_note::Entity>(),

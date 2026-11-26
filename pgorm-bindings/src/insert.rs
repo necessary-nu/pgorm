@@ -10,7 +10,7 @@
 //! insert answers.
 
 use pgorm::{
-    ActiveModel, ConnectionMut, Entity, Error, Insert, IntoActiveModel, NoContext, ScopedIn,
+    ActiveModel, ConnectionMut, Entity, Error, Insert, IntoActiveModel, ManyRows, OneRow,
     TryInsert, TryInsertResult, Upserted,
     pgorm_query::{IntoValueTuple, OnConflict, ValueTuple},
 };
@@ -140,8 +140,10 @@ fn clause<A: ActiveModel, R>(
     insert
 }
 
-/// Run `insertion`'s statement into `entity`'s table on `db` through its
-/// terminal, each written row read by `model` and each upsert by `upsert`. A
+/// Run `insertion`'s statement, `start_one` of its model or `start_many` of
+/// its batch,
+/// on `db` through its terminal, each written row read by `model` and each
+/// upsert by `upsert`. A
 /// try-insert answers as Rust's `TryInsertResult` does; an `Insert` always
 /// with `Inserted`, what its terminal gave, a row its conflict clause held
 /// back being Rust's error from `exec_returning_pk` and
@@ -149,14 +151,15 @@ fn clause<A: ActiveModel, R>(
 // [spec:pgorm:req:bindings.entity-inserts]
 // [spec:pgorm:req:bindings.entity-try-inserts]
 pub async fn insert<E, C, M, U>(
-    entity: E,
+    start_one: impl FnOnce(E::ActiveModel) -> Insert<E::ActiveModel, OneRow>,
+    start_many: impl FnOnce(Vec<E::ActiveModel>) -> Insert<E::ActiveModel, ManyRows>,
     db: &C,
     insertion: Insertion<E::ActiveModel>,
     model: impl Fn(E::Model) -> M,
     upsert: impl Fn(Upserted<E::Model>) -> U,
 ) -> Result<TryInsertResult<Inserted<M, U>>, Error>
 where
-    E: Entity + ScopedIn<NoContext>,
+    E: Entity,
     E::Model: IntoActiveModel<E::ActiveModel>,
     C: ConnectionMut,
 {
@@ -167,7 +170,7 @@ where
             .into_iter()
             .next()
             .ok_or_else(|| Error::Type("an insert of one row needs one ActiveModel".to_owned()))?;
-        let insert = Insert::one_in(entity, active);
+        let insert = start_one(active);
         return Ok(match write {
             InsertWrite::Insert(conflict, terminal) => {
                 let insert = clause(insert, conflict);
@@ -203,7 +206,7 @@ where
             }
         });
     }
-    let insert = Insert::many_in(entity, models);
+    let insert = start_many(models);
     Ok(match write {
         InsertWrite::Insert(conflict, terminal) => {
             let insert = clause(insert, conflict);

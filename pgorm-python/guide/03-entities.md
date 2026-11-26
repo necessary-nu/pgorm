@@ -854,10 +854,439 @@ shows.
 
 ## Scopes
 
-A Rust entity can declare scopes, conditions such as `company_id = $me` that
-every statement on its table is held to and that no statement can be built
-without, as the [Rust guide's Scopes](../../docs/guide/02-entities.md#scopes)
-section shows. The Python binding has no scopes yet: a model declares none,
-and a Rust entity that declares one cannot be registered, since a
-registration's statements take no context, so its registration does not
-compile.
+Some tables are read only under a condition the program supplies: a
+company's notes by its members, a user's notes by that user. Forgetting the
+condition once lets a statement read another company's rows. A *scope*
+holds a table's statements to it: every statement on a scoped model is
+built from a *context* holding its scopes, and every way to build one
+without such a context is refused as the statement is built, before
+anything is sent, in the words the [Rust guide's
+Scopes](../../docs/guide/02-entities.md#scopes) section shows Rust's compiler
+using. pgorm writes the condition; holding the rows to it in the database,
+with row-level security or otherwise, stays the program's.
+
+Here Python differs from Rust: Python has no compile time, so where Rust's
+compiler stops a statement, Python's builder raises a `ConstructionError` as
+the statement is built. A type checker catches part of it before then: a
+scoped model's forms taking no context are typed for unscoped models alone,
+so strict mypy refuses them.
+
+### Declaring scopes
+
+A scope is a class of the program's own, a subclass of `Scope`; the type
+parameter is what its values are. A column holds a scope where it says so
+with `scope=`, and the column's kind converts the scope's values as it
+converts a value written to it. A column's kind alone never makes it a scope
+column:
+
+```python
+from pgorm import Column, ConstructionError, Model, Scope
+
+
+class CompanyId(Scope[int]):
+    """A company, the scope everything its members read is held to."""
+
+
+class UserId(Scope[int]):
+    """A user, the scope what one member wrote is held to."""
+
+
+Note = Model("note", {
+    "id": Column("i64", primary_key=True, generated="by_default"),
+    "company_id": Column("i64", scope=CompanyId),
+    "author_id": Column("i64", scope=UserId),
+    "body": Column("text"),
+})
+
+assert Note.scopes == ("CompanyId", "UserId")
+
+# A scope column is never NULL: a row is in one value of its scope.
+try:
+    Column("i64", scope=UserId, nullable=True)
+except ConstructionError as refused:
+    assert "never NULL" in str(refused)
+else:
+    raise AssertionError("a nullable scope column is refused")
+```
+
+A scope is named by its class, as Rust names one by its type, and a model
+holds each scope in one column. A scope column is written when its row is
+inserted and never changed after, since a row cannot leave its scope; a
+nullable, array or generated one is refused where it is declared. A primary
+key can be a scope column too: a company's `id` is a `CompanyId`, so a
+member reads their own company's row and no other.
+
+### Contexts
+
+A *context* is what a statement on a scoped model is built under. One scope
+value is a context holding itself, and a subclass of `ScopeContext` is a
+context holding each of its fields, which a dataclass declares. A field of
+`Every[S]`, given as `Every(S)`, holds every value of `S`: the context lifts
+that scope on purpose, and the statement gets no condition for it. A member
+is signed in to one company as one user, and a company's administrator sees
+every one of its users:
+
+```python
+from dataclasses import dataclass
+
+from pgorm import Column, Every, Model, Scope, ScopeContext
+
+
+class CompanyId(Scope[int]):
+    pass
+
+
+class UserId(Scope[int]):
+    pass
+
+
+@dataclass(frozen=True)
+class Member(ScopeContext):
+    company: CompanyId
+    user: UserId
+
+
+@dataclass(frozen=True)
+class CompanyAdmin(ScopeContext):
+    company: CompanyId
+    users: Every[UserId]
+
+
+Company = Model("company", {
+    "id": Column("i64", primary_key=True, scope=CompanyId),
+    "name": Column("text"),
+})
+Note = Model("note", {
+    "id": Column("i64", primary_key=True, generated="by_default"),
+    "company_id": Column("i64", scope=CompanyId),
+    "author_id": Column("i64", scope=UserId),
+    "body": Column("text"),
+})
+
+ada = Member(CompanyId(1), UserId(10))
+admin = CompanyAdmin(CompanyId(1), Every(UserId))
+assert Note.find_for(ada).inspect().sql == (
+    'SELECT "note"."id", "note"."company_id", "note"."author_id", "note"."body" '
+    'FROM "note" WHERE "note"."company_id" = $1 AND "note"."author_id" = $2'
+)
+assert Note.find_for(admin).inspect().sql == (
+    'SELECT "note"."id", "note"."company_id", "note"."author_id", "note"."body" '
+    'FROM "note" WHERE "note"."company_id" = $1'
+)
+# A scope value alone is a context, and the company's key is its scope.
+assert Company.find_for(CompanyId(1)).inspect().sql == (
+    'SELECT "company"."id", "company"."name" FROM "company" WHERE "company"."id" = $1'
+)
+```
+
+A context holds each scope once, as one value or as every value; a context
+holding one twice is refused when a statement is built under it. A context is
+a scope value, an `Every` or a `ScopeContext`, and anything else is a
+`TypeError`.
+
+### Every statement takes its context first
+
+Each statement constructor has a form ending in `_for` that takes the
+context first: a model's `select_for`, `find_for`, `find_by_key_for`,
+`graph_for`, `insert_for`, `insert_many_for`, `update_for` and `delete_for`;
+an insert's `add_for` and `add_many_for`, and a try-insert's; an active
+model's `insert_for`, `update_for` and `delete_for`; a query's `join_for` and
+`join_rev_for`; a relation's and a related path's `find_for`; a linked
+chain's `find_for` and `find_linked_for`; and `pgorm.pipeline.from_for`. An
+unscoped model takes any context, and its forms taking none are the ones it
+always had.
+
+On a scoped model, the forms taking no context are refused, and so is a
+`_for` form given a context missing one of its scopes:
+
+```python
+from pgorm import Column, ConstructionError, Model, Scope
+
+
+class CompanyId(Scope[int]):
+    pass
+
+
+class UserId(Scope[int]):
+    pass
+
+
+Note = Model("note", {
+    "id": Column("i64", primary_key=True, generated="by_default"),
+    "company_id": Column("i64", scope=CompanyId),
+    "author_id": Column("i64", scope=UserId),
+    "body": Column("text"),
+})
+
+try:
+    Note.find()  # type: ignore[misc]
+except ConstructionError as refused:
+    assert str(refused).startswith(
+        "`note` is scoped by `CompanyId` and `UserId`, which a statement taking no "
+        "context does not hold"
+    )
+else:
+    raise AssertionError("a scoped model's find() is refused")
+
+try:
+    Note.find_for(CompanyId(1))
+except ConstructionError as refused:
+    assert str(refused) == (
+        "`note` is scoped by `CompanyId` and `UserId`, which `CompanyId` does not hold"
+    )
+else:
+    raise AssertionError("a context missing a scope is refused")
+```
+
+The refusal names the table, its scopes and the context, by its class, as
+Rust's compile error names the entity and the context's type. The
+`type: ignore` silences mypy's own refusal of the same call: a `Column` is
+generic in the scope it holds, `Never` for none, and a `Model` in its
+columns', and `find` is typed for a `Model[Never]` alone, a model whose
+columns hold no scope. A loader is given a query
+rather than a model: hand a relation's `load` a `find_for` query, since the
+model alone is every row and is refused for a scoped one.
+
+### Reading and joining
+
+A read ANDs each scope its context holds the value of into the `WHERE`, so
+Ada reads her own notes and the administrator reads the company's. A graph
+keeps its context, and each slot's scopes go in its join's `ON`; a query's
+`join_for` puts the joined table's there too, and a plain `join` into a
+scoped table is refused:
+
+```python
+import asyncio
+import os
+from dataclasses import dataclass
+from typing import cast
+
+from pgorm import (
+    Column, ConstructionError, DecodeError, Every, Model, ModelRecord, Pool, Scope, ScopeContext,
+)
+from pgorm import schema as s
+
+
+class CompanyId(Scope[int]):
+    pass
+
+
+class UserId(Scope[int]):
+    pass
+
+
+@dataclass(frozen=True)
+class Member(ScopeContext):
+    company: CompanyId
+    user: UserId
+
+
+@dataclass(frozen=True)
+class CompanyAdmin(ScopeContext):
+    company: CompanyId
+    users: Every[UserId]
+
+
+Company = Model("company", {
+    "id": Column("i64", primary_key=True, scope=CompanyId),
+    "name": Column("text"),
+})
+Note = Model("note", {
+    "id": Column("i64", primary_key=True, generated="by_default"),
+    "company_id": Column("i64", scope=CompanyId),
+    "author_id": Column("i64", scope=UserId),
+    "body": Column("text"),
+})
+company_notes = Company.has_many(Note, from_="id", to="company_id")
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        for model in (Company, Note):
+            await pool.execute(s.from_model(model).table)
+        for identity, name in ((1, "Acme"), (2, "Globex")):
+            await Company.insert_for(CompanyId(identity), {"name": name}).execute(pool)
+        for company, user, body in ((1, 10, "Ada's plan"), (1, 11, "Bo's draft"), (2, 20, "Cy's memo")):
+            writer = Member(CompanyId(company), UserId(user))
+            await Note.insert_for(writer, {"body": body}).execute(pool)
+
+        ada = Member(CompanyId(1), UserId(10))
+        admin = CompanyAdmin(CompanyId(1), Every(UserId))
+        hers = await Note.find_for(ada).all(pool)
+        assert [note["body"] for note in hers] == ["Ada's plan"]
+        theirs = await Note.find_for(admin).order_by(Note.col("id").asc()).all(pool)
+        assert len(theirs) == 2, "Ada's and Bo's notes, and not Globex's"
+
+        # Cy's note belongs to Globex, so Ada finds no note of its key.
+        try:
+            await Note.find_by_key_for(ada, {"id": 3}).one(pool)
+        except DecodeError:
+            pass
+        else:
+            raise AssertionError("a row outside the scopes is no row")
+
+        # A graph keeps its context, and each slot's scopes go in its join's ON.
+        acme = cast(
+            list[tuple[ModelRecord, ModelRecord | None]],
+            await Company.graph_for(ada).join_maybe(company_notes).all(pool),
+        )
+        authors = [(company["name"], None if note is None else note["author_id"]) for company, note in acme]
+        assert authors == [("Acme", 10)]
+
+        joined = await Company.find_for(ada).join_for(ada, company_notes).all(pool)
+        assert len(joined) == 1
+        try:
+            Company.find_for(ada).join(company_notes)
+        except ConstructionError as refused:
+            assert "join it with a form taking the statement's context, such as `join_for`" in str(refused)
+        else:
+            raise AssertionError("a plain join into a scoped table is refused")
+
+
+asyncio.run(main())
+```
+
+A pipeline reads a scoped model through `pgorm.pipeline.from_for`, which
+filters its rows by each scope value the context holds, binding the value;
+the model given to `from_` or as a join's source is refused, and another
+scoped model joins the pipeline as a pipeline of its own, `from_for(cx,
+other)`.
+
+### Writing
+
+An insert under a context fills each scope column the row leaves out with
+the value the context holds, and refuses a row setting one to another value.
+Under `Every` of a scope the insert fills nothing: the row sets the column
+itself, and a row that does not is refused.
+
+An update or a delete under a context carries the scopes in its `WHERE`,
+before any condition of its own, so a row outside them matches nothing: an
+active model's `update_for` of such a key is a `DecodeError`, as Rust's
+`RecordNotFound` is, and a delete counts `0`. A scope column is written when
+its row is inserted and never changed after: an update setting one, and an
+upsert whose `ON CONFLICT .. DO UPDATE` names one, are refused before
+anything is sent.
+
+```python
+import asyncio
+import os
+from dataclasses import dataclass
+
+from pgorm import Column, ConstructionError, DecodeError, Every, Model, Pool, Scope, ScopeContext
+from pgorm import schema as s
+
+
+class CompanyId(Scope[int]):
+    pass
+
+
+class UserId(Scope[int]):
+    pass
+
+
+@dataclass(frozen=True)
+class Member(ScopeContext):
+    company: CompanyId
+    user: UserId
+
+
+@dataclass(frozen=True)
+class CompanyAdmin(ScopeContext):
+    company: CompanyId
+    users: Every[UserId]
+
+
+Note = Model("note", {
+    "id": Column("i64", primary_key=True, generated="by_default"),
+    "company_id": Column("i64", scope=CompanyId),
+    "author_id": Column("i64", scope=UserId),
+    "body": Column("text"),
+})
+
+
+def refused(build: object, words: str) -> None:
+    assert callable(build)
+    try:
+        build()
+    except ConstructionError as refusal:
+        assert words in str(refusal), refusal
+    else:
+        raise AssertionError(f"refused: {words}")
+
+
+async def main() -> None:
+    async with Pool(os.environ["DATABASE_URL"]) as pool:
+        await pool.execute(s.from_model(Note).table)
+        ada = Member(CompanyId(1), UserId(10))
+        bo = Member(CompanyId(1), UserId(11))
+        admin = CompanyAdmin(CompanyId(1), Every(UserId))
+        await Note.insert_for(bo, {"body": "Bo's draft"}).execute(pool)
+
+        written = await Note.insert_for(ada, {"body": "Ada's plan"}).returning().one(pool)
+        assert (written["company_id"], written["author_id"]) == (1, 10)
+        refused(
+            lambda: Note.insert_for(ada, {"company_id": 2, "body": "for Globex"}),
+            "the row sets `note`.`company_id` to a value outside the context's `CompanyId`",
+        )
+        refused(
+            lambda: Note.insert_for(admin, {"body": "whose?"}),
+            "the context holds every `UserId`, so the row sets `note`.`author_id` itself",
+        )
+
+        # Bo's note is the company's, so the administrator edits it and Ada cannot.
+        edit = Note.active({"id": 1, "body": "Bo's draft, reviewed"})
+        try:
+            await edit.update_for(ada, pool)
+        except DecodeError:
+            pass
+        else:
+            raise AssertionError("Ada cannot edit Bo's note")
+        assert (await edit.update_for(admin, pool))["body"] == "Bo's draft, reviewed"
+
+        # Handing Bo's note to Ada would move it out of Bo's scope.
+        refused(
+            lambda: Note.update_for(admin, {"author_id": 10}),
+            "`note`.`author_id` is written when its row is inserted and never changed",
+        )
+        assert await Note.delete_for(ada).where(Note.col("id") == 1).execute(pool) == 0
+
+
+asyncio.run(main())
+```
+
+A scope written by hand, Rust's `ScopeOn` with a condition of its own such
+as a message's sender or recipient, is Rust's alone: a declared model's
+scopes are its scope columns. A declared disjoint enum or one-of reference
+reads its models under no context, so one over a scoped model is refused as
+it is declared.
+
+### Registered entities
+
+A Rust entity that declares scopes stays held to them from Python. The
+application crate registers each scope type before the entity, and the
+entity by `scoped` rather than `entity`:
+
+```rust
+registry.scope::<notes::CompanyId>()?;
+registry.scope::<notes::UserId>()?;
+registry.scoped::<notes::note::Entity>("app.Note")?;
+```
+
+A context names a registered scope by its Rust type's name, so a Python
+`class CompanyId(Scope[int])` is the context's value of the Rust
+`CompanyId`, converted by its `ValueType`. Every statement on the
+registration is the Rust entity's own `_for` form under that context:
+`find_for`, `insert_for`, `insert_many_for`, `update_for`,
+`update_many_for`, an active model's `insert_for`, `update_for` and
+`delete_for`, a query's `join_for` and `pipeline.from_for`, its written
+scopes included. The forms taking no context are refused as they are built,
+as a declared model's are, and a registration's `scopes` lists the scopes
+its entity declares. A graph, a source tuple, a disjoint enum and a one-of
+reference register over unscoped entities alone. [Registering Rust
+entities](24-registrations.md) says how to build such a wheel.
+
+### Raw SQL
+
+`RawSQL`, `find_by_statement` and the statement builders used directly are
+outside scopes: pgorm does not read the SQL they hold. A read meant to cross
+scopes, such as a report over every company, is written with them.

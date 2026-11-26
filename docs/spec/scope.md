@@ -56,7 +56,7 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 
 ## Building a statement
 
-> [spec:pgorm:req:scope.compile]
+> [spec:pgorm:req:scope.compile+1]
 > Every statement constructor that starts from an entity MUST have a form
 > ending in `_for` taking the context first: `find_for`, `find_by_id_for`,
 > `graph_for` and `delete_by_id_for`; `Insert::one_for`, `many_for`,
@@ -83,8 +83,11 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 > does not hold ``", its label "`` `note::Entity` needs a context holding
 > `CompanyId` and `UserId` ``", and a note pointing to the `_for` forms, the
 > entity named by its path and the context by its type, `NoContext` for a
-> form taking none. A language binding's registered entity MUST be bounded by
-> `ScopedIn<NoContext>`, so a scoped Rust entity does not register.
+> form taking none. A language binding MUST register a scoped Rust entity
+> only to build its statements through the `_for` forms, each under the
+> context the program gives it (`bindings.scopes-registered`), and bound its
+> every other registration by `ScopedIn<NoContext>`, so a scoped entity
+> reaches no form of a binding taking none.
 
 ## Reading
 

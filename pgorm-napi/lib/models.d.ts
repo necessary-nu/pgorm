@@ -33,6 +33,7 @@ import type {
 } from "./index.d.ts";
 import type { Cursor, Graph, KeyInputs, Paginator } from "./graphs.d.ts";
 import type { ColumnType as DdlType, ReferentialAction } from "./schema.d.ts";
+import type { Holding, ScopeContext, ScopeOf } from "./scopes.d.ts";
 
 /**
  * The kinds a model column declares: every kind a result decodes as. `u64`
@@ -162,6 +163,12 @@ export interface ColumnOptions {
   readonly decode?: (value: any) => unknown;
   /** The column's value of the program's, before it is converted through the kind: `decode`'s inverse. */
   readonly encode?: (value: any) => unknown;
+  /**
+   * The scope the column holds, made by `scope("CompanyId")`: a statement on
+   * its model is held to the value a context holds of it, and an insert
+   * fills it from one. Never nullable, an array or generated.
+   */
+  readonly scope?: ScopeOf<string, any>;
 }
 
 declare const declared: unique symbol;
@@ -197,6 +204,7 @@ export declare class Column<K extends ColumnKind = ColumnKind, O extends ColumnO
   readonly saveArrayWith: ((array: Expr) => Expr) | null;
   readonly decode: ((value: any) => unknown) | null;
   readonly encode: ((value: any) => unknown) | null;
+  readonly scope: ScopeOf<string, any> | null;
   /** The options the column was declared with, as the types know them. */
   readonly [declared]?: O;
 }
@@ -291,6 +299,26 @@ type Omissible<C> =
   | Optioned<C, { readonly autoIncrement: true }>
   | Optioned<C, { readonly generated: "byDefault" }>;
 type PrimaryKey<C> = Optioned<C, { readonly primaryKey: true }>;
+type ScopeFields<C> = Optioned<C, { readonly scope: ScopeOf<string, any> }>;
+
+/** The scopes the columns `C` hold, by name: `never` for columns holding none. */
+export type ScopesOf<C> = string extends keyof C ? never
+  : { [F in keyof C]: C[F] extends Column<any, infer O> ? (O extends { readonly scope: ScopeOf<infer N, any> } ? N : never) : never }[keyof C];
+
+/**
+ * A model of the columns `C` where they hold no scope; otherwise the
+ * scopes a form taking no context misses, which its `this` is refused by.
+ */
+export type Unscoped<C extends Columns> = [ScopesOf<C>] extends [never] ? Model<C>
+  : { readonly "scoped by": ScopesOf<C>; readonly "a statement starts from": "findFor(cx), insertFor(cx, values), updateFor(cx, values)" };
+
+/** An active model of the columns `C` where they hold no scope, as {@link Unscoped}. */
+export type ActiveUnscoped<C extends Columns> = [ScopesOf<C>] extends [never] ? ModelActive<C>
+  : { readonly "scoped by": ScopesOf<C>; readonly "a write starts from": "insertFor(cx, db), updateFor(cx, db), deleteFor(cx, db)" };
+
+/** `unknown` where the model `M` holds no scope, and otherwise the scopes a join into it misses. */
+type UnscopedModel<M> = M extends Model<infer C> ? ([ScopesOf<C>] extends [never] ? unknown : { readonly "joined by joinFor, scoped by": ScopesOf<C> })
+  : unknown;
 
 /**
  * An insert's row of a model: every field neither nullable, defaulted nor
@@ -302,8 +330,18 @@ export type InsertOf<M> = M extends Model<infer C> ? Flat<
   >
   : never;
 
-/** An update's assignments to a model: any fields but the ones generated always. */
-export type UpdateOf<M> = M extends Model<infer C> ? { [F in Exclude<keyof C, GeneratedAlways<C>>]?: FieldInput<C[F]> }
+/**
+ * An insert's row of a model under a context: as {@link InsertOf}, its
+ * scope fields left to the context.
+ */
+export type InsertForOf<M> = M extends Model<infer C> ? Flat<
+    & { [F in Exclude<keyof C, GeneratedAlways<C> | Omissible<C> | ScopeFields<C>>]: FieldInput<C[F]> }
+    & { [F in Exclude<Omissible<C> | ScopeFields<C>, GeneratedAlways<C>>]?: FieldInput<C[F]> }
+  >
+  : never;
+
+/** An update's assignments to a model: any fields but the ones generated always and the scopes. */
+export type UpdateOf<M> = M extends Model<infer C> ? { [F in Exclude<keyof C, GeneratedAlways<C> | ScopeFields<C>>]?: FieldInput<C[F]> }
   : never;
 
 /** A model's primary key: each key field's value. */
@@ -422,20 +460,32 @@ export declare class Model<C extends Columns = Columns> {
   readonly columns: C;
   /** The primary key's fields, in declaration order. */
   readonly primaryKey: readonly PrimaryKey<C>[];
+  /** The scopes its columns hold, by name, in declaration order. */
+  readonly scopes: readonly ScopesOf<C>[];
   /** The same model read under `alias`, its columns qualified by it, as a self-join needs. */
   as(alias: string): Model<C>;
   /** A field's column, qualified as the model's table is named. */
   col<F extends FieldOf<C>>(field: F): ColumnOf<C, F>;
   /** The condition matching the row whose primary key this is: every key field, and no other. */
   key(values: KeyOf<Model<C>>): Condition;
-  /** Every field of every row. */
-  find(): ModelQuery<C, Row<C>>;
+  /** Every field of every row; a scoped model's start from {@link findFor}. */
+  find(this: Unscoped<C>): ModelQuery<C, Row<C>>;
+  /** Rust's `find_for`: every field of the rows `cx`'s scopes hold. */
+  findFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>): ModelQuery<C, Row<C>>;
   /** The fields named, of every row. */
   select<const L extends readonly [FieldOf<C>, ...FieldOf<C>[]]>(
+    this: Unscoped<C>,
+    ...fields: L
+  ): ModelQuery<C, Pick<Row<C>, L[number]>, { -readonly [I in keyof L]: Row<C>[L[I]] }>;
+  /** `select` under `cx`, its scopes ANDed into the `WHERE`. */
+  selectFor<const Cx extends ScopeContext, const L extends readonly [FieldOf<C>, ...FieldOf<C>[]]>(
+    cx: Cx & Holding<ScopesOf<C>, Cx>,
     ...fields: L
   ): ModelQuery<C, Pick<Row<C>, L[number]>, { -readonly [I in keyof L]: Row<C>[L[I]] }>;
   /** The row whose primary key this is. */
-  findByKey(values: KeyOf<Model<C>>): ModelQuery<C, Row<C>>;
+  findByKey(this: Unscoped<C>, values: KeyOf<Model<C>>): ModelQuery<C, Row<C>>;
+  /** Rust's `find_by_id_for`: the row of the key where `cx`'s scopes hold it. */
+  findByKeyFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>, values: KeyOf<Model<C>>): ModelQuery<C, Row<C>>;
   // [spec:pgorm:req:bindings.raw-models]
   /**
    * The rows of `statement` decoded into this model's records, as Rust's
@@ -448,13 +498,21 @@ export declare class Model<C extends Columns = Columns> {
    * field the model declares neither nullable, defaulted nor generated must
    * be set, and one generated always cannot be.
    */
-  insert(values: InsertOf<Model<C>>): ModelInsert<C>;
+  insert(this: Unscoped<C>, values: InsertOf<Model<C>>): ModelInsert<C>;
+  /** Rust's `Insert::one_for`: the row's scope columns filled from `cx`, another value of one refused. */
+  insertFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>, values: InsertForOf<Model<C>>): ModelInsert<C>;
   /** An INSERT of rows that each set the same fields, Rust's `Insert::many`; no rows writes nothing and sends nothing. */
-  insertMany(rows: readonly InsertOf<Model<C>>[]): ModelInsertMany<C>;
+  insertMany(this: Unscoped<C>, rows: readonly InsertOf<Model<C>>[]): ModelInsertMany<C>;
+  /** Rust's `Insert::many_for`: each row as {@link insertFor} writes one; under `every(..)` each sets that scope's field itself. */
+  insertManyFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>, rows: readonly InsertForOf<Model<C>>[]): ModelInsertMany<C>;
   /** An UPDATE of at least one field, which needs `where` or `allRows()` before it runs. */
-  update(values: UpdateOf<Model<C>>): ModelUpdate<C>;
+  update(this: Unscoped<C>, values: UpdateOf<Model<C>>): ModelUpdate<C>;
+  /** Rust's `Update::many_for`: the rows `cx`'s scopes hold, their condition the update's first. */
+  updateFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>, values: UpdateOf<Model<C>>): ModelUpdate<C>;
   /** A DELETE, which needs `where` or `allRows()` before it runs. */
-  delete(): ModelDelete<C>;
+  delete(this: Unscoped<C>): ModelDelete<C>;
+  /** Rust's `Delete::many_for`: the rows `cx`'s scopes hold, their condition the delete's first. */
+  deleteFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>): ModelDelete<C>;
   /** The fields one record write sets, whose writes run the model's hooks. */
   active(values?: ActiveValues<C>): ModelActive<C>;
   /** A relation from this model's foreign key to the key of `target`, which reads at most one row. */
@@ -481,7 +539,9 @@ export declare class Model<C extends Columns = Columns> {
     ...relations: R
   ): Linked<Model<C>, LastTo<R>>;
   /** A graph rooted at this model, which decodes its records alone until a slot is joined. */
-  graph(): Graph<[Model<C>], [Row<C>]>;
+  graph(this: Unscoped<C>): Graph<[Model<C>], [Row<C>]>;
+  /** Rust's `graph_for`: a graph under `cx`, each slot's and hop's scopes in its join's `ON`. */
+  graphFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>): Graph<[Model<C>], [Row<C>]>;
   describe(): ModelDescription;
 }
 
@@ -548,15 +608,21 @@ export declare class ModelActive<C extends Columns = Columns> {
   private constructor();
   readonly values: ActiveValues<C>;
   /** `beforeSave(values, true)`, the row inserted and read back, then `afterSave(record, true)`. */
-  insert(db: Queryable, options?: OperationOptions): Promise<Row<C>>;
+  insert(this: ActiveUnscoped<C>, db: Queryable, options?: OperationOptions): Promise<Row<C>>;
+  /** `insert` with the row's scope columns filled from `cx`, after `beforeSave` has had it. */
+  insertFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>, db: Queryable, options?: OperationOptions): Promise<Row<C>>;
   /**
    * `beforeSave(values, false)`, the row the key names updated with the
    * other fields and read back, then `afterSave(record, false)`; a key no row
    * has is a {@link DecodeError}.
    */
-  update(db: Queryable, options?: OperationOptions): Promise<Row<C>>;
+  update(this: ActiveUnscoped<C>, db: Queryable, options?: OperationOptions): Promise<Row<C>>;
+  /** `update` of the row the key names where `cx`'s scopes hold it, a row outside them a {@link DecodeError}. */
+  updateFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>, db: Queryable, options?: OperationOptions): Promise<Row<C>>;
   /** `beforeDelete(values)`, the row the key names deleted, then `afterDelete(values)`: the rows deleted. */
-  delete(db: Queryable, options?: OperationOptions): Promise<number>;
+  delete(this: ActiveUnscoped<C>, db: Queryable, options?: OperationOptions): Promise<number>;
+  /** `delete` where `cx`'s scopes hold the row, which counts none outside them. */
+  deleteFor<const Cx extends ScopeContext>(cx: Cx & Holding<ScopesOf<C>, Cx>, db: Queryable, options?: OperationOptions): Promise<number>;
 }
 
 /**
@@ -602,12 +668,16 @@ declare class ModelClauses {
    * a table it joined — without reading its columns, as a condition on a
    * related row needs.
    */
-  join(relation: Relation<any, any, any>, options?: ModelJoinOptions): this;
+  join<R extends Relation<any, any, any>>(relation: R & UnscopedModel<R["to"]>, options?: ModelJoinOptions): this;
+  /** Rust's `join_for`: `join` with the far end's scopes, as `cx` holds them, ANDed into the join's `ON`. */
+  joinFor(cx: ScopeContext, relation: Relation<any, any, any>, options?: ModelJoinOptions): this;
   /**
    * Join the table `relation` starts at, from its far end, which the query's
    * model or a table it joined is: Rust's `join_rev`.
    */
-  joinRev(relation: Relation<any, any, any>, options?: ModelJoinOptions): this;
+  joinRev<R extends Relation<any, any, any>>(relation: R & UnscopedModel<R["from"]>, options?: ModelJoinOptions): this;
+  /** Rust's `join_rev_for`: `joinRev` with the joined table's scopes, as `cx` holds them, ANDed into the join's `ON`. */
+  joinRevFor(cx: ScopeContext, relation: Relation<any, any, any>, options?: ModelJoinOptions): this;
 }
 
 /** Each column's value, in order. */
@@ -823,6 +893,10 @@ export declare class ModelInsert<C extends Columns = Columns> {
   add(values: InsertOf<Model<C>>): ModelInsertMany<C>;
   /** A batch of its row and `rows`, its conflict clause kept, as Rust's `Insert::add_many` makes one. */
   addMany(rows: readonly InsertOf<Model<C>>[]): ModelInsertMany<C>;
+  /** Rust's `Insert::add_for`: `add` of a row whose scope columns `cx` fills. */
+  addFor(cx: ScopeContext, values: InsertForOf<Model<C>>): ModelInsertMany<C>;
+  /** Rust's `Insert::add_many_for`: `addMany` of rows whose scope columns `cx` fills. */
+  addManyFor(cx: ScopeContext, rows: readonly InsertForOf<Model<C>>[]): ModelInsertMany<C>;
   /** The rows written, every field or the fields named. */
   returning(): ModelRows<Row<C>>;
   returning<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelRows<Pick<Row<C>, F>>;
@@ -853,6 +927,10 @@ export declare class ModelInsertMany<C extends Columns = Columns> {
   add(values: InsertOf<Model<C>>): ModelInsertMany<C>;
   /** The batch with `rows` after its own, its conflict clause kept, as Rust's `Insert::add_many` adds them. */
   addMany(rows: readonly InsertOf<Model<C>>[]): ModelInsertMany<C>;
+  /** Rust's `Insert::add_for`: `add` of a row whose scope columns `cx` fills. */
+  addFor(cx: ScopeContext, values: InsertForOf<Model<C>>): ModelInsertMany<C>;
+  /** Rust's `Insert::add_many_for`: `addMany` of rows whose scope columns `cx` fills. */
+  addManyFor(cx: ScopeContext, rows: readonly InsertForOf<Model<C>>[]): ModelInsertMany<C>;
   /** The rows written, every field or the fields named. */
   returning(): ModelRows<Row<C>>;
   returning<const F extends FieldOf<C>>(...fields: [F, ...F[]]): ModelRows<Pick<Row<C>, F>>;
@@ -886,6 +964,10 @@ export declare class ModelTryInsert<C extends Columns = Columns> {
   onConflict(action: Conflict | ConflictUpdate): ModelTryInsert<C>;
   add(values: InsertOf<Model<C>>): ModelTryInsertMany<C>;
   addMany(rows: readonly InsertOf<Model<C>>[]): ModelTryInsertMany<C>;
+  /** Rust's `TryInsert::add_for`: a row whose scope columns `cx` fills. */
+  addFor(cx: ScopeContext, values: InsertForOf<Model<C>>): ModelTryInsertMany<C>;
+  /** Rust's `TryInsert::add_many_for`: rows whose scope columns `cx` fills. */
+  addManyFor(cx: ScopeContext, rows: readonly InsertForOf<Model<C>>[]): ModelTryInsertMany<C>;
   /** The rows written, `conflicted` when its conflict clause wrote none, `empty` for nothing to write. */
   execute(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<number>>;
   /** A RETURNING list whose `one` answers with the row written, as `exec_returning_model` does. */
@@ -903,6 +985,10 @@ export declare class ModelTryInsertMany<C extends Columns = Columns> {
   onConflict(action: Conflict | ConflictUpdate): ModelTryInsertMany<C>;
   add(values: InsertOf<Model<C>>): ModelTryInsertMany<C>;
   addMany(rows: readonly InsertOf<Model<C>>[]): ModelTryInsertMany<C>;
+  /** Rust's `TryInsert::add_for`: a row whose scope columns `cx` fills. */
+  addFor(cx: ScopeContext, values: InsertForOf<Model<C>>): ModelTryInsertMany<C>;
+  /** Rust's `TryInsert::add_many_for`: rows whose scope columns `cx` fills. */
+  addManyFor(cx: ScopeContext, rows: readonly InsertForOf<Model<C>>[]): ModelTryInsertMany<C>;
   /** The rows written, `conflicted` when its conflict clause wrote none, `empty` for a batch of none. */
   execute(db: Queryable, options?: OperationOptions): Promise<TryInsertResult<number>>;
   /** A RETURNING list whose `all` answers with the rows written, as `exec_returning_models` does. */
@@ -1012,6 +1098,11 @@ export declare class Relation<
    */
   find(row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
   /**
+   * Rust's `find_related_for`: `find` under `cx`, the far end's scopes in
+   * the `WHERE` and a table joined back held to its own in its join's `ON`.
+   */
+  findFor(cx: ScopeContext, row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
+  /**
    * The far end of each of `rows`, read in one query, as pgorm's `load_one`
    * and `load_many` read it: `options.query`, a query of the far end's
    * model, filtered and ordered as it says, with the model the relation
@@ -1059,6 +1150,12 @@ export declare class Related<From extends Model<any> = Model<any>, To extends Mo
    */
   find(row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
   /**
+   * Rust's `find_related_for`: `find` under `cx`, the far end's scopes in
+   * the `WHERE`, and the junction's and the starting model's in their joins'
+   * `ON`.
+   */
+  findFor(cx: ScopeContext, row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
+  /**
    * The far end of each of `rows` through the junction, read in one query,
    * as pgorm's `load_many_via` reads it: an array per row, in the query's
    * order.
@@ -1083,8 +1180,12 @@ export declare class Linked<From extends Model<any> = Model<any>, To extends Mod
   lastHop(): From;
   /** Every row at the far end a chain of rows reaches, as pgorm's `Linked::find_linked` reads them. */
   findLinked(): ModelQuery<ColumnsOf<To>, RowOf<To>>;
+  /** Rust's `find_linked_for`: `findLinked` under `cx`, each hop's scopes in its join's `ON`. */
+  findLinkedFor(cx: ScopeContext): ModelQuery<ColumnsOf<To>, RowOf<To>>;
   /** The rows at the far end the chain reaches from `row`, keyed by the starting model's primary key. */
   find(row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
+  /** `find` under `cx`, each table it reads held to its scopes. */
+  findFor(cx: ScopeContext, row: Partial<RowOf<From>>): ModelQuery<ColumnsOf<To>, RowOf<To>>;
 }
 
 // A declaration file with no `export {}` exports every declaration in it, so

@@ -262,6 +262,29 @@ first rule: a value reaches JavaScript exactly or not at all.
 > A pipeline's source (`bindings.pipeline`) MAY also be a table's name as a
 > string, read as the `Table` of that name.
 
+## Scopes
+
+> [spec:pgorm:req:napi.scopes]
+> JavaScript MUST spell a scope as `scope("CompanyId")`, a `Scope` named by
+> its argument, which a context names it by; a scope value as the scope
+> called, `CompanyId(7n)`, a `ScopeValue`; every value of one as
+> `every(UserId)`, an `Every`; and a context of several as a plain object of
+> them, each property a scope value or an `Every` (`bindings.scopes`). A
+> column holds a scope as `column(kind, { scope: CompanyId })`, and a
+> model's `scopes` lists its scopes by name. Its `_for` forms are spelled
+> `For` (`findFor`, `insertFor`, `joinFor`, `pipeline.fromFor`), and a
+> refusal names them so; a registered entity's take any of the three
+> contexts too, and anything else is a `TypeError`.
+>
+> A column's type carries the scope its options name, and a model's its
+> columns', so TypeScript MUST refuse a form taking no context on a scoped
+> declared model, a model's and an active model's alike, a `For` form given
+> a context missing one of the model's scopes, naming the scopes it misses,
+> an update setting a scope column, a plain join into a scoped model and a
+> scoped model given to a pipeline as a source, as well as a context of
+> another type. A registered entity's scopes are refused when its statement
+> is built alone.
+
 ## Registered entities
 
 > [spec:pgorm:req:napi.application+2]

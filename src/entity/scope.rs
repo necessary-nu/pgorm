@@ -172,7 +172,7 @@ impl ScopeContext for NoContext {
 /// The plain statement forms bound their entity by `ScopedIn<NoContext>`, so
 /// they are a scoped entity's compile errors, and each `_for` form by
 /// `ScopedIn<Cx>` for the context it is given.
-// [spec:pgorm:req:scope.compile]
+// [spec:pgorm:req:scope.compile+1]
 pub trait ScopedIn<Cx: ScopeContext + ?Sized>: Entity {}
 
 /// What [`UpdateMany::from`](crate::UpdateMany::from) and

@@ -9,7 +9,7 @@
 import { Clauses, countOf, keyedCursor, pagesOf, recipeOf, selectOf, sourcesOf } from "./model-clauses.js";
 import { decodeAll, decodeCount, decodeOne, decodeOptional, decodeStream } from "./model-decode.js";
 import { partialSelector, projectionOf } from "./model-projections.js";
-import { projected, qualified } from "./model-shape.js";
+import { heldOn, projected, qualified } from "./model-shape.js";
 
 /** Marks a construction from within the module. */
 const MADE = Symbol("pgorm-napi model query");
@@ -198,17 +198,21 @@ export function queryOf(recipe) {
 }
 
 /**
- * A query reading `fields` of `shape`.
+ * A query reading `fields` of `shape` under `held`, the rows its scopes
+ * hold: refused under `null`, a form given no context, where `shape` is
+ * scoped.
  *
  * @param {import("./model-shape.js").Shape} shape
  * @param {readonly import("./model-shape.js").Field[]} fields
+ * @param {import("./model-shape.js").Held} held
  */
-export function query(shape, fields) {
+export function query(shape, fields, held) {
+  const scoped = heldOn(shape, held);
   return new ModelQuery({
     shape,
     fields,
     joins: [],
-    wheres: [],
+    wheres: scoped === null ? [] : [scoped],
     orders: [],
     limit: null,
     offset: null,

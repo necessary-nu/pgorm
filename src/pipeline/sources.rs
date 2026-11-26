@@ -550,9 +550,11 @@ impl<S: SelectableSource> Named<S> {
 
 /// Read a relation under an owned identifier computed at runtime.
 /// Like [`IntoSource::named`], this preserves the relation's source type
-/// for [`Pipeline::select_sources`].
+/// for [`Pipeline::select_sources`]. A relation that is no source, such as a
+/// scoped entity, names its columns all the same: the `Named` is a source
+/// only where the relation is one.
 // [spec:pgorm:req:bindings.pipeline+1]
-pub fn named_runtime<R: IntoSource>(relation: R, name: Name) -> Named<R> {
+pub fn named_runtime<R>(relation: R, name: Name) -> Named<R> {
     Named {
         relation,
         name: SqlName::to_string(&*name),

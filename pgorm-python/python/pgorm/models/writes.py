@@ -15,6 +15,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 from .. import _native as p
+from ..scopes import Context, held
 from . import casts
 from .clauses import predicate_of
 from .queries import ModelRows, written
@@ -120,6 +121,8 @@ class _Insert(_Write[p.Insert | None]):
             raise TypeError(
                 "a conflict's action is Conflict.do_nothing(), or a target's do_nothing() or update(..)"
             )
+        if self.model._scopes is not None:
+            self.model._scopes.upsert(action)
         statement = None if self.statement is None else self.statement.on_conflict(action)
         return replace(self, statement=statement, conflict=action)
 
@@ -133,15 +136,33 @@ class _Insert(_Write[p.Insert | None]):
 
     def add(self, values: Mapping[str, Any]) -> ModelInsertMany:
         """The insert with one more row, which makes it a batch, as Rust's
-        ``Insert::add`` does; its conflict clause is kept."""
-        return self.add_many([values])
+        ``Insert::add`` does; its conflict clause is kept. A scoped model's
+        row is added by ``add_for``."""
+        return self._added(None, [values])
+
+    def add_for(self, cx: Context, values: Mapping[str, Any]) -> ModelInsertMany:
+        """Rust's ``Insert::add_for``: ``add`` of a row whose scope columns
+        ``cx`` fills."""
+        return self._added(held(cx), [values])
 
     def add_many(self, rows: Sequence[Mapping[str, Any]]) -> ModelInsertMany:
         """The insert with ``rows`` after its own, a batch, as Rust's
         ``Insert::add_many`` makes one."""
+        return self._added(None, rows)
+
+    def add_many_for(self, cx: Context, rows: Sequence[Mapping[str, Any]]) -> ModelInsertMany:
+        """Rust's ``Insert::add_many_for``: ``add_many`` of rows whose scope
+        columns ``cx`` fills."""
+        return self._added(held(cx), rows)
+
+    def _added(
+        self, cx: p._ScopeContext | None, rows: Sequence[Mapping[str, Any]]
+    ) -> ModelInsertMany:
         if not isinstance(rows, (list, tuple)):
             raise TypeError("add_many takes a list or tuple of rows")
-        statement, fields = appended(self.model, self.statement, self.fields, rows, self.conflict)
+        self.model._held(cx)
+        filled = [self.model._filled(cx, row) for row in rows]
+        statement, fields = appended(self.model, self.statement, self.fields, filled, self.conflict)
         return ModelInsertMany(self.model, statement, fields, self.conflict)
 
     def _inspect(self, terminal: str | None, upserts: str) -> p.Compiled:
@@ -304,6 +325,8 @@ def _source(source: object) -> p.Table | p.FromItem:
     from .model import Model
 
     if isinstance(source, Model):
+        if source._scopes is not None:
+            source._scopes.join()
         return source.table
     if not isinstance(source, (p.Table, p.FromItem)):
         raise TypeError("a write reads another model, a Table or a FROM item")
@@ -321,6 +344,9 @@ def assignments(
         field = model.col(name).field_name
         if model.columns[field].generated == "always":
             raise p.ConstructionError(f"{field} is generated always: the server writes it")
+    # [spec:pgorm:req:python.scopes]    a scope column is written by its insert alone
+    if not insert and model._scopes is not None:
+        model._scopes.immutable([model.col(name).field_name for name in values])
     if insert:
         for field, column in model.columns.items():
             if not column.omissible and field not in values:

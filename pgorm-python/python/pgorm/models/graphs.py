@@ -77,6 +77,9 @@ class State:
     # Set by limit or offset, whatever value they were given: the caller has
     # taken charge of the row range.
     sliced: bool = False
+    # The context the graph is read under, which each slot's and hop's join
+    # is held to as the root is: None for a graph built under none.
+    cx: p._ScopeContext | None = None
 
     def decoded(self) -> tuple[Table, ...]:
         return tuple(table for table in self.tables if table.role != "hop")
@@ -197,6 +200,10 @@ class Graph(Generic[S]):
         if extra is not None:
             narrowed = extra(answering(start, left.qualifier), answering(end, qualifier))
             on = p.Condition.all(on, condition_of(narrowed, "a join's condition"))
+        # [spec:pgorm:req:python.scopes]    each slot and hop is held to the graph's context in its ON
+        scoped = end._held(state.cx, qualifier)
+        if scoped is not None:
+            on = p.Condition.all(on, scoped)
         return Graph(
             replace(
                 state,

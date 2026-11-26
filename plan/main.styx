@@ -21927,13 +21927,28 @@ children (
             {
                 id scopes.python
                 title "A Python model's scoped columns hold its statements to a Scopes context, refused when the statement is built without one"
+                implements {
+                    main ([spec:pgorm:req:bindings.scopes] [spec:pgorm:req:bindings.scopes-registered])
+                    python ([spec:pgorm:req:python.scopes])
+                }
                 deps (scopes.rust trait-names)
             }
 
             {
                 id scopes.napi
                 title "A JavaScript model's scoped columns hold its statements to a scopes context, checked by TypeScript and refused at build time"
+                implements {
+                    javascript ([spec:pgorm:req:napi.scopes])
+                }
                 deps (scopes.rust trait-names)
+                log (
+                    {
+                        at 2026-11-26T09:06:30.744086Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
 
             {
@@ -22010,6 +22025,34 @@ children (
                 title "The derive's per-entity scope diagnostic names every _for form a refused call has, from_for and using_for among them"
                 kind @fix
                 deps (scopes.from-using)
+            }
+
+            {
+                id scopes.bindings-compound
+                title "Registered graphs, source tuples, disjoint and one-of enums over scoped entities, and declared disjoint and one-of models over scoped models, are held to their scopes in both bindings rather than refused"
+                kind @feat
+                deps (scopes.napi)
+            }
+
+            {
+                id scopes.bindings-written
+                title "A written scope (ScopeOn: a hand-written condition and insert hook) holds a registered entity's statements in both bindings, as column scopes do"
+                kind @feat
+                deps (scopes.napi)
+            }
+
+            {
+                id scopes.codegen-registrations
+                title "pgorm-codegen's registrations register a scoped entity with scoped::<E>() and its scopes with scope::<S>(), so a generated registration of a scoped entity compiles"
+                kind @fix
+                deps (scopes.napi)
+            }
+
+            {
+                id scopes.bindings-registry-names
+                title "A registry tells apart two scope types sharing a last path segment, and refuses a registered update that sets a scope column when it is built, not when it runs"
+                kind @fix
+                deps (scopes.napi)
             }
         )
         log (

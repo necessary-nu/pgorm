@@ -72,9 +72,29 @@ class Trying {
     return new ModelTryInsertMany(this.#insert.add(values), MADE);
   }
 
+  /**
+   * Rust's `TryInsert::add_for`: a row whose scope columns `cx` fills.
+   *
+   * @param {unknown} cx
+   * @param {unknown} values
+   */
+  addFor(cx, values) {
+    return new ModelTryInsertMany(this.#insert.addFor(cx, values), MADE);
+  }
+
   /** @param {unknown} rows */
   addMany(rows) {
     return new ModelTryInsertMany(this.#insert.addMany(rows), MADE);
+  }
+
+  /**
+   * Rust's `TryInsert::add_many_for`: rows whose scope columns `cx` fills.
+   *
+   * @param {unknown} cx
+   * @param {unknown} rows
+   */
+  addManyFor(cx, rows) {
+    return new ModelTryInsertMany(this.#insert.addManyFor(cx, rows), MADE);
   }
 
   /**

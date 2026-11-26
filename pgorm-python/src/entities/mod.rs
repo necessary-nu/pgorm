@@ -26,7 +26,7 @@ pub use selection::{PyEntityRelation, PyEntitySelection};
 pub(crate) use versions::TERMINALS as version_terminals;
 pub use versions::{PyChange, PyEntityUpdate, PyEntityUpdateMany, PyUpserted};
 
-use crate::{config::DIALECT, errors::Raise, identifiers::Identifier};
+use crate::{config::DIALECT, errors::Raise, identifiers::Identifier, scopes::PyScopeContext};
 use pgorm_bindings::entity::EntityBackend;
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -35,6 +35,15 @@ use std::sync::Arc;
 #[pyclass(name = "Entity", module = "pgorm", frozen, from_py_object)]
 pub struct PyEntity {
     pub(crate) backend: Arc<dyn EntityBackend>,
+}
+
+impl PyEntity {
+    fn find_under(&self, cx: Option<&PyScopeContext>) -> PyResult<PyEntityQuery> {
+        let cx = PyScopeContext::scoping(cx, self.backend.info())?;
+        Ok(PyEntityQuery {
+            inner: self.backend.select(&cx),
+        })
+    }
 }
 
 #[pymethods]
@@ -64,10 +73,20 @@ impl PyEntity {
         Bound::new(py, PyEntityColumn::new(self.backend.clone(), name)?)
     }
 
-    fn find(&self) -> PyEntityQuery {
-        PyEntityQuery {
-            inner: self.backend.select(),
-        }
+    /// The scopes the entity declares, by name: none for an unscoped one.
+    #[getter]
+    fn scopes(&self) -> Vec<&'static str> {
+        self.backend.info().scoped.clone()
+    }
+
+    fn find(&self) -> PyResult<PyEntityQuery> {
+        self.find_under(None)
+    }
+
+    /// `Entity::find_for`: the rows `cx`'s scopes hold.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn find_for(&self, cx: &Bound<'_, PyAny>) -> PyResult<PyEntityQuery> {
+        self.find_under(Some(PyScopeContext::read(cx)?.get()))
     }
 
     /// The relation the entity's `Relation` enum declares under `name`, for
@@ -89,24 +108,83 @@ impl PyEntity {
     /// An update by the ActiveModel's key, whose terminal returns the row
     /// before and after it.
     fn update(&self, active: PyRef<'_, PyActiveModel>) -> PyResult<PyEntityUpdate> {
-        PyEntityUpdate::new(self.backend.clone(), &active)
+        let cx = PyScopeContext::scoping(None, self.backend.info())?;
+        PyEntityUpdate::new(self.backend.clone(), &active, cx)
+    }
+
+    /// `Update::one_for`: the update by key under `cx`, a row outside its
+    /// scopes no row.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn update_for(
+        &self,
+        cx: &Bound<'_, PyAny>,
+        active: PyRef<'_, PyActiveModel>,
+    ) -> PyResult<PyEntityUpdate> {
+        let cx =
+            PyScopeContext::scoping(Some(PyScopeContext::read(cx)?.get()), self.backend.info())?;
+        PyEntityUpdate::new(self.backend.clone(), &active, cx)
     }
 
     /// An update of every row its filters admit, whose terminal returns each
     /// changed row before and after.
-    fn update_many(&self) -> PyEntityUpdateMany {
-        PyEntityUpdateMany::new(self.backend.clone())
+    fn update_many(&self) -> PyResult<PyEntityUpdateMany> {
+        let cx = PyScopeContext::scoping(None, self.backend.info())?;
+        Ok(PyEntityUpdateMany::new(self.backend.clone(), cx))
+    }
+
+    /// `Update::many_for`: the update of the rows `cx`'s scopes hold.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn update_many_for(&self, cx: &Bound<'_, PyAny>) -> PyResult<PyEntityUpdateMany> {
+        let cx =
+            PyScopeContext::scoping(Some(PyScopeContext::read(cx)?.get()), self.backend.info())?;
+        Ok(PyEntityUpdateMany::new(self.backend.clone(), cx))
     }
 
     /// An insert of one ActiveModel, whose terminal says what it did.
     fn insert(&self, active: PyRef<'_, PyActiveModel>) -> PyResult<PyEntityInsert> {
-        PyEntityInsert::new(self.backend.clone(), active)
+        let cx = PyScopeContext::scoping(None, self.backend.info())?;
+        PyEntityInsert::new(self.backend.clone(), active, cx)
+    }
+
+    /// `Insert::one_for`: the row's scope columns filled from `cx`.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn insert_for(
+        &self,
+        cx: &Bound<'_, PyAny>,
+        active: PyRef<'_, PyActiveModel>,
+    ) -> PyResult<PyEntityInsert> {
+        let cx =
+            PyScopeContext::scoping(Some(PyScopeContext::read(cx)?.get()), self.backend.info())?;
+        PyEntityInsert::new(self.backend.clone(), active, cx)
     }
 
     /// An insert of a batch of ActiveModels, whose terminal says what it did
     /// with each row.
     fn insert_many(&self, actives: Vec<PyRef<'_, PyActiveModel>>) -> PyResult<PyEntityInsertMany> {
-        PyEntityInsertMany::new(self.backend.clone(), &actives)
+        let cx = PyScopeContext::scoping(None, self.backend.info())?;
+        PyEntityInsertMany::new(self.backend.clone(), &actives, cx)
+    }
+
+    /// `Insert::many_for`: each row's scope columns filled from `cx`.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn insert_many_for(
+        &self,
+        cx: &Bound<'_, PyAny>,
+        actives: Vec<PyRef<'_, PyActiveModel>>,
+    ) -> PyResult<PyEntityInsertMany> {
+        let cx =
+            PyScopeContext::scoping(Some(PyScopeContext::read(cx)?.get()), self.backend.info())?;
+        PyEntityInsertMany::new(self.backend.clone(), &actives, cx)
+    }
+
+    /// `Pipeline::from_for`: a pipeline over the rows `cx`'s scopes hold.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn _pipeline_for(&self, cx: &Bound<'_, PyAny>) -> PyResult<crate::pipeline::PyPipeline> {
+        let cx =
+            PyScopeContext::scoping(Some(PyScopeContext::read(cx)?.get()), self.backend.info())?;
+        Ok(crate::pipeline::PyPipeline {
+            inner: self.backend.pipeline(&cx),
+        })
     }
 
     fn __repr__(&self) -> String {

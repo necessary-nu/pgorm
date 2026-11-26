@@ -2350,6 +2350,93 @@ Rust generic at run time, only use the ones compiled in.
 > `CURRENT_TIME` and `CURRENT_TIMESTAMP`, each an expression, which a
 > declared column's `default_expr` takes as Rust's `default_expr` does.
 
+## Scopes
+
+A scope holds a table's statements to a condition the program supplies, as
+[scope.md](scope.md) specifies for Rust. A binding has no compile time, so
+where Rust's compiler stops a statement a binding refuses it as it is built.
+
+> [spec:pgorm:req:bindings.scopes]
+> Each binding MUST let a declared model's column hold a scope, the dialect
+> of Rust's `#[pgorm(scope)]` (`[spec:pgorm:def:scope.declare]`): a scope
+> is a type of the program's own, named as its class or its declaration
+> names it, and a column declared with it holds it, one column per scope, a
+> primary key's included; a scope column that is nullable, an array or
+> generated is refused as it is declared. A context is a scope value, which
+> holds itself, an `Every` of a scope, holding its every value, or a context
+> of several, holding each once and refused where it holds one twice, as
+> Rust's are (`[spec:pgorm:def:scope.context]`,
+> `[spec:pgorm:def:scope.every]`).
+>
+> Every statement constructor of a declared model MUST have a form ending in
+> `_for`, spelled by the binding's naming rule, taking the context first:
+> `select_for`, `find_for`, `find_by_key_for`, `graph_for`, `insert_for`
+> and `insert_many_for`, an insert's and a try-insert's `add_for` and
+> `add_many_for`, `update_for` and `delete_for`, an active model's
+> `insert_for`, `update_for` and `delete_for`, a query's `join_for` and
+> `join_rev_for`, a relation's and a related path's `find_for`, a linked
+> chain's `find_for` and `find_linked_for`, and the pipeline's `from_for`.
+> An unscoped model takes any context there. A statement on a scoped model
+> built by a form taking no context, or under a context not holding each of
+> its scopes, MUST be refused as it is built, before anything is sent, in
+> the words of Rust's compile error (`[spec:pgorm:req:scope.compile]`):
+> "`` `note` is scoped by `CompanyId` and `UserId`, which `Member` does not
+> hold ``", the table named, the context named by its type, and a
+> statement given none told that it starts from a `_for` form. So MUST a
+> graph's slot or hop into a scoped model under no context, a loader given
+> no query of a scoped far end, a scoped model given to a write's `FROM` or
+> `USING` or to a pipeline as a source, a plain join into a scoped model,
+> worded as Rust's `ScopeError::Unscoped` is, and a declared disjoint enum
+> or one-of reference over a scoped model, whose reads take no context.
+>
+> Under a context a statement MUST be held as Rust holds it: a read ANDs
+> each scope the context holds one value of into its `WHERE`, the column
+> compared as its own comparisons compare a value, and a scope under every
+> value adds nothing (`[spec:pgorm:sem:scope.read]`); a graph's slots and
+> hops, a join's table and a find's joined tables AND their own scopes into
+> their join's `ON`, qualified by the name each is joined under, and a
+> loader's join back to the records it is given is not scoped again
+> (`[spec:pgorm:sem:scope.join]`); an insert fills each scope column its
+> row leaves out with the context's value, keeps a row holding that value,
+> refuses another in the words of Rust's `ScopeError::Conflict`, and under
+> every value of a scope refuses a row leaving its column out in the words
+> of `ScopeError::Unset` (`[spec:pgorm:sem:scope.insert]`); an update and a
+> delete AND the scopes into their `WHERE`, an active model's by its key
+> among them (`[spec:pgorm:sem:scope.write]`); and the pipeline's
+> `from_for` filters the model's rows by each value, binding it. A scope
+> column is written by its row's insert and never after: an update setting
+> one, and an upsert whose `DO UPDATE SET` names one, MUST be refused as
+> Rust's `Error::ImmutableColumn` is (`[spec:pgorm:req:scope.immutable]`).
+> Raw SQL, `find_by_statement` among it, and the statement builders used
+> directly stay outside scopes (`[spec:pgorm:req:scope.raw]`).
+>
+> Which scope columns a context holds a statement to, what an insert fills
+> and every refusal MUST be decided once, by pgorm-bindings; a binding reads
+> its language's context into the scopes it holds and converts each value
+> as the column holding the scope converts a value it writes.
+
+> [spec:pgorm:req:bindings.scopes-registered]
+> A registered Rust entity that declares scopes MUST stay held to them. An
+> application registers each scope first, `Registry::scope::<S>()` for a
+> `Scope` whose `ValueType` is the kind a program's value converts by,
+> refused where a scope of its name is registered; then the entity, by
+> `Registry::scoped::<E>(name)`, refused where it declares no scope or one
+> not registered; `entity` and `entity_in` take an unscoped entity alone. A
+> context's value of a registered scope becomes that Rust scope's value, and
+> the registration's statements are Rust's `_for` forms run under a
+> `ScopeContext` pgorm-bindings writes by hand: the entity's `find_for`,
+> `insert_for`, `insert_many_for`, `update_for` (`Update::one_for`) and
+> `update_many_for`, an ActiveModel's `insert_for`, `update_for` and
+> `delete_for`, a query's `join_for` into a scoped table, and the
+> pipeline's `from_for`. A form taking no context on a scoped registration,
+> a context not holding its scopes, a plain join into a scoped table and a
+> scoped entity given to a pipeline as a source MUST be refused as they are
+> built, in the words `bindings.scopes` gives them, and a refusal pgorm
+> holds until a statement runs is a `ConstructionError` when it would run,
+> nothing sent. A graph, a source tuple, a disjoint enum and a one-of
+> reference register over unscoped entities alone. A registration's
+> `scopes` lists the scopes its entity declares, by name.
+
 ## Disjoint models
 
 > [spec:pgorm:req:bindings.disjoint+2]

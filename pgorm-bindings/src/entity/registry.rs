@@ -10,7 +10,8 @@ use std::{
 };
 
 use pgorm::{
-    DecodeRow, Entity, GraphItem, GraphRow, IntoActiveModel, SelectGraph, pipeline::SourceList,
+    ActiveModelBehavior, DecodeRow, Entity, GraphItem, GraphRow, IntoActiveModel, Scope,
+    SelectGraph, pgorm_query::ValueType, pipeline::SourceList,
 };
 use pgorm::{NoContext, ScopedIn};
 
@@ -19,10 +20,14 @@ use super::{
     disjoint::DisjointCore,
     graph::{GraphBackend, GraphFactory, GraphInfo, GraphSlots},
     one_of::OneOfCore,
+    reach::{Instance, Reach, Typed},
     registration_name,
     sources::{SourceTypes, SourcesBackend, SourcesFactory, SourcesInfo},
 };
-use crate::{Dialect, Failure};
+use crate::{
+    Dialect, Failure,
+    scope::{RegisteredScope, ScopeList, Scoping},
+};
 
 /// The concrete Rust entities, graph shapes, source tuples, disjoint enums
 /// and one-of enums one native module carries, which a program reaches by
@@ -41,6 +46,7 @@ pub struct Registry {
     sources: BTreeMap<String, Arc<dyn SourcesBackend>>,
     pub(super) disjoints: BTreeMap<String, Arc<DisjointCore>>,
     pub(super) one_ofs: BTreeMap<String, Arc<OneOfCore>>,
+    scopes: ScopeList,
 }
 
 impl Registry {
@@ -56,6 +62,7 @@ impl Registry {
             sources: BTreeMap::new(),
             disjoints: BTreeMap::new(),
             one_ofs: BTreeMap::new(),
+            scopes: ScopeList::default(),
         }
     }
 
@@ -65,19 +72,91 @@ impl Registry {
         self.dialect
     }
 
+    /// Register the Rust scope `S`, so a program's value of its kind becomes
+    /// one and a registered entity scoped by it can be registered: a scope
+    /// of its name already registered is refused, since a program's context
+    /// names its scopes by name.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    pub fn scope<S>(&mut self) -> Result<(), Failure>
+    where
+        S: Scope + ValueType + Send + Sync,
+    {
+        self.scopes.add(RegisteredScope::of::<S>())
+    }
+
+    /// Register the scoped entity `E` under `name`, its `Default` names
+    /// read: every statement of the registration starts from a `_for` form
+    /// under the context the program gives it, and one given none is
+    /// refused, so the entity stays held to its scopes. Each scope it
+    /// declares is registered first; an unscoped entity is registered by
+    /// [`entity`](Self::entity). A name, or a type and table already
+    /// registered, is refused, and nothing is added.
+    // [spec:pgorm:req:bindings.entities+6]
+    // [spec:pgorm:req:bindings.scopes-registered]
+    // [spec:pgorm:req:scope.compile+1]
+    pub fn scoped<E>(&mut self, name: &str) -> Result<(), Failure>
+    where
+        E: Entity + ScopedIn<Scoping> + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: ActiveModelBehavior + Send + Sync + 'static,
+    {
+        let Some(declared) = E::scopes() else {
+            return Err(Failure::Construction(format!(
+                "{name:?} declares no scope: register it with entity"
+            )));
+        };
+        let known = self.scopes.get();
+        if let Some(missing) = declared
+            .names()
+            .iter()
+            .find(|scope| !known.iter().any(|known| known.name == **scope))
+        {
+            return Err(Failure::Construction(format!(
+                "register the scope `{missing}` before {name:?}, which it scopes"
+            )));
+        }
+        self.add::<E, Typed>(name, Typed)
+    }
+
+    /// Register the unscoped entity `E` under `name`: every statement of the
+    /// registration names `E::default()`'s table.
+    // [spec:pgorm:req:bindings.entities+6]
+    // [spec:pgorm:req:scope.compile+1]
+    pub fn entity<E>(&mut self, name: &str) -> Result<(), Failure>
+    where
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+    {
+        self.entity_in(name, E::default())
+    }
+
     /// Register `entity`, an instance of an entity whose names may be
     /// computed at run time, under `name`: every statement of the
     /// registration names the instance's table, as Rust's `_in` constructors
-    /// do. A type may be registered once for each table its instances name;
-    /// a name, or a type and table already registered, is refused, and
-    /// nothing is added.
+    /// do, which take no context, so the entity is unscoped. A type may be
+    /// registered once for each table its instances name; a name, or a type
+    /// and table already registered, is refused, and nothing is added.
     // [spec:pgorm:req:bindings.entities+6]
+    // [spec:pgorm:req:scope.compile+1]
     pub fn entity_in<E>(&mut self, name: &str, entity: E) -> Result<(), Failure>
     where
         E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
+        self.add(name, Instance(entity))
+    }
+
+    /// Register the entity `reach` reaches under `name`.
+    fn add<E, R>(&mut self, name: &str, reach: R) -> Result<(), Failure>
+    where
+        E: Entity + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: Send + Sync + 'static,
+        R: Reach<E>,
+    {
+        let entity = reach.entity();
         let table = (
             TypeId::of::<E>(),
             entity.schema_name().map(str::to_owned),
@@ -88,10 +167,15 @@ impl Registry {
                 "{name:?} or its Rust entity is already registered"
             )));
         }
-        let info = Arc::new(EntityInfo::of(name, entity)?);
+        let reach: Arc<dyn Reach<E>> = Arc::new(reach);
+        let info = Arc::new(EntityInfo::reached(
+            name,
+            reach.clone(),
+            self.scopes.clone(),
+        )?);
         self.entities.insert(
             name.to_owned(),
-            Arc::new(EntityAdapter::<E> { info, entity }),
+            Arc::new(EntityAdapter::<E> { info, reach }),
         );
         self.types
             .entry(TypeId::of::<E>())
@@ -268,6 +352,112 @@ mod tests {
 
         #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {}
+    }
+
+    mod scoped {
+        use pgorm::entity::prelude::*;
+
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueType, Scope)]
+        pub struct CompanyId(pub i64);
+
+        pub mod company {
+            use super::CompanyId;
+            use pgorm::entity::prelude::*;
+
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+            #[pgorm(table_name = "company")]
+            pub struct Model {
+                #[pgorm(primary_key, auto_increment = false, scope)]
+                pub id: CompanyId,
+                pub name: String,
+            }
+
+            #[derive(Copy, Clone, Debug, Relation)]
+            pub enum Relation {}
+        }
+
+        pub mod site {
+            use pgorm::entity::prelude::*;
+
+            #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+            #[pgorm(table_name = "site")]
+            pub struct Model {
+                #[pgorm(primary_key, auto_increment = false)]
+                pub id: i64,
+                pub company_id: i64,
+            }
+
+            #[derive(Copy, Clone, Debug, Relation)]
+            pub enum Relation {
+                #[pgorm(
+                    belongs_to = super::company::Entity,
+                    from = Column::CompanyId,
+                    to = super::company::Column::Id
+                )]
+                Company,
+            }
+        }
+    }
+
+    // [spec:pgorm:req:bindings.scopes-registered/test]    a scoped entity registers after its scopes; its statements under no context, or one missing a scope, are refused, and under one hold its scopes, its joins' included
+    #[test]
+    fn scoped_registrations_hold_their_context() -> Result<(), Failure> {
+        use crate::scope::{Context, Holding};
+        use pgorm::pgorm_query::{JoinType, Value};
+
+        let mut registry = Registry::new(Dialect::Python);
+        assert!(
+            registry
+                .scoped::<scoped::company::Entity>("app.Company")
+                .is_err()
+        );
+        registry.scope::<scoped::CompanyId>()?;
+        assert!(registry.scope::<scoped::CompanyId>().is_err());
+        assert!(registry.scoped::<scoped::site::Entity>("app.Site").is_err());
+        registry.scoped::<scoped::company::Entity>("app.Company")?;
+        registry.entity::<scoped::site::Entity>("app.Site")?;
+        let company = registry.entities()["app.Company"].clone();
+        assert_eq!(company.info().scoped, ["CompanyId"]);
+        assert!(company.info().scoping(None, Dialect::Python).is_err());
+        let elsewhere = Context::new(
+            "UserId",
+            vec![("UserId".to_owned(), Holding::One(Value::from(1i64)))],
+        )?;
+        assert!(
+            company
+                .info()
+                .scoping(Some(&elsewhere), Dialect::Python)
+                .is_err()
+        );
+        let acme = Context::new(
+            "CompanyId",
+            vec![("CompanyId".to_owned(), Holding::One(Value::from(7i64)))],
+        )?;
+        let scoping = company.info().scoping(Some(&acme), Dialect::Python)?;
+        let read = company.select(&scoping).statement().to_string();
+        assert!(read.ends_with(r#"WHERE "company"."id" = 7"#), "{read}");
+        let site = registry.entities()["app.Site"].clone();
+        let def = site.relation("Company")?;
+        assert!(
+            site.info()
+                .join_scoping(&def, None, Dialect::Python)
+                .is_err()
+        );
+        let joined = site
+            .info()
+            .join_scoping(&def, Some(&acme), Dialect::Python)?;
+        let read = site
+            .select(&Scoping::default())
+            .change(super::super::Change::Join(
+                JoinType::InnerJoin,
+                site.clone(),
+                "Company".to_owned(),
+                joined,
+            ))
+            .statement()
+            .to_string();
+        assert!(read.contains(r#"AND "company"."id" = 7"#), "{read}");
+        Ok(())
     }
 
     // [spec:pgorm:req:bindings.entities+6/test]    a name or a Rust entity registered

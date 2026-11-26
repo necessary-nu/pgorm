@@ -10,7 +10,7 @@ from ._pipeline_sources import SourceSelection, SelectedSources
 
 _T = TypeVar("_T")
 
-SourceInput: TypeAlias = Table | Model | Entity | Pipeline | PipelineSource
+SourceInput: TypeAlias = Table | Model[Never] | Entity | Pipeline | PipelineSource
 BoundScalar: TypeAlias = Callable[[PipelineBinder], Operand]
 BoundList: TypeAlias = Callable[
     [PipelineBinder], PipelineExpr | list[Operand] | tuple[Operand, ...]

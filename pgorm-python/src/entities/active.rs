@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use pgorm_bindings::entity::{Active, Write};
 
 use super::input;
-use crate::{errors::Raise, values::PyValue};
+use crate::{errors::Raise, scopes::PyScopeContext, values::PyValue};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[pyclass(module = "pgorm", eq, from_py_object)]
@@ -30,6 +30,21 @@ pub struct PyActiveValue {
 #[pyclass(name = "ActiveModel", module = "pgorm", frozen, from_py_object)]
 pub struct PyActiveModel {
     pub(crate) inner: Active,
+}
+
+impl PyActiveModel {
+    /// The write `write` names under `cx`, refused before anything is sent
+    /// where the entity is scoped and `cx` does not hold its scopes.
+    fn write<'py>(
+        &self,
+        py: Python<'py>,
+        cx: Option<&PyScopeContext>,
+        connection: &Bound<'_, PyAny>,
+        write: Write,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let cx = PyScopeContext::scoping(cx, self.inner.info())?;
+        super::io::write(py, connection, self.inner.clone(), write, cx)
+    }
 }
 
 // [spec:pgorm:req:bindings.entity-writes+2]
@@ -98,22 +113,73 @@ impl PyActiveModel {
         py: Python<'py>,
         connection: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        super::io::write(py, connection, self.inner.clone(), Write::Insert)
+        self.write(py, None, connection, Write::Insert)
     }
+
     fn update<'py>(
         &self,
         py: Python<'py>,
         connection: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        super::io::write(py, connection, self.inner.clone(), Write::Update)
+        self.write(py, None, connection, Write::Update)
     }
+
     fn delete<'py>(
         &self,
         py: Python<'py>,
         connection: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        super::io::write(py, connection, self.inner.clone(), Write::Delete)
+        self.write(py, None, connection, Write::Delete)
     }
+
+    /// `ActiveModel::insert_for`: the row's scope columns filled from `cx`.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn insert_for<'py>(
+        &self,
+        py: Python<'py>,
+        cx: &Bound<'_, PyAny>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.write(
+            py,
+            Some(PyScopeContext::read(cx)?.get()),
+            connection,
+            Write::Insert,
+        )
+    }
+
+    /// `ActiveModel::update_for`: a row outside `cx`'s scopes is no row.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn update_for<'py>(
+        &self,
+        py: Python<'py>,
+        cx: &Bound<'_, PyAny>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.write(
+            py,
+            Some(PyScopeContext::read(cx)?.get()),
+            connection,
+            Write::Update,
+        )
+    }
+
+    /// `ActiveModel::delete_for`: a row outside `cx`'s scopes is not deleted.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    fn delete_for<'py>(
+        &self,
+        py: Python<'py>,
+        cx: &Bound<'_, PyAny>,
+        connection: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.write(
+            py,
+            Some(PyScopeContext::read(cx)?.get()),
+            connection,
+            Write::Delete,
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!("ActiveModel({:?})", self.entity_name())
     }

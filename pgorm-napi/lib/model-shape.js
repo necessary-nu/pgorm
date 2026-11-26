@@ -7,8 +7,10 @@
 // [spec:pgorm:req:bindings.models+7]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 
+import { Condition } from "./conditions.js";
 import { ConstructionError } from "./errors.js";
-import { describedColumn, modelColumn, selected } from "./model-columns.js";
+import { Expr } from "./expressions.js";
+import { columnValue, describedColumn, modelColumn, selected } from "./model-columns.js";
 import { native } from "./operations.js";
 
 /**
@@ -47,6 +49,14 @@ import { native } from "./operations.js";
  * @property {readonly UniqueKey[]} uniqueKeys
  * @property {string | null} comment The table's comment, which its schema writes.
  * @property {Readonly<Record<string, Function>>} hooks The hooks its record writes run, by name.
+ * @property {readonly [string, string, string][]} scopes Each scope column's field, SQL name and scope.
+ */
+
+/**
+ * A context as the native functions read it, or `null` for a statement
+ * given none.
+ *
+ * @typedef {{ label: string, held: [string, unknown, boolean][] } | null} Held
  */
 
 /** @type {WeakMap<object, Shape>} */
@@ -155,4 +165,55 @@ export function described(shape) {
     })),
     comment: shape.comment,
   };
+}
+
+// [spec:pgorm:req:napi.scopes]
+/**
+ * The condition `held`'s scopes put on a row of `shape` read under
+ * `qualifier`, its own by default: `null` where it holds every value of
+ * each, or the model is unscoped. Refused, as Rust's compile error stops the
+ * statement, where `held` is `null` or does not hold a scope.
+ *
+ * @param {Shape} shape
+ * @param {Held} held
+ * @param {string} [qualifier]
+ * @returns {Condition | null}
+ */
+export function heldOn(shape, held, qualifier = shape.qualifier) {
+  if (shape.scopes.length === 0) return null;
+  const pairs = /** @type {[string, unknown][]} */ (native.scopeCondition(shape.name, shape.scopes, held));
+  if (pairs.length === 0) return null;
+  return Condition.all(...pairs.map(([field, value]) => qualified(fieldOf(shape, field), qualifier).eq(value)));
+}
+
+// [spec:pgorm:req:napi.scopes]
+/**
+ * `values`, a row an insert under `held` writes, with each scope column it
+ * leaves out set to the value `held` holds, refused where it sets one to
+ * another value or leaves one out under every value.
+ *
+ * @param {Shape} shape
+ * @param {Held} held
+ * @param {unknown} values
+ */
+export function filled(shape, held, values) {
+  if (shape.scopes.length === 0) return values;
+  if (typeof values !== "object" || values === null || Array.isArray(values)) {
+    throw new TypeError("an insert takes an object of the fields it sets");
+  }
+  for (const name of Object.keys(values)) fieldOf(shape, name);
+  /** @param {string} field @param {unknown} value */
+  const convert = (field, value) => (value instanceof Expr ? null : columnValue(fieldOf(shape, field).column, field, value));
+  const fills = /** @type {[string, unknown][]} */ (native.scopeFill(shape.name, shape.scopes, held, values, convert));
+  return fills.length === 0 ? values : { ...values, ...Object.fromEntries(fills) };
+}
+
+/**
+ * Refuse a join into `shape`'s table by a form taking no context, where it
+ * is scoped.
+ *
+ * @param {Shape} shape
+ */
+export function unscopedJoin(shape) {
+  if (shape.scopes.length > 0) native.scopeJoin(shape.name, shape.scopes);
 }

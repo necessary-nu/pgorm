@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Hashable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 from .. import _native as p
+from ..scopes import Context, held
 from .record import Source, decode_all
 
 if TYPE_CHECKING:
@@ -174,13 +175,22 @@ class Relation:
         relation with an ``on_condition`` joins the model it starts at back,
         so the condition reads both ends, keyed by its primary key, as
         pgorm's ``find_related`` does."""
+        return self._find(None, row)
+
+    def find_for(self, cx: Context, row: Mapping[str, Any]) -> ModelQuery:
+        """Rust's ``find_related_for``: ``find`` under ``cx``, the far end's
+        scopes in the ``WHERE`` and a table joined back held to its own in
+        its join's ``ON``."""
+        return self._find(held(cx), row)
+
+    def _find(self, cx: p._ScopeContext | None, row: Mapping[str, Any]) -> ModelQuery:
         from .clauses import Recipe
         from .queries import ModelQuery
 
         to = self.to
         if self.on_condition is None:
             values = _key_values(self.from_fields, row)
-            found = to.find()
+            found = to._query(cx, ())
             if values is None:
                 return found.where(p.Condition.any())
             return found.where(
@@ -189,7 +199,12 @@ class Relation:
                 )
             )
         start = _free(self.from_.qualifier, {to.qualifier})
-        recipe = Recipe(to, to._selection(()), joins=(_back(self, start, to.qualifier, p.Join.Inner),))
+        recipe = Recipe(
+            to,
+            to._selection(()),
+            joins=(_scoped(cx, _back(self, start, to.qualifier, p.Join.Inner)),),
+            wheres=_wheres(to._held(cx)),
+        )
         return _keyed(ModelQuery(recipe), self.from_, start, _start_key(self.from_, self.from_fields), row)
 
     async def load(
@@ -266,6 +281,15 @@ class Related:
         starts at, keyed by that model's primary key, as pgorm's
         ``find_related`` writes it; none when one of the row's key fields is
         None."""
+        return self._find(None, row)
+
+    def find_for(self, cx: Context, row: Mapping[str, Any]) -> ModelQuery:
+        """Rust's ``find_related_for``: ``find`` under ``cx``, the far end's
+        scopes in the ``WHERE``, and the junction's and the starting model's
+        in their joins' ``ON``."""
+        return self._find(held(cx), row)
+
+    def _find(self, cx: p._ScopeContext | None, row: Mapping[str, Any]) -> ModelQuery:
         from .clauses import Recipe
         from .queries import ModelQuery
 
@@ -276,9 +300,10 @@ class Related:
             to,
             to._selection(()),
             joins=(
-                _back(self.relation, junction, to.qualifier, p.Join.Inner),
-                _back(self.via, start, junction, p.Join.Inner),
+                _scoped(cx, _back(self.relation, junction, to.qualifier, p.Join.Inner)),
+                _scoped(cx, _back(self.via, start, junction, p.Join.Inner)),
             ),
+            wheres=_wheres(to._held(cx)),
         )
         return _keyed(
             ModelQuery(recipe), self.from_, start, _start_key(self.from_, self.via.from_fields), row
@@ -364,6 +389,14 @@ class Linked:
         """Every row at the chain's far end that a chain of rows reaches, read
         along each hop by an INNER JOIN, as pgorm's ``Linked::find_linked``
         writes it."""
+        return self._linked(None)
+
+    def find_linked_for(self, cx: Context) -> ModelQuery:
+        """Rust's ``find_linked_for``: ``find_linked`` under ``cx``, the far
+        end's scopes in the ``WHERE`` and each hop's in its join's ``ON``."""
+        return self._linked(held(cx))
+
+    def _linked(self, cx: p._ScopeContext | None) -> ModelQuery:
         from .clauses import Recipe
         from .queries import ModelQuery
 
@@ -372,23 +405,45 @@ class Linked:
         right = to.qualifier
         for index, relation in enumerate(reversed(self.relations)):
             left = f"r{index}"
-            joins.append(_back(relation, left, right, p.Join.Inner))
+            joins.append(_scoped(cx, _back(relation, left, right, p.Join.Inner)))
             right = left
-        return ModelQuery(Recipe(to, to._selection(()), joins=tuple(joins)))
+        return ModelQuery(
+            Recipe(to, to._selection(()), joins=tuple(joins), wheres=_wheres(to._held(cx)))
+        )
 
     def find(self, row: Mapping[str, Any]) -> ModelQuery:
         """The rows at the far end the chain reaches from ``row``, a record of
         the model it starts at, keyed by that model's primary key, as pgorm's
         ``pgorm::Model::find_linked`` keys it: none when one of the row's key
         fields is None."""
+        return self._found(self._linked(None), row)
+
+    def find_for(self, cx: Context, row: Mapping[str, Any]) -> ModelQuery:
+        """Rust's ``pgorm::Model::find_linked_for``: ``find`` under ``cx``,
+        each table it reads held to its scopes."""
+        return self._found(self._linked(held(cx)), row)
+
+    def _found(self, linked: ModelQuery, row: Mapping[str, Any]) -> ModelQuery:
         first = self.relations[0]
         return _keyed(
-            self.find_linked(),
+            linked,
             first.from_,
             self.last_hop().qualifier,
             _start_key(first.from_, first.from_fields),
             row,
         )
+
+
+def _wheres(scoped: p.Condition | None) -> tuple[p.Condition, ...]:
+    return () if scoped is None else (scoped,)
+
+
+# [spec:pgorm:req:python.scopes]
+def _scoped(cx: p._ScopeContext | None, join: Joined) -> Joined:
+    """``join`` held to its table's scopes as ``cx`` holds them, ANDed into
+    its ``ON``: refused where its table is scoped and ``cx`` is None."""
+    scoped = join.model._held(cx, join.qualifier)
+    return join if scoped is None else replace(join, on=p.Condition.all(join.on, scoped))
 
 
 def answering(model: Model, qualifier: str) -> Model:

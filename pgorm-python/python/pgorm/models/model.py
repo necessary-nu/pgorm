@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Literal, Required, TypeAlias, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Literal, Never, Required, TypeAlias, TypedDict, cast
 
 from .. import _native as p
+from ..scopes import Context, Scope, held
 from . import casts
 from .columns import Column, ModelColumn
 
@@ -56,7 +57,7 @@ _UNIQUE_OPTIONS = frozenset({"fields", "name", "nulls_not_distinct"})
 
 # [spec:pgorm:req:bindings.model-unique-keys+2]
 # [spec:pgorm:req:bindings.schema-from-model]
-def _check_key(declarations: Mapping[str, Column], key: tuple[str, ...]) -> None:
+def _check_key(declarations: Mapping[str, Column[Any]], key: tuple[str, ...]) -> None:
     """Refuse a key the serial family or a period cannot be part of: a
     serial key is of one column, and a period is the key's last column and
     is preceded by another, as PostgreSQL requires of ``WITHOUT OVERLAPS``."""
@@ -70,7 +71,7 @@ def _check_key(declarations: Mapping[str, Column], key: tuple[str, ...]) -> None
         )
 
 
-def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey:
+def _unique_key(key: object, declarations: Mapping[str, Column[Any]]) -> _DeclaredKey:
     """``key`` as the model whose fields are ``declarations`` declares it:
     refused as PostgreSQL or the Rust derive would refuse it, as the model is
     declared."""
@@ -112,19 +113,26 @@ def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey
 # [spec:pgorm:req:bindings.models+7]
 # [spec:pgorm:req:bindings.model-unique-keys+2]
 # [spec:pgorm:req:bindings.schema-from-model]
+# [spec:pgorm:req:python.scopes]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
-class Model:
+class Model[S: Scope[Any] = Any]:
+    """A table and its columns. ``S`` is the scopes its columns hold,
+    ``Never`` for a model holding none: the forms taking no context are
+    typed for ``Model[Never]`` alone, so a type checker refuses them on a
+    scoped model as its builder does."""
+
     table: p.Table
-    columns: Mapping[str, Column]
+    columns: Mapping[str, Column[Any]]
     primary_key: tuple[str, ...]
     comment: str | None
     _unique_keys: tuple[_DeclaredKey, ...]
     _hooks: Mapping[str, Callable[..., Any]]
+    _scopes: p._ModelScopes | None
 
     def __init__(
         self,
         table: str | p.Table,
-        columns: Mapping[str, Column],
+        columns: Mapping[str, Column[S]],
         *,
         schema: str | None = None,
         unique_keys: Sequence[UniqueKey] = (),
@@ -181,6 +189,12 @@ class Model:
             tuple(_unique_key(key, declarations) for key in unique_keys),
         )
         object.__setattr__(self, "_hooks", hooks_of(hooks))
+        scoped = [
+            (field, cast(str, column.name), column.scope.__name__)
+            for field, column in declarations.items()
+            if column.scope is not None
+        ]
+        object.__setattr__(self, "_scopes", p._ModelScopes(native.name, scoped) if scoped else None)
         p._model_table(self._described())
 
     @property
@@ -189,11 +203,38 @@ class Model:
         table's name, never its schema, as pgorm qualifies an entity's."""
         return self.table.alias or self.table.name
 
-    def as_(self, alias: str) -> Model:
-        aliased = Model(self.table.as_(alias), self.columns, comment=self.comment)
+    @property
+    def scopes(self) -> tuple[str, ...]:
+        """The scopes the model's columns hold, by name, in declaration
+        order: none for an unscoped model."""
+        return () if self._scopes is None else tuple(self._scopes.names)
+
+    def as_(self, alias: str) -> Model[S]:
+        aliased: Model[S] = Model(self.table.as_(alias), self.columns, comment=self.comment)
         object.__setattr__(aliased, "_unique_keys", self._unique_keys)
         object.__setattr__(aliased, "_hooks", self._hooks)
         return aliased
+
+    # [spec:pgorm:req:python.scopes]
+    def _held(self, cx: p._ScopeContext | None, qualifier: str | None = None) -> p.Condition | None:
+        """The condition ``cx``'s scopes put on a row of the model read under
+        ``qualifier``, its own by default: None where it holds every value
+        of each, or the model is unscoped. Refused, as Rust's compile error
+        stops the statement, where ``cx`` is None or does not hold a scope."""
+        if self._scopes is None:
+            return None
+        pairs = self._scopes.condition(cx)
+        if not pairs:
+            return None
+        model = self if qualifier is None or qualifier == self.qualifier else self.as_(qualifier)
+        return p.Condition.all(*(model.col(field).eq(value) for field, value in pairs))
+
+    def _query(self, cx: p._ScopeContext | None, fields: tuple[str, ...]) -> ModelQuery:
+        from .clauses import Recipe
+        from .queries import ModelQuery
+
+        scoped = self._held(cx)
+        return ModelQuery(Recipe(self, self._selection(fields), wheres=() if scoped is None else (scoped,)))
 
     def _described(self) -> dict[str, Any]:
         """The model's table as the native table shape is described from:
@@ -242,26 +283,37 @@ class Model:
             raise p.ConstructionError("duplicate model output identity")
         return names
 
-    def select(self, *fields: str) -> ModelQuery:
-        from .clauses import Recipe
-        from .queries import ModelQuery
+    def select(self: Model[Never], *fields: str) -> ModelQuery:
+        return self._query(None, fields)
 
-        return ModelQuery(Recipe(self, self._selection(fields)))
+    def select_for(self, cx: Context, *fields: str) -> ModelQuery:
+        """``select`` under ``cx``, its scopes ANDed into the ``WHERE``."""
+        return self._query(held(cx), fields)
 
-    def find(self) -> ModelQuery:
-        return self.select()
+    def find(self: Model[Never]) -> ModelQuery:
+        return self._query(None, ())
+
+    def find_for(self, cx: Context) -> ModelQuery:
+        """Rust's ``find_for``: every field of the rows ``cx``'s scopes hold."""
+        return self._query(held(cx), ())
 
     def find_by_statement(self, statement: p.RawSQL) -> SelectorRaw[ModelRecord]:
         """``statement``'s rows decoded into this model's records, as Rust's
         ``FromQueryResult::find_by_statement`` decodes them: each field read
-        from the column of its SQL name and held to its declared kind."""
+        from the column of its SQL name and held to its declared kind. Raw
+        SQL is outside scopes."""
         from ..raw import SelectorRaw
 
         return SelectorRaw(statement, self)
 
-    def find_by_key(self, values: Mapping[str, Any]) -> ModelQuery:
+    def find_by_key(self: Model[Never], values: Mapping[str, Any]) -> ModelQuery:
         """The row whose primary key ``values`` gives."""
-        return self.find().where(self.key(values))
+        return self._query(None, ()).where(self.key(values))
+
+    def find_by_key_for(self, cx: Context, values: Mapping[str, Any]) -> ModelQuery:
+        """Rust's ``find_by_id_for``: the row of the key, read only where
+        ``cx``'s scopes hold it, so ``one`` finds no row outside them."""
+        return self._query(held(cx), ()).where(self.key(values))
 
     def key(self, values: Mapping[str, Any]) -> p.Condition:
         if not self.primary_key:
@@ -276,42 +328,97 @@ class Model:
             *(self.col(name).eq(values[name]) for name in self.primary_key)
         )
 
-    def active(self, values: Mapping[str, Any] | None = None) -> ModelActive:
+    def active(self, values: Mapping[str, Any] | None = None) -> ModelActive[S]:
         """The fields one record write sets, whose ``insert``, ``update`` and
         ``delete`` run the model's hooks around the write, as a Rust
-        ``ActiveModel``'s do."""
+        ``ActiveModel``'s do; on a scoped model ``insert_for``,
+        ``update_for`` and ``delete_for``."""
         from .active import ModelActive
 
         return ModelActive(self, {} if values is None else values)
 
-    def insert(self, values: Mapping[str, Any]) -> ModelInsert:
-        """An INSERT of one row, Rust's ``Insert::one``."""
+    # [spec:pgorm:req:python.scopes]
+    def _filled(self, cx: p._ScopeContext | None, values: Mapping[str, Any]) -> Mapping[str, Any]:
+        """``values``, a row an insert under ``cx`` writes, with each scope
+        column it leaves out set to the value ``cx`` holds, refused where it
+        sets one to another value or leaves one out under every value."""
+        if self._scopes is None:
+            return values
+        if not isinstance(values, Mapping):
+            raise TypeError("a model write takes a mapping of the fields it sets")
+        for name in values:
+            self.col(name)
+        fills = self._scopes.fill(cx, values, lambda field, value: self.columns[field]._value(value))
+        return {**values, **dict(fills)} if fills else values
+
+    def _insert(self, cx: p._ScopeContext | None, values: Mapping[str, Any]) -> ModelInsert:
         from .writes import ModelInsert, appended
 
-        statement, fields = appended(self, None, None, [values])
+        statement, fields = appended(self, None, None, [self._filled(cx, values)])
         return ModelInsert(self, statement, fields)
 
-    def insert_many(self, rows: Sequence[Mapping[str, Any]]) -> ModelInsertMany:
-        """An INSERT of rows that each set the same fields, Rust's
-        ``Insert::many``; no rows writes nothing and sends nothing."""
+    def _insert_many(
+        self, cx: p._ScopeContext | None, rows: Sequence[Mapping[str, Any]]
+    ) -> ModelInsertMany:
         from .writes import ModelInsertMany, appended
 
         if not isinstance(rows, (list, tuple)):
             raise TypeError("insert_many takes a list or tuple of rows")
-        statement, fields = appended(self, None, None, rows)
+        self._held(cx)
+        filled = [self._filled(cx, row) for row in rows]
+        statement, fields = appended(self, None, None, filled)
         return ModelInsertMany(self, statement, fields)
 
-    def update(self, values: Mapping[str, Any]) -> ModelUpdate:
+    def insert(self: Model[Never], values: Mapping[str, Any]) -> ModelInsert:
+        """An INSERT of one row, Rust's ``Insert::one``."""
+        return self._insert(None, values)
+
+    def insert_for(self, cx: Context, values: Mapping[str, Any]) -> ModelInsert:
+        """Rust's ``Insert::one_for``: the row's scope columns filled from
+        ``cx``, a row setting one to another value refused."""
+        return self._insert(held(cx), values)
+
+    def insert_many(self: Model[Never], rows: Sequence[Mapping[str, Any]]) -> ModelInsertMany:
+        """An INSERT of rows that each set the same fields, Rust's
+        ``Insert::many``; no rows writes nothing and sends nothing."""
+        return self._insert_many(None, rows)
+
+    def insert_many_for(self, cx: Context, rows: Sequence[Mapping[str, Any]]) -> ModelInsertMany:
+        """Rust's ``Insert::many_for``: each row's scope columns filled from
+        ``cx``."""
+        return self._insert_many(held(cx), rows)
+
+    def _update(self, cx: p._ScopeContext | None, values: Mapping[str, Any]) -> ModelUpdate:
         from .writes import updated
 
-        return updated(self, values)
+        update = updated(self, values)
+        scoped = self._held(cx)
+        return update if scoped is None else update.where(scoped)
 
-    def delete(self) -> ModelDelete:
-        """A DELETE, which needs a ``where`` or ``all_rows()`` before it
-        runs."""
+    def update(self: Model[Never], values: Mapping[str, Any]) -> ModelUpdate:
+        return self._update(None, values)
+
+    def update_for(self, cx: Context, values: Mapping[str, Any]) -> ModelUpdate:
+        """Rust's ``Update::many_for``: the rows ``cx``'s scopes hold, their
+        condition the update's first. A scope column is never set."""
+        return self._update(held(cx), values)
+
+    def _delete(self, cx: p._ScopeContext | None) -> ModelDelete:
         from .writes import ModelDelete
 
-        return ModelDelete(self, p.Delete(self.table))
+        delete = ModelDelete(self, p.Delete(self.table))
+        scoped = self._held(cx)
+        return delete if scoped is None else delete.where(scoped)
+
+    def delete(self: Model[Never]) -> ModelDelete:
+        """A DELETE, which needs a ``where`` or ``all_rows()`` before it
+        runs."""
+        return self._delete(None)
+
+    def delete_for(self, cx: Context) -> ModelDelete:
+        """Rust's ``Delete::many_for``: the rows ``cx``'s scopes hold, their
+        condition the delete's first."""
+        return self._delete(held(cx))
 
     def belongs_to(
         self,
@@ -392,12 +499,27 @@ class Model:
 
         return Linked(self, relations)
 
-    def graph(self) -> Graph[Literal[False]]:
-        """A graph rooted at this model, decoding its records alone until a
-        slot is joined."""
+    def _graph(self, cx: p._ScopeContext | None) -> Graph[Literal[False]]:
         from .graphs import Graph, State, Table
 
-        return Graph(State((Table(self, self.qualifier, "root", False),)))
+        scoped = self._held(cx)
+        return Graph(
+            State(
+                (Table(self, self.qualifier, "root", False),),
+                wheres=() if scoped is None else (scoped,),
+                cx=cx,
+            )
+        )
+
+    def graph(self: Model[Never]) -> Graph[Literal[False]]:
+        """A graph rooted at this model, decoding its records alone until a
+        slot is joined."""
+        return self._graph(None)
+
+    def graph_for(self, cx: Context) -> Graph[Literal[False]]:
+        """Rust's ``graph_for``: a graph under ``cx``, its root's scopes in
+        the ``WHERE`` and each slot's and hop's in its join's ``ON``."""
+        return self._graph(held(cx))
 
     def describe(self) -> dict[str, Any]:
         """The declaration as data: the table, its primary key and unique

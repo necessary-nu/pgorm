@@ -13,8 +13,10 @@ use super::{
     selection::{PyEntityRelation, PyEntitySelection},
 };
 use crate::{
+    config::DIALECT,
     errors::{ConstructionError, Raise},
     expressions::{Compiled, OrderBy, PyCondition, PyExpr},
+    scopes::PyScopeContext,
     statements::{Join, RawSQL},
     transactions::work::{Output, Read, Work},
 };
@@ -38,6 +40,29 @@ pub(crate) fn bound(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<u64>> {
     u64::try_from(number)
         .map(Some)
         .map_err(|_| ConstructionError::new_err("query bounds must be nonnegative"))
+}
+
+impl PyEntityQuery {
+    /// The query with `relation`'s far end joined under `cx`, or under none.
+    fn joined(
+        &self,
+        cx: Option<&PyScopeContext>,
+        relation: &PyEntityRelation,
+        kind: Join,
+    ) -> PyResult<Self> {
+        let def = relation.entity.relation(&relation.name).py()?;
+        let info = relation.entity.info();
+        let values = PyScopeContext::values(cx, info)?;
+        let scoping = info.join_scoping(&def, values.as_ref(), DIALECT).py()?;
+        Ok(Self {
+            inner: self.inner.change(Change::Join(
+                kind.rust_join(),
+                relation.entity.clone(),
+                relation.name.clone(),
+                scoping,
+            )),
+        })
+    }
 }
 
 #[pymethods]
@@ -116,17 +141,24 @@ impl PyEntityQuery {
 
     /// The relation's far end joined, `QuerySelect::join`: its rows stay this
     /// entity's models, and the joined table's columns go in conditions and
-    /// orderings through its own entity's `col`.
+    /// orderings through its own entity's `col`. A scoped far end is joined
+    /// by `join_for`, and refused here.
     #[pyo3(signature = (relation, *, kind=Join::Inner))]
     fn join(&self, relation: PyRef<'_, PyEntityRelation>, kind: Join) -> PyResult<Self> {
-        relation.entity.relation(&relation.name).py()?;
-        Ok(Self {
-            inner: self.inner.change(Change::Join(
-                kind.rust_join(),
-                relation.entity.clone(),
-                relation.name.clone(),
-            )),
-        })
+        self.joined(None, &relation, kind)
+    }
+
+    /// The relation's far end joined under `cx`, `QuerySelect::join_for`:
+    /// its scopes ANDed into the join's `ON`.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    #[pyo3(signature = (cx, relation, *, kind=Join::Inner))]
+    fn join_for(
+        &self,
+        cx: &Bound<'_, PyAny>,
+        relation: PyRef<'_, PyEntityRelation>,
+        kind: Join,
+    ) -> PyResult<Self> {
+        self.joined(Some(PyScopeContext::read(cx)?.get()), &relation, kind)
     }
 
     /// The query projected onto `columns`, `select_only` and `columns`, read

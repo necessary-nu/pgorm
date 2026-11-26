@@ -11,7 +11,8 @@ import { arg, args, Builder, Handle, trusted, TRUSTED } from "./builder.js";
 import { Queryable } from "./connections.js";
 import { isModel, shapeOf } from "./model-shape.js";
 import { native } from "./operations.js";
-import { PipelineExpr } from "./pipeline-expressions.js";
+import { col, PipelineExpr } from "./pipeline-expressions.js";
+import { heldOf } from "./scopes.js";
 import { modelRead, selectModels, tupleRead } from "./pipeline-reads.js";
 import { SourceSelection, selectSourcesOf } from "./entity-sources.js";
 
@@ -53,7 +54,11 @@ export {
  * @param {unknown} source
  */
 function relation(source) {
-  return arg(isModel(source) ? shapeOf(source).table : source);
+  if (!isModel(source)) return arg(source);
+  const shape = shapeOf(source);
+  // [spec:pgorm:req:napi.scopes]    a scoped model is a source only through fromFor
+  if (shape.scopes.length > 0) native.scopeCondition(shape.name, shape.scopes, null);
+  return arg(shape.table);
 }
 
 /** Mints a stage's placeholders; it binds only while its `With` function runs. */
@@ -439,6 +444,31 @@ export class Pipeline extends Builder {
 /** @param {SourceInput} source */
 export function from(source) {
   return pipelineOf(native.pipelineFrom(relation(source)));
+}
+
+// [spec:pgorm:req:napi.scopes]
+/**
+ * Rust's `Pipeline::from_for`: the rows `cx`'s scopes hold of a model or a
+ * registered entity, each scope it holds the value of a `filter` stage
+ * binding the value. Another scoped table joins the pipeline as a pipeline
+ * of its own, `fromFor(cx, other)`.
+ *
+ * @param {unknown} cx
+ * @param {unknown} source
+ */
+export function fromFor(cx, source) {
+  const held = heldOf(cx);
+  if (!isModel(source)) {
+    const entity = arg(source);
+    return pipelineOf(native.entityPipelineFor(entity, native.entityScoping(entity, held)));
+  }
+  const shape = shapeOf(source);
+  const pipeline = pipelineOf(native.pipelineFrom(arg(shape.table)));
+  if (shape.scopes.length === 0) return pipeline;
+  const pairs = /** @type {[string, unknown][]} */ (native.scopeCondition(shape.name, shape.scopes, held));
+  if (pairs.length === 0) return pipeline;
+  const compared = pairs.map(([field, value]) => col(/** @type {object} */ (source), field).eq(value));
+  return pipeline.filter(compared.reduce((all, next) => all.and(next)));
 }
 
 /** @param {SourceInput} relationInput the relation, which `named` reads under a name of its own */

@@ -11,6 +11,7 @@ import { predicateOf, recordsOf, rowsOf } from "./entities.js";
 import { EntityCursor, EntityPaginator, EntitySelection, READS, relationOf } from "./entity-reads.js";
 import { Expr, listedValues, OrderBy, Quantified } from "./expressions.js";
 import { native } from "./operations.js";
+import { heldOf } from "./scopes.js";
 import { decodedWith } from "./streams.js";
 
 /** Marks a construction from a registered entity. */
@@ -390,14 +391,37 @@ export class EntityQuery {
   /**
    * The relation's far end joined, by `QuerySelect::join`: the rows stay this
    * entity's records, and the joined table's columns go in conditions and
-   * orderings through its own entity's `col`.
+   * orderings through its own entity's `col`. A scoped far end is joined by
+   * `joinFor`.
    *
    * @param {unknown} relation
    * @param {{ kind?: "inner" | "left" | "right" | "full" }} [options]
    */
   join(relation, { kind = "inner" } = {}) {
+    return this.#join(null, relation, kind);
+  }
+
+  /**
+   * The relation's far end joined under `cx`, by `QuerySelect::join_for`:
+   * its scopes ANDed into the join's `ON`.
+   *
+   * @param {unknown} cx
+   * @param {unknown} relation
+   * @param {{ kind?: "inner" | "left" | "right" | "full" }} [options]
+   */
+  joinFor(cx, relation, { kind = "inner" } = {}) {
+    return this.#join(heldOf(cx), relation, kind);
+  }
+
+  /**
+   * @param {import("./model-shape.js").Held} held
+   * @param {unknown} relation
+   * @param {string} kind
+   */
+  #join(held, relation, kind) {
     const [entity, name] = relationOf(relation);
-    return new EntityQuery(native.entitySelectJoin(this.#native, entity, name, kind), this.#entity, QUERIES);
+    const scoping = native.entityJoinScoping(entity, name, held);
+    return new EntityQuery(native.entitySelectJoin(this.#native, entity, name, kind, scoping), this.#entity, QUERIES);
   }
 
   /**
