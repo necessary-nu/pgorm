@@ -1,6 +1,6 @@
 use crate::{
-    Connection, DecodeRow, Entity, FromQueryResult, ScopeError, Select, SelectModel, Selector,
-    SelectorRaw, error::*,
+    Connection, DecodeRow, Entity, FromQueryResult, RunsOn, ScopeError, Select, SelectModel,
+    Selector, SelectorRaw, database::Kinded, error::*,
 };
 use async_stream::stream;
 use futures::Stream;
@@ -125,7 +125,7 @@ where
             .iter()
             .map(|x| x as _)
             .collect::<Vec<&(dyn ToSql + Sync)>>();
-        let rows = self.db.query_all(&stmt, &values).await?;
+        let rows = self.db.query_all(&Kinded::read(&stmt), &values).await?;
         let mut buffer = Vec::with_capacity(rows.len());
         for row in rows.into_iter() {
             // TODO: Error handling
@@ -160,7 +160,7 @@ where
             .iter()
             .map(|x| x as _)
             .collect::<Vec<&(dyn ToSql + Sync)>>();
-        let result = match self.db.query_opt(&stmt, &values).await? {
+        let result = match self.db.query_opt(&Kinded::read(&stmt), &values).await? {
             Some(res) => res,
             None => return Ok(0),
         };
@@ -345,7 +345,7 @@ where
     }
 }
 
-impl<S> SelectorRaw<S>
+impl<S, K> SelectorRaw<S, K>
 where
     S: DecodeRow,
 {
@@ -388,6 +388,7 @@ where
     ) -> Result<Paginator<'db, C, S>, Error>
     where
         C: Connection,
+        K: RunsOn<C>,
         S: Send + Sync + 'db,
     {
         Ok(Paginator {
@@ -408,6 +409,7 @@ where
     pub async fn count<C>(self, db: &C) -> Result<u64, Error>
     where
         C: Connection,
+        K: RunsOn<C>,
         S: Send + Sync,
     {
         self.paginate(db, NonZeroU64::MIN)?.num_items().await

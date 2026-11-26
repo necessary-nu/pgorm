@@ -9,7 +9,7 @@
 //! | `message` | 1 Ada to Bo, 2 Bo to Ada, 3 Bo to Cy |
 
 use pgorm::entity::prelude::*;
-use pgorm::{Connection, Schema};
+use pgorm::{ConnectionMut, Schema};
 
 /// A company, the scope everything its members read is held to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ValueType, Scope)]
@@ -123,7 +123,7 @@ pub mod message {
 }
 
 /// Create the notes' tables, each from its entity.
-pub async fn create_schema<C: Connection>(db: &C) -> Result<(), Error> {
+pub async fn create_schema<C: ConnectionMut>(db: &C) -> Result<(), Error> {
     let schema = Schema::new();
     for create in [
         schema.create_table_from_entity(company::Entity)?,
@@ -136,7 +136,7 @@ pub async fn create_schema<C: Connection>(db: &C) -> Result<(), Error> {
 }
 
 /// Insert the notes' rows, each under the context that may write it.
-pub async fn seed<C: Connection>(db: &C) -> Result<(), Error> {
+pub async fn seed<C: ConnectionMut>(db: &C) -> Result<(), Error> {
     for (id, name) in [(1, "Acme"), (2, "Globex")] {
         Insert::one_for(
             &CompanyId(id),

@@ -13,8 +13,8 @@ use crate::{
 pub(crate) use capabilities::operations as capabilities;
 pub(crate) use copy::{copy_in, copy_out, describe_in};
 pub(crate) use native::{NativeRetrying, NativeTransaction, mode};
-use pgorm::TransactionMode;
 pub(crate) use pgorm_bindings::transaction::Lease;
+use pgorm_bindings::transaction::Mode;
 use pgorm_bindings::transaction::Retrying;
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -32,11 +32,8 @@ impl Owned for State {
     }
 }
 
-// [spec:pgorm:req:bindings.transactions+2]
-pub(crate) async fn begin(
-    connection: Arc<ConnectionState>,
-    mode: TransactionMode,
-) -> PyResult<Arc<State>> {
+// [spec:pgorm:req:bindings.transactions+3]
+pub(crate) async fn begin(connection: Arc<ConnectionState>, mode: Mode) -> PyResult<Arc<State>> {
     let operation = Operation::begin(connection).py()?;
     pgorm_bindings::transaction::begin(operation, mode, &CancellationToken::new())
         .await
@@ -46,7 +43,7 @@ pub(crate) async fn begin(
 // [spec:pgorm:req:bindings.transaction-retry]
 pub(crate) fn begin_retrying(
     connection: Arc<ConnectionState>,
-    mode: TransactionMode,
+    mode: Mode,
     retries: u32,
 ) -> PyResult<Arc<Retrying<Loop>>> {
     let operation = Operation::begin(connection).py()?;

@@ -1,9 +1,10 @@
-use crate::{ActiveModel, Connection, DeleteMany, DeleteOne, Entity, error::*};
+use crate::{ActiveModel, ConnectionMut, DeleteMany, DeleteOne, Entity, error::*};
 use pgorm_driver::types::ToSql;
 use pgorm_query::DeleteStatement;
 
 use super::ValueHolder;
 
+// [spec:pgorm:req:read-only.writes]    every delete terminal takes a connection that may write
 impl<A> DeleteOne<A>
 where
     A: ActiveModel,
@@ -14,7 +15,7 @@ where
     #[doc(alias = "DeleteResult")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         exec_delete(self.query, db).await
     }
@@ -30,7 +31,7 @@ where
     #[doc(alias = "DeleteResult")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         exec_delete(self.query, db).await
@@ -40,7 +41,7 @@ where
 // [spec:pgorm:sem:exec.crud.delete+1]
 async fn exec_delete<C>(query: DeleteStatement, db: &C) -> Result<u64, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let (stmt, values) = query.build();
     let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();

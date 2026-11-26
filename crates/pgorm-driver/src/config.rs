@@ -14,6 +14,8 @@ use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::{Client, Connection, Error};
 mod endpoint;
+#[cfg(feature = "turso")]
+pub(crate) use endpoint::refuse_read_only_memory;
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
@@ -748,7 +750,13 @@ impl Config {
             {
                 let database = native
                     .database
-                    .get_or_try_init(|| crate::TursoDatabase::open(&native.path))
+                    .get_or_try_init(|| async {
+                        if native.read_only {
+                            crate::TursoDatabase::open_read_only(&native.path).await
+                        } else {
+                            crate::TursoDatabase::open(&native.path).await
+                        }
+                    })
                     .await?;
                 let (client, connection) = database.connect().await?;
                 return Ok((client, Connection::from_turso(connection)));
@@ -806,7 +814,11 @@ impl FromStr for Config {
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(path) = self.get_turso_path() {
-            return f.debug_struct("Config").field("turso_path", &path).finish();
+            return f
+                .debug_struct("Config")
+                .field("turso_path", &path)
+                .field("turso_read_only", &self.get_turso_read_only())
+                .finish();
         }
         struct Redaction {}
         impl fmt::Debug for Redaction {

@@ -20,8 +20,6 @@ note: required for `note::Entity` to implement `ScopedIn<CompanyId>`
    |
 19 |     #[derive(Clone, Debug, PartialEq, Entity)]
    |                                       ^^^^^^ type parameter would need to implement `ScopedIn<CompanyId>`
-   = help: consider manually implementing `ScopedIn<CompanyId>` to avoid undesired bounds caused by "imperfect derives"
-   = note: to learn more, visit <https://github.com/rust-lang/rust/issues/26925>
 note: required by a bound in `built_under`
   --> tests/compile-fail/scope_unheld.rs:35:19
    |
@@ -51,8 +49,6 @@ note: required for `note::Entity` to implement `ScopedIn<Visitor>`
    |
 19 |     #[derive(Clone, Debug, PartialEq, Entity)]
    |                                       ^^^^^^ type parameter would need to implement `ScopedIn<Visitor>`
-   = help: consider manually implementing `ScopedIn<Visitor>` to avoid undesired bounds caused by "imperfect derives"
-   = note: to learn more, visit <https://github.com/rust-lang/rust/issues/26925>
 note: required by a bound in `built_under`
   --> tests/compile-fail/scope_unheld.rs:35:19
    |
@@ -81,8 +77,6 @@ note: required for `note::Entity` to implement `ScopedIn<NoContext>`
    |
 19 |     #[derive(Clone, Debug, PartialEq, Entity)]
    |                                       ^^^^^^ type parameter would need to implement `ScopedIn<NoContext>`
-   = help: consider manually implementing `ScopedIn<NoContext>` to avoid undesired bounds caused by "imperfect derives"
-   = note: to learn more, visit <https://github.com/rust-lang/rust/issues/26925>
 note: required by a bound in `built_plain`
   --> tests/compile-fail/scope_unheld.rs:38:19
    |

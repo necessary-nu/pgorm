@@ -1,11 +1,13 @@
-//! What the macro leaves behind: the literal it was given, and nothing else.
+//! What the macro leaves behind: the literal it was given, typed by what its
+//! statement may write.
 
+use pgorm::{Reads, Sql, Writes};
 use pgorm_sql_macro::sql;
 
-// [spec:pgorm:def:macros.sql+9/test]    the expansion is the literal, in const position
+// [spec:pgorm:def:macros.sql+10/test]    the expansion is the literal, in const position
 #[test]
 fn expansion_is_the_literal_unchanged() {
-    const QUERY: &str = sql!("SELECT id, name FROM cake WHERE id = $1");
+    const QUERY: &Sql<Reads> = sql!("SELECT id, name FROM cake WHERE id = $1");
 
     assert_eq!(QUERY, "SELECT id, name FROM cake WHERE id = $1");
     assert_eq!(
@@ -19,21 +21,44 @@ fn expansion_is_the_literal_unchanged() {
 #[test]
 fn nineteen_only_syntax_compiles() {
     const DO_SELECT: &str =
-        sql!("INSERT INTO cake (id) VALUES ($1) ON CONFLICT (id) DO SELECT RETURNING *");
-    const REPACK: &str = sql!("REPACK cake USING INDEX cake_pkey");
+        sql!("INSERT INTO cake (id) VALUES ($1) ON CONFLICT (id) DO SELECT RETURNING *").as_str();
+    const REPACK: &str = sql!("REPACK cake USING INDEX cake_pkey").as_str();
 
     assert!(DO_SELECT.ends_with("DO SELECT RETURNING *"));
     assert_eq!(REPACK, "REPACK cake USING INDEX cake_pkey");
 }
 
-// [spec:pgorm:def:macros.sql+9/test]    a `&'static str`, so it outlives any frame
+// [spec:pgorm:def:macros.sql+10/test]    a `&'static Sql`, so it outlives any frame, and dereferences to `str`
 #[test]
-fn expansion_is_a_static_str() {
+fn expansion_is_static() {
     fn keep(query: &'static str) -> &'static str {
         query
     }
 
     assert_eq!(keep(sql!("SELECT 1")), "SELECT 1");
+}
+
+// [spec:pgorm:def:read-only.sql-macro/test]    a statement that only reads is `Sql<Reads>`, one that may write `Sql<Writes>`, by its whole tree
+#[test]
+fn expansion_is_typed_by_what_it_writes() {
+    let reads: [&Sql<Reads>; 6] = [
+        sql!("SELECT 1"),
+        sql!("VALUES (1)"),
+        sql!("TABLE cake"),
+        sql!("SHOW search_path"),
+        sql!("EXPLAIN DELETE FROM cake"),
+        sql!("WITH last AS (SELECT max(id) FROM cake) SELECT * FROM last"),
+    ];
+    let writes: [&Sql<Writes>; 6] = [
+        sql!("DELETE FROM cake"),
+        sql!("WITH gone AS (DELETE FROM cake RETURNING id) SELECT * FROM gone"),
+        sql!("SELECT * FROM cake FOR UPDATE"),
+        sql!("SELECT * INTO cake_copy FROM cake"),
+        sql!("EXPLAIN ANALYZE SELECT * FROM cake"),
+        sql!("SELECT 1; DELETE FROM cake"),
+    ];
+    assert!(reads.iter().all(|sql| !sql.is_empty()));
+    assert!(writes.iter().all(|sql| !sql.is_empty()));
 }
 
 // [spec:pgorm:sem:macros.sql.script+2/test]    every statement of a script is checked
@@ -43,7 +68,8 @@ fn multi_statement_literal_passes_through() {
         "CREATE TABLE cake (id int primary key);
          INSERT INTO cake (id) VALUES (1), (2);
          SELECT count(*) FROM cake;"
-    );
+    )
+    .as_str();
 
     assert!(SCRIPT.starts_with("CREATE TABLE cake"));
     assert_eq!(SCRIPT.matches(';').count(), 3);
@@ -75,7 +101,7 @@ fn misapplied_type_modifiers_pass() {
     );
 }
 
-// [spec:pgorm:def:macros.sql+9/test]    what PostgreSQL 18's grammar added
+// [spec:pgorm:def:macros.sql+10/test]    what PostgreSQL 18's grammar added
 // compiles under 19's, where PostgreSQL 17's grammar refused every one
 #[test]
 fn postgres_18_grammar_is_accepted() {

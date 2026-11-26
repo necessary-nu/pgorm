@@ -17,8 +17,8 @@ pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{
-    ActiveModel, Column, Connection, Entity, Error, QueryFilter, QueryOrder, QuerySelect, Schema,
-    Statement, pgorm_query::Expr, set,
+    ActiveModel, Column, Connection, ConnectionMut, Entity, Error, QueryFilter, QueryOrder,
+    QuerySelect, Schema, Statement, pgorm_query::Expr, set,
 };
 use serde_json::json;
 
@@ -38,7 +38,7 @@ mod doc {
     pub enum Relation {}
 }
 
-async fn seed(db: &impl Connection) -> Result<(), Error> {
+async fn seed(db: &impl ConnectionMut) -> Result<(), Error> {
     let create = Schema::new()
         .create_table_from_entity(doc::Entity)?
         .to_string();
@@ -63,7 +63,7 @@ async fn seed(db: &impl Connection) -> Result<(), Error> {
     Ok(())
 }
 
-async fn ids(db: &impl Connection, filter: pgorm::pgorm_query::SimpleExpr) -> Vec<i32> {
+async fn ids(db: &impl ConnectionMut, filter: pgorm::pgorm_query::SimpleExpr) -> Vec<i32> {
     doc::Entity::find()
         .filter(filter)
         .order_by_asc(doc::Column::Id)

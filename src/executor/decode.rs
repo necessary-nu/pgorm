@@ -92,11 +92,14 @@ impl DecodeSelect for SelectStatement {
 ///
 /// Implemented for `(sql, values)` pairs whose SQL is text as a
 /// [`Connection`](crate::Connection) method takes it — a `&str`, a
-/// `String` or a reference to one — which is what
+/// `String`, a reference to one, or a `sql!` statement — which is what
 /// [`SelectStatement::build`], [`Pipeline::into_sql`](crate::pipeline) and the
 /// [`prql!`](crate::prql) macro all hand back, so the compiled query flows
 /// straight into a decode without being taken apart first. The raw statement's
-/// semantics are unchanged: no injected limit, and no projection guard.
+/// semantics are unchanged: no injected limit, and no projection guard. The
+/// selector keeps the text's [`Kind`](DecodeRaw::Kind): built text is text,
+/// which runs where text that may write runs, while a `prql!` read runs on
+/// every connection.
 ///
 /// ```
 /// use pgorm::entity::prelude::*;
@@ -111,19 +114,23 @@ impl DecodeSelect for SelectStatement {
 /// ```
 // [spec:pgorm:sem:exec.crud.selector-entry+4]
 pub trait DecodeRaw {
+    /// The [`SqlText::Kind`] of the statement, which the selector carries to
+    /// decide the connections it runs on.
+    type Kind;
+
     /// Decode each row into a [`FromQueryResult`] type.
-    fn into_model<M>(self) -> SelectorRaw<SelectModel<M>>
+    fn into_model<M>(self) -> SelectorRaw<SelectModel<M>, Self::Kind>
     where
         M: FromQueryResult;
 
     /// Decode each row into a tuple, by column position.
-    fn into_tuple<T>(self) -> SelectorRaw<SelectGetableTuple<T>>
+    fn into_tuple<T>(self) -> SelectorRaw<SelectGetableTuple<T>, Self::Kind>
     where
         T: TryGetableMany;
 
     /// Decode each row into a tuple, by the column names of a column enum, one
     /// deriving `Column`.
-    fn into_values<T, C>(self) -> SelectorRaw<SelectGetableValue<T, C>>
+    fn into_values<T, C>(self) -> SelectorRaw<SelectGetableValue<T, C>, Self::Kind>
     where
         T: TryGetableMany,
         C: strum::IntoEnumIterator + pgorm_query::SqlName;
@@ -135,21 +142,23 @@ where
     S: Deref,
     S::Target: SqlText,
 {
-    fn into_model<M>(self) -> SelectorRaw<SelectModel<M>>
+    type Kind = <S::Target as SqlText>::Kind;
+
+    fn into_model<M>(self) -> SelectorRaw<SelectModel<M>, Self::Kind>
     where
         M: FromQueryResult,
     {
         SelectorRaw::from_statement(&*self.0, self.1)
     }
 
-    fn into_tuple<T>(self) -> SelectorRaw<SelectGetableTuple<T>>
+    fn into_tuple<T>(self) -> SelectorRaw<SelectGetableTuple<T>, Self::Kind>
     where
         T: TryGetableMany,
     {
         SelectorRaw::into_tuple(&*self.0, self.1)
     }
 
-    fn into_values<T, C>(self) -> SelectorRaw<SelectGetableValue<T, C>>
+    fn into_values<T, C>(self) -> SelectorRaw<SelectGetableValue<T, C>, Self::Kind>
     where
         T: TryGetableMany,
         C: strum::IntoEnumIterator + pgorm_query::SqlName,

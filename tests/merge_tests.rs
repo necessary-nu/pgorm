@@ -19,7 +19,7 @@ use pgorm::pgorm_query::{
     MergeInsert, MergeStatement, MergeUpdate, Name, NotMatchedAction, Overriding, PendingMerge,
     Query, SimpleExpr, WithClause,
 };
-use pgorm::{Connection, ValueHolder, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, ValueHolder, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]

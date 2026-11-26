@@ -28,28 +28,32 @@ impl Parse for PrqlInput {
     }
 }
 
-/// Compile, validate, and expand — or refuse with a spanned error.
+/// Compile, validate, classify, and expand — or refuse with a spanned error.
 ///
-/// The expansion is a plain tuple expression: the emitted SQL as a string
-/// literal (spanned on the PRQL literal it came from) and a
+/// The expansion is a plain tuple expression: the emitted SQL as the
+/// `&'static ::pgorm::Sql<K>` [`sql!`](crate::sql) would make of it, and a
 /// `::pgorm::Values` holding each argument converted through
-/// `Into<::pgorm::Value>`, in placeholder order. No runtime helper, no new
-/// types — a failed conversion or a missing `pgorm` dependency is an
-/// ordinary type error at the call site.
-// [spec:pgorm:def:macros.prql+4]
+/// `Into<::pgorm::Value>`, in placeholder order. No runtime helper — a failed
+/// conversion or a missing `pgorm` dependency is an ordinary type error at the
+/// call site.
+// [spec:pgorm:def:macros.prql+5]
+// [spec:pgorm:def:read-only.sql-macro]
 pub(crate) fn expand(input: &PrqlInput) -> Result<TokenStream, Error> {
     let compiled = pgorm_sql_check::compile_prql(&input.literal.value())
         .map_err(|rejection| Error::new(input.literal.span(), rejection))?;
     check_arity(input, compiled.placeholders())?;
 
     let literal = LitStr::new(compiled.sql(), input.literal.span());
+    let effect = pgorm_sql_check::classify_sql(compiled.sql())
+        .map_err(|rejection| Error::new(input.literal.span(), rejection))?;
+    let sql = crate::sql::typed(&literal, effect);
     let values = input
         .args
         .iter()
         .map(|arg| quote!(::std::convert::Into::<::pgorm::Value>::into(#arg)));
 
     Ok(quote! {
-        (#literal, ::pgorm::Values(::std::vec![#(#values),*]))
+        (#sql, ::pgorm::Values(::std::vec![#(#values),*]))
     })
 }
 

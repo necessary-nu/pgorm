@@ -1,7 +1,10 @@
 //! Public capability boundaries for the pinned experimental native backend.
 #![cfg(feature = "turso")]
 
-use pgorm::{Connection, CopyConnection, DatabaseTransaction, Error, Transact, connect, notify};
+use pgorm::{
+    Connection, ConnectionMut, CopyConnection, CopyConnectionMut, DatabaseTransaction, Error,
+    Transact, connect, notify,
+};
 use pgorm_migration::{Migration, MigrationName, Migrator};
 use pgorm_query::{CopyBinary, CopyFromStatement, CopyText, CopyToStatement, Name};
 use std::{
@@ -35,14 +38,14 @@ fn missing_function(error: &Error, function: &str) {
     assert!(database.source().is_some(), "keep the native error cause");
 }
 
-async fn count(db: &impl Connection) -> Result<i64, Error> {
+async fn count(db: &impl ConnectionMut) -> Result<i64, Error> {
     Ok(db
         .query_one("SELECT count(*) FROM capability_items", &[])
         .await?
         .get(0))
 }
 
-async fn refuse_row_copy(db: &mut (impl CopyConnection + Send)) {
+async fn refuse_row_copy(db: &mut (impl CopyConnectionMut + Send)) {
     let input = CopyFromStatement::new(Name::runtime("missing_copy_table"), CopyBinary);
     let output = CopyToStatement::new(Name::runtime("missing_copy_table"), CopyBinary);
     unsupported(
@@ -261,7 +264,7 @@ impl Migrator for ProbeMigrator {
     }
 }
 
-async fn migration_tables(db: &impl Connection) -> Result<Vec<String>, Error> {
+async fn migration_tables(db: &impl ConnectionMut) -> Result<Vec<String>, Error> {
     Ok(db.query_all(
         "SELECT relname::text FROM pg_catalog.pg_class WHERE relname IN ('pgorm_migrations', 'seaql_migrations', 'migration_effect') ORDER BY relname", &[])
         .await?.iter().map(|row| row.get(0)).collect())

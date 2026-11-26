@@ -16,7 +16,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, Name, OnConflict, Query};
-use pgorm::{Connection, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]

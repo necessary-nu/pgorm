@@ -13,7 +13,7 @@ use pretty_assertions::assert_eq;
 
 async fn insert_bakery<C>(db: &C, name: &str) -> Result<(), Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     bakery::ActiveModel {
         name: set(name),
@@ -27,7 +27,7 @@ where
 
 async fn bakeries<C>(db: &C) -> Result<Vec<String>, Error>
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     Ok(Bakery::find()
         .order_by_asc(bakery::Column::Name)
@@ -42,7 +42,7 @@ where
 /// catches it does.
 async fn fail_and_catch<C>(db: &C)
 where
-    C: Connection,
+    C: ConnectionMut,
 {
     let refused = db.batch_execute("SELECT 1 / 0").await;
     assert!(refused.is_err(), "the division fails");

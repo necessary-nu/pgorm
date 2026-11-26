@@ -221,7 +221,13 @@ async fn list_cakes(pool: &DatabasePool) -> Result<Vec<cake::Model>, Error> {
 ```
 
 `DatabasePool` deliberately does not implement `Connection`, so
-`Entity::find().all(&pool)` does not compile. Running each statement on
+`Entity::find().all(&pool)` does not compile. Whether a connection may write
+is part of its type, which SeaORM's is not: reads take `Connection`, and
+writes — inserts, updates, deletes, an `ActiveModel`'s `save`, `batch_execute`
+— take `ConnectionMut`, which every connection that may write implements
+beside it. A function taking `&impl Connection` cannot write through what it
+is given, and `connect_read_only` builds a `ReadOnlyPool` whose connections
+implement `Connection` alone, in sessions the server holds read-only. Running each statement on
 whatever connection the pool hands out hides how many connections a request
 uses, and it breaks any reasoning about which statements ran together. Two
 queries that should run at the same time take two connections:
@@ -271,7 +277,7 @@ async fn rename(db: &DatabaseConnection) -> Result<u64, Error> {
 The methods of `Connection` follow pgorm-driver: `execute` returns
 the row count; `query_one` expects exactly one row, `query_opt` at most one,
 `query_all` any number, each as a `pgorm::Row`, pgorm-driver's row
-re-exported; `query_raw` streams the rows, where SeaORM had `stream`. `execute_unprepared` is `batch_execute`,
+re-exported; `query_raw` streams the rows, where SeaORM had `stream`. `execute_unprepared` is `Connection::batch_execute`,
 which runs a whole script of `;`-separated statements and takes no
 parameters. There is no `get_database_backend` and no `support_returning`:
 the answer is always PostgreSQL, and it always supports `RETURNING`.
@@ -384,9 +390,11 @@ async fn add(pool: &DatabasePool) -> Result<(), TransactionError<Error>> {
 }
 ```
 
-`transaction_with` takes a `TransactionMode`, which lists only the combinations
-PostgreSQL acts on: `Default`, `ReadWrite { isolation }`,
-`ReadOnly { isolation }` and `DeferrableSnapshot`.
+`transaction_with` takes a `TransactionMode`, the modes of a transaction that
+may write: `Default` and `ReadWrite { isolation }`. A read-only transaction,
+SeaORM's `access_mode: ReadOnly`, is `read_only_transaction(isolation, ..)`, and
+`SERIALIZABLE READ ONLY DEFERRABLE` is `snapshot(..)`: their closure is given a
+`ReadOnlyTransaction`, which runs reads and no write.
 `transaction_with_retry` reruns a closure when a serializable transaction
 fails with a retryable error; SeaORM has no equivalent.
 
@@ -691,10 +699,10 @@ leave free.
 | `RelationTrait` | `Relation` |
 | `PrimaryKeyTrait` | `PrimaryKey` |
 | `PartialModelTrait` | `PartialModel`, the name of its derive |
-| `ConnectionTrait` | `Connection` |
+| `ConnectionTrait` | `Connection` for what reads, `ConnectionMut` for what may write |
 | `TransactionTrait` | `Transact` |
 | `StreamTrait` | gone: `Connection::query_raw` returns the stream |
-| `CopyTrait` (pgorm's) | `CopyConnection` |
+| `CopyTrait` (pgorm's) | `CopyConnection` (`copy_out`), `CopyConnectionMut` (`copy_in`) |
 | `QueryTrait` | `Statement` |
 | `PaginatorTrait` | `Paginate` |
 | `CursorTrait` | `CursorSource` |

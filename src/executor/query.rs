@@ -658,7 +658,10 @@ pub trait TryGetableMany: Sized {
     /// # }
     /// ```
     // [spec:pgorm:sem:exec.crud.selector-entry+4]
-    fn find_by_statement<C, T>(sql: &T, values: Values) -> SelectorRaw<SelectGetableValue<Self, C>>
+    fn find_by_statement<C, T>(
+        sql: &T,
+        values: Values,
+    ) -> SelectorRaw<SelectGetableValue<Self, C>, T::Kind>
     where
         C: strum::IntoEnumIterator + pgorm_query::SqlName,
         T: ?Sized + SqlText,

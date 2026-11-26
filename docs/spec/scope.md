@@ -178,11 +178,11 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 
 ## Raw SQL
 
-> [spec:pgorm:req:scope.raw+1]
+> [spec:pgorm:req:scope.raw+2]
 > Raw SQL, through `sql!`, `prql!` and the methods taking SQL text, and
 > pgorm-query's builders used directly, MUST stay outside scopes. `sql!`
-> MUST expand to its literal spanned at the invocation, as `prql!`'s
-> expansion is, so that clippy's `disallowed_macros` configured with
+> MUST expand to an expression spanned at the invocation, its literal
+> included, as `prql!`'s expansion is (`read-only.sql-macro`), so that clippy's `disallowed_macros` configured with
 > `pgorm::sql` and `pgorm::prql` finds both, under those paths and under a
 > name a `use` gives them. The Rust guide's entities chapter MUST teach
 > scopes and give the clippy configuration a project bans raw SQL with: the

@@ -38,17 +38,23 @@ use syn::{LitStr, parse_macro_input};
 /// The literal is parsed with PostgreSQL 19's grammar — pgsql-syntax, a Rust
 /// port of the server's own parser — while the crate that wrote it is
 /// compiled. A literal the grammar accepts expands to itself, unchanged, as a
-/// `&'static str`; a literal the grammar rejects is a compile error on the
-/// literal carrying the parser's own message.
+/// `&'static pgorm::Sql<K>` typed by what it does: `pgorm::Reads` when every
+/// statement in it only reads — a `SELECT`, `VALUES`, `TABLE`, `SHOW`, or
+/// `EXPLAIN` without `ANALYZE`, with no data-modifying `WITH`, no row lock and
+/// no `INTO` — and `pgorm::Writes` otherwise. A read runs on every
+/// connection, a write only on one that may write. A literal the grammar
+/// rejects is a compile error on the literal carrying the parser's own
+/// message.
 ///
 /// ```
+/// use pgorm::{Reads, Sql, Writes};
 /// use pgorm_sql_macro::sql;
 ///
-/// const RECENT: &str = sql!("SELECT id, name FROM cake WHERE id > $1 ORDER BY id");
+/// const RECENT: &Sql<Reads> = sql!("SELECT id, name FROM cake WHERE id > $1 ORDER BY id");
 /// assert_eq!(RECENT, "SELECT id, name FROM cake WHERE id > $1 ORDER BY id");
 ///
 /// // A `;`-separated script is checked statement by statement.
-/// const SETUP: &str = sql!("CREATE TABLE cake (id int); INSERT INTO cake VALUES (1);");
+/// const SETUP: &Sql<Writes> = sql!("CREATE TABLE cake (id int); INSERT INTO cake VALUES (1);");
 /// assert!(SETUP.contains("INSERT INTO cake"));
 /// ```
 ///
@@ -60,34 +66,34 @@ use syn::{LitStr, parse_macro_input};
 /// statement against tables and columns that do not exist passes happily — this
 /// rules out typos in SQL, not mistakes about the schema.
 ///
-/// The literal it expands to is spanned at the invocation, so it reads as the
-/// macro's expansion, and a lint judging where an expression came from, such
-/// as clippy's `disallowed_macros`, sees `sql!` there.
-// [spec:pgorm:def:macros.sql+9]
+/// The expression it expands to, the literal included, is spanned at the
+/// invocation, so it reads as the macro's expansion, and a lint judging where
+/// an expression came from, such as clippy's `disallowed_macros`, sees `sql!`
+/// there.
+// [spec:pgorm:def:macros.sql+10]
 // [spec:pgorm:req:macros.sql.reject+2]    non-literal input is `syn`'s own refusal
-// [spec:pgorm:req:scope.raw+1]
+// [spec:pgorm:req:scope.raw+2]
+// [spec:pgorm:def:read-only.sql-macro]
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
     let literal = parse_macro_input!(input as LitStr);
 
     match sql::validate(&literal) {
-        Ok(()) => {
-            let mut expanded = literal;
-            expanded.set_span(proc_macro2::Span::call_site());
-            quote!(#expanded).into()
-        }
+        Ok(effect) => sql::typed(&literal, effect).into(),
         Err(error) => error.to_compile_error().into(),
     }
 }
 
 /// Compile a PRQL string literal to PostgreSQL SQL at build time, expanding
-/// to `(&'static str, pgorm::Values)`.
+/// to `(&'static pgorm::Sql<K>, pgorm::Values)`.
 ///
 /// The literal is compiled by prqlc while your crate compiles; the emitted
 /// SQL is then held to the grammar check behind [`sql!`] — and
 /// its `$N` placeholders are counted against the arguments that follow the
-/// literal. What lands in your code is the finished SQL as a `&'static str`
-/// and the arguments converted via `Into<pgorm::Value>`, in placeholder
+/// literal. What lands in your code is the finished SQL as a `&'static
+/// pgorm::Sql<K>`, typed by what it does as [`sql!`]'s literal is — PRQL
+/// compiles to a `SELECT`, so `pgorm::Reads` unless an s-string brings a write
+/// in — and the arguments converted via `Into<pgorm::Value>`, in placeholder
 /// order, ready for `SelectorRaw::from_statement` and the other raw-SQL
 /// entry points.
 ///
@@ -125,7 +131,7 @@ pub fn sql(input: TokenStream) -> TokenStream {
 /// The check ends where the catalog begins: whether `total` is a column and
 /// whether `$1` accepts an `i64` are the server's questions, answered at
 /// prepare time and by `VerifyTrait::verify` at runtime.
-// [spec:pgorm:def:macros.prql+4]
+// [spec:pgorm:def:macros.prql+5]
 // [spec:pgorm:req:macros.prql.reject]    non-literal input is `syn`'s own refusal
 // [spec:pgorm:req:macros.prql.ceiling+2]    the limits are stated on the macro
 #[proc_macro]
@@ -152,7 +158,7 @@ pub fn prql(input: TokenStream) -> TokenStream {
 /// expression, the name being the file stem and the text the file's with CRLF
 /// line endings read as LF, after holding that text to the grammar [`sql!`]
 /// uses. The path is resolved against `CARGO_MANIFEST_DIR`.
-// [spec:pgorm:def:macros.sql+9]    the hidden third macro
+// [spec:pgorm:def:macros.sql+10]    the hidden third macro
 // [spec:pgorm:def:migration.sql-file+2]
 // [spec:pgorm:req:migration.sql-file.const]
 #[doc(hidden)]

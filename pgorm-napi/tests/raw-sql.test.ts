@@ -272,7 +272,7 @@ test("a serialization failure runs the callback again", async () => {
   assert.equal(new PgormError("x").isRetryable, false);
 });
 
-// [spec:pgorm:req:bindings.transactions+2/test]    a retrying transaction and a transaction's stream meet the aborted COMMIT
+// [spec:pgorm:req:bindings.transactions+3/test]    a retrying transaction and a transaction's stream meet the aborted COMMIT
 test("an aborted transaction is not retried, and keeps its connection", async () => {
   await pool().connection(async (connection) => {
     let attempts = 0;

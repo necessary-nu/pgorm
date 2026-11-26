@@ -5,7 +5,7 @@
 use std::{fmt, pin::Pin, sync::Arc};
 
 use futures_util::TryStreamExt;
-use pgorm::{Connection, SqlText, pgorm_query::Value};
+use pgorm::{ConnectionMut, SqlText, Writes, pgorm_query::Value};
 use pgorm_driver::{Row, RowStream, types::ToSql};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -64,8 +64,8 @@ impl<O> fmt::Debug for StreamState<O> {
 }
 
 /// `sql`'s rows on `db`, its parameters bound.
-async fn query_raw<T: SqlText + Sync + ?Sized>(
-    db: &impl Connection,
+async fn query_raw<T: SqlText<Kind = Writes> + Sync + ?Sized>(
+    db: &impl ConnectionMut,
     sql: &T,
     params: &[&(dyn ToSql + Sync)],
 ) -> Result<RowStream, pgorm::Error> {

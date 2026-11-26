@@ -19,7 +19,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     BinOper, Condition, Expr, Multirange, Name, Query, Range, RangeType, SimpleExpr, Value, Values,
 };
-use pgorm::{Connection, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, entity::prelude::*};
 use pretty_assertions::assert_eq;
 use std::ops::Bound::{Excluded, Included};
 

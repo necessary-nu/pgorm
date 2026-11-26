@@ -10,7 +10,8 @@ pub mod common;
 pub use common::TestContext;
 use futures::TryStreamExt;
 use pgorm::{
-    Connection, DecodeRaw, Error, FromQueryResult, SelectModel, SelectorRaw, Transact, sql,
+    Connection, ConnectionMut, DecodeRaw, Error, FromQueryResult, SelectModel, SelectorRaw,
+    Transact, sql,
 };
 use pgorm_query::Values;
 use pretty_assertions::assert_eq;
@@ -26,9 +27,10 @@ struct Cake {
 const SCHEMA: &str = sql!(
     "CREATE TABLE cake (id int primary key, name text not null);
      INSERT INTO cake (id, name) VALUES (1, 'Chocolate'), (2, 'Lemon');"
-);
+)
+.as_str();
 
-// [spec:pgorm:def:macros.sql+9/test]    the literal reaches the server unchanged
+// [spec:pgorm:def:macros.sql+10/test]    the literal reaches the server unchanged
 // [spec:pgorm:sem:macros.sql.script+2/test]    a validated script through `batch_execute`
 #[pgorm_macros::test]
 async fn checked_literal_drives_selector_raw() -> Result<(), Error> {
@@ -56,7 +58,7 @@ async fn checked_literal_drives_selector_raw() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.sql+9/test]    the same literal bound as a prepared statement
+// [spec:pgorm:def:macros.sql+10/test]    the same literal bound as a prepared statement
 #[pgorm_macros::test]
 async fn checked_literal_drives_query_raw() -> Result<(), Error> {
     let ctx = TestContext::new("sql_macro_query_raw").await;
@@ -104,7 +106,7 @@ async fn checked_literal_can_still_fail_at_runtime() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.sql+9/test]    a statement PostgreSQL 18 introduced
+// [spec:pgorm:def:macros.sql+10/test]    a statement PostgreSQL 18 introduced
 // compiles and runs: the macro's grammar, 19's, keeps what 18 added
 #[pgorm_macros::test]
 async fn postgres_18_syntax_reaches_the_server() -> Result<(), Error> {

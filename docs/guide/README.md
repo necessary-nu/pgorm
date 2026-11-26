@@ -19,7 +19,7 @@ guide says what the items are for and how they fit together.
 | 4. [Reading rows](self::reading) | Find rows: filters, projections, joins, grouping and ordering. |
 | 5. [Pages, cursors and streams](self::pagination) | Read in pages, by keyset cursor, or as a stream. |
 | 6. [Relations](self::relations) | Follow relations: related rows, batched loading and the graph. |
-| 7. [Transactions](self::transactions) | Transactions and savepoints, isolation levels and retries. |
+| 7. [Transactions](self::transactions) | Transactions and savepoints, isolation levels and retries, and connections that may only read. |
 | 8. [Errors](self::errors) | What can fail, and how to tell one failure from another. |
 | 9. [Raw SQL](self::raw_sql) | Run SQL you wrote, checked at compile time with `sql!` and `prql!`. |
 | 10. [The query builder](self::query_builder) | Build any statement with pgorm-query. |

@@ -13,7 +13,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::Range;
-use pgorm::{Connection, Schema, Statement, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Schema, Statement, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
@@ -27,7 +27,7 @@ const SCHEMA: &str = include_str!("codegen_column_types/schema.sql");
 
 /// Each column of `specimen` with its type as the server prints it, typmod
 /// included, and whether it is `NOT NULL`.
-async fn columns_of(db: &impl Connection) -> Result<Vec<(String, String, bool)>, Error> {
+async fn columns_of(db: &impl ConnectionMut) -> Result<Vec<(String, String, bool)>, Error> {
     let rows = db
         .query_all(
             "SELECT attname::text, format_type(atttypid, atttypmod), attnotnull \
@@ -45,7 +45,7 @@ async fn columns_of(db: &impl Connection) -> Result<Vec<(String, String, bool)>,
 
 /// The schema's types, and the table the generated entity creates in place
 /// of the schema's own.
-async fn entity_table(db: &impl Connection) -> Result<(), Error> {
+async fn entity_table(db: &impl ConnectionMut) -> Result<(), Error> {
     db.batch_execute(SCHEMA).await?;
     db.batch_execute("DROP TABLE specimen").await?;
     db.batch_execute(

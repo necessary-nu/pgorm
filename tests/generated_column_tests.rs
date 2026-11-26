@@ -17,7 +17,7 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Expr, Func, GeneratedKind, Index, Name, Table, TableKey, extension::Type,
 };
-use pgorm::{Connection, Schema, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 

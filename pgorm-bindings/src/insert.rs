@@ -10,7 +10,7 @@
 //! insert answers.
 
 use pgorm::{
-    ActiveModel, Connection, Entity, Error, Insert, IntoActiveModel, NoContext, ScopedIn,
+    ActiveModel, ConnectionMut, Entity, Error, Insert, IntoActiveModel, NoContext, ScopedIn,
     TryInsert, TryInsertResult, Upserted,
     pgorm_query::{IntoValueTuple, OnConflict, ValueTuple},
 };
@@ -158,7 +158,7 @@ pub async fn insert<E, C, M, U>(
 where
     E: Entity + ScopedIn<NoContext>,
     E::Model: IntoActiveModel<E::ActiveModel>,
-    C: Connection,
+    C: ConnectionMut,
 {
     let rows = |written: Vec<E::Model>| Inserted::Models(written.into_iter().map(&model).collect());
     let Insertion { models, one, write } = insertion;

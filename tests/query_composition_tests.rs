@@ -28,7 +28,7 @@ use pgorm::{
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
-async fn seed(db: &impl Connection) -> Result<(i32, i32), Error> {
+async fn seed(db: &impl ConnectionMut) -> Result<(i32, i32), Error> {
     let alpha = bakery::ActiveModel {
         name: set("Alpha"),
         profit_margin: set(10.0),

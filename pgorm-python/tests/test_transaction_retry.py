@@ -79,7 +79,7 @@ class Retrying(unittest.IsolatedAsyncioTestCase):
     async def read(self, tx: p.Transaction) -> int:
         return (await tx.one(RawSQL("SELECT n FROM python_retry_items WHERE id = 1")))["n"]
 
-    # [spec:pgorm:req:bindings.transactions+2/test]    a retrying transaction and a transaction's stream meet the aborted COMMIT
+    # [spec:pgorm:req:bindings.transactions+3/test]    a retrying transaction and a transaction's stream meet the aborted COMMIT
     async def test_an_aborted_transaction_is_not_retried(self):
         attempts = 0
 

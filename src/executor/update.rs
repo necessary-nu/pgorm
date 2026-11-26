@@ -1,12 +1,13 @@
 use crate::{
-    ActiveModel, Column, Connection, Entity, IntoActiveModel, Iterable, QueryFilter, SelectModel,
-    SelectorRaw, UpdateMany, UpdateOne, error::*,
+    ActiveModel, Column, ConnectionMut, Entity, IntoActiveModel, Iterable, QueryFilter,
+    SelectModel, SelectorRaw, UpdateMany, UpdateOne, error::*,
 };
 use pgorm_driver::types::ToSql;
 use pgorm_query::{Query, UpdateStatement};
 
 use super::ValueHolder;
 
+// [spec:pgorm:req:read-only.writes]    every update terminal takes a connection that may write
 impl<A> UpdateOne<A>
 where
     A: ActiveModel,
@@ -30,7 +31,7 @@ where
     ) -> Result<<A::Entity as Entity>::Model, Error>
     where
         <A::Entity as Entity>::Model: IntoActiveModel<A>,
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         type Entity<A> = <A as ActiveModel>::Entity;
@@ -76,7 +77,7 @@ where
     #[doc(alias = "UpdateResult")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         if self.query.get_values().is_empty() {
@@ -105,7 +106,7 @@ where
     #[doc(alias = "exec_with_returning")]
     pub async fn exec_returning_models<C>(mut self, db: &C) -> Result<Vec<E::Model>, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         self.refusal()?;
         if self.query.get_values().is_empty() {
@@ -136,7 +137,7 @@ pub(super) async fn find_unchanged_model<A, C>(
 ) -> Result<<A::Entity as Entity>::Model, Error>
 where
     A: ActiveModel,
-    C: Connection,
+    C: ConnectionMut,
 {
     let condition = query
         .where_condition()

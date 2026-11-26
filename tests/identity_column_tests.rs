@@ -19,7 +19,7 @@ use pgorm::pgorm_query::{
     ColumnDef, Expr, GeneratedKind, IdentityGeneration, Name, Overriding, Query, Sequence,
     SequenceOption, Table,
 };
-use pgorm::{Connection, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]

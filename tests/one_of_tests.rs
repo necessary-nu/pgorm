@@ -19,7 +19,9 @@ use pgorm::tests_cfg::{
     comment::{self, Commentable, CommentableKey, CommentableModel},
     photo, post,
 };
-use pgorm::{Connection, DatabaseConnection, Error, OneOf, Schema, entity::prelude::*};
+use pgorm::{
+    Connection, ConnectionMut, DatabaseConnection, Error, OneOf, Schema, entity::prelude::*,
+};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::{
@@ -149,7 +151,7 @@ impl MetricsCollector for Statements {
 
 /// Create the post, photo and comment tables, their foreign keys among them,
 /// and `O`'s `CHECK`.
-async fn create<O: OneOf, C: Connection>(db: &C) -> Result<(), Error> {
+async fn create<O: OneOf, C: ConnectionMut>(db: &C) -> Result<(), Error> {
     let schema = Schema::new();
     for statement in [
         schema.create_table_from_entity(post::Entity)?,
@@ -164,7 +166,7 @@ async fn create<O: OneOf, C: Connection>(db: &C) -> Result<(), Error> {
 }
 
 /// Two posts and two photos, keyed 1 and 2 each.
-async fn targets<C: Connection>(db: &C) -> Result<(Vec<post::Model>, Vec<photo::Model>), Error> {
+async fn targets<C: ConnectionMut>(db: &C) -> Result<(Vec<post::Model>, Vec<photo::Model>), Error> {
     let mut posts = Vec::new();
     let mut photos = Vec::new();
     for at in 1..=2 {
@@ -189,7 +191,7 @@ async fn targets<C: Connection>(db: &C) -> Result<(Vec<post::Model>, Vec<photo::
 }
 
 /// A comment referencing `key`, written through `O::set`.
-async fn comment_on<O: OneOf<Entity = comment::Entity>, C: Connection>(
+async fn comment_on<O: OneOf<Entity = comment::Entity>, C: ConnectionMut>(
     db: &C,
     body: &str,
     key: O::Key,
@@ -202,7 +204,7 @@ async fn comment_on<O: OneOf<Entity = comment::Entity>, C: Connection>(
     active.insert(db).await
 }
 
-async fn refused<C: Connection>(db: &C, sql: &str, state: &SqlState) {
+async fn refused<C: ConnectionMut>(db: &C, sql: &str, state: &SqlState) {
     match db.execute(sql, &[]).await {
         Err(Error::Postgres(error)) => assert_eq!(error.code(), Some(state), "{error}"),
         other => panic!("expected {sql} refused with {state:?}, got {other:?}"),

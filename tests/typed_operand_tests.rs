@@ -12,13 +12,13 @@ use jiff::{Timestamp, civil::Date};
 use pgorm::pgorm_query::{
     Expr, Expression, Func, Interval, Name, Query, Range, SelectStatement, SimpleExpr,
 };
-use pgorm::{Connection, Error, SelectGetableTuple, Selector, TryGetableMany};
+use pgorm::{Connection, ConnectionMut, Error, SelectGetableTuple, Selector, TryGetableMany};
 use rust_decimal::Decimal;
 
 async fn read<T, C>(db: &C, query: SelectStatement) -> Result<Vec<T>, Error>
 where
     T: TryGetableMany,
-    C: Connection,
+    C: ConnectionMut,
 {
     Selector::<SelectGetableTuple<T>>::into_tuple(query)
         .all(db)

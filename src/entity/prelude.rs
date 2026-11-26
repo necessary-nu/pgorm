@@ -34,19 +34,19 @@
 //! written, with no prefix of their own: `on_delete = ForeignKeyAction::Cascade`,
 //! `deferrability = Deferrability::DeferrableInitiallyDeferred`.
 
-// [spec:pgorm:def:entity.prelude+13]
+// [spec:pgorm:def:entity.prelude+14]
 // [spec:pgorm:sem:query.build.alias+2]
 pub use crate::{
     ActiveEnum, ActiveModel, ActiveModelBehavior, ActiveValue,
     ActiveValue::{NotSet, Set, Unchanged},
-    AliasName, Column, ColumnDef, ColumnType, ColumnTypeExt, Condition, Connection, CreatedRange,
-    CursorSource, DatabaseConnection, DatabasePool, DatabaseTransaction, DecodeRaw, DecodeSelect,
-    Delete, Disjoint, Entity, EntityName, Every, FromQueryResult, Insert, IntoActiveModel,
-    IntoActiveValue, Iterable, JoinType, Linked, LoadRelated, Model, NoContext, OneOf, Paginate,
-    PartialModel, PrimaryKey, PrimaryKeyArity, PrimaryKeyToColumn, QueryFilter, QueryOrder,
-    QueryResult, QuerySelect, Related, RelatedLink, Relation, RelationDef, Scope, ScopeContext,
-    ScopeError, ScopeOn, Select, SqlName, Statement, StaticName, Transact, TryInsert, TryIntoModel,
-    Update, Value, alias,
+    AliasName, Column, ColumnDef, ColumnType, ColumnTypeExt, Condition, Connection, ConnectionMut,
+    CreatedRange, CursorSource, DatabaseConnection, DatabasePool, DatabaseTransaction, DecodeRaw,
+    DecodeSelect, Delete, Disjoint, Entity, EntityName, Every, FromQueryResult, Insert,
+    IntoActiveModel, IntoActiveValue, Iterable, JoinType, Linked, LoadRelated, Model, NoContext,
+    OneOf, Paginate, PartialModel, PrimaryKey, PrimaryKeyArity, PrimaryKeyToColumn, QueryFilter,
+    QueryOrder, QueryResult, QuerySelect, ReadOnlyConnection, ReadOnlyPool, ReadOnlyTransaction,
+    Related, RelatedLink, Relation, RelationDef, Scope, ScopeContext, ScopeError, ScopeOn, Select,
+    SqlName, Statement, StaticName, Transact, TryInsert, TryIntoModel, Update, Value, alias,
     error::*,
     pgorm_query::{
         ArrayType, ConditionType, Deferrability, Enforcement, Expr, Expression, ForeignKeyAction,
@@ -71,10 +71,10 @@ pub use crate::{JsonValueType, ValueType};
 /// own item shadows the name this glob brings, and with the name the trait's
 /// methods would leave scope; `Entity::find()` and `model.into_active()` are
 /// still the trait's through these.
-// [spec:pgorm:def:entity.prelude+13]
+// [spec:pgorm:def:entity.prelude+14]
 pub use crate::{
-    ActiveModel as _, Column as _, Connection as _, Entity as _, Model as _, PrimaryKey as _,
-    Relation as _, Statement as _,
+    ActiveModel as _, Column as _, Connection as _, ConnectionMut as _, Entity as _, Model as _,
+    PrimaryKey as _, Relation as _, Statement as _,
 };
 
 pub use async_trait;
@@ -108,7 +108,7 @@ pub use crate::pgorm_query::Interval;
 /// The qualifier vocabulary of an interval column, so that
 /// `column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`
 /// resolves in the module the entity is written in.
-// [spec:pgorm:def:entity.prelude+13]
+// [spec:pgorm:def:entity.prelude+14]
 pub use crate::pgorm_query::{IntervalPrecision, IntervalSpec, PgInterval};
 
 // [spec:pgorm:def:exec.decode.range+6]

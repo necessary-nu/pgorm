@@ -17,10 +17,10 @@ use crate::error::query_err;
 use crate::query::BASE_SOURCE;
 use crate::query::graph::source_prefix;
 use crate::{
-    Connection, Cursor, CursorSource, DecodeRow, Disjoint, DisjointShape, Entity, Error,
-    FromQueryResult, Iterable, KeyOf, KindModel, KindVisitor, Model, Paginate, Paginator,
+    Connection, ConnectionMut, Cursor, CursorSource, DecodeRow, Disjoint, DisjointShape, Entity,
+    Error, FromQueryResult, Iterable, KeyOf, KindModel, KindVisitor, Model, Paginate, Paginator,
     PinBoxSendStream, PrimaryKeyToColumn, QueryResult, SelectDisjoint, Selector, SelectorRaw,
-    StaticName, WriteDisjoint, check_disjoint, table_label,
+    StaticName, WriteDisjoint, Writes, check_disjoint, table_label,
 };
 
 /// The selector that decodes one row of a disjoint read: the base's model
@@ -489,15 +489,16 @@ impl<D: Disjoint> WriteDisjoint<D> {
     /// write breaks is the statement's error, reported at its end, and
     /// nothing of it applies.
     // [spec:pgorm:sem:disjoint.write+2]
-    pub async fn exec_returning_model<C: Connection>(
+    pub async fn exec_returning_model<C: ConnectionMut>(
         self,
         db: &C,
     ) -> Result<DisjointItem<D>, Error> {
         let (stmt, values) = self.query.build();
-        SelectorRaw {
+        SelectorRaw::<_, Writes> {
             stmt,
             values,
             selector: DisjointRow::<D>(PhantomData),
+            kind: PhantomData,
         }
         .one(db)
         .await

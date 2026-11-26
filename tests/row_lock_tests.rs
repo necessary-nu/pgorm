@@ -17,7 +17,9 @@ use pgorm::pgorm_query::{
     Asterisk, CommonTableExpression, Expr, FromItem, Func, IntoFromItem, IntoNamedTable, LockType,
     Name, NamedTable, Query, SampleMethod, SelectStatement, TableSample, WithClause,
 };
-use pgorm::{Connection, DatabaseConnection, Error, SelectGetableTuple, Selector, Transact};
+use pgorm::{
+    Connection, ConnectionMut, DatabaseConnection, Error, SelectGetableTuple, Selector, Transact,
+};
 use pgorm_driver::error::SqlState;
 
 const SEED: &str = "
@@ -58,7 +60,7 @@ fn aliased(alias: &str) -> NamedTable {
 }
 
 /// Run `query` through `build`, its values bound, counting the rows it reads.
-async fn count<C: Connection>(db: &C, query: SelectStatement) -> Result<usize, Error> {
+async fn count<C: ConnectionMut>(db: &C, query: SelectStatement) -> Result<usize, Error> {
     Ok(Selector::<SelectGetableTuple<i32>>::into_tuple(query)
         .all(db)
         .await?

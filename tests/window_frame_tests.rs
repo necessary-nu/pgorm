@@ -24,7 +24,7 @@ use pgorm::pgorm_query::{
     Expr, FrameClause, FrameExclusion, FrameType, Func, Name, Order, OrderedStatement, Query,
     SelectStatement, SimpleExpr, WindowStatement,
 };
-use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, SelectGetableTuple, SelectorRaw, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use rust_decimal::Decimal;
 

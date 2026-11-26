@@ -74,6 +74,7 @@ pub struct PoolState<O = ()> {
     pub owner: O,
     dialect: Dialect,
     acquire_timeout: Duration,
+    native: bool,
     connections: SyncMutex<Vec<Weak<ConnectionState<O>>>>,
     listeners: SyncMutex<Vec<Weak<ListenerState>>>,
 }
@@ -118,6 +119,7 @@ impl<O: Send + Sync + 'static> PoolState<O> {
             owner,
             dialect,
             acquire_timeout: built.acquire_timeout,
+            native: built.native,
             connections: SyncMutex::new(Vec::new()),
             listeners: SyncMutex::new(Vec::new()),
         })
@@ -131,6 +133,22 @@ impl<O: Send + Sync + 'static> PoolState<O> {
     /// `error` classified for this pool's binding, its secrets redacted.
     pub fn failure(&self, error: &pgorm::Error) -> Failure {
         classify(error, &self.secrets, self.dialect)
+    }
+
+    /// Refuse a transaction mode that may only read on a native database,
+    /// which takes no access mode, as the driver refuses one in a `BEGIN`.
+    pub(crate) fn refuse_native_access(
+        &self,
+        mode: crate::transaction::Mode,
+    ) -> Result<(), Failure> {
+        if self.native && mode.reads_only() {
+            return Err(self.failure(&pgorm::Error::Postgres(
+                pgorm::PostgresError::turso_unsupported(
+                    "explicit transaction access or deferrability mode",
+                ),
+            )));
+        }
+        Ok(())
     }
 
     /// Refuse once the pool has closed.

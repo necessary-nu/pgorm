@@ -567,14 +567,22 @@ closed, and a transaction by the block or callback it was opened for ending.
 > with its connection, nothing committed. A model's, a graph's and a disjoint
 > read's `stream` take a transaction as they take a connection.
 
-> [spec:pgorm:req:bindings.transactions+2]
+> [spec:pgorm:req:bindings.transactions+3]
 > Transactions MUST open only through the language's scoped form on a pool or
 > a connection, and savepoints only through the same form on a transaction
 > (`python.transactions`, `napi.transactions`), as Rust's open only around a
 > closure (`conn.tx.closure`). No method begins, commits, rolls back or closes
-> one. A transaction takes pgorm's `TransactionMode`: an access mode and an
-> isolation level, the combinations PostgreSQL acts on. A savepoint takes
-> neither.
+> one. A transaction takes a mode and an isolation level, the combinations
+> PostgreSQL acts on: pgorm's `TransactionMode`, `READ ONLY` at a level, or
+> the deferrable snapshot. pgorm opens a transaction that may only read with a
+> handle that runs no write (`read-only.transactions`), which a binding's
+> commands could not serve, so a binding opens a read-only mode as a plain
+> transaction whose first statement is `SET TRANSACTION .. READ ONLY`, run on
+> the transaction beneath any metrics wrapper so that the collector sees the
+> transaction as the mode's, and refuses such a mode on a native database
+> before opening, as the driver refuses one in a `BEGIN`. A refused `SET
+> TRANSACTION` is the opening's refusal, as a refused `BEGIN` is. A savepoint
+> takes neither.
 >
 > Each transaction and savepoint MUST run inside pgorm's closure transaction,
 > a task on the runtime serving its commands from inside the closure. A scope

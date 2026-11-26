@@ -5,7 +5,7 @@
 //! stream tell JavaScript about theirs.
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{CopyColumn, CopyConnection};
+use pgorm::{CopyColumn, CopyConnectionMut};
 
 use super::{
     super::{
@@ -141,7 +141,7 @@ pub(crate) async fn described<C>(
     secrets: &Redactions,
 ) -> Result<Vec<CopyColumn>, Failure>
 where
-    C: CopyConnection + Send,
+    C: CopyConnectionMut + Send,
 {
     let columns = match copy {
         CopyStatement::CopyFrom(copy) => copy.columns(db).await,

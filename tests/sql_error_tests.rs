@@ -4,8 +4,8 @@ pub mod common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::error::RuntimeError;
 pub use pgorm::{
-    Connection, DatabaseConnection, EntityName, entity::*, error::ConstraintViolation,
-    error::Error, error::SqlError, set, tests_cfg,
+    Connection, ConnectionMut, DatabaseConnection, EntityName, entity::*,
+    error::ConstraintViolation, error::Error, error::SqlError, set, tests_cfg,
 };
 use pgorm_driver::error::SqlState;
 use uuid::Uuid;
@@ -175,7 +175,7 @@ async fn bind_refusal_names_the_parameter_and_reason() {
 // report, and no other failure is one
 #[pgorm_macros::test]
 async fn parameter_count_refusal_names_both_counts() {
-    use pgorm::{Connection, DecodeRaw, ParameterCountRefusal, pgorm_query::Values};
+    use pgorm::{Connection, ConnectionMut, DecodeRaw, ParameterCountRefusal, pgorm_query::Values};
 
     let ctx = TestContext::new("parameter_count_refusal").await;
     let db = ctx.db.get().await.unwrap();

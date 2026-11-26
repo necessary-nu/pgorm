@@ -223,7 +223,7 @@ first rule: a value reaches JavaScript exactly or not at all.
 > never interpolated, through the path a built statement takes
 > (`bindings.results`), and a built statement with its options second.
 
-> [spec:pgorm:req:napi.transactions+3]
+> [spec:pgorm:req:napi.transactions+4]
 > A transaction MUST open only through `transaction(fn, options)` on a pool
 > or a connection, and a savepoint only through `transaction(fn)` on a
 > transaction; a `Transaction` is not disposable. JavaScript sends the
@@ -234,7 +234,8 @@ first rule: a value reaches JavaScript exactly or not at all.
 > rejects with a `SuppressedError` whose `error` is the rollback's database
 > error and whose `suppressed` is what `fn` threw. A callback that settles
 > with a savepoint still open fails, and commits nothing. The options `mode`
-> and `isolation` select pgorm's `TransactionMode`.
+> and `isolation` select the binding's transaction mode
+> (`bindings.transactions`).
 
 > [spec:pgorm:req:napi.cancellation+2]
 > Acquiring a connection, running a statement, opening a transaction or a

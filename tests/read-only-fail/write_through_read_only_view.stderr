@@ -1,0 +1,86 @@
+error[E0277]: `pgorm::ReadOnly<'_, pgorm::DatabaseConnection>` may only read, so it cannot run this write
+  --> tests/read-only-fail/write_through_read_only_view.rs:10:11
+   |
+10 |     .exec(&reader)
+   |      ---- ^^^^^^^ this writes, which needs a `ConnectionMut`
+   |      |
+   |      required by a bound introduced by this call
+   |
+   = help: the trait `pgorm::ConnectionMut` is not implemented for `pgorm::ReadOnly<'_, pgorm::DatabaseConnection>`
+   = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+   = help: the following other types implement trait `pgorm::ConnectionMut`:
+             &mut C
+             &pgorm::DatabaseConnection
+             DatabaseRef<'_, M>
+             DatabaseTransaction<'_>
+             HookConnection<'_>
+             pgorm::DatabaseConnection
+             pgorm::metric::InstrumentedConnection<M, C>
+             pgorm::metric::InstrumentedTransaction<'_, M, T>
+note: required by a bound in `pgorm::executor::insert::<impl pgorm::Insert<A, R>>::exec`
+  --> src/executor/insert.rs
+   |
+   | impl<A, R> Insert<A, R>
+...
+   |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+   |     where
+   |         C: ConnectionMut,
+   |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::insert::<impl Insert<A, R>>::exec`
+
+error[E0277]: `pgorm::ReadOnly<'_, pgorm::DatabaseConnection>` may only read, so it cannot run this write
+  --> tests/read-only-fail/write_through_read_only_view.rs:6:5
+   |
+ 6 | /     Insert::one(cake::ActiveModel {
+ 7 | |         name: set("Lemon"),
+ 8 | |         ..Default::default()
+ 9 | |     })
+10 | |     .exec(&reader)
+   | |__________________^ this writes, which needs a `ConnectionMut`
+   |
+   = help: the trait `pgorm::ConnectionMut` is not implemented for `pgorm::ReadOnly<'_, pgorm::DatabaseConnection>`
+   = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+   = help: the following other types implement trait `pgorm::ConnectionMut`:
+             &mut C
+             &pgorm::DatabaseConnection
+             DatabaseRef<'_, M>
+             DatabaseTransaction<'_>
+             HookConnection<'_>
+             pgorm::DatabaseConnection
+             pgorm::metric::InstrumentedConnection<M, C>
+             pgorm::metric::InstrumentedTransaction<'_, M, T>
+note: required by a bound in `pgorm::executor::insert::<impl pgorm::Insert<A, R>>::exec`
+  --> src/executor/insert.rs
+   |
+   | impl<A, R> Insert<A, R>
+...
+   |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+   |     where
+   |         C: ConnectionMut,
+   |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::insert::<impl Insert<A, R>>::exec`
+
+error[E0277]: `pgorm::ReadOnly<'_, pgorm::DatabaseConnection>` may only read, so it cannot run this write
+  --> tests/read-only-fail/write_through_read_only_view.rs:11:6
+   |
+11 |     .await?;
+   |      ^^^^^ this writes, which needs a `ConnectionMut`
+   |
+   = help: the trait `pgorm::ConnectionMut` is not implemented for `pgorm::ReadOnly<'_, pgorm::DatabaseConnection>`
+   = note: a `DatabaseConnection` or `DatabaseTransaction`, and the metrics wrappers around them, may write; a `ReadOnlyConnection`, a `ReadOnlyTransaction`, a connection's `read_only()`, and code generic over `Connection` may only read
+   = help: the following other types implement trait `pgorm::ConnectionMut`:
+             &mut C
+             &pgorm::DatabaseConnection
+             DatabaseRef<'_, M>
+             DatabaseTransaction<'_>
+             HookConnection<'_>
+             pgorm::DatabaseConnection
+             pgorm::metric::InstrumentedConnection<M, C>
+             pgorm::metric::InstrumentedTransaction<'_, M, T>
+note: required by a bound in `pgorm::executor::insert::<impl pgorm::Insert<A, R>>::exec`
+  --> src/executor/insert.rs
+   |
+   | impl<A, R> Insert<A, R>
+...
+   |     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
+   |     where
+   |         C: ConnectionMut,
+   |            ^^^^^^^^^^^^^ required by this bound in `pgorm::executor::insert::<impl Insert<A, R>>::exec`

@@ -13,7 +13,7 @@ use pgorm_query::Expression;
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ColumnDef, ColumnType, Expr, Func, Name, SimpleExpr, Table};
-use pgorm::{Connection, Error};
+use pgorm::{Connection, ConnectionMut, Error};
 
 fn n(name: &str) -> Name {
     Name::runtime(name)

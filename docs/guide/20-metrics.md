@@ -209,7 +209,6 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use pgorm::TransactionMode;
 use pgorm::entity::prelude::*;
 use pgorm::metric::{InstrumentedPool, MetricsCollector, QueryContext};
 
@@ -272,9 +271,8 @@ let refused = db
     .await;
 assert!(refused.is_err());
 
-// A transaction opened in a mode is reported as the others are.
-let read_only = TransactionMode::ReadOnly { isolation: None };
-db.transaction_with(read_only, async |txn| cake::Entity::find().count(&txn).await)
+// A transaction opened read-only is reported as the others are.
+db.read_only_transaction(None, async |txn| cake::Entity::find().count(&txn).await)
     .await?;
 
 assert_eq!(counts.get("connection"), 1);

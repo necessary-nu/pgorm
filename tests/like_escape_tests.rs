@@ -11,14 +11,14 @@ use pgorm_query::Expression;
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, LikeExpr, Name, Query, SimpleExpr};
-use pgorm::{Connection, Error, SelectGetableTuple, Selector};
+use pgorm::{Connection, ConnectionMut, Error, SelectGetableTuple, Selector};
 
 fn text(value: &str) -> SimpleExpr {
     Expr::val(value).cast_as(Name::runtime("text"))
 }
 
 /// Each predicate's answer, read in one row.
-async fn answers<C: Connection>(
+async fn answers<C: ConnectionMut>(
     db: &C,
     predicates: [SimpleExpr; 3],
 ) -> Result<(bool, bool, bool), Error> {

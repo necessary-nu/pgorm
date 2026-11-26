@@ -31,7 +31,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
     def rows(self):
         return p.select(p.col("id")).from_(self.table).order_by(p.col("id").asc())
 
-    # [spec:pgorm:req:bindings.transactions+2/test]
+    # [spec:pgorm:req:bindings.transactions+3/test]
     async def test_block_commits_and_reserves_its_connection(self):
         async with self.pool.connection() as connection:
             async with connection.transaction() as tx:
@@ -78,7 +78,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(tx.closed)
         self.assertEqual([r["id"] for r in await self.pool.query(self.rows())], [1])
 
-    # [spec:pgorm:req:bindings.transactions+2/test]
+    # [spec:pgorm:req:bindings.transactions+3/test]
     async def test_savepoints_reserve_parents_and_recover_database_errors(self):
         async with self.pool.connection() as connection:
             async with connection.transaction() as tx:
@@ -103,7 +103,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await connection.ping())
         self.assertEqual([r["id"] for r in await self.pool.query(self.rows())], [1, 3, 4])
 
-    # [spec:pgorm:req:bindings.transactions+2/test]
+    # [spec:pgorm:req:bindings.transactions+3/test]
     async def test_a_caught_failure_rolls_the_block_back(self):
         aborted = "the transaction was rolled back, not committed: a statement that failed inside it had aborted it"
         async with self.pool.connection() as connection:
@@ -130,7 +130,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await connection.ping())
         self.assertEqual([r["id"] for r in await self.pool.query(self.rows())], [2, 4])
 
-    # [spec:pgorm:req:bindings.transactions+2/test]
+    # [spec:pgorm:req:bindings.transactions+3/test]
     async def test_options_and_foreign_parent_rejection(self):
         async with self.pool.connection() as connection, self.pool.connection() as other:
             for mode, isolation in (("read_only", "repeatable_read"), ("read_write", "serializable"), ("deferrable", None)):
@@ -250,7 +250,7 @@ class Transactions(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.LifecycleError):
             await asyncio.wait_for(task, 2)
 
-    # [spec:pgorm:req:bindings.transactions+2/test]
+    # [spec:pgorm:req:bindings.transactions+3/test]
     async def test_abandoned_savepoint_rolls_back_and_releases_parent(self):
         async with self.pool.transaction() as tx:
             block = tx.transaction()

@@ -4,11 +4,11 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
 use futures_util::future::BoxFuture;
-use pgorm::{Transact, TransactionError, TransactionMode};
+use pgorm::{Transact, TransactionError};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
-use super::{Attempted, Command, ENDED, Finished, Flow, Opened, State, Tx};
+use super::{Attempted, Command, ENDED, Finished, Flow, Mode, Opened, State, Tx};
 use crate::{
     Failure,
     connection::{Held, Operation},
@@ -27,6 +27,9 @@ pub(super) enum Exit {
     RolledBack(Attempted, bool),
     /// The frame's handle was dropped unfinished.
     Abandoned,
+    /// The transaction's `SET TRANSACTION` was refused, before the frame
+    /// opened: the opening's refusal, as a refused `BEGIN` is.
+    Refused(pgorm::Error),
 }
 
 /// What ends a frame by dropping its transaction's future rather than letting
@@ -154,7 +157,7 @@ impl<O: Send + Sync + 'static> Frame<O> {
     /// Serve the frame's commands inside its transaction, a savepoint's frame
     /// nested inside while it is open: `Ok` once the language commits, an
     /// `Exit` once it rolls back or the handle is dropped unfinished.
-    // [spec:pgorm:req:bindings.transactions+2]
+    // [spec:pgorm:req:bindings.transactions+3]
     pub(super) fn serve<'a>(&'a mut self, mut tx: Tx<'a, '_>) -> BoxFuture<'a, Result<(), Exit>> {
         Box::pin(async move {
             self.finished = Some(Finished(self.state.finished.clone()));
@@ -242,6 +245,13 @@ impl<O: Send + Sync + 'static> Frame<O> {
         })
     }
 
+    /// [`serve`](Frame::serve) the frame once `mode` has settled its
+    /// transaction, a refused `SET TRANSACTION` ending it unopened.
+    async fn settled(&mut self, mode: Mode, tx: Tx<'_, '_>) -> Result<(), Exit> {
+        mode.settle(tx.plain()).await.map_err(Exit::Refused)?;
+        self.serve(tx).await
+    }
+
     /// What the frame's transaction ended in: `None` is a future [`Halt`]
     /// dropped. A frame whose `COMMIT` or `ROLLBACK` failed has left its
     /// connection in a state nobody knows, so it is not healthy, and the reply
@@ -260,7 +270,7 @@ impl<O: Send + Sync + 'static> Frame<O> {
             // A `COMMIT` an aborted transaction answered by rolling back, or a
             // `RELEASE` it refused and pgorm rolled back to: the commit fails,
             // and the connection is in a known state.
-            // [spec:pgorm:req:bindings.transactions+2]
+            // [spec:pgorm:req:bindings.transactions+3]
             Err(TransactionError::Connection(error @ pgorm::Error::TransactionAborted(_))) => {
                 completion(true, self.committed.take(), Err(self.failure(&error)))
             }
@@ -281,11 +291,17 @@ impl<O: Send + Sync + 'static> Frame<O> {
                 completion(true, Some(reply), Ok(()))
             }
             Err(TransactionError::Transaction(Exit::Abandoned)) => completion(true, None, Ok(())),
+            Err(TransactionError::Transaction(Exit::Refused(error))) => {
+                if let Some(opened) = self.opened.take() {
+                    return Ended::Refused(opened, error);
+                }
+                completion(true, None, Err(self.failure(&error)))
+            }
             Err(TransactionError::RollbackFailed { cause, rollback }) => completion(
                 false,
                 match cause {
                     Exit::RolledBack(reply, _) => Some(reply),
-                    Exit::Abandoned => None,
+                    Exit::Abandoned | Exit::Refused(_) => None,
                 },
                 Err(self.failure(&rollback)),
             ),
@@ -301,13 +317,17 @@ impl<O: Send + Sync + 'static> Frame<O> {
 /// Open a transaction on the connection `operation` took, which it holds
 /// until the transaction finishes: a task takes the connection and serves
 /// the transaction from inside the closure pgorm opens it around.
-// [spec:pgorm:req:bindings.transactions+2]
+// [spec:pgorm:req:bindings.transactions+3]
 pub async fn begin<O: Send + Sync + 'static>(
     mut operation: Operation<O>,
-    mode: TransactionMode,
+    mode: Mode,
     cancel: &CancellationToken,
 ) -> Result<Arc<State<O>>, Failure> {
     let connection = operation.state.clone();
+    if let Err(refused) = connection.pool.refuse_native_access(mode) {
+        drop(operation);
+        return Err(refused);
+    }
     let (state, receiver) = State::channel(connection, None);
     let (opened, receive) = oneshot::channel::<Result<(), Failure>>();
     let mut pending = state.pending();
@@ -329,10 +349,14 @@ pub async fn begin<O: Send + Sync + 'static>(
                 let halt = frame.halt.clone();
                 let ended = match db {
                     Held::Plain(db) => halt
-                        .run(db.transaction_with(mode, async |tx| frame.serve(Tx::Plain(tx)).await))
+                        .run(db.transaction_with(mode.opening(), async |tx| {
+                            frame.settled(mode, Tx::Plain(tx)).await
+                        }))
                         .await,
                     Held::Metered(db) => halt
-                        .run(db.transaction_with(mode, async |tx| frame.serve(Tx::Metered(tx)).await))
+                        .run(db.transaction_with(mode.opening(), async |tx| {
+                            frame.settled(mode, Tx::Metered(tx)).await
+                        }))
                         .await,
                 };
                 match frame.end(ended) {

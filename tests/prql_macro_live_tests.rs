@@ -20,7 +20,8 @@ pub mod common;
 
 pub use common::TestContext;
 use pgorm::{
-    Connection, DecodeRaw, Error, FromQueryResult, SelectModel, SelectorRaw, Values, prql, sql,
+    Connection, ConnectionMut, DecodeRaw, Error, FromQueryResult, SelectModel, SelectorRaw, Values,
+    prql, sql,
 };
 use pretty_assertions::assert_eq;
 
@@ -35,13 +36,14 @@ const SCHEMA: &str = sql!(
     "CREATE TABLE invoice (id int primary key, billing_city text not null, total bigint not null);
      INSERT INTO invoice (id, billing_city, total) VALUES
          (1, 'Berlin', 50), (2, 'Berlin', 120), (3, 'Oslo', 200), (4, 'Oslo', 80);"
-);
+)
+.as_str();
 
 fn selector(sql: &str, values: Values) -> SelectorRaw<SelectModel<Invoice>> {
     (sql, values).into_model::<Invoice>()
 }
 
-// [spec:pgorm:def:macros.prql+4/test]    the expansion binds its argument end to end
+// [spec:pgorm:def:macros.prql+5/test]    the expansion binds its argument end to end
 #[pgorm_macros::test]
 async fn bound_param_reaches_the_server() -> Result<(), Error> {
     let ctx = TestContext::new("prql_macro_bound_param").await;
@@ -89,7 +91,7 @@ async fn reused_placeholder_binds_once_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql+4/test]    two placeholders, two values, right slots
+// [spec:pgorm:def:macros.prql+5/test]    two placeholders, two values, right slots
 #[pgorm_macros::test]
 async fn arguments_land_in_placeholder_order() -> Result<(), Error> {
     let ctx = TestContext::new("prql_macro_placeholder_order").await;
@@ -160,9 +162,10 @@ const TALLY: &str = sql!(
      INSERT INTO tally (fruit, colour, weight) VALUES
          ('apple', 'red', 1), ('apple', 'red', 1), ('apple', 'green', 2),
          ('pear', 'green', 3), ('pear', 'green', 3), ('pear', 'green', 3);"
-);
+)
+.as_str();
 
-// [spec:pgorm:def:macros.prql+4/test]    grouping an undeclared relation by
+// [spec:pgorm:def:macros.prql+5/test]    grouping an undeclared relation by
 // `this` writes a qualified whole-row key PostgreSQL can read
 #[pgorm_macros::test]
 async fn grouping_undeclared_rows_counts_duplicates() -> Result<(), Error> {
@@ -191,7 +194,7 @@ async fn grouping_undeclared_rows_counts_duplicates() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql+4/test]    a literal grouping key is projected but
+// [spec:pgorm:def:macros.prql+5/test]    a literal grouping key is projected but
 // left out of GROUP BY, where PostgreSQL would read `5` as a column position;
 // a grouping made only of literals keeps its empty-input answer
 #[pgorm_macros::test]
@@ -264,7 +267,7 @@ async fn literal_group_key_is_not_a_position() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql+4/test]    a computed DISTINCT ON key, or a computed
+// [spec:pgorm:def:macros.prql+5/test]    a computed DISTINCT ON key, or a computed
 // sort inside the group, that the projection drops is ordered by its
 // expression rather than by an alias the SELECT no longer carries
 #[pgorm_macros::test]
@@ -327,7 +330,7 @@ async fn dropped_distinct_key_still_orders_rows() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:macros.prql+4/test]    a named column read beside a whole-row
+// [spec:pgorm:def:macros.prql+5/test]    a named column read beside a whole-row
 // key is written as a key too, since PostgreSQL reads a column outside an
 // aggregate only when it is grouped by name
 #[pgorm_macros::test]
@@ -384,7 +387,7 @@ async fn named_column_beside_whole_row_key() -> Result<(), Error> {
 
 /// Rows of `sql` as `(i32, i64)` pairs, sorted: the server's answer to SQL
 /// this suite wrote, or to SQL `prql!` emitted.
-async fn pairs(db: &impl Connection, sql: &str) -> Result<Vec<(i32, i64)>, Error> {
+async fn pairs(db: &impl ConnectionMut, sql: &str) -> Result<Vec<(i32, i64)>, Error> {
     let mut rows: Vec<(i32, i64)> = db
         .query_all(sql, &[])
         .await?
@@ -398,9 +401,10 @@ async fn pairs(db: &impl Connection, sql: &str) -> Result<Vec<(i32, i64)>, Error
 const SHELF: &str = sql!(
     "CREATE TABLE shelf (id int NOT NULL, kind int NOT NULL);
      INSERT INTO shelf VALUES (1, 10), (2, 20), (2, 20), (2, 21), (3, 30), (4, 40);"
-);
+)
+.as_str();
 
-// [spec:pgorm:def:macros.prql+4/test]    PRQL text's intersect and remove are
+// [spec:pgorm:def:macros.prql+5/test]    PRQL text's intersect and remove are
 // INTERSECT ALL and EXCEPT ALL of whole rows by position: operands that each
 // read a different column of a table nothing declares combine whole, and a
 // stage after the operation reads its whole result

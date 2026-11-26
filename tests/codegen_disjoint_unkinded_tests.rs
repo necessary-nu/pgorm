@@ -18,7 +18,7 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::entity::prelude::*;
-use pgorm::{Connection, Disjoint, check_disjoint};
+use pgorm::{Connection, ConnectionMut, Disjoint, check_disjoint};
 use pretty_assertions::assert_eq;
 
 mod codegen_disjoint_unkinded;

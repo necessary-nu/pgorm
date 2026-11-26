@@ -5,7 +5,7 @@ pub const INSERT: &str = "INSERT INTO line (id) VALUES ($1) RETURNING qty";
 
 /// The [`INSERT`] `db`'s session holds prepared, or `None` once a clear has
 /// closed it.
-pub async fn prepared_insert(db: &impl Connection) -> Result<Option<String>, Error> {
+pub async fn prepared_insert(db: &impl ConnectionMut) -> Result<Option<String>, Error> {
     Ok(db
         .query_opt(PREPARED_STATEMENT, &[&INSERT])
         .await?

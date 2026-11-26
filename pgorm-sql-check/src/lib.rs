@@ -118,6 +118,80 @@ pub fn check_sql(sql: &str) -> Result<(), Rejection> {
     parse(sql).map(|_| ())
 }
 
+/// What a statement does to the database, as far as its grammar shows.
+// [spec:pgorm:def:read-only.classify]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Effect {
+    /// Every statement only reads: a `SELECT`, `VALUES` or `TABLE` that
+    /// holds no data-modifying `WITH`, no row-locking clause and no `INTO`,
+    /// a `SHOW`, or an `EXPLAIN` that does not `ANALYZE`, whatever it
+    /// explains.
+    Reads,
+    /// At least one statement may write: anything else.
+    Writes,
+}
+
+/// Hold `sql` to the grammar, as [`check_sql`] does, and say whether every
+/// statement in it only reads.
+///
+/// The answer is the grammar's, so it is what the text shows, not what it
+/// runs: a `SELECT` calling a function that writes is a read here, and only
+/// a server running the statement read-only refuses it.
+// [spec:pgorm:def:read-only.classify]
+pub fn classify_sql(sql: &str) -> Result<Effect, Rejection> {
+    use pgsql_syntax::{NodeEnum, NodeRef};
+
+    let parsed = parse(sql)?;
+    let mut effect = Effect::Reads;
+    let mut explained = false;
+    pgsql_syntax::visit(&parsed.protobuf, |node| match node {
+        NodeRef::RawStmt(raw) => {
+            explained = false;
+            match raw.stmt.as_ref().and_then(|stmt| stmt.node.as_ref()) {
+                Some(NodeEnum::SelectStmt(_) | NodeEnum::VariableShowStmt(_)) => {}
+                Some(NodeEnum::ExplainStmt(explain)) if !analyzes(explain) => explained = true,
+                _ => effect = Effect::Writes,
+            }
+        }
+        NodeRef::InsertStmt(_)
+        | NodeRef::UpdateStmt(_)
+        | NodeRef::DeleteStmt(_)
+        | NodeRef::MergeStmt(_)
+        | NodeRef::LockingClause(_)
+        | NodeRef::IntoClause(_)
+            if !explained =>
+        {
+            effect = Effect::Writes;
+        }
+        _ => {}
+    });
+    Ok(effect)
+}
+
+/// Whether an `EXPLAIN` runs what it explains: an `ANALYZE` option that is
+/// not turned off by `false`, `off` or `0`. An argument the server would
+/// refuse counts as running, so nothing unclear passes as a read.
+fn analyzes(explain: &pgsql_syntax::protobuf::ExplainStmt) -> bool {
+    use pgsql_syntax::NodeEnum;
+
+    explain.options.iter().any(|option| {
+        let Some(NodeEnum::DefElem(element)) = option.node.as_ref() else {
+            return false;
+        };
+        if !element.defname.eq_ignore_ascii_case("analyze") {
+            return false;
+        }
+        match element.arg.as_ref().and_then(|arg| arg.node.as_ref()) {
+            Some(NodeEnum::String(text)) => {
+                !(text.sval.eq_ignore_ascii_case("false") || text.sval.eq_ignore_ascii_case("off"))
+            }
+            Some(NodeEnum::Integer(number)) => number.ival != 0,
+            Some(NodeEnum::Boolean(flag)) => flag.boolval,
+            _ => true,
+        }
+    })
+}
+
 /// The tree of `sql`, or the grammar's refusal of it.
 fn parse(sql: &str) -> Result<pgsql_syntax::ParseResult, Rejection> {
     detailed::parse(sql, pgsql_syntax::ParserOptions::DEFAULT)
@@ -146,7 +220,7 @@ fn caret_block(sql: &str, offset: usize) -> Option<String> {
 
 /// PRQL compiled to PostgreSQL SQL, and the number of distinct `$N`
 /// placeholders the SQL asks values for.
-// [spec:pgorm:def:macros.prql+4]
+// [spec:pgorm:def:macros.prql+5]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledPrql {
     sql: String,
@@ -301,7 +375,7 @@ impl std::error::Error for ArityRejection {}
 /// server will ask for is the parser's own view of the finished statement.
 /// S-strings splice through unscreened; their boundary is the grammar, over
 /// the finished statement.
-// [spec:pgorm:def:macros.prql+4]
+// [spec:pgorm:def:macros.prql+5]
 // [spec:pgorm:req:macros.prql.reject]    PRQL rejections carry prqlc's message
 // [spec:pgorm:sem:macros.prql.sstring]    pass-through; the oracle is the gate
 pub fn compile_prql(prql: &str) -> Result<CompiledPrql, PrqlRejection> {
@@ -468,6 +542,62 @@ mod tests {
             compile_prql("from cake | take $1"),
             Err(PrqlRejection::Compile(_))
         ));
+    }
+
+    // [spec:pgorm:def:read-only.classify/test]    reads are SELECT, VALUES, TABLE, SHOW and an EXPLAIN that does not ANALYZE; a data-modifying WITH, a row lock or an INTO anywhere makes a write
+    #[test]
+    fn statements_are_classified_by_what_they_write() {
+        let effect = |sql: &str| classify_sql(sql).unwrap_or_else(|error| panic!("{error}"));
+        for read in [
+            "SELECT id, name FROM cake WHERE id > $1",
+            "VALUES (1, 'a'), (2, 'b')",
+            "TABLE cake",
+            "SHOW search_path",
+            "SELECT 1; SELECT 2",
+            "WITH recent AS (SELECT * FROM cake ORDER BY id DESC LIMIT 5) SELECT * FROM recent",
+            "SELECT * FROM cake UNION ALL SELECT * FROM pie",
+            "SELECT (SELECT count(*) FROM pie WHERE pie.cake_id = cake.id) FROM cake",
+            "EXPLAIN SELECT * FROM cake",
+            "EXPLAIN INSERT INTO cake (id) VALUES (1)",
+            "EXPLAIN (ANALYZE false) DELETE FROM cake",
+            "EXPLAIN (ANALYZE off, VERBOSE) UPDATE cake SET name = 'x'",
+            "EXPLAIN (ANALYZE 0) SELECT * FROM cake FOR UPDATE",
+            "SELECT nextval('cake_id_seq')",
+            "SELECT 1; EXPLAIN DELETE FROM cake; SELECT 2",
+        ] {
+            assert_eq!(effect(read), Effect::Reads, "{read}");
+        }
+        for write in [
+            "INSERT INTO cake (id) VALUES (1)",
+            "UPDATE cake SET name = 'x'",
+            "DELETE FROM cake",
+            "MERGE INTO cake USING pie ON cake.id = pie.id WHEN MATCHED THEN DELETE",
+            "CREATE TABLE cake (id int)",
+            "SET search_path TO public",
+            "BEGIN",
+            "CALL refresh()",
+            "COPY cake TO STDOUT",
+            "WITH gone AS (DELETE FROM cake RETURNING *) SELECT * FROM gone",
+            "WITH added AS (INSERT INTO cake (id) VALUES (1) RETURNING id) SELECT * FROM added",
+            "SELECT * FROM cake FOR UPDATE",
+            "SELECT * FROM cake FOR NO KEY UPDATE",
+            "SELECT * FROM cake FOR SHARE",
+            "SELECT * FROM cake FOR KEY SHARE SKIP LOCKED",
+            "SELECT * FROM (SELECT * FROM cake FOR UPDATE) AS locked",
+            "SELECT * INTO cake_copy FROM cake",
+            "EXPLAIN ANALYZE SELECT * FROM cake",
+            "EXPLAIN (ANALYZE) SELECT * FROM cake",
+            "EXPLAIN (ANALYZE true) DELETE FROM cake",
+            "EXPLAIN (ANALYZE on) SELECT * FROM cake",
+            "SELECT 1; DELETE FROM cake",
+            "DELETE FROM cake; EXPLAIN SELECT 1",
+        ] {
+            assert_eq!(effect(write), Effect::Writes, "{write}");
+        }
+        assert_eq!(
+            classify_sql("SELEC 1").map_err(|refusal| refusal.token().map(str::to_owned)),
+            Err(Some("SELEC".to_owned()))
+        );
     }
 
     // [spec:pgorm:req:sql.target+4/test]    the grammar is PostgreSQL 19's:

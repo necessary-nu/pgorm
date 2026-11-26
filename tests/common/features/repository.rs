@@ -19,7 +19,7 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {
     async fn before_save<C>(self, db: &C, _: bool) -> Result<Self, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         let model = self.clone().try_into_model()?;
         insert_edit_log("before_save", &model, db).await?;
@@ -28,7 +28,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn after_save<C>(model: Model, db: &C, _: bool) -> Result<Model, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         insert_edit_log("after_save", &model, db).await?;
         Ok(model)
@@ -36,7 +36,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn before_delete<C>(self, db: &C) -> Result<Self, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         let model = self.clone().try_into_model()?;
         insert_edit_log("before_delete", &model, db).await?;
@@ -45,7 +45,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn after_delete<C>(self, db: &C) -> Result<Self, Error>
     where
-        C: Connection,
+        C: ConnectionMut,
     {
         let model = self.clone().try_into_model()?;
         insert_edit_log("after_delete", &model, db).await?;
@@ -57,7 +57,7 @@ async fn insert_edit_log<T, M, C>(action: T, model: &M, db: &C) -> Result<(), Er
 where
     T: Into<String>,
     M: Serialize,
-    C: Connection,
+    C: ConnectionMut,
 {
     edit_log::ActiveModel {
         action: set(action.into()),

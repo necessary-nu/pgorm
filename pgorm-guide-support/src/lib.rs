@@ -145,7 +145,7 @@ impl Scratch {
 }
 
 /// Create the bakery's enum type and tables, each from its entity.
-pub async fn create_schema<C: Connection>(db: &C) -> Result<(), Error> {
+pub async fn create_schema<C: ConnectionMut>(db: &C) -> Result<(), Error> {
     let schema = Schema::new();
     for create in schema.create_enum_from_entity(cake::Entity) {
         db.batch_execute(&create.to_string()).await?;
@@ -166,7 +166,7 @@ pub async fn create_schema<C: Connection>(db: &C) -> Result<(), Error> {
 }
 
 /// Insert the bakery's rows.
-pub async fn seed<C: Connection>(db: &C) -> Result<(), Error> {
+pub async fn seed<C: ConnectionMut>(db: &C) -> Result<(), Error> {
     use cake::Flavor;
 
     Insert::many([

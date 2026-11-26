@@ -174,6 +174,10 @@ assert_eq!(server.message(), r#"relation "pastry" does not exist"#);
 one PostgreSQL expects the client to retry the whole transaction after: a
 serialization failure (`40001`) or a deadlock (`40P01`).
 [Transactions](crate::guide::transactions) shows the retrying.
+[`read_only_refusal`](crate::Error::read_only_refusal) gives the
+[`ReadOnlyRefusal`](crate::ReadOnlyRefusal) of a write a transaction that may
+only read refused (`25006`), the server's word on what a read-only
+connection's types could not see; the same chapter shows those connections.
 
 ## What the driver refused
 

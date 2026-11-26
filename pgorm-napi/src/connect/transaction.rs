@@ -12,10 +12,10 @@
 use std::sync::Arc;
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{IsolationLevel, TransactionMode};
+use pgorm::IsolationLevel;
 use tokio::sync::{OwnedMutexGuard, oneshot};
 
-use pgorm_bindings::transaction::{self, Flow, Job, Tx};
+use pgorm_bindings::transaction::{self, Flow, Job, Mode, Tx};
 
 use super::{
     Abort, ConnectionHandle, Operation, Statement, abort_argument,
@@ -66,7 +66,7 @@ fn state(cx: &mut FunctionContext) -> NeonResult<Arc<State>> {
 }
 
 /// A transaction's mode and isolation level, named as JavaScript names them.
-fn mode(cx: &mut FunctionContext, at: usize) -> NeonResult<TransactionMode> {
+fn mode(cx: &mut FunctionContext, at: usize) -> NeonResult<Mode> {
     let mode = cx.argument::<JsString>(at)?.value(cx);
     let isolation = cx.argument::<JsValue>(at + 1)?;
     let isolation = if isolation.is_a::<JsNull, _>(cx) || isolation.is_a::<JsUndefined, _>(cx) {
@@ -87,10 +87,10 @@ fn mode(cx: &mut FunctionContext, at: usize) -> NeonResult<TransactionMode> {
         })
     };
     match (mode.as_str(), isolation) {
-        ("default", None) => Ok(TransactionMode::Default),
-        ("readWrite", isolation) => Ok(TransactionMode::ReadWrite { isolation }),
-        ("readOnly", isolation) => Ok(TransactionMode::ReadOnly { isolation }),
-        ("deferrable", None) => Ok(TransactionMode::DeferrableSnapshot),
+        ("default", None) => Ok(Mode::Default),
+        ("readWrite", isolation) => Ok(Mode::ReadWrite { isolation }),
+        ("readOnly", isolation) => Ok(Mode::ReadOnly { isolation }),
+        ("deferrable", None) => Ok(Mode::Snapshot),
         ("default" | "deferrable", Some(_)) => crate::values::read::refuse(
             cx,
             "the default and deferrable modes take no isolation level: choose readWrite or readOnly",

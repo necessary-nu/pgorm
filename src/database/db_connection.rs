@@ -5,9 +5,12 @@ use super::connection::private::Sealed;
 use super::{
     copy::refuse_copy_statement,
     drive, rolled_back,
-    sealed::{Close, Handle, TOKEN},
+    sealed::{Close, Handle, OpenReadOnly, ReadOnlyMode, TOKEN},
 };
-use crate::{Connection, RetryableError, SqlText, TransactionError, error::*};
+use crate::{
+    Connection, ConnectionMut, ReadOnlyTransaction, RetryableError, RunsOn, SqlText,
+    TransactionError, error::*,
+};
 use deadpool::Status;
 use pgorm_driver::{
     IsolationLevel, RowStream,
@@ -198,13 +201,13 @@ impl DatabasePool {
 pub struct DatabaseConnection(pub(crate) Object);
 
 /// How [`DatabaseConnection::transaction_with`] opens its transaction: the
-/// isolation level and access mode it selects, as the combinations PostgreSQL
-/// acts on.
+/// isolation level of a transaction that may write.
 ///
-/// `DEFERRABLE` is reachable only through [`TransactionMode::DeferrableSnapshot`],
-/// which carries the whole `SERIALIZABLE READ ONLY DEFERRABLE` combination,
-/// because that is the only one in which the server honours it.
-// [spec:pgorm:req:conn.tx+5]    transaction configuration
+/// A transaction that may only read is opened by
+/// [`read_only_transaction`](DatabaseConnection::read_only_transaction) or
+/// [`snapshot`](DatabaseConnection::snapshot) instead, whose handle is a
+/// [`ReadOnlyTransaction`] that runs no write.
+// [spec:pgorm:req:conn.tx+6]    transaction configuration
 #[derive(Debug, Clone, Copy, Default)]
 #[doc(alias = "AccessMode")]
 pub enum TransactionMode {
@@ -220,15 +223,6 @@ pub enum TransactionMode {
         /// `ISOLATION LEVEL <level>`; `None` inherits the session default.
         isolation: Option<IsolationLevel>,
     },
-    /// `READ ONLY`: the server rejects any write with SQLSTATE `25006`.
-    ReadOnly {
-        /// `ISOLATION LEVEL <level>`; `None` inherits the session default.
-        isolation: Option<IsolationLevel>,
-    },
-    /// `ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE`: opening it may
-    /// block until a snapshot is safe, after which the transaction cannot fail
-    /// with a serialization error.
-    DeferrableSnapshot,
 }
 
 /// A parent a configured transaction opens on: a [`DatabaseConnection`], and
@@ -246,7 +240,7 @@ pub(crate) trait OpenWith: Handle {
 }
 
 impl OpenWith for DatabaseConnection {
-    // [spec:pgorm:req:conn.tx+5]    configured START TRANSACTION on the pooled client
+    // [spec:pgorm:req:conn.tx+6]    configured START TRANSACTION on the pooled client
     async fn open_with(&mut self, mode: TransactionMode) -> Result<DatabaseTransaction<'_>, Error> {
         let mut builder = self.0.build_transaction();
 
@@ -258,21 +252,36 @@ impl OpenWith for DatabaseConnection {
                 }
                 builder = builder.read_only(false);
             }
-            TransactionMode::ReadOnly { isolation } => {
+        }
+
+        Ok(DatabaseTransaction(Some(builder.start().await?)))
+    }
+}
+
+impl OpenReadOnly for DatabaseConnection {
+    // [spec:pgorm:req:read-only.transactions]    START TRANSACTION .. READ ONLY on the pooled client
+    async fn open_read_only(
+        &mut self,
+        mode: ReadOnlyMode,
+    ) -> Result<ReadOnlyTransaction<'_>, Error> {
+        let mut builder = self.0.build_transaction().read_only(true);
+
+        match mode {
+            ReadOnlyMode::Isolation(isolation) => {
                 if let Some(level) = isolation {
                     builder = builder.isolation_level(level);
                 }
-                builder = builder.read_only(true);
             }
-            TransactionMode::DeferrableSnapshot => {
+            ReadOnlyMode::Snapshot => {
                 builder = builder
                     .isolation_level(IsolationLevel::Serializable)
-                    .read_only(true)
                     .deferrable(true);
             }
         }
 
-        Ok(DatabaseTransaction(Some(builder.start().await?)))
+        Ok(ReadOnlyTransaction(DatabaseTransaction(Some(
+            builder.start().await?,
+        ))))
     }
 }
 
@@ -367,6 +376,37 @@ impl DatabaseConnection {
         with_mode(self, mode, f).await
     }
 
+    /// Run `f` inside `START TRANSACTION [ISOLATION LEVEL <isolation>] READ
+    /// ONLY`, committing on `Ok` and rolling back on `Err`.
+    ///
+    /// The closure is given a [`ReadOnlyTransaction`], which implements
+    /// [`Connection`] alone: a write inside it is a compile error, and the
+    /// server refuses what the types cannot see with SQLSTATE `25006`.
+    // [spec:pgorm:req:read-only.transactions]
+    pub async fn read_only_transaction<T, E, F>(
+        &mut self,
+        isolation: Option<IsolationLevel>,
+        f: F,
+    ) -> Result<T, TransactionError<E>>
+    where
+        F: AsyncFnOnce(&mut ReadOnlyTransaction<'_>) -> Result<T, E>,
+    {
+        super::read_only::read_only(self, ReadOnlyMode::Isolation(isolation), f).await
+    }
+
+    /// Run `f` inside `START TRANSACTION ISOLATION LEVEL SERIALIZABLE, READ
+    /// ONLY, DEFERRABLE`, the one combination in which PostgreSQL honours
+    /// `DEFERRABLE`: opening it may wait until a snapshot is safe, after
+    /// which no serialization failure can end it. The closure is given a
+    /// [`ReadOnlyTransaction`].
+    // [spec:pgorm:req:read-only.transactions]
+    pub async fn snapshot<T, E, F>(&mut self, f: F) -> Result<T, TransactionError<E>>
+    where
+        F: AsyncFnOnce(&mut ReadOnlyTransaction<'_>) -> Result<T, E>,
+    {
+        super::read_only::read_only(self, ReadOnlyMode::Snapshot, f).await
+    }
+
     /// Run `f` inside a transaction configured by `mode`, retrying the whole
     /// begin/run/commit cycle up to `max_retries` extra times while the failure
     /// is retryable.
@@ -444,6 +484,7 @@ impl Connection for &DatabaseConnection {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(&self.0, statement, |prepared| self
             .0
@@ -455,6 +496,7 @@ impl Connection for &DatabaseConnection {
     async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -472,6 +514,7 @@ impl Connection for &DatabaseConnection {
     ) -> Result<pgorm_driver::Row, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(&self.0, statement, |prepared| self
             .0
@@ -486,6 +529,7 @@ impl Connection for &DatabaseConnection {
     ) -> Result<Option<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(&self.0, statement, |prepared| self
             .0
@@ -500,6 +544,7 @@ impl Connection for &DatabaseConnection {
     ) -> Result<Vec<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(&self.0, statement, |prepared| self
             .0
@@ -510,6 +555,7 @@ impl Connection for &DatabaseConnection {
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -519,8 +565,11 @@ impl Connection for &DatabaseConnection {
             .query_raw(prepared, params)
             .await)
     }
+}
 
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+#[async_trait::async_trait]
+impl ConnectionMut for &DatabaseConnection {
+    async fn run_batch(&self, sql: &str) -> Result<(), Error> {
         refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(&self.0, sql).await?)
     }
@@ -567,12 +616,13 @@ impl<'a> HookConnection<'a> {
 }
 
 // [spec:pgorm:def:conn.pool.hook-connection+2]    the cache-routing impl
-// [spec:pgorm:def:conn.pool.conn-trait+12]
+// [spec:pgorm:def:conn.pool.conn-trait+13]
 #[async_trait::async_trait]
 impl Connection for HookConnection<'_> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(self.0, statement, |prepared| self
             .0
@@ -583,6 +633,7 @@ impl Connection for HookConnection<'_> {
     async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -600,6 +651,7 @@ impl Connection for HookConnection<'_> {
     ) -> Result<pgorm_driver::Row, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(self.0, statement, |prepared| self
             .0
@@ -614,6 +666,7 @@ impl Connection for HookConnection<'_> {
     ) -> Result<Option<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(self.0, statement, |prepared| self
             .0
@@ -628,6 +681,7 @@ impl Connection for HookConnection<'_> {
     ) -> Result<Vec<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(self.0, statement, |prepared| self
             .0
@@ -638,6 +692,7 @@ impl Connection for HookConnection<'_> {
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -647,19 +702,23 @@ impl Connection for HookConnection<'_> {
             .query_raw(prepared, params)
             .await)
     }
+}
 
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+#[async_trait::async_trait]
+impl ConnectionMut for HookConnection<'_> {
+    async fn run_batch(&self, sql: &str) -> Result<(), Error> {
         Ok(self.0.batch_execute(sql).await?)
     }
 }
 
-// [spec:pgorm:def:conn.pool.conn-trait+12]    cache-routing impls
+// [spec:pgorm:def:conn.pool.conn-trait+13]    cache-routing impls
 #[async_trait::async_trait]
 impl Connection for DatabaseConnection {
     // #[instrument(level = "trace")]
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(&self.0, statement, |prepared| self
             .0
@@ -671,6 +730,7 @@ impl Connection for DatabaseConnection {
     async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -688,6 +748,7 @@ impl Connection for DatabaseConnection {
     ) -> Result<pgorm_driver::Row, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(&self.0, statement, |prepared| self
             .0
@@ -702,6 +763,7 @@ impl Connection for DatabaseConnection {
     ) -> Result<Option<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(&self.0, statement, |prepared| self
             .0
@@ -716,6 +778,7 @@ impl Connection for DatabaseConnection {
     ) -> Result<Vec<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_retry!(&self.0, statement, |prepared| self
             .0
@@ -727,6 +790,7 @@ impl Connection for DatabaseConnection {
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -736,8 +800,11 @@ impl Connection for DatabaseConnection {
             .query_raw(prepared, params)
             .await)
     }
+}
 
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+#[async_trait::async_trait]
+impl ConnectionMut for DatabaseConnection {
+    async fn run_batch(&self, sql: &str) -> Result<(), Error> {
         refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(&self.0, sql).await?)
     }
@@ -749,6 +816,7 @@ impl Connection for DatabaseTransaction<'_> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_evict!(self.tx(), statement, |prepared| self
             .tx()
@@ -760,6 +828,7 @@ impl Connection for DatabaseTransaction<'_> {
     async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -777,6 +846,7 @@ impl Connection for DatabaseTransaction<'_> {
     ) -> Result<pgorm_driver::Row, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_evict!(self.tx(), statement, |prepared| self
             .tx()
@@ -791,6 +861,7 @@ impl Connection for DatabaseTransaction<'_> {
     ) -> Result<Option<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_evict!(self.tx(), statement, |prepared| self
             .tx()
@@ -805,6 +876,7 @@ impl Connection for DatabaseTransaction<'_> {
     ) -> Result<Vec<pgorm_driver::Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
         cached_evict!(self.tx(), statement, |prepared| self
             .tx()
@@ -816,6 +888,7 @@ impl Connection for DatabaseTransaction<'_> {
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -825,8 +898,11 @@ impl Connection for DatabaseTransaction<'_> {
             .query_raw(prepared, params)
             .await)
     }
+}
 
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+#[async_trait::async_trait]
+impl ConnectionMut for DatabaseTransaction<'_> {
+    async fn run_batch(&self, sql: &str) -> Result<(), Error> {
         refuse_copy_statement(sql)?;
         Ok(pgorm_pool::GenericClient::batch_execute(self.tx(), sql).await?)
     }

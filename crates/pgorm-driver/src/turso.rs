@@ -21,6 +21,16 @@ impl TursoDatabase {
         Ok(Self(database))
     }
 
+    /// Opens an existing file read-only: every write on its connections is
+    /// refused with SQLSTATE `25006`. `:memory:` is refused, and so is a file
+    /// this process already has open read-write, since the engine would hand
+    /// that database back writable.
+    // [spec:pgorm:req:read-only.turso]
+    pub async fn open_read_only(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let database = native::Database::open_read_only(path.as_ref()).await?;
+        Ok(Self(database))
+    }
+
     /// Creates a client and its lifecycle future.
     ///
     /// Spawn or await the future for the connection's lifetime. Dropping it

@@ -314,6 +314,13 @@ const CHAPTER_NAMES: &[(&str, &[&str])] = &[
             "transaction_with",
             "transaction_with_retry",
             "RollbackFailed",
+            "read_only_transaction",
+            "snapshot",
+            "ConnectionMut",
+            "connect_read_only",
+            "ReadOnlyPool",
+            "unchecked",
+            "read_only_refusal",
         ],
     ),
     ("errors", &["SqlError", "sql_error"]),
@@ -384,8 +391,42 @@ fn braced_names(source: &str, opening: &str) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:req:scope.raw+1/test]    the clippy configuration the guide gives bans both raw-SQL macros and every
-// method taking SQL text, each by its path from pgorm's root
+/// The name of the `async fn` a line of source declares, if it declares one.
+fn async_method(line: &str) -> Option<String> {
+    let rest = line.trim().strip_prefix("async fn ")?;
+    Some(
+        rest.chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect(),
+    )
+}
+
+/// The methods `src/database/connection.rs` declares for a caller to call:
+/// every `async fn` but those a trait declares `#[doc(hidden)]`, the hooks a
+/// connection implements a public method through.
+fn connection_methods(connection: &str) -> Vec<String> {
+    let mut hidden = Vec::new();
+    let mut after_hidden = false;
+    for line in connection.lines().map(str::trim) {
+        if after_hidden && let Some(method) = async_method(line) {
+            hidden.push(method);
+        }
+        after_hidden = line == "#[doc(hidden)]";
+    }
+    let mut methods: Vec<String> = connection
+        .lines()
+        .filter_map(async_method)
+        .filter(|method| !hidden.contains(method))
+        .collect();
+    methods.dedup();
+    methods.sort();
+    methods.dedup();
+    methods
+}
+
+// [spec:pgorm:req:scope.raw+2/test]    the clippy configuration the guide gives bans both raw-SQL macros and every
+// method taking SQL text, each by its path from pgorm's root, the trait declaring it
+// named, and no hidden method a connection implements it through
 #[test]
 fn clippy_configuration_bans_every_raw_text_entry() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -397,14 +438,27 @@ fn clippy_configuration_bans_every_raw_text_entry() {
     );
     let connection = std::fs::read_to_string(root.join("src/database/connection.rs"))
         .expect("src/database/connection.rs is readable");
-    let methods = connection.lines().filter_map(|line| {
-        let rest = line.trim().strip_prefix("async fn ")?;
-        let method: String = rest
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
-        Some(format!("pgorm::Connection::{method}"))
-    });
+    let mut owner = None;
+    let mut declared = Vec::new();
+    for line in connection.lines().map(str::trim) {
+        if let Some(name) = line.strip_prefix("pub trait ") {
+            owner = name
+                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .next()
+                .map(str::to_owned);
+        } else if line.starts_with("impl") {
+            owner = None;
+        }
+        if let (Some(owner), Some(method)) = (&owner, async_method(line)) {
+            declared.push((owner.clone(), method));
+        }
+    }
+    let public = connection_methods(&connection);
+    let methods: Vec<String> = declared
+        .into_iter()
+        .filter(|(_, method)| public.contains(method))
+        .map(|(owner, method)| format!("pgorm::{owner}::{method}"))
+        .collect();
     let others = [
         "pgorm::sql",
         "pgorm::prql",
@@ -414,7 +468,7 @@ fn clippy_configuration_bans_every_raw_text_entry() {
         "pgorm::Select::from_raw_sql",
         "pgorm::FromQueryResult::find_by_statement",
     ];
-    for path in methods.chain(others.map(str::to_owned)) {
+    for path in methods.into_iter().chain(others.map(str::to_owned)) {
         assert!(
             entities.contains(&format!("path = \"{path}\"")),
             "the guide's clippy configuration does not ban `{path}`"
@@ -449,14 +503,7 @@ fn guide_names_every_feature() {
 
     let connection = std::fs::read_to_string(root.join("src/database/connection.rs"))
         .expect("src/database/connection.rs is readable");
-    for line in connection.lines() {
-        let Some(rest) = line.trim().strip_prefix("async fn ") else {
-            continue;
-        };
-        let method: String = rest
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
+    for method in connection_methods(&connection) {
         assert!(
             whole.contains(&method),
             "the guide never names Connection::{method}"

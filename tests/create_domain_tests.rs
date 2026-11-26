@@ -20,7 +20,7 @@ use pgorm::pgorm_query::{
     ColumnType, ConstraintDrop, Domain, DomainCheck, Expr, Name, Query, Schema, alias,
     extension::Type,
 };
-use pgorm::{Connection, Statement, Transact, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Statement, Transact, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pgorm_test_support::PREPARED_STATEMENT;
 use pretty_assertions::assert_eq;
@@ -161,7 +161,7 @@ fn checked_by(error: &Error, constraint: &str, domain: &str) {
 }
 
 /// A statement the server refuses, and the error it refused it with.
-async fn refused(db: &impl Connection, sql: &str) -> Error {
+async fn refused(db: &impl ConnectionMut, sql: &str) -> Error {
     db.batch_execute(sql)
         .await
         .expect_err(&format!("the server refuses {sql}"))
@@ -169,7 +169,7 @@ async fn refused(db: &impl Connection, sql: &str) -> Error {
 
 /// `billing.quantity`, `code` and `cheerful`, each created by the builder
 /// over the type the entity's field holds.
-async fn domains(db: &impl Connection) -> Result<(), Error> {
+async fn domains(db: &impl ConnectionMut) -> Result<(), Error> {
     db.batch_execute(&Schema::create(n("billing")).to_string())
         .await?;
     let generator = pgorm::Schema::new();
@@ -210,7 +210,7 @@ async fn domains(db: &impl Connection) -> Result<(), Error> {
 }
 
 /// Each column of `table` with its type as the server prints it.
-async fn columns_of(db: &impl Connection, table: &str) -> Result<Vec<(String, String)>, Error> {
+async fn columns_of(db: &impl ConnectionMut, table: &str) -> Result<Vec<(String, String)>, Error> {
     let rows = db
         .query_all(
             "SELECT attname::text, format_type(atttypid, atttypmod) FROM pg_attribute \
@@ -223,7 +223,7 @@ async fn columns_of(db: &impl Connection, table: &str) -> Result<Vec<(String, St
 
 /// A domain's constraints: each one's name, kind and whether it is validated.
 async fn constraints_of(
-    db: &impl Connection,
+    db: &impl ConnectionMut,
     domain: &str,
 ) -> Result<Vec<(String, String, bool)>, Error> {
     let rows = db
@@ -240,7 +240,7 @@ async fn constraints_of(
 }
 
 /// One `t` row's `v`, by id.
-async fn value_of(db: &impl Connection, id: i32) -> Result<Option<i32>, Error> {
+async fn value_of(db: &impl ConnectionMut, id: i32) -> Result<Option<i32>, Error> {
     let row = db
         .query_one("SELECT v FROM t WHERE id = $1", &[&id])
         .await?;
@@ -414,7 +414,7 @@ async fn a_money_domain_reads_and_writes_as_decimal() -> Result<(), Error> {
 
 /// The ids of the lines `filter` selects, in id order.
 async fn ids_where(
-    db: &impl Connection,
+    db: &impl ConnectionMut,
     filter: impl pgorm::pgorm_query::IntoCondition,
 ) -> Result<Vec<i32>, Error> {
     Ok(line::Entity::find()
@@ -537,7 +537,7 @@ async fn domain_enum_predicates_compare_as_the_enum() -> Result<(), Error> {
 
 /// Lines 1 to 5, calm, glad, calm, glad, calm, beside a calm and a glad
 /// temper, each table created from its entity over the same domain.
-async fn lines_and_tempers(db: &impl Connection) -> Result<(), Error> {
+async fn lines_and_tempers(db: &impl ConnectionMut) -> Result<(), Error> {
     domains(db).await?;
     let schema = pgorm::Schema::new();
     db.batch_execute(&schema.create_table_from_entity(line::Entity)?.to_string())
@@ -1165,7 +1165,7 @@ const PLAN_MARK: &str = "CREATE TABLE plan_mark (n integer); INSERT INTO plan_ma
                          CREATE FUNCTION plan_mark() RETURNS integer IMMUTABLE LANGUAGE plpgsql \
                          AS $$ BEGIN RETURN (SELECT n FROM plan_mark); END $$";
 
-async fn plan_mark(db: &impl Connection) -> Result<i32, Error> {
+async fn plan_mark(db: &impl ConnectionMut) -> Result<i32, Error> {
     Ok(db.query_one("SELECT plan_mark()", &[]).await?.get(0))
 }
 
@@ -1173,7 +1173,7 @@ async fn plan_mark(db: &impl Connection) -> Result<i32, Error> {
 /// so that the session answers 1 until it re-plans its statements and 2 after.
 /// Run before the statement whose plan is in question is prepared, so that a
 /// re-plan of that statement is a re-plan of this one too.
-async fn mark_plans(db: &impl Connection) -> Result<(), Error> {
+async fn mark_plans(db: &impl ConnectionMut) -> Result<(), Error> {
     db.batch_execute(PLAN_MARK).await?;
     assert_eq!(plan_mark(db).await?, 1);
     db.batch_execute("UPDATE plan_mark SET n = 2").await
@@ -1185,7 +1185,7 @@ async fn mark_plans(db: &impl Connection) -> Result<(), Error> {
 /// server's shared invalidation queue, which other databases' catalogue churn
 /// can cause at any moment; asked after a statement ran, a no says that the
 /// statement ran with the plan it was prepared with.
-async fn replanned(db: &impl Connection) -> Result<bool, Error> {
+async fn replanned(db: &impl ConnectionMut) -> Result<bool, Error> {
     Ok(plan_mark(db).await? != 1)
 }
 
@@ -1322,12 +1322,12 @@ async fn a_reset_replans_the_kept_insert() -> Result<(), Error> {
 
 /// The server process behind a connection, which names the physical
 /// connection the pool lent.
-async fn backend(db: &impl Connection) -> Result<i32, Error> {
+async fn backend(db: &impl ConnectionMut) -> Result<i32, Error> {
     Ok(db.query_one("SELECT pg_backend_pid()", &[]).await?.get(0))
 }
 
 /// The insert into `line` the connection's session holds prepared, or `None`.
-async fn prepared_insert(db: &impl Connection) -> Result<Option<String>, Error> {
+async fn prepared_insert(db: &impl ConnectionMut) -> Result<Option<String>, Error> {
     Ok(db
         .query_opt(PREPARED_STATEMENT, &[&r#"INSERT INTO "line""#])
         .await?

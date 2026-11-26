@@ -6,7 +6,11 @@ over the connection as one data flow, with no statement per row. pgorm runs
 it through [`CopyConnection`](crate::CopyConnection), implemented for a
 [`DatabaseConnection`](crate::DatabaseConnection), a
 [`DatabaseTransaction`](crate::DatabaseTransaction) (and so a savepoint), and
-the [metrics](crate::guide::metrics) wrappers.
+the [metrics](crate::guide::metrics) wrappers. Its `COPY .. TO STDOUT` reads,
+and runs on a connection that may only read too, such as a
+[`ReadOnlyConnection`](crate::ReadOnlyConnection); its `COPY .. FROM STDIN`
+writes, and runs only on a [`CopyConnectionMut`](crate::CopyConnectionMut), a
+connection that may write.
 
 A COPY is described by a typed statement from the query builder:
 [`CopyFromStatement`](crate::pgorm_query::CopyFromStatement) for

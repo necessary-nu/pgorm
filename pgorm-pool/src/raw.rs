@@ -22,7 +22,7 @@ pub type Unpooled = (Client, Box<dyn RawConnection>);
 ///
 /// It is a trait object because a connection's type names its TLS stream, which
 /// the pool's connector erases.
-// [spec:pgorm:req:conn.listen+3]    the connection the listener drives itself
+// [spec:pgorm:req:conn.listen+4]    the connection the listener drives itself
 pub trait RawConnection: Send {
     /// Drive the connection, returning the next asynchronous message.
     ///

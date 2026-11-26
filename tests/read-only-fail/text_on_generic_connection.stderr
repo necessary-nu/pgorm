@@ -1,0 +1,33 @@
+error[E0277]: `impl Connection` may only read, and this SQL text is not known to read
+ --> tests/read-only-fail/text_on_generic_connection.rs:4:8
+  |
+4 |     db.execute("DELETE FROM cake", &[]).await
+  |        ^^^^^^^ text written at run time, or a `sql!` statement that may write
+  |
+  = help: the trait `RunsOn<impl Connection>` is not implemented for `pgorm::Writes`
+  = note: `sql!` checks a literal as the crate compiles; a statement it finds only reads (a SELECT, VALUES, TABLE, SHOW, or EXPLAIN without ANALYZE, with no data-modifying WITH and no row lock) runs on any `Connection`
+  = note: other text runs on a `ConnectionMut`, a connection that may write, or through a read-only connection's `unchecked()`, whose server refuses a write
+note: required by a bound in `execute`
+ --> src/database/connection.rs
+  |
+  | pub trait Connection: Sync {
+...
+  |     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+...
+  |         T::Kind: RunsOn<Self>;
+  |                  ^^^^^^^^^^^^ required by this bound in `Connection::execute`
+
+error[E0107]: function takes 0 generic arguments but 1 generic argument was supplied
+ --> tests/read-only-fail/text_on_generic_connection.rs:8:13
+  |
+8 |     let _ = purge::<pgorm::DatabaseConnection>;
+  |             ^^^^^----------------------------- help: remove the unnecessary generics
+  |             |
+  |             expected 0 generic arguments
+  |
+note: function defined here, with 0 generic parameters
+ --> tests/read-only-fail/text_on_generic_connection.rs:3:10
+  |
+3 | async fn purge(db: &impl Connection) -> Result<u64, Error> {
+  |          ^^^^^
+  = note: `impl Trait` cannot be explicitly specified as a generic argument

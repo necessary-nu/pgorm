@@ -1,7 +1,9 @@
 use std::fmt;
 
 use crate::{
-    Connection, DatabaseConnection, DatabaseTransaction, Error, HookConnection, SqlText,
+    Connection, ConnectionMut, DatabaseConnection, DatabaseTransaction, Error, HookConnection,
+    RunsOn, SqlText,
+    database::Kinded,
     metric::{InstrumentedConnection, InstrumentedTransaction, MetricsCollector, NoOpMetrics},
 };
 use pgorm_driver::{
@@ -16,7 +18,8 @@ use pgorm_driver::{
 /// Code that chooses at run time where a statement runs — a language binding
 /// holding whichever handle its caller passed — reaches pgorm's generic
 /// terminals through this one [`Connection`] type, each method the
-/// borrowed executor's own.
+/// borrowed executor's own. Every executor it borrows may write, so it is a
+/// [`ConnectionMut`] too.
 ///
 /// ```
 /// # async fn count(db: &pgorm::DatabaseConnection) -> Result<(), pgorm::Error> {
@@ -27,7 +30,7 @@ use pgorm_driver::{
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:conn.database-ref+2]
+// [spec:pgorm:def:conn.database-ref+3]
 pub enum DatabaseRef<'a, M: MetricsCollector = NoOpMetrics> {
     /// A connection, statements running on it outside any transaction.
     Connection(&'a DatabaseConnection),
@@ -104,24 +107,26 @@ macro_rules! delegate {
     };
 }
 
-// [spec:pgorm:def:conn.database-ref+2]
+// [spec:pgorm:def:conn.database-ref+3]
 #[async_trait::async_trait]
 impl<M: MetricsCollector> Connection for DatabaseRef<'_, M> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
-        delegate!(self, execute, statement, params)
+        delegate!(self, execute, &Kinded::read(statement), params)
     }
 
     async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
     {
-        delegate!(self, execute_raw, statement, params)
+        delegate!(self, execute_raw, &Kinded::read(statement), params)
     }
 
     async fn query_one<T>(
@@ -131,8 +136,9 @@ impl<M: MetricsCollector> Connection for DatabaseRef<'_, M> {
     ) -> Result<Row, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
-        delegate!(self, query_one, statement, params)
+        delegate!(self, query_one, &Kinded::read(statement), params)
     }
 
     async fn query_opt<T>(
@@ -142,8 +148,9 @@ impl<M: MetricsCollector> Connection for DatabaseRef<'_, M> {
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
-        delegate!(self, query_opt, statement, params)
+        delegate!(self, query_opt, &Kinded::read(statement), params)
     }
 
     async fn query_all<T>(
@@ -153,21 +160,27 @@ impl<M: MetricsCollector> Connection for DatabaseRef<'_, M> {
     ) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
     {
-        delegate!(self, query_all, statement, params)
+        delegate!(self, query_all, &Kinded::read(statement), params)
     }
 
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
+        T::Kind: RunsOn<Self>,
         P: BorrowToSql,
         I: IntoIterator<Item = P> + Send,
         I::IntoIter: ExactSizeIterator,
     {
-        delegate!(self, query_raw, statement, params)
+        delegate!(self, query_raw, &Kinded::read(statement), params)
     }
+}
 
-    async fn batch_execute(&self, sql: &str) -> Result<(), Error> {
+// [spec:pgorm:def:conn.database-ref+3]    every executor it borrows may write
+#[async_trait::async_trait]
+impl<M: MetricsCollector> ConnectionMut for DatabaseRef<'_, M> {
+    async fn run_batch(&self, sql: &str) -> Result<(), Error> {
         delegate!(self, batch_execute, sql)
     }
 }

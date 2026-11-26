@@ -21,7 +21,7 @@ use pgorm::pipeline::{
     AliasName, Expr, ExprOps, IntoSource, JoinSide, Pipeline, alias, by, col, count, count_rows,
     first, last, named_runtime, row_number, sort_by, sum,
 };
-use pgorm::{Connection, Schema, entity::prelude::Uuid, entity::*, set};
+use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::Uuid, entity::*, set};
 use pretty_assertions::assert_eq;
 use rust_decimal::Decimal;
 
@@ -93,7 +93,7 @@ struct Seeded {
 }
 
 /// Three customers with 3, 2 and 1 orders: Alice spends 60, Bob 50, Cleo 5.
-async fn seed(db: &impl Connection) -> Seeded {
+async fn seed(db: &impl ConnectionMut) -> Seeded {
     let bakery = bakery::ActiveModel {
         name: set("SeaSide Bakery"),
         profit_margin: set(10.4),
@@ -657,7 +657,7 @@ async fn a_nested_ordering_names_a_relation_in_scope() {
     ctx.delete().await;
 }
 
-async fn create_entity_table<E: Entity>(db: &impl Connection, entity: E) {
+async fn create_entity_table<E: Entity>(db: &impl ConnectionMut, entity: E) {
     let stmt = Schema::new()
         .create_table_from_entity(entity)
         .expect("the entity's table is generated");
@@ -667,7 +667,7 @@ async fn create_entity_table<E: Entity>(db: &impl Connection, entity: E) {
 }
 
 /// Ada founded the company; Grace and Linus report to her, Alan to Grace.
-async fn seed_employees(db: &impl Connection) {
+async fn seed_employees(db: &impl ConnectionMut) {
     let ada = employee::ActiveModel {
         name: set("Ada"),
         ..Default::default()
@@ -1632,7 +1632,7 @@ async fn deduplicating_then_projecting_keeps_its_rows() -> Result<(), pgorm::Err
     .await?;
 
     // The server's own answer to both questions, in SQL this suite wrote.
-    async fn control(db: &impl Connection, sql: &str) -> Vec<String> {
+    async fn control(db: &impl ConnectionMut, sql: &str) -> Vec<String> {
         let mut names: Vec<String> = db
             .query_all(sql, &[])
             .await
@@ -1682,7 +1682,7 @@ async fn deduplicating_then_projecting_keeps_its_rows() -> Result<(), pgorm::Err
 
 /// Rows of `sql`, each one's first two columns, sorted: the server's own
 /// answer, in SQL this suite wrote.
-async fn pairs(db: &impl Connection, sql: &str) -> Vec<(i32, Option<i64>)> {
+async fn pairs(db: &impl ConnectionMut, sql: &str) -> Vec<(i32, Option<i64>)> {
     let mut rows: Vec<(i32, Option<i64>)> = db
         .query_all(sql, &[])
         .await
@@ -1695,7 +1695,7 @@ async fn pairs(db: &impl Connection, sql: &str) -> Vec<(i32, Option<i64>)> {
 }
 
 /// A pipeline's rows, read as `pairs` reads the control's.
-async fn piped(db: &impl Connection, pipeline: Pipeline) -> Vec<(i32, Option<i64>)> {
+async fn piped(db: &impl ConnectionMut, pipeline: Pipeline) -> Vec<(i32, Option<i64>)> {
     let mut rows: Vec<(i32, Option<i64>)> = pipeline
         .into_tuple()
         .expect("the pipeline compiles")
@@ -1830,7 +1830,7 @@ async fn stages_read_a_set_operation_whole() -> Result<(), pgorm::Error> {
 }
 
 /// Single-column rows of `sql`, sorted.
-async fn ints(db: &impl Connection, sql: &str) -> Vec<i32> {
+async fn ints(db: &impl ConnectionMut, sql: &str) -> Vec<i32> {
     let mut rows: Vec<i32> = db
         .query_all(sql, &[])
         .await
@@ -1843,7 +1843,7 @@ async fn ints(db: &impl Connection, sql: &str) -> Vec<i32> {
 }
 
 /// A pipeline's single-column rows, read as `ints` reads the control's.
-async fn piped_ints(db: &impl Connection, pipeline: Pipeline) -> Vec<i32> {
+async fn piped_ints(db: &impl ConnectionMut, pipeline: Pipeline) -> Vec<i32> {
     let mut rows: Vec<(i32,)> = pipeline
         .into_tuple()
         .expect("the pipeline compiles")

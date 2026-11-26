@@ -21,8 +21,8 @@ use pgorm::tests_cfg::{
     vehicle::{self, Vehicle, VehicleKind},
 };
 use pgorm::{
-    Connection, DatabaseConnection, Disjoint, Error, KindedDisjoint, RuntimeError, Schema,
-    entity::prelude::*,
+    Connection, ConnectionMut, DatabaseConnection, Disjoint, Error, KindedDisjoint, RuntimeError,
+    Schema, entity::prelude::*,
 };
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;

@@ -11,7 +11,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, Func, Name, Query, SimpleExpr, Values};
-use pgorm::{Connection, Schema, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 /// A row keyed by the time it was minted, the key left to the server.
@@ -51,7 +51,7 @@ async fn server_clock(db: &DatabaseConnection) -> Result<DateTimeWithTimeZone, E
 /// Rows written one after another, each leaving its key to the `uuidv7()`
 /// default, come back in the order they were written when sorted by key alone.
 // [spec:pgorm:def:sql.ast.func+12/test]    a v7 default sorts in minting order
-// [spec:pgorm:def:entity.prelude+13/test]    an entity's `default_expr` names `Func`
+// [spec:pgorm:def:entity.prelude+14/test]    an entity's `default_expr` names `Func`
 // through the prelude
 #[pgorm_macros::test]
 async fn a_uuidv7_key_sorts_in_write_order() -> Result<(), Error> {

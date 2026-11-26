@@ -22030,6 +22030,25 @@ children (
             {
                 id read-only.rust
                 title "Read terminals take Connection, writes and raw text take ConnectionMut, sql! classifies its statement, and ReadOnlyPool's connections and transactions implement Connection alone"
+                implements {
+                    main (
+                        [spec:pgorm:def:read-only.traits]
+                        [spec:pgorm:def:read-only.kinds]
+                        [spec:pgorm:def:read-only.classify]
+                        [spec:pgorm:def:read-only.sql-macro]
+                        [spec:pgorm:req:read-only.text]
+                        [spec:pgorm:req:read-only.writes]
+                        [spec:pgorm:req:read-only.pool]
+                        [spec:pgorm:req:read-only.unchecked]
+                        [spec:pgorm:req:read-only.transactions]
+                        [spec:pgorm:req:read-only.downgrade]
+                        [spec:pgorm:req:read-only.copy]
+                        [spec:pgorm:req:read-only.metrics]
+                        [spec:pgorm:req:read-only.refusal]
+                        [spec:pgorm:req:read-only.diagnostics]
+                        [spec:pgorm:req:read-only.turso]
+                    )
+                }
                 deps (trait-names)
             }
 

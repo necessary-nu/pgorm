@@ -170,7 +170,7 @@ impl Manager {
     ///
     /// Native Turso factories refuse this notification connection before
     /// opening a client.
-    // [spec:pgorm:req:conn.listen+3]    a pool's listener connects as its connections do
+    // [spec:pgorm:req:conn.listen+4]    a pool's listener connects as its connections do
     pub async fn connect_raw(&self) -> Result<Unpooled, Error> {
         if self.pg_config.is_turso() {
             return Err(Error::turso_unsupported("native notification connections"));
@@ -779,7 +779,7 @@ impl ClientWrapper {
     /// as its own. Pass a prepared [`Statement`]: preparing is a request of its
     /// own, and a statement refused there leaves the connection intact.
     /// Native Turso refuses COPY before starting work and keeps the client usable.
-    // [spec:pgorm:req:conn.copy+5]
+    // [spec:pgorm:req:conn.copy+6]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,

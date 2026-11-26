@@ -12,8 +12,8 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::{
-    Connection, DatabaseConnection, DdlStatement, DisjointChange, DisjointShape, DisjointStep,
-    Error, KindedDisjoint, Schema, Transact, TransactionError, check_disjoint,
+    Connection, ConnectionMut, DatabaseConnection, DdlStatement, DisjointChange, DisjointShape,
+    DisjointStep, Error, KindedDisjoint, Schema, Transact, TransactionError, check_disjoint,
     entity::prelude::*,
     pgorm_query::{Name, TableName},
 };

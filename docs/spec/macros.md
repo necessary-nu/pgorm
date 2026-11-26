@@ -911,7 +911,7 @@ known limitations.
 
 ## Compile-time SQL validation
 
-> [spec:pgorm:def:macros.sql+9]
+> [spec:pgorm:def:macros.sql+10]
 > `pgorm-sql-macro` is a proc-macro crate exporting two function-like macros for
 > callers: `sql!`, specified here, and `prql!` (`[spec:pgorm:def:macros.prql]`). A
 > third, hidden from its documentation, is the compile-time half of pgorm-migration's
@@ -925,9 +925,10 @@ known limitations.
 > grammar, the release pgorm targets (`[spec:pgorm:req:sql.target]`): a statement 18
 > introduced, such as a `VIRTUAL` generated column, compiles, and so does one 19 added,
 > such as `REPACK`. A literal the grammar
-> accepts expands to itself, byte for byte, as a `&'static str` usable in const
-> position; there is no wrapper type, no runtime check and no allocation, so the macro
-> is invisible in the generated code.
+> accepts is classified as a read or a write (`read-only.classify`) and expands to
+> itself, byte for byte, as a `&'static Sql<Reads>` or `&'static Sql<Writes>`
+> usable in const position (`read-only.sql-macro`); there is no runtime check and no
+> allocation, the `Sql` being the literal and its kind.
 >
 > The macros live in their own crate rather than in `pgorm-macros` because a proc macro
 > for entity derives is the wrong place for the oracle and the PRQL compiler. The root
@@ -1011,17 +1012,18 @@ prqlc compiler and the same oracle over what it emits, but for queries known who
 compile time, where the pipeline's composability buys nothing and a literal buys
 build-time checking of the finished statement.
 
-> [spec:pgorm:def:macros.prql+4]
+> [spec:pgorm:def:macros.prql+5]
 > `prql!` takes one PRQL string literal followed by zero or more argument expressions
 > (`prql!("from invoice | filter total > $1 | take 5", min_total)`). While the calling
 > crate compiles, the literal's text is compiled by prqlc — the text path: parse,
 > resolve, lower, `rq_to_sql` with `Dialect::Postgres`, `no_format` / `no_signature`,
 > the same staged compiler the runtime pipeline drives through its adapter — and the
-> macro expands to the tuple `(&'static str, Values)`: the emitted SQL as a string
-> literal spanned on the PRQL literal it came from, and a `pgorm::Values` (re-exported
+> macro expands to the tuple `(&'static Sql<K>, Values)`: the emitted SQL as the
+> `Sql` `sql!` would make of it, classified as a read or a write
+> (`read-only.sql-macro`) and spanned at the invocation, and a `pgorm::Values` (re-exported
 > at the root for exactly this expansion) holding each argument converted through
 > `Into<Value>`, in placeholder order. The expansion is a pure tuple expression — no
-> runtime helper, no new public types — so `let (sql, values) = prql!(...)` lands
+> runtime helper — so `let (sql, values) = prql!(...)` lands
 > directly on the raw-SQL entry points (`SelectorRaw::from_statement`,
 > `Connection::query_raw`), and a failed conversion is an ordinary type error
 > spanned on the argument. The expansion names `::pgorm` absolutely, so the calling

@@ -17,7 +17,7 @@ use pgorm::pgorm_query::{
     Expr, Func, Name, Order, OrderedStatement, Query, SelectStatement, SimpleExpr, Subscript,
     TypeName,
 };
-use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, SelectGetableTuple, SelectorRaw, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 
 /// One row: a one-dimensional array, a two-dimensional one, and a text to

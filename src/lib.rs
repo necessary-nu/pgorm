@@ -127,17 +127,21 @@ pub use pgorm_macros::{
 };
 
 /// Hold a raw SQL string literal to the PostgreSQL grammar at compile time,
-/// expanding to the literal unchanged.
+/// expanding to the literal unchanged as a [`Sql`] typed by what it does:
+/// `Sql<Reads>` when every statement in it only reads, which runs on every
+/// [`Connection`], and `Sql<Writes>` otherwise, which runs only on a
+/// connection that may write.
 ///
 /// The parser that performs the check — pgsql-syntax, a Rust port of
 /// PostgreSQL 19.0's own, the grammar every build parses with — is compiled
 /// into every build regardless, since `SelectorRaw` pagination parses raw
 /// statements with it at runtime. The check is syntax only: unknown tables
-/// and columns pass.
+/// and columns pass, and so does a function that writes, which only a server
+/// holding the session read-only refuses.
 ///
 /// ```
-/// # use pgorm::sql;
-/// const BY_ID: &str = sql!(r#"SELECT "id", "name" FROM "cake" WHERE "id" = $1"#);
+/// # use pgorm::{Reads, Sql, sql};
+/// const BY_ID: &Sql<Reads> = sql!(r#"SELECT "id", "name" FROM "cake" WHERE "id" = $1"#);
 /// ```
 ///
 /// The escape hatches that take SQL as text are its call sites, and they are
@@ -174,11 +178,12 @@ pub use pgorm_macros::{
 /// [`DecodeRaw::into_tuple`]: crate::DecodeRaw::into_tuple
 /// [`into_values`]: crate::DecodeRaw::into_values
 /// [`FromQueryResult::find_by_statement`]: crate::FromQueryResult::find_by_statement
-// [spec:pgorm:def:macros.sql+9]
+// [spec:pgorm:def:macros.sql+10]
 pub use pgorm_sql_macro::sql;
 
 /// Compile a PRQL string literal to PostgreSQL SQL at build time, expanding
-/// to `(&'static str, Values)` for the raw-SQL entry points.
+/// to `(&'static Sql<K>, Values)` for the raw-SQL entry points, the SQL typed
+/// by what it does as [`sql!`](crate::sql)'s literal is.
 ///
 /// The text sibling of [`pipeline`]: the same prqlc
 /// compiler, the same grammar check over what it emits, but for
@@ -209,7 +214,7 @@ pub use pgorm_sql_macro::sql;
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:macros.prql+4]
+// [spec:pgorm:def:macros.prql+5]
 pub use pgorm_sql_macro::prql;
 
 /// The checks behind [`sql!`](crate::sql) and [`prql!`](crate::prql), run on

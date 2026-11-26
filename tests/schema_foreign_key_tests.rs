@@ -19,7 +19,7 @@ pub use common::TestContext;
 use pgorm::pgorm_query::{
     ColumnType, ForeignKeyCreateStatement, Name, Table, TableCreateStatement,
 };
-use pgorm::{Connection, Error, Schema, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Error, Schema, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::sync::Arc;

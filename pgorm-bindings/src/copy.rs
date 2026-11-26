@@ -9,7 +9,7 @@
 use std::{collections::HashMap, sync::OnceLock};
 
 use pgorm::{
-    CopyColumn, CopyConnection, CopyInSink, CopyOutStream, Error,
+    CopyColumn, CopyConnection, CopyConnectionMut, CopyInSink, CopyOutStream, Error,
     pgorm_query::{
         CopyBinary, CopyCsv, CopyFromStatement, CopyText, CopyToStatement, IntoCopySource,
         TableName,
@@ -87,7 +87,7 @@ impl CopyFrom {
     /// The columns the COPY writes, as pgorm describes them before it
     /// starts, starting none.
     // [spec:pgorm:req:bindings.copy-rows+3]
-    pub async fn columns<C: CopyConnection + Send>(
+    pub async fn columns<C: CopyConnectionMut + Send>(
         &self,
         db: &mut C,
     ) -> Result<Vec<CopyColumn>, Error> {
@@ -99,7 +99,7 @@ impl CopyFrom {
     }
 
     /// The COPY started on `db`, its sink borrowing the connection.
-    pub async fn open<'a, C: CopyConnection + Send>(
+    pub async fn open<'a, C: CopyConnectionMut + Send>(
         &self,
         db: &'a mut C,
     ) -> Result<CopyInSink<'a>, Error> {

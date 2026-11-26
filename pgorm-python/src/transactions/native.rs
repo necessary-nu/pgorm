@@ -6,13 +6,13 @@ use crate::{
     results,
     runtime::{Loop, Owned},
 };
-use pgorm::{IsolationLevel, TransactionMode};
-use pgorm_bindings::transaction::Retrying;
+use pgorm::IsolationLevel;
+use pgorm_bindings::transaction::{Mode, Retrying};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use std::{fmt, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
-pub(crate) fn mode(mode: &str, isolation: Option<&str>) -> PyResult<TransactionMode> {
+pub(crate) fn mode(mode: &str, isolation: Option<&str>) -> PyResult<Mode> {
     let isolation = isolation
         .map(|level| match level {
             "read_uncommitted" => Ok(IsolationLevel::ReadUncommitted),
@@ -25,10 +25,10 @@ pub(crate) fn mode(mode: &str, isolation: Option<&str>) -> PyResult<TransactionM
         })
         .transpose()?;
     match (mode, isolation) {
-        ("default", None) => Ok(TransactionMode::Default),
-        ("read_write", isolation) => Ok(TransactionMode::ReadWrite { isolation }),
-        ("read_only", isolation) => Ok(TransactionMode::ReadOnly { isolation }),
-        ("deferrable", None) => Ok(TransactionMode::DeferrableSnapshot),
+        ("default", None) => Ok(Mode::Default),
+        ("read_write", isolation) => Ok(Mode::ReadWrite { isolation }),
+        ("read_only", isolation) => Ok(Mode::ReadOnly { isolation }),
+        ("deferrable", None) => Ok(Mode::Snapshot),
         ("default" | "deferrable", Some(_)) => Err(ConstructionError::new_err(
             "default and deferrable modes take no isolation override; choose read_write or read_only",
         )),

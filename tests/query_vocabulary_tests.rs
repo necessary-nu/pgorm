@@ -21,7 +21,7 @@ use pgorm::pgorm_query::{
     Expr, FrameType, Func, Keyword, Name, Order, OrderedStatement, Query, SelectStatement,
     SimpleExpr, UnionType, WindowStatement,
 };
-use pgorm::{Connection, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, entity::prelude::*};
 
 /// Five rows whose `grade` ties in two peer groups and then jumps, whose
 /// `note` is NULL on two of them, and whose `at_local` is one fixed wall time.

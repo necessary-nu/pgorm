@@ -4096,6 +4096,39 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
+    {id read-only.rust, covered_rules (
+        read-only.classify
+        read-only.copy
+        read-only.diagnostics
+        read-only.downgrade
+        read-only.kinds
+        read-only.metrics
+        read-only.pool
+        read-only.refusal
+        read-only.sql-macro
+        read-only.text
+        read-only.traits
+        read-only.transactions
+        read-only.turso
+        read-only.unchecked
+        read-only.writes
+    ), covered_claims (
+        {impl_name main, rule read-only.classify}
+        {impl_name main, rule read-only.copy}
+        {impl_name main, rule read-only.diagnostics}
+        {impl_name main, rule read-only.downgrade}
+        {impl_name main, rule read-only.kinds}
+        {impl_name main, rule read-only.metrics}
+        {impl_name main, rule read-only.pool}
+        {impl_name main, rule read-only.refusal}
+        {impl_name main, rule read-only.sql-macro}
+        {impl_name main, rule read-only.text}
+        {impl_name main, rule read-only.traits}
+        {impl_name main, rule read-only.transactions}
+        {impl_name main, rule read-only.turso}
+        {impl_name main, rule read-only.unchecked}
+        {impl_name main, rule read-only.writes}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

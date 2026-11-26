@@ -325,7 +325,7 @@ pub struct Statuses {
 /// Each migration's name and whether the ledger records it applied, as
 /// `migrator` reads them on `db`, and the warnings the read gave.
 // [spec:pgorm:req:bindings.migrations.unknown-applied]    a read's warnings reach the binding
-pub async fn statuses<C: pgorm::Connection>(
+pub async fn statuses<C: pgorm::ConnectionMut>(
     migrator: &Migrator,
     db: &C,
 ) -> Result<Statuses, Error> {

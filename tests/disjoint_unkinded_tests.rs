@@ -23,8 +23,8 @@ use pgorm::tests_cfg::{
     storefront, web_shop,
 };
 use pgorm::{
-    Connection, DatabaseConnection, Disjoint, DisjointColumn, DisjointShape, DisjointTable,
-    DisjointValues, Error, RuntimeError, SelectDisjoint, entity::prelude::*,
+    Connection, ConnectionMut, DatabaseConnection, Disjoint, DisjointColumn, DisjointShape,
+    DisjointTable, DisjointValues, Error, RuntimeError, SelectDisjoint, entity::prelude::*,
 };
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;

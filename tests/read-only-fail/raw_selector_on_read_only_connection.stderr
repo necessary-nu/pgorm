@@ -1,0 +1,72 @@
+error[E0277]: `pgorm::ReadOnlyConnection` may only read, and this SQL text is not known to read
+ --> tests/read-only-fail/raw_selector_on_read_only_connection.rs:8:10
+  |
+8 |         .all(db)
+  |          ^^^ text written at run time, or a `sql!` statement that may write
+  |
+  = help: the trait `RunsOn<pgorm::ReadOnlyConnection>` is not implemented for `pgorm::Writes`
+  = note: `sql!` checks a literal as the crate compiles; a statement it finds only reads (a SELECT, VALUES, TABLE, SHOW, or EXPLAIN without ANALYZE, with no data-modifying WITH and no row lock) runs on any `Connection`
+  = note: other text runs on a `ConnectionMut`, a connection that may write, or through a read-only connection's `unchecked()`, whose server refuses a write
+help: the trait `RunsOn<C>` is implemented for `pgorm::Reads`
+ --> src/database/connection.rs
+  |
+  | impl<C: ?Sized + Connection> RunsOn<C> for Reads {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `SelectorRaw::<S, K>::all`
+ --> src/executor/select.rs
+  |
+  | impl<S, K> SelectorRaw<S, K>
+...
+  |     pub async fn all<C>(self, db: &C) -> Result<Vec<S::Item>, Error>
+...
+  |         K: RunsOn<C>,
+  |            ^^^^^^^^^ required by this bound in `SelectorRaw::<S, K>::all`
+
+error[E0277]: `pgorm::ReadOnlyConnection` may only read, and this SQL text is not known to read
+ --> tests/read-only-fail/raw_selector_on_read_only_connection.rs:7:5
+  |
+7 | /     SelectorRaw::<SelectModel<cake::Model>>::from_statement(&sql, Values(vec![]))
+8 | |         .all(db)
+  | |________________^ text written at run time, or a `sql!` statement that may write
+  |
+  = help: the trait `RunsOn<pgorm::ReadOnlyConnection>` is not implemented for `pgorm::Writes`
+  = note: `sql!` checks a literal as the crate compiles; a statement it finds only reads (a SELECT, VALUES, TABLE, SHOW, or EXPLAIN without ANALYZE, with no data-modifying WITH and no row lock) runs on any `Connection`
+  = note: other text runs on a `ConnectionMut`, a connection that may write, or through a read-only connection's `unchecked()`, whose server refuses a write
+help: the trait `RunsOn<C>` is implemented for `pgorm::Reads`
+ --> src/database/connection.rs
+  |
+  | impl<C: ?Sized + Connection> RunsOn<C> for Reads {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `SelectorRaw::<S, K>::all`
+ --> src/executor/select.rs
+  |
+  | impl<S, K> SelectorRaw<S, K>
+...
+  |     pub async fn all<C>(self, db: &C) -> Result<Vec<S::Item>, Error>
+...
+  |         K: RunsOn<C>,
+  |            ^^^^^^^^^ required by this bound in `SelectorRaw::<S, K>::all`
+
+error[E0277]: `pgorm::ReadOnlyConnection` may only read, and this SQL text is not known to read
+ --> tests/read-only-fail/raw_selector_on_read_only_connection.rs:9:10
+  |
+9 |         .await
+  |          ^^^^^ text written at run time, or a `sql!` statement that may write
+  |
+  = help: the trait `RunsOn<pgorm::ReadOnlyConnection>` is not implemented for `pgorm::Writes`
+  = note: `sql!` checks a literal as the crate compiles; a statement it finds only reads (a SELECT, VALUES, TABLE, SHOW, or EXPLAIN without ANALYZE, with no data-modifying WITH and no row lock) runs on any `Connection`
+  = note: other text runs on a `ConnectionMut`, a connection that may write, or through a read-only connection's `unchecked()`, whose server refuses a write
+help: the trait `RunsOn<C>` is implemented for `pgorm::Reads`
+ --> src/database/connection.rs
+  |
+  | impl<C: ?Sized + Connection> RunsOn<C> for Reads {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `SelectorRaw::<S, K>::all`
+ --> src/executor/select.rs
+  |
+  | impl<S, K> SelectorRaw<S, K>
+...
+  |     pub async fn all<C>(self, db: &C) -> Result<Vec<S::Item>, Error>
+...
+  |         K: RunsOn<C>,
+  |            ^^^^^^^^^ required by this bound in `SelectorRaw::<S, K>::all`

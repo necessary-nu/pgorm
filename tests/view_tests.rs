@@ -22,7 +22,7 @@ use pgorm::pgorm_query::{
     ColumnDef, Expr, Func, Index, MaterializedView, Name, Order, Query, SelectStatement, Table,
     UnionType, View, ViewCheckOption, WindowStatement, error::Error as QueryError,
 };
-use pgorm::{Connection, Transact, entity::prelude::*};
+use pgorm::{Connection, ConnectionMut, Transact, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 

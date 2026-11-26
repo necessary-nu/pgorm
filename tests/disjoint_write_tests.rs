@@ -21,8 +21,8 @@ use pgorm::tests_cfg::{
     vehicle::{self, Vehicle, VehicleActiveModel, VehicleKind},
 };
 use pgorm::{
-    Connection, DatabaseConnection, DatabasePool, Disjoint, Error, KindedDisjoint, Schema,
-    Transact, entity::prelude::*,
+    Connection, ConnectionMut, DatabaseConnection, DatabasePool, Disjoint, Error, KindedDisjoint,
+    Schema, Transact, entity::prelude::*,
 };
 use pretty_assertions::assert_eq;
 use std::time::Duration;
@@ -103,7 +103,7 @@ struct Tables {
     trucks: Vec<truck::Model>,
 }
 
-async fn tables<C: Connection>(db: &C) -> Result<Tables, Error> {
+async fn tables<C: ConnectionMut>(db: &C) -> Result<Tables, Error> {
     Ok(Tables {
         vehicles: vehicle::Entity::find()
             .order_by_asc(vehicle::Column::Id)
@@ -171,7 +171,7 @@ fn base(id: i32, kind: VehicleKind, name: &str) -> vehicle::Model {
 }
 
 /// Write one vehicle of each kind through `Vehicle::insert`.
-async fn fleet<C: Connection>(db: &C) -> Result<[(vehicle::Model, Vehicle); 3], Error> {
+async fn fleet<C: ConnectionMut>(db: &C) -> Result<[(vehicle::Model, Vehicle); 3], Error> {
     let mini = Vehicle::insert(named("mini"), seats(4))?
         .exec_returning_model(db)
         .await?;
@@ -185,7 +185,7 @@ async fn fleet<C: Connection>(db: &C) -> Result<[(vehicle::Model, Vehicle); 3], 
 }
 
 /// Assert that `written` is what a read of its row gives.
-async fn assert_read<C: Connection>(
+async fn assert_read<C: ConnectionMut>(
     db: &C,
     written: &(vehicle::Model, Vehicle),
 ) -> Result<(), Error> {

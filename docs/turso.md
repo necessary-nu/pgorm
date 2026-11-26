@@ -45,6 +45,14 @@ Direct driver callers also use the existing `Config::connect` or
 `pgorm_driver::connect`, receiving the same `Client` and lifecycle `Connection`
 types. Spawn or drive that connection future. No local server is required.
 
+`connect_read_only` over a file opens it read-only at the first acquisition:
+its connections implement `Connection` alone, and the engine refuses every
+write with SQLSTATE `25006`. The engine keeps one database per file for the
+whole process, whatever access a later open asks for, so opening a file
+read-only while this process holds it read-write, or the reverse, is refused
+rather than handed the other access. `:memory:` cannot be read-only, and is
+refused when the pool is built.
+
 ## Python, Node.js and Deno
 
 Build the optional package described in the

@@ -596,7 +596,7 @@ export interface QueryOptions extends OperationOptions {
 /** The row a terminal gives for its options. */
 export type RowFor<O extends QueryOptions> = O extends { readonly tagged: true } ? TaggedRow : Row;
 
-// [spec:pgorm:req:napi.transactions+3]
+// [spec:pgorm:req:napi.transactions+4]
 /** How a transaction opens; a savepoint inherits its transaction's. */
 export interface TransactionOptions extends OperationOptions {
   /**

@@ -239,3 +239,54 @@ fn runtime_shutdown_with_retained_unpolled_connection() {
         .recv_timeout(Duration::from_secs(5))
         .expect("retained native Connection prevented runtime shutdown");
 }
+
+// [spec:pgorm:req:read-only.turso/test]    a file opens read-only and refuses writes with 25006; the registry's other access is refused both ways; `:memory:` is refused
+#[tokio::test]
+async fn read_only_opens_refuse_writes_and_mixed_access() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("database.db");
+    {
+        let database = TursoDatabase::open(&path).await.unwrap();
+        let (client, task) = connect(&database).await;
+        client
+            .batch_execute(
+                "CREATE TABLE kept (id integer PRIMARY KEY); INSERT INTO kept VALUES (1)",
+            )
+            .await
+            .unwrap();
+        let shared = TursoDatabase::open_read_only(&path).await.unwrap_err();
+        assert_eq!(
+            shared.to_string(),
+            "native Turso does not support opening a file read-only while this process has it open read-write"
+        );
+        finish(client, task).await;
+    }
+
+    let database = TursoDatabase::open_read_only(&path).await.unwrap();
+    let (client, task) = connect(&database).await;
+    assert_eq!(
+        client
+            .query("SELECT id FROM kept", &[])
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    let write = client
+        .batch_execute("INSERT INTO kept VALUES (2)")
+        .await
+        .unwrap_err();
+    assert_eq!(write.code().unwrap().code(), "25006");
+    let writable = TursoDatabase::open(&path).await.unwrap_err();
+    assert_eq!(
+        writable.to_string(),
+        "native Turso does not support opening a file read-write while this process has it open read-only"
+    );
+    finish(client, task).await;
+
+    let memory = TursoDatabase::open_read_only(":memory:").await.unwrap_err();
+    assert_eq!(
+        memory.to_string(),
+        "native Turso does not support a read-only `:memory:` database"
+    );
+}
