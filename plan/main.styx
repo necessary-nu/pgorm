@@ -14769,12 +14769,20 @@ children (
                 id napi.decimal-literal
                 title "A Decimal is written as a tagged literal, dec`19.99`, with nothing interpolated: a type error under TypeScript and refused at run time"
                 kind @feat
+                sealed true
                 log (
                     {
                         at 2026-11-26T13:42:22.555667Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-26T13:58:18.213996Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }

@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-26T13:01:56.194717Z
+last_sync_at 2026-11-26T13:58:23.693594Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -373,7 +373,7 @@ rule_versions (
     {id napi.temporal, version 1}
     {id napi.transactions, version 4}
     {id napi.typing, version 1}
-    {id napi.values, version 1}
+    {id napi.values, version 2}
     {id pipeline.compose, version 2}
     {id pipeline.described, version 1}
     {id pipeline.qualify, version 5}
@@ -958,6 +958,7 @@ derived_priorities (
     {id napi-statements, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi-values, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi.abort-race-all, priority 1, derived_at 2026-11-05T02:15:29.773078Z}
+    {id napi.decimal-literal, priority 0, derived_at 2026-11-26T13:58:23.693594Z}
     {id napi.entity-busy-race, priority 3, derived_at 2026-11-05T14:14:15.598156Z}
     {id napi.guide-gaps.batch-execute, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.binding-refusals, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
@@ -982,7 +983,6 @@ derived_priorities (
     {id napi.guide-gaps.model-writes, priority 3, derived_at 2026-11-06T08:56:41.215496Z}
     {id napi.guide-gaps.models-cli-test-portable, priority 3, derived_at 2026-11-10T00:47:01.706274Z}
     {id napi.guide-gaps.models-from-ddl, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
-    {id napi.guide-gaps.pg-19, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.pipeline-models, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.pool-builder, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.pool-tags, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
@@ -1214,6 +1214,10 @@ derived_priorities (
     {id scope-range-types, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-sequences, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-simple-case, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id scopes.bindings-compound, priority 3, derived_at 2026-11-26T13:58:23.693594Z}
+    {id scopes.bindings-registry-names, priority 3, derived_at 2026-11-26T13:58:23.693594Z}
+    {id scopes.bindings-written, priority 3, derived_at 2026-11-26T13:58:23.693594Z}
+    {id scopes.codegen-registrations, priority 3, derived_at 2026-11-26T13:58:23.693594Z}
     {id scopes.diagnostic-forms, priority 3, derived_at 2026-11-26T13:01:56.194717Z}
     {id scopes.from-using, priority 2, derived_at 2026-11-24T13:53:18.633361Z}
     {id scopes.from-using-alias, priority 3, derived_at 2026-11-26T13:01:56.194717Z}
@@ -1253,6 +1257,8 @@ derived_priorities (
     {id sql-migration-const, priority 0, derived_at 2026-11-20T01:00:12.093645Z}
     {id sql-schemas, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id sql-select-extras, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
+    {id sql-templates.napi, priority 0, derived_at 2026-11-26T13:58:23.693594Z}
+    {id sql-templates.python, priority 0, derived_at 2026-11-26T13:58:23.693594Z}
     {id sql-value-json, priority 0, derived_at 2026-09-06T16:36:02.710141Z}
     {id sql-views, priority 1, derived_at 2026-10-24T06:20:32.099314Z}
     {id sql.empty-select-list, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -1932,7 +1938,7 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id napi.decimal-literal, kind @doing, author "brendan@necessary.nu", at 2026-11-26T13:42:22.555667Z}
+    {id napi.decimal-literal, kind @complete, author "brendan@necessary.nu", at 2026-11-26T13:58:18.213996Z}
 )
 
 impl_evidence (
