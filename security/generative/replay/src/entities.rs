@@ -6,7 +6,7 @@
 //! reproduced exactly rather than tidied: a replay whose entities are milder
 //! than the binding's is replaying a different program.
 
-use pgorm::{EntityTrait, Iterable, StaticName};
+use pgorm::{Entity, Iterable, StaticName};
 
 use crate::FormatError;
 
@@ -19,7 +19,7 @@ use crate::FormatError;
 /// # Errors
 ///
 /// Returns [`FormatError`] when the entity declares no column with this name.
-pub fn column<E: EntityTrait>(name: &str) -> Result<E::Column, FormatError> {
+pub fn column<E: Entity>(name: &str) -> Result<E::Column, FormatError> {
     E::Column::iter()
         .find(|column| StaticName::as_str(column) == name)
         .ok_or_else(|| FormatError::new("unknown compiled entity column"))
@@ -69,7 +69,7 @@ pub mod account {
     impl ActiveModelBehavior for ActiveModel {
         async fn before_save<C>(mut self, _: &C, insert: bool) -> Result<Self, pgorm::Error>
         where
-            C: pgorm::ConnectionTrait,
+            C: pgorm::Connection,
         {
             if insert {
                 if let Some(name) = self.name.try_as_ref() {
@@ -145,7 +145,7 @@ pub mod graphs {
     use super::{account, note, room, stay};
 
     use pgorm::{
-        EntityTrait, Opt, RelationDef, Req, SelectGraph,
+        Entity, Opt, RelationDef, Req, SelectGraph,
         pgorm_query::{Deferrability, Enforcement, Name},
     };
 

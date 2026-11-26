@@ -117,7 +117,7 @@ test("a projection refuses what it cannot read", () => {
   );
 });
 
-// [spec:pgorm:req:bindings.partial-models/test]
+// [spec:pgorm:req:bindings.partial-models+1/test]
 test("a partial model declares its fields", () => {
   // @ts-expect-error: a partial model's field is a model column, a fromExpr() or a skip().
   assert.throws(() => partialModel(Account, { id: "id" }), TypeError);
@@ -246,7 +246,7 @@ test("a row that breaks its declaration is a DecodeError", async () => {
   await assert.rejects(moods.intoTuple().all(pool()), DecodeError);
 });
 
-// [spec:pgorm:req:bindings.partial-models/test]
+// [spec:pgorm:req:bindings.partial-models+1/test]
 test("a partial model selects and decodes its fields", async () => {
   const line = partialModel(Account, {
     id: Account.col("id"),

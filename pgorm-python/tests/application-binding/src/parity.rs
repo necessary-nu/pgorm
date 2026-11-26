@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
-use pgorm::pgorm_query::{Expr, ExprTrait, Name, NullOrdering, Order, Query};
+use pgorm::pgorm_query::{Expr, Expression, Name, NullOrdering, Order, Query};
 use pgorm::{
-    ActiveModelBehavior, ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Iterable,
-    QueryFilter, QueryOrder, QuerySelect, QueryTrait, StaticName,
+    ActiveModel, ActiveModelBehavior, ActiveValue, Column as _, Entity, Iterable, QueryFilter,
+    QueryOrder, QuerySelect, Statement, StaticName,
 };
 use pgorm_python::{entities::ActiveState, expressions::Compiled, values::PyValue};
 use pyo3::{prelude::*, types::PyDict};
@@ -19,7 +19,7 @@ fn module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     Ok(module)
 }
 
-// [spec:pgorm:req:bindings.entity-reads+4/test]
+// [spec:pgorm:req:bindings.entity-reads+5/test]
 #[test]
 fn query_sql_and_values_match_rust() -> PyResult<()> {
     Python::initialize();
@@ -58,7 +58,7 @@ fn query_sql_and_values_match_rust() -> PyResult<()> {
                 let native = inspected.extract::<PyRef<'_, Compiled>>()?;
                 let mut expected = rust.clone();
                 if terminal != "all" {
-                    QueryTrait::query(&mut expected).narrow_limit_to_one();
+                    Statement::query(&mut expected).narrow_limit_to_one();
                 }
                 let expected = expected.build();
                 assert_eq!(native.sql, expected.0, "{method}/{terminal}");
@@ -87,8 +87,8 @@ fn query_sql_and_values_match_rust() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.entity-reads+4/test]    a column's is_in and is_not_in are its
-// ColumnTrait membership: is_in / is_not_in over values of its declared kind, and in_subquery /
+// [spec:pgorm:req:bindings.entity-reads+5/test]    a column's is_in and is_not_in are its
+// Column membership: is_in / is_not_in over values of its declared kind, and in_subquery /
 // not_in_subquery over a Select's rows, so a column whose domain is over an enum is a member as
 // the enum, the subquery's projection cast beside it, and a list holding an expression is a member
 // as written
@@ -187,7 +187,7 @@ fn assert_active(native: &Bound<'_, PyAny>, rust: &account::ActiveModel) -> PyRe
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.entity-writes+1/test]
+// [spec:pgorm:req:bindings.entity-writes+2/test]
 #[test]
 fn active_state_and_values_match_rust() -> PyResult<()> {
     Python::initialize();

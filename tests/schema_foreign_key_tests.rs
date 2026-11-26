@@ -19,10 +19,10 @@ pub use common::TestContext;
 use pgorm::pgorm_query::{
     ColumnType, ForeignKeyCreateStatement, Name, Table, TableCreateStatement,
 };
-use pgorm::{ConnectionTrait, Error, Schema, entity::prelude::*};
+use pgorm::{Connection, Error, Schema, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
-use tokio_postgres::error::SqlState;
 
 /// The enum, the two domains over it, the domain over its array and the
 /// domain over an integer the fixtures' columns are typed with.
@@ -266,7 +266,7 @@ mod nested_to_domain {
 /// The refusal generation answers for `entity`, whose one relation PostgreSQL
 /// cannot key.
 #[track_caller]
-fn refusal<E: EntityTrait>(entity: E) -> String {
+fn refusal<E: Entity>(entity: E) -> String {
     match Schema::new().create_table_from_entity(entity) {
         Err(Error::Type(message)) => message,
         other => panic!("expected Error::Type, got {other:?}"),
@@ -275,7 +275,7 @@ fn refusal<E: EntityTrait>(entity: E) -> String {
 
 /// `entity`'s table with every column and no constraint: what the server is
 /// handed a refused relation's foreign key against.
-fn unkeyed_table<E: EntityTrait>(entity: E) -> TableCreateStatement {
+fn unkeyed_table<E: Entity>(entity: E) -> TableCreateStatement {
     let schema = Schema::new();
     let mut table = Table::create(entity.table_ref());
     for column in E::Column::iter() {
@@ -284,7 +284,7 @@ fn unkeyed_table<E: EntityTrait>(entity: E) -> TableCreateStatement {
     table.take()
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    a belongs-to relation with a column typed as a
+// [spec:pgorm:sem:schema.from-entity+13/test]    a belongs-to relation with a column typed as a
 // domain over an enum on either side is refused as Error::Type naming the entity, the relation
 // and the pair, whichever side the domain is on and however deep it nests
 #[test]
@@ -320,7 +320,7 @@ fn domain_enum_keys_are_refused_by_name() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    generation refuses exactly the foreign keys the
+// [spec:pgorm:sem:schema.from-entity+13/test]    generation refuses exactly the foreign keys the
 // server refuses: each refused relation's key is answered 42804 when sent by hand, and an entity
 // whose every pairing the server keys is created with all of its keys, live
 #[pgorm_macros::test]

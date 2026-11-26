@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use pgorm_driver::Row;
 use pyo3::{exceptions::PyKeyError, prelude::*, types::PyTuple};
-use tokio_postgres::Row;
 
 use crate::{
     errors::DecodeError,
@@ -73,7 +73,7 @@ impl PyRecord {
     /// A binary COPY's row as a record: each field named and typed by its
     /// column, as a query's row is by its result columns, with no table
     /// behind it.
-    // [spec:pgorm:req:bindings.copy-rows+2]
+    // [spec:pgorm:req:bindings.copy-rows+3]
     pub(crate) fn from_copy(columns: &[pgorm::CopyColumn], values: Vec<PyValue>) -> PyResult<Self> {
         let fields: Vec<PyField> = columns
             .iter()

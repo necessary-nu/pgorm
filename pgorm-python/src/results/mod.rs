@@ -25,18 +25,18 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
     crate::capabilities::plain([
-        ("connection.execute", "pgorm::ConnectionTrait::execute"),
-        ("connection.query", "pgorm::ConnectionTrait::query_all"),
-        ("connection.one", "pgorm::ConnectionTrait::query_all"),
-        ("connection.optional", "pgorm::ConnectionTrait::query_all"),
-        ("connection.stream", "pgorm::ConnectionTrait::query_raw"),
+        ("connection.execute", "pgorm::Connection::execute"),
+        ("connection.query", "pgorm::Connection::query_all"),
+        ("connection.one", "pgorm::Connection::query_all"),
+        ("connection.optional", "pgorm::Connection::query_all"),
+        ("connection.stream", "pgorm::Connection::query_raw"),
         (
             "transaction.stream",
-            "pgorm::ConnectionTrait::query_raw for DatabaseTransaction",
+            "pgorm::Connection::query_raw for DatabaseTransaction",
         ),
         (
             "connection.batch_execute",
-            "pgorm::ConnectionTrait::batch_execute",
+            "pgorm::Connection::batch_execute",
         ),
         ("connection.verify", "pgorm::VerifyStatement::describe"),
         ("connection.discard", "pgorm::DatabaseConnection::discard"),
@@ -60,6 +60,6 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
             "pgorm::FromQueryResult::find_by_statement",
         ),
         ("entity_query.from_raw_sql", "pgorm::Select::from_raw_sql"),
-        ("record", "tokio_postgres::Row::try_get / FromSql"),
+        ("record", "pgorm_driver::Row::try_get / FromSql"),
     ])
 }

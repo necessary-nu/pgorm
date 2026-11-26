@@ -12,7 +12,7 @@ use pretty_assertions::assert_eq;
 // ---------------------------------------------------------------------------
 
 /// Auto-increment single-column key, one nullable column: the shape almost every
-/// `ActiveModelTrait` claim is stated against.
+/// `ActiveModel` claim is stated against.
 mod row {
     use pgorm::entity::prelude::*;
     use serde::{Deserialize, Serialize};
@@ -146,10 +146,10 @@ mod serde_renamed {
 }
 
 // ---------------------------------------------------------------------------
-// ActiveModelTrait: per-column state access
+// ActiveModel: per-column state access
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:req:entity.active-model.set-if-not-equals/test]    `set_if_not_equals` by column
+// [spec:pgorm:req:entity.active-model.set-if-not-equals+1/test]    `set_if_not_equals` by column
 // leaves a column holding the value `Unchanged`, sets one that holds another
 // value or none, and reports an unknown column's or a wrong value's error as
 // `set` does
@@ -185,7 +185,7 @@ fn active_model_set_if_not_equals_by_column() {
         )))))
     );
     assert!(am.is_changed());
-    let mut fresh = <row::ActiveModel as ActiveModelTrait>::default();
+    let mut fresh = <row::ActiveModel as ActiveModel>::default();
     fresh
         .set_if_not_equals(row::Column::Id, Value::Int(Some(7)))
         .expect("Id takes an Int");
@@ -202,7 +202,7 @@ fn active_model_set_if_not_equals_by_column() {
     ));
 }
 
-// [spec:pgorm:req:entity.active-model+4/test]    the per-column state surface —
+// [spec:pgorm:req:entity.active-model+5/test]    the per-column state surface —
 // `default()` leaves every column `NotSet`, `set` stores a `Value` as `Set`,
 // `get` reads without consuming, `take` removes and leaves `NotSet` behind,
 // `not_set` clears, `is_not_set` reports, and `reset` / `reset_all` promote
@@ -211,7 +211,7 @@ fn active_model_set_if_not_equals_by_column() {
 #[test]
 fn active_model_column_state_access() {
     // `default()` is every column `NotSet`.
-    let mut am = <row::ActiveModel as ActiveModelTrait>::default();
+    let mut am = <row::ActiveModel as ActiveModel>::default();
     for col in row::Column::iter() {
         assert!(am.is_not_set(col), "{col:?} should start NotSet");
         assert_eq!(am.get(col), Ok(ActiveValue::NotSet));
@@ -294,7 +294,7 @@ fn active_model_column_state_access() {
     assert!(all.is_changed());
 }
 
-// [spec:pgorm:req:entity.active-model+4/test]    `get_primary_key_value` reads
+// [spec:pgorm:req:entity.active-model+5/test]    `get_primary_key_value` reads
 // `PrimaryKeyArity::ARITY` values into one `ValueTuple`, whatever the arity, and
 // returns `None` when any key component is `NotSet`
 #[test]
@@ -664,6 +664,7 @@ fn active_value_set_free_function() {
 // ---------------------------------------------------------------------------
 
 mod row_dto {
+    use super::row::ActiveModel;
     pub use super::row::*;
     use pgorm::entity::prelude::*;
 
@@ -682,7 +683,7 @@ mod row_dto {
 }
 use row_dto::{NewRow, UpdateRow};
 
-// [spec:pgorm:req:entity.active-model.into+3/test]    the blanket identity
+// [spec:pgorm:req:entity.active-model.into+4/test]    the blanket identity
 // `IntoActiveModel` impl, the derived `Model -> ActiveModel` conversion putting
 // every field in `Unchanged`, and the `IntoActiveValue` state mapping for
 // `Option<V>`, `Option<Option<V>>` and the plain scalar impls
@@ -790,7 +791,7 @@ fn into_active_model_and_into_active_value() {
 // JSON
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:req:entity.active-model.json+4/test]    `from_json` normalises per
+// [spec:pgorm:req:entity.active-model.json+5/test]    `from_json` normalises per
 // column — keys present in the JSON object become `Set`, everything else `NotSet`
 // — and a deserialization failure surfaces as `Error`
 #[test]
@@ -836,7 +837,7 @@ fn active_model_from_json() {
     );
 }
 
-// [spec:pgorm:req:entity.active-model.json+4/test]    `set_from_json` applies the
+// [spec:pgorm:req:entity.active-model.json+5/test]    `set_from_json` applies the
 // same normalisation in place but MUST NOT alter the primary key: the key states
 // are taken before the overwrite and restored after, so `Set` / `Unchanged`
 // payloads survive and `NotSet` stays `NotSet` whatever the JSON said
@@ -845,7 +846,7 @@ fn active_model_set_from_json_preserves_primary_key() {
     use serde_json::json;
 
     // Starting from NotSet: the JSON's "id" is ignored, id stays NotSet.
-    let mut am = <row::ActiveModel as ActiveModelTrait>::default();
+    let mut am = <row::ActiveModel as ActiveModel>::default();
     am.set_from_json(json!({
         "id": 99,
         "name": "Apple",
@@ -897,7 +898,7 @@ fn active_model_set_from_json_preserves_primary_key() {
     assert_eq!(am.name, set("Apple"));
 }
 
-// [spec:pgorm:req:entity.active-model.json+4/test]    a `set_from_json` that
+// [spec:pgorm:req:entity.active-model.json+5/test]    a `set_from_json` that
 // fails leaves the model bit-for-bit as it was — primary key included. The
 // conversion happens on a fresh model and only a conversion that succeeded is
 // moved into `self`, so nothing partial can be observed
@@ -931,11 +932,11 @@ fn set_from_json_failure_leaves_the_model_untouched() {
     assert_eq!(am.id, set(1));
 }
 
-// [spec:pgorm:req:entity.active-model.json+4/test]    presence detection reads
+// [spec:pgorm:req:entity.active-model.json+5/test]    presence detection reads
 // `serde`'s key namespace, not the SQL column names: a model's own serialization
 // round-trips back through `from_json` / `set_from_json` with every column `Set`,
 // whichever side renamed what
-// [spec:pgorm:def:entity.traits.column+9/test]    which is what `json_key`
+// [spec:pgorm:def:entity.traits.column+10/test]    which is what `json_key`
 // reports, next to the SQL name `as_str` reports
 #[test]
 fn active_model_json_reads_serde_keys() {
@@ -1021,14 +1022,14 @@ fn active_model_json_reads_serde_keys() {
 
 async fn create_row_table<C>(db: &C) -> Result<(), Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Schema::new().create_table_from_entity(row::Entity)?;
     db.execute(&stmt.to_string(), &[]).await?;
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.persistence+3/test]    `insert` comes back
+// [spec:pgorm:req:entity.active-model.persistence+4/test]    `insert` comes back
 // with the database-generated key populated (the single `INSERT ... RETURNING`
 // round trip), `update` returns the freshly written `Model`, and `delete`
 // returns the rows-affected count, keyed on the primary key
@@ -1096,11 +1097,11 @@ async fn active_model_persistence() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.save+1/test]    the operation is the
+// [spec:pgorm:req:entity.active-model.save+2/test]    the operation is the
 // caller's choice, not a reading of the model: `update` accepts a primary key in
 // either the `Set` or the `Unchanged` state, the two states an inference would
 // have had to tell apart
-// [spec:pgorm:req:entity.active-model.persistence+3/test]
+// [spec:pgorm:req:entity.active-model.persistence+4/test]
 #[pgorm_macros::test]
 async fn update_accepts_set_or_unchanged_key() -> Result<(), Error> {
     let ctx = TestContext::new("update_accepts_set_or_unchanged_key").await;
@@ -1148,7 +1149,7 @@ async fn update_accepts_set_or_unchanged_key() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.save+1/test]    a manually keyed entity
+// [spec:pgorm:req:entity.active-model.save+2/test]    a manually keyed entity
 // creates rows through `insert` — the case an inference over the key state could
 // never reach, since the caller has to populate the key to name the row at all —
 // while `update` against a key that matches nothing still fails
@@ -1237,19 +1238,19 @@ mod hooked {
     impl ActiveModelBehavior for ActiveModel {
         async fn before_save<C>(self, _db: &C, insert: bool) -> Result<Self, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             record(&format!("before_save(insert={insert})"));
             Ok(self)
         }
 
         async fn after_save<C>(
-            model: <Self::Entity as EntityTrait>::Model,
+            model: <Self::Entity as pgorm::Entity>::Model,
             _db: &C,
             insert: bool,
-        ) -> Result<<Self::Entity as EntityTrait>::Model, Error>
+        ) -> Result<<Self::Entity as pgorm::Entity>::Model, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             record(&format!("after_save(insert={insert}, id={})", model.id));
             Ok(model)
@@ -1257,7 +1258,7 @@ mod hooked {
 
         async fn before_delete<C>(self, _db: &C) -> Result<Self, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             record("before_delete");
             Ok(self)
@@ -1265,7 +1266,7 @@ mod hooked {
 
         async fn after_delete<C>(self, _db: &C) -> Result<Self, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             record(&format!("after_delete(name_set={})", self.name.is_set()));
             Ok(self)
@@ -1273,7 +1274,7 @@ mod hooked {
     }
 }
 
-// [spec:pgorm:req:entity.active-model.hooks+1/test]    the fixed hook ordering:
+// [spec:pgorm:req:entity.active-model.hooks+2/test]    the fixed hook ordering:
 // `insert` calls `before_save(.., true)` then `after_save(model, .., true)`;
 // `update` runs the same pair with `insert: false`; `delete` calls
 // `before_delete` then `after_delete` on a clone of the pre-delete active model
@@ -1354,23 +1355,23 @@ mod hook_abort {
     impl ActiveModelBehavior for ActiveModel {
         async fn before_save<C>(self, _db: &C, _insert: bool) -> Result<Self, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             Err(Error::Custom("before_save refused".to_owned()))
         }
 
         async fn before_delete<C>(self, _db: &C) -> Result<Self, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             Err(Error::Custom("before_delete refused".to_owned()))
         }
     }
 }
 
-// [spec:pgorm:req:entity.active-model.hooks+1/test]    an `Err` from a *before*
+// [spec:pgorm:req:entity.active-model.hooks+2/test]    an `Err` from a *before*
 // hook aborts the operation: nothing is written, nothing is removed. Also pins the
-// pass-through defaults and `new()` delegating to `ActiveModelTrait::default()`
+// pass-through defaults and `new()` delegating to `ActiveModel::default()`
 #[pgorm_macros::test]
 async fn active_model_hook_error_aborts() -> Result<(), Error> {
     let ctx = TestContext::new("active_model_hook_error_aborts").await;
@@ -1444,21 +1445,21 @@ mod after_hook_abort {
     impl ActiveModelBehavior for ActiveModel {
         async fn after_save<C>(_model: Model, _db: &C, _insert: bool) -> Result<Model, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             Err(Error::Custom("after_save refused".to_owned()))
         }
 
         async fn after_delete<C>(self, _db: &C) -> Result<Self, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             Err(Error::Custom("after_delete refused".to_owned()))
         }
     }
 }
 
-// [spec:pgorm:req:entity.active-model.hooks+1/test]    an `Err` from an *after*
+// [spec:pgorm:req:entity.active-model.hooks+2/test]    an `Err` from an *after*
 // hook is not an abort: the statement already ran on the connection it was
 // handed, so the row is written (or gone) and the caller gets the `Err` anyway.
 // A caller who needs the two to stand or fall together supplies a transaction
@@ -1533,13 +1534,13 @@ async fn active_model_after_hook_error_keeps_the_write() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.hooks+1/test]    `new()` defaults to
-// `ActiveModelTrait::default()`, and the un-overridden hooks are pass-throughs —
+// [spec:pgorm:req:entity.active-model.hooks+2/test]    `new()` defaults to
+// `ActiveModel::default()`, and the un-overridden hooks are pass-throughs —
 // `row::ActiveModel` overrides nothing and still inserts, updates and deletes
 #[test]
 fn active_model_behavior_new_defaults() {
     let new = <row::ActiveModel as ActiveModelBehavior>::new();
-    assert_eq!(new, <row::ActiveModel as ActiveModelTrait>::default());
+    assert_eq!(new, <row::ActiveModel as ActiveModel>::default());
     assert_eq!(
         new,
         row::ActiveModel {

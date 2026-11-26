@@ -79,7 +79,7 @@ fn manifest() -> Value {
             "pool.clear_statement_caches": {"rust_api": "pgorm::DatabasePool::clear_statement_caches", "features": []},
             "pool.instrumented": {"rust_api": "pgorm::metric::InstrumentedPool::new", "features": []},
             "metrics.fingerprint": {"rust_api": "pgorm::metric::QueryContext::fingerprint", "features": ["metrics-fingerprint"]},
-            "connection.ping": {"rust_api": "pgorm::ConnectionTrait::query_one", "features": []},
+            "connection.ping": {"rust_api": "pgorm::Connection::query_one", "features": []},
             "connection.close": {"rust_api": "pgorm::DatabaseConnection::drop", "features": []},
             "pool.listener": {"rust_api": "pgorm::DatabasePool::listener", "features": []},
             "listener.listen": {"rust_api": "pgorm::Listener::listen", "features": []},
@@ -103,14 +103,14 @@ fn manifest() -> Value {
             "model.insert": {"rust_api": "pgorm::pgorm_query::InsertStatement", "features": [], "python_convenience": true},
             "model.update": {"rust_api": "pgorm::pgorm_query::UpdateStatement", "features": [], "python_convenience": true},
             "model.delete": {"rust_api": "pgorm::pgorm_query::DeleteStatement", "features": [], "python_convenience": true},
-            "model.records": {"rust_api": "pgorm::ConnectionTrait::{query_all, query_one} / pgorm_python::results", "features": [], "python_convenience": true},
+            "model.records": {"rust_api": "pgorm::Connection::{query_all, query_one} / pgorm_python::results", "features": [], "python_convenience": true},
             "model.relation": {"rust_api": "pgorm::RelationDef, join_condition", "features": [], "python_convenience": true},
             "model.graph": {"rust_api": "pgorm::SelectGraph, result_column_name", "features": [], "python_convenience": true},
             "model.cursor": {"rust_api": "pgorm::Cursor", "features": [], "python_convenience": true},
             "model.paginate": {"rust_api": "pgorm::Paginator", "features": [], "python_convenience": true},
             "model.clauses": {"rust_api": "pgorm::QuerySelect::{distinct, distinct_on, group_by, having, lock_with_tables_behavior, join, join_rev}", "features": [], "python_convenience": true},
             "model.projection": {"rust_api": "pgorm::QuerySelect::{select_only, column, column_as, expr_as}, pgorm::Select::{into_tuple, into_values, into_model}", "features": [], "python_convenience": true},
-            "model.partial_model": {"rust_api": "pgorm::PartialModelTrait::select_cols, pgorm::Select::into_partial_model", "features": [], "python_convenience": true},
+            "model.partial_model": {"rust_api": "pgorm::PartialModel::select_cols, pgorm::Select::into_partial_model", "features": [], "python_convenience": true},
             "model.cursor_secondary_order": {"rust_api": "pgorm::Cursor::{add_secondary_order_by, after_with, before_with}", "features": [], "python_convenience": true}
         },
         "value_types": ArrayType::kinds().map(|kind| kind.kind_name()).chain(["enum", "created_range", "created_multirange", "array"]).collect::<Vec<_>>(),
@@ -159,7 +159,7 @@ fn manifest() -> Value {
             "writes": "real ActiveModel insert/update/delete and before/after hooks on a clone",
             "execution": "acquired Connection or Transaction; native asyncio awaitable",
             "stream": "Select::stream's per-row decode over a Pool's own connection or a Connection",
-            "reads": "PaginatorTrait::count and paginate, Select::cursor_by, QuerySelect::join of a declared Relation, select_only and columns read as records"
+            "reads": "Paginate::count and paginate, Select::cursor_by, QuerySelect::join of a declared Relation, select_only and columns read as records"
         },
         "graph_policy": {
             "source_arities": [1, 2, 3, 4, 5, 6, 7],
@@ -167,7 +167,7 @@ fn manifest() -> Value {
             "decode": "SelectGraph / GraphRow with actual registered models and optional slots",
             "result": "bare model for one source; tuple in source order for joined shapes",
             "cursor": "one to six columns of the root (cursor_by) or of one slot (cursor_by_on) plus Rust's declared primary-key tiebreaks",
-            "reads": "SelectGraph::stream, all_grouped of one Opt slot, PaginatorTrait::count and paginate, Cursor::statement",
+            "reads": "SelectGraph::stream, all_grouped of one Opt slot, Paginate::count and paginate, Cursor::statement",
             "unsupported": ["unregistered shapes", "source arity beyond seven", "order keys beyond six columns"]
         },
         "codegen_policy": {
@@ -176,8 +176,8 @@ fn manifest() -> Value {
             "typing_source": "FromQueryResult::expected_columns Rust field spellings; unknown custom types remain Any",
             "compatibility": ["package_version", "pgorm_version", "registry_abi", "features", "compiled entity and graph metadata"],
             "python_conveniences": {
-                "model properties": "EntityModel lookup over ModelTrait::get with checked Value conversion",
-                "set_<field>": "typed Value construction then ActiveModelTrait::set on a cloned native model",
+                "model properties": "EntityModel lookup over Model::get with checked Value conversion",
+                "set_<field>": "typed Value construction then ActiveModel::set on a cloned native model",
                 "model and active views": "registered native EntityModel and ActiveModel methods",
                 "entity query views": "registered native EntityQuery methods over Select<Entity>",
                 "graph and cursor views": "registered native EntityGraphQuery and EntityGraphCursor methods over SelectGraph; wrap decoded models in concrete Python views"
@@ -233,6 +233,15 @@ fn manifest() -> Value {
         "registrations": {"entities": [], "graphs": [], "sources": [], "disjoints": [], "one_ofs": []},
         "python": {"abi": "cp314", "free_threading": false, "subinterpreters": false}
     });
+    // [spec:pgorm:req:turso.python+1]
+    if cfg!(feature = "turso") {
+        if let Some(features) = manifest["features"].as_array_mut() {
+            features.push(json!("turso"));
+        }
+        manifest["operations"]["pool.turso"] = json!({
+            "rust_api": "pgorm::Config::connect", "features": ["turso"], "experimental": true
+        });
+    }
     if let Some(operations) = manifest["operations"].as_object_mut() {
         operations.extend(crate::expressions::capabilities());
         operations.extend(crate::json::capabilities());
@@ -266,7 +275,7 @@ fn manifest() -> Value {
         operations.extend(crate::schema::capabilities());
         operations.extend(crate::transactions::capabilities());
         operations.extend(crate::copy::capabilities());
-        // [spec:pgorm:req:bindings.connections+3]
+        // [spec:pgorm:req:bindings.connections+4]
         operations.insert(
             "pool.statement_cache_channel".to_owned(),
             json!({"rust_api": "pgorm::ManagerConfig::statement_cache_channel", "features": []}),

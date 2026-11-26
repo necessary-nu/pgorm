@@ -54,7 +54,7 @@ pub async fn create_insert_default(db: &DatabaseConnection) -> Result<(), Error>
     Ok(())
 }
 
-// [spec:pgorm:def:exec.cursor+5/test]    `Select::cursor_by`, `asc`/`desc`, and
+// [spec:pgorm:def:exec.cursor+6/test]    `Select::cursor_by`, `asc`/`desc`, and
 // the `into_model` / `into_partial_model` re-targeting
 // [spec:pgorm:sem:exec.cursor.keyset+8/test]    `before` / `after` comparison
 // direction under both sort orders, and both boundaries at once
@@ -604,7 +604,7 @@ pub async fn create_baker_cake(db: &DatabaseConnection) -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:exec.cursor+5/test]    `SelectGraph::cursor_by` and
+// [spec:pgorm:def:exec.cursor+6/test]    `SelectGraph::cursor_by` and
 // `cursor_by_on` on a joined read, decoded through the graph's own selector
 // [spec:pgorm:sem:exec.cursor.order+4/test]    a joined cursor's automatic
 // secondary order on every decoded slot's primary key, giving the
@@ -911,7 +911,7 @@ mod net_cursor {
 }
 
 // [spec:pgorm:req:exec.cursor.binding-gaps+3/test]
-// [spec:pgorm:def:exec.cursor.binding+6/test]    `IpNetwork` and `MacAddress`
+// [spec:pgorm:def:exec.cursor.binding+7/test]    `IpNetwork` and `MacAddress`
 // bound by hand through `postgres_protocol`, and the deliberately permissive
 // `accepts`
 #[pgorm_macros::test]

@@ -26,7 +26,7 @@ def report(program, *, value="2", status="defect"):
                 {
                     "id": "s0",
                     "status": "observed",
-                    "native_paths": ["pgorm::ConnectionTrait::query_raw"],
+                    "native_paths": ["pgorm::Connection::query_raw"],
                     "observation": observation,
                 }
             ],

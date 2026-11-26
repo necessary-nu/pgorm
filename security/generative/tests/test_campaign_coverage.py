@@ -30,7 +30,7 @@ def executed(program, *, registration=None):
             {
                 "id": "registered",
                 "status": "constructed",
-                "native_paths": ["pgorm::EntityTrait"],
+                "native_paths": ["pgorm::Entity"],
                 "observation": {"registration": registration},
             }
         )

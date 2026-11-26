@@ -152,34 +152,31 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
     [
         ("entity", "pgorm_python::entities::Registry"),
         ("entities", "pgorm_python::entities::Registry"),
-        ("entity.find", "pgorm::EntityTrait::find"),
-        ("entity.column", "pgorm::ColumnTrait"),
+        ("entity.find", "pgorm::Entity::find"),
+        ("entity.column", "pgorm::Column"),
         ("entity.all", "pgorm::Select<E>::all"),
         ("entity.one", "pgorm::Select<E>::one"),
         ("entity.optional", "pgorm::Select<E>::one_opt"),
-        ("entity.count", "pgorm::PaginatorTrait::count"),
+        ("entity.count", "pgorm::Paginate::count"),
         ("entity.stream", "pgorm::Select<E>::stream"),
         (
             "entity.paginate",
-            "pgorm::PaginatorTrait::paginate, Paginator::{fetch_page,num_items_and_pages}",
+            "pgorm::Paginate::paginate, Paginator::{fetch_page,num_items_and_pages}",
         ),
         (
             "entity.cursor",
             "pgorm::Select<E>::cursor_by, pgorm::Cursor",
         ),
-        (
-            "entity.join",
-            "pgorm::QuerySelect::join, RelationTrait::def",
-        ),
+        ("entity.join", "pgorm::QuerySelect::join, Relation::def"),
         ("entity.select", "pgorm::QuerySelect::{select_only,columns}"),
-        ("entity.model", "pgorm::ModelTrait"),
+        ("entity.model", "pgorm::Model"),
         (
             "entity.active",
             "pgorm::ActiveModelBehavior::new / IntoActiveModel",
         ),
-        ("entity.active.insert", "pgorm::ActiveModelTrait::insert"),
-        ("entity.active.update", "pgorm::ActiveModelTrait::update"),
-        ("entity.active.delete", "pgorm::ActiveModelTrait::delete"),
+        ("entity.active.insert", "pgorm::ActiveModel::insert"),
+        ("entity.active.update", "pgorm::ActiveModel::update"),
+        ("entity.active.delete", "pgorm::ActiveModel::delete"),
     ]
     .into_iter()
     .map(|(name, api)| {

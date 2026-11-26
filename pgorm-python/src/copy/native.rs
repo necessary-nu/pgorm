@@ -259,7 +259,7 @@ async fn pump_out(
 
 /// Start a COPY FROM on a Connection or Transaction and answer the handle
 /// its data is written through.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 #[pyfunction]
 #[pyo3(name = "_copy_in", signature = (target, statement, rows = false))]
 pub(crate) fn copy_in<'py>(
@@ -321,7 +321,7 @@ pub(crate) fn copy_in<'py>(
 
 /// Start a COPY TO on a Connection or Transaction and answer the stream its
 /// data is read from.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 #[pyfunction]
 #[pyo3(name = "_copy_out", signature = (target, statement, rows = false))]
 pub(crate) fn copy_out<'py>(
@@ -394,7 +394,7 @@ pub(crate) fn copy_out<'py>(
     })
 }
 
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 // [spec:pgorm:req:bindings.cancellation]
 /// The data side of a COPY FROM: `write` each chunk, then `finish`, or
 /// `abort` to send `CopyFail`.
@@ -516,7 +516,7 @@ impl NativeCopyIn {
     /// as `write` queues data. A row of another width, or a value its
     /// column's type does not take, raises a construction error naming the
     /// column, and nothing of the batch is queued.
-    // [spec:pgorm:req:bindings.copy-rows+2]
+    // [spec:pgorm:req:bindings.copy-rows+3]
     fn write_rows<'py>(
         &self,
         py: Python<'py>,
@@ -597,7 +597,7 @@ impl NativeCopyIn {
 
     /// The columns the server described before the COPY started, for
     /// `copy_in_rows`.
-    // [spec:pgorm:req:bindings.copy-rows+2]
+    // [spec:pgorm:req:bindings.copy-rows+3]
     fn described(&self) -> PyResult<Vec<super::columns::PyCopyColumn>> {
         let state = self.rows.as_ref().ok_or_else(|| {
             LifecycleError::new_err("described names the columns of copy_in_rows")
@@ -767,7 +767,7 @@ impl OutState {
     }
 }
 
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 // [spec:pgorm:req:bindings.cancellation]
 /// The data side of a COPY TO. The end of the data frees the connection or
 /// transaction; closing before it discards the connection.
@@ -840,7 +840,7 @@ impl NativeCopyOut {
     /// decode error and closes the stream, discarding its connection.
     /// With `records`, each row is a `Record` of the COPY's columns, as a
     /// model reads its rows from.
-    // [spec:pgorm:req:bindings.copy-rows+2]
+    // [spec:pgorm:req:bindings.copy-rows+3]
     #[pyo3(signature = (records=false))]
     fn next_rows<'py>(&self, py: Python<'py>, records: bool) -> PyResult<Bound<'py, PyAny>> {
         self.state.connection.pool.check_owner(py)?;
@@ -920,7 +920,7 @@ impl NativeCopyOut {
 
     /// The names of the columns each row holds, in order, as the server
     /// describes them.
-    // [spec:pgorm:req:bindings.copy-rows+2]
+    // [spec:pgorm:req:bindings.copy-rows+3]
     fn columns(&self) -> PyResult<Vec<String>> {
         let rows =
             self.state.rows.as_ref().ok_or_else(|| {

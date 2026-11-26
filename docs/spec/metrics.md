@@ -64,9 +64,9 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Query identity
 
-> [spec:pgorm:req:metric.fingerprint+5]
+> [spec:pgorm:req:metric.fingerprint+6]
 > `QueryContext` is what a query hook is told about the statement it reports
-> on: `operation()` — one of the seven `ConnectionTrait` method names,
+> on: `operation()` — one of the seven `Connection` method names,
 > `"copy_in"` / `"copy_out"` for a COPY (`metric.layer.copy`), or `"begin"` /
 > `"commit"` / `"rollback"` for a failed transaction round trip —,
 > `sql()` (the
@@ -130,12 +130,12 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Delegation contract
 
-> [spec:pgorm:req:metric.layer.delegate+5]
+> [spec:pgorm:req:metric.layer.delegate+6]
 > Instrumented wrappers MUST delegate every operation to the wrapped type and
-> return its result unchanged — wrapping preserves `ConnectionTrait`
+> return its result unchanged — wrapping preserves `Connection`
 > semantics, adding only timing and collector calls around each awaited
 > operation. Both `InstrumentedConnection` and `InstrumentedTransaction`
-> implement `ConnectionTrait`, and so does the `&mut InstrumentedTransaction`
+> implement `Connection`, and so does the `&mut InstrumentedTransaction`
 > a transaction closure is given, through the `&mut` forwarding of
 > `conn.pool.conn-trait`: inside an instrumented closure `find().all(&txn)`
 > and a helper taking `&C` are passed `&txn`, as inside a plain one, and run
@@ -157,9 +157,9 @@ chooses to construct, so unused metrics cost nothing.
 
 ## COPY instrumentation
 
-> [spec:pgorm:req:metric.layer.copy]
+> [spec:pgorm:req:metric.layer.copy+1]
 > `InstrumentedConnection` and `InstrumentedTransaction` MUST implement
-> `CopyTrait` (`conn.copy`) by delegating to the wrapped connection or
+> `CopyConnection` (`conn.copy`) by delegating to the wrapped connection or
 > transaction and returning its sink or stream unchanged, timing the start
 > and reporting it as `metric.layer.delegate` reports a statement: on success
 > `record_query_success` under the operation `"copy_in"` or `"copy_out"`, with
@@ -174,8 +174,8 @@ chooses to construct, so unused metrics cost nothing.
 
 ## Transaction instrumentation
 
-> [spec:pgorm:sem:metric.layer.tx+5]
-> `InstrumentedConnection` and `InstrumentedTransaction` are `TransactionTrait`
+> [spec:pgorm:sem:metric.layer.tx+6]
+> `InstrumentedConnection` and `InstrumentedTransaction` are `Transact`
 > implementors (`conn.tx`) whose closure is given an
 > `InstrumentedTransaction<'_, M>` sharing a clone of the collector, so the
 > statements, COPYs and savepoints inside an instrumented transaction are

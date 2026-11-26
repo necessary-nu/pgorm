@@ -5,7 +5,7 @@ DDL that creates them in two ways: from the entities you already declared, and
 from DDL builders for everything an entity does not describe, such as views,
 sequences or a change to an existing table. Both only build statements. You
 run each one yourself, with
-[`batch_execute`](crate::ConnectionTrait::batch_execute) and the statement's
+[`batch_execute`](crate::Connection::batch_execute) and the statement's
 text, usually frozen into a [migration](crate::guide::migrations) when the
 change is made, since a statement generated from an entity follows the entity
 as it changes ([Generated DDL in a
@@ -219,7 +219,7 @@ declared model's schema this way.
 # let db = scratch.pool.get().await?;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{ForeignKeyAction, GeneratedKind, Name, TableName};
-use pgorm::{ColumnPairs, ColumnTypeTrait, RelationDef, Schema, TableColumn, TableShape};
+use pgorm::{ColumnPairs, ColumnTypeExt, RelationDef, Schema, TableColumn, TableShape};
 
 let table = |name: &str| TableName::Table(Name::runtime(name));
 let price = || ColumnType::Decimal(Some((10, 2)));
@@ -309,7 +309,7 @@ a reader of those columns does, each cast column projected cast, as
 ```rust
 use pgorm::pgorm_query::{ColumnType, Expr, Query};
 use pgorm::pipeline::{ExprOps, Pipeline, alias, col_shaped};
-use pgorm::{ColumnTypeTrait, TableColumn};
+use pgorm::{ColumnTypeExt, TableColumn};
 
 let takings = TableColumn::new("takings", ColumnType::Money.def());
 assert_eq!(
@@ -383,8 +383,8 @@ and then its columns, keys, foreign keys and checks.
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_tables").await;
 # let db = scratch.pool.get().await?;
-use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{ColumnDef, Expr, ExprTrait, ForeignKey, ForeignKeyAction, Table};
+use pgorm::Connection;
+use pgorm::pgorm_query::{ColumnDef, Expr, Expression, ForeignKey, ForeignKeyAction, Table};
 use pgorm_guide_support::order;
 
 let create = Table::create(Delivery::Table)
@@ -466,7 +466,7 @@ and `enforcement = ..`. A key added to an existing table is
 # let mut db = scratch.pool.get().await?;
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::{Deferrability, Table, TableForeignKey};
-use pgorm::TransactionTrait;
+use pgorm::Transact;
 use pgorm_guide_support::{baker, bakery};
 
 // Each bakery names its head baker, and each baker their bakery.
@@ -518,8 +518,8 @@ method) and `and_where` (a partial index) say what kind of index it is:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_index_builder").await;
 # let db = scratch.pool.get().await?;
-use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{Expr, ExprTrait, Index, Name};
+use pgorm::Connection;
+use pgorm::pgorm_query::{Expr, Expression, Index, Name};
 use pgorm_guide_support::cake;
 
 // One cake of each name per bakery.
@@ -568,7 +568,7 @@ type:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("schema_types").await;
 # let db = scratch.pool.get().await?;
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 use pgorm::pgorm_query::{ColumnType, Name, extension::Type};
 
 let box_size = Type::create(Name::runtime("box_size"))
@@ -617,8 +617,8 @@ counter of its own, beyond the ones an identity column keeps. The
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::empty("schema_sequences").await;
 # let db = scratch.pool.get().await?;
-use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{self, ColumnType, Domain, Expr, ExprTrait, Name, Sequence, SequenceOption, SequenceType};
+use pgorm::Connection;
+use pgorm::pgorm_query::{self, ColumnType, Domain, Expr, Expression, Name, Sequence, SequenceOption, SequenceType};
 
 let archive = pgorm_query::Schema::create(Name::runtime("archive")).if_not_exists().to_owned();
 assert_eq!(archive.to_string(), r#"CREATE SCHEMA IF NOT EXISTS "archive""#);
@@ -662,8 +662,8 @@ place, so construction returns a `Result`:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_views").await;
 # let db = scratch.pool.get().await?;
-use pgorm::ConnectionTrait;
-use pgorm::pgorm_query::{Expr, ExprTrait, Func, MaterializedView, Name, Query, View};
+use pgorm::Connection;
+use pgorm::pgorm_query::{Expr, Expression, Func, MaterializedView, Name, Query, View};
 use pgorm_guide_support::{cake, order_line};
 
 let gluten_free = View::create(
@@ -723,7 +723,7 @@ describe:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("schema_extensions").await;
 # let db = scratch.pool.get().await?;
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 use pgorm::pgorm_query::{Comment, Name, extension::Extension};
 use pgorm_guide_support::cake;
 

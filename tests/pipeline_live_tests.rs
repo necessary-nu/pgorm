@@ -21,7 +21,7 @@ use pgorm::pipeline::{
     AliasName, Expr, ExprOps, IntoSource, JoinSide, Pipeline, alias, by, col, count, count_rows,
     first, last, named_runtime, row_number, sort_by, sum,
 };
-use pgorm::{ConnectionTrait, Schema, entity::prelude::Uuid, entity::*, set};
+use pgorm::{Connection, Schema, entity::prelude::Uuid, entity::*, set};
 use pretty_assertions::assert_eq;
 use rust_decimal::Decimal;
 
@@ -93,7 +93,7 @@ struct Seeded {
 }
 
 /// Three customers with 3, 2 and 1 orders: Alice spends 60, Bob 50, Cleo 5.
-async fn seed(db: &impl ConnectionTrait) -> Seeded {
+async fn seed(db: &impl Connection) -> Seeded {
     let bakery = bakery::ActiveModel {
         name: set("SeaSide Bakery"),
         profit_margin: set(10.4),
@@ -157,7 +157,7 @@ fn spending() -> Pipeline {
         .aggregate((sum(O::Total).as_(SPENT), count_rows().as_(ORDER_COUNT)))
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]    HAVING placement with a bound
+// [spec:pgorm:req:pipeline.surface+5/test]    HAVING placement with a bound
 // threshold: the group filter runs against grouped sums, not rows
 #[pgorm_macros::test]
 async fn having_filters_groups_with_bound_param() {
@@ -184,7 +184,7 @@ async fn having_filters_groups_with_bound_param() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]    filter-after-window nests the
+// [spec:pgorm:req:pipeline.surface+5/test]    filter-after-window nests the
 // windowed stage in a CTE and filters outside it, with the rank bound
 #[pgorm_macros::test]
 async fn window_rank_filter_nests_through_cte() {
@@ -221,7 +221,7 @@ async fn window_rank_filter_nests_through_cte() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]    explicit join condition against
+// [spec:pgorm:req:pipeline.surface+5/test]    explicit join condition against
 // live rows, with the customer name bound
 #[pgorm_macros::test]
 async fn join_on_explicit_condition_binds_params() {
@@ -252,7 +252,7 @@ async fn join_on_explicit_condition_binds_params() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]    an explicit ROWS frame computes
+// [spec:pgorm:req:pipeline.surface+5/test]    an explicit ROWS frame computes
 // a running sum per partition on live rows
 #[pgorm_macros::test]
 async fn rows_frame_computes_running_sum() {
@@ -356,7 +356,7 @@ async fn a_spanning_frame_agrees_for_value_and_count() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:pipeline.surface+4/test]    fn(Pipeline) -> Pipeline scopes
+// [spec:pgorm:req:pipeline.surface+5/test]    fn(Pipeline) -> Pipeline scopes
 // compose, each binding its own parameters, and the placeholders stay aligned
 #[pgorm_macros::test]
 async fn composed_scopes_bind_params_in_order() {
@@ -383,7 +383,7 @@ async fn composed_scopes_bind_params_in_order() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:pipeline.terminal+1/test]    the model terminal goes straight
+// [spec:pgorm:sem:pipeline.terminal+2/test]    the model terminal goes straight
 // from a pipeline to entity models on a connection
 #[pgorm_macros::test]
 async fn terminal_decodes_entity_models() {
@@ -657,7 +657,7 @@ async fn a_nested_ordering_names_a_relation_in_scope() {
     ctx.delete().await;
 }
 
-async fn create_entity_table<E: EntityTrait>(db: &impl ConnectionTrait, entity: E) {
+async fn create_entity_table<E: Entity>(db: &impl Connection, entity: E) {
     let stmt = Schema::new()
         .create_table_from_entity(entity)
         .expect("the entity's table is generated");
@@ -667,7 +667,7 @@ async fn create_entity_table<E: EntityTrait>(db: &impl ConnectionTrait, entity: 
 }
 
 /// Ada founded the company; Grace and Linus report to her, Alan to Grace.
-async fn seed_employees(db: &impl ConnectionTrait) {
+async fn seed_employees(db: &impl Connection) {
     let ada = employee::ActiveModel {
         name: set("Ada"),
         ..Default::default()
@@ -1471,7 +1471,7 @@ async fn select_sources_applies_read_casts() -> Result<(), pgorm::Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:pipeline.terminal+1/test]    the model terminals decode an
+// [spec:pgorm:sem:pipeline.terminal+2/test]    the model terminals decode an
 // entity's model whatever its columns read through: an enum, an enum array,
 // a select_as override, and a partial model's enum column
 #[pgorm_macros::test]
@@ -1632,7 +1632,7 @@ async fn deduplicating_then_projecting_keeps_its_rows() -> Result<(), pgorm::Err
     .await?;
 
     // The server's own answer to both questions, in SQL this suite wrote.
-    async fn control(db: &impl ConnectionTrait, sql: &str) -> Vec<String> {
+    async fn control(db: &impl Connection, sql: &str) -> Vec<String> {
         let mut names: Vec<String> = db
             .query_all(sql, &[])
             .await
@@ -1682,7 +1682,7 @@ async fn deduplicating_then_projecting_keeps_its_rows() -> Result<(), pgorm::Err
 
 /// Rows of `sql`, each one's first two columns, sorted: the server's own
 /// answer, in SQL this suite wrote.
-async fn pairs(db: &impl ConnectionTrait, sql: &str) -> Vec<(i32, Option<i64>)> {
+async fn pairs(db: &impl Connection, sql: &str) -> Vec<(i32, Option<i64>)> {
     let mut rows: Vec<(i32, Option<i64>)> = db
         .query_all(sql, &[])
         .await
@@ -1695,7 +1695,7 @@ async fn pairs(db: &impl ConnectionTrait, sql: &str) -> Vec<(i32, Option<i64>)> 
 }
 
 /// A pipeline's rows, read as `pairs` reads the control's.
-async fn piped(db: &impl ConnectionTrait, pipeline: Pipeline) -> Vec<(i32, Option<i64>)> {
+async fn piped(db: &impl Connection, pipeline: Pipeline) -> Vec<(i32, Option<i64>)> {
     let mut rows: Vec<(i32, Option<i64>)> = pipeline
         .into_tuple()
         .expect("the pipeline compiles")
@@ -1830,7 +1830,7 @@ async fn stages_read_a_set_operation_whole() -> Result<(), pgorm::Error> {
 }
 
 /// Single-column rows of `sql`, sorted.
-async fn ints(db: &impl ConnectionTrait, sql: &str) -> Vec<i32> {
+async fn ints(db: &impl Connection, sql: &str) -> Vec<i32> {
     let mut rows: Vec<i32> = db
         .query_all(sql, &[])
         .await
@@ -1843,7 +1843,7 @@ async fn ints(db: &impl ConnectionTrait, sql: &str) -> Vec<i32> {
 }
 
 /// A pipeline's single-column rows, read as `ints` reads the control's.
-async fn piped_ints(db: &impl ConnectionTrait, pipeline: Pipeline) -> Vec<i32> {
+async fn piped_ints(db: &impl Connection, pipeline: Pipeline) -> Vec<i32> {
     let mut rows: Vec<(i32,)> = pipeline
         .into_tuple()
         .expect("the pipeline compiles")

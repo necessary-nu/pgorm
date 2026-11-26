@@ -43,7 +43,7 @@ test("the addon loads and reports the pgorm release it was built from", () => {
 
 // [spec:pgorm:req:napi.promises/test]
 // [spec:pgorm:req:napi.raw/test]
-// [spec:pgorm:req:bindings.results+2/test]
+// [spec:pgorm:req:bindings.results+3/test]
 test("a bound query resolves with its result", async () => {
   assert.equal(await scalar("SELECT $1::int + 1 AS n", [41]), 42);
 });
@@ -81,7 +81,7 @@ test("an error PostgreSQL reports rejects with a DatabaseError carrying its SQLS
   assert.equal(error.detail, null);
 });
 
-// [spec:pgorm:sem:error.model.parameter-count/test]    a statement given another number of values than it takes is the caller's ConstructionError, in pgorm's words
+// [spec:pgorm:sem:error.model.parameter-count+1/test]    a statement given another number of values than it takes is the caller's ConstructionError, in pgorm's words
 test("a statement given another number of values than its placeholders take rejects with a ConstructionError naming both", async () => {
   await assert.rejects(pool.one("SELECT $1 AS x, $2 AS y", [1]), (error: unknown) => {
     assert.ok(error instanceof ConstructionError, `${error}`);
@@ -96,7 +96,7 @@ test("a statement given another number of values than its placeholders take reje
   assert.equal(await scalar("SELECT 1 AS n"), 1);
 });
 
-// [spec:pgorm:req:conn.copy.statement+2/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
+// [spec:pgorm:req:conn.copy.statement+3/test]    a COPY given as a statement is the caller's ConstructionError, nothing sent
 test("a COPY given as a statement rejects with a ConstructionError naming copyIn and copyOut", async () => {
   for (
     const run of [

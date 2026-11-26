@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use pgorm::pgorm_query::{
-    BinOper, Condition, Expr, ExprTrait, Func, LikeExpr, Name, Query, SimpleExpr, Subscript,
+    BinOper, Condition, Expr, Expression, Func, LikeExpr, Name, Query, SimpleExpr, Subscript,
     TypeName, Value,
 };
 use pyo3::{prelude::*, types::PyDict};
@@ -35,7 +35,7 @@ fn parity(
     Ok(())
 }
 
-// [spec:pgorm:req:bindings.delegation/test]
+// [spec:pgorm:req:bindings.delegation+1/test]
 // [spec:pgorm:req:bindings.expressions+4/test]
 #[test]
 fn expression_structure_matches_rust_builders() -> PyResult<()> {
@@ -264,7 +264,7 @@ fn operator_methods_are_their_rust_builders() -> PyResult<()> {
     })
 }
 
-// [spec:pgorm:req:bindings.expressions+4/test]    at is Rust's ExprTrait::index and slice its
+// [spec:pgorm:req:bindings.expressions+4/test]    at is Rust's Expression::index and slice its
 // Subscript::Slice, each bound unless it is an expression, None leaving a slice's end open
 #[test]
 fn subscripts_are_rust_index_and_slice() -> PyResult<()> {
@@ -462,7 +462,7 @@ fn case_expressions_match_rust_builders() -> PyResult<()> {
 }
 
 // [spec:pgorm:req:bindings.expressions+4/test]
-// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    both forms over a plain string, as Rust's
+// [spec:pgorm:req:sql.ast.expr.similar-to+4/test]    both forms over a plain string, as Rust's
 // IntoLikeExpr reads one, and over a LikeExpr, its ESCAPE carried
 #[test]
 fn similar_to_takes_like_patterns() -> PyResult<()> {

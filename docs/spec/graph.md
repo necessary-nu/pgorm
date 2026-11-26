@@ -19,14 +19,14 @@ chapter is stated twice anywhere else.
 
 ## Declaration
 
-> [spec:pgorm:def:query.graph+2]
-> `SelectGraph<E: EntityTrait, S = (), R = Unsliced>` is a relational read
+> [spec:pgorm:def:query.graph+3]
+> `SelectGraph<E: Entity, S = (), R = Unsliced>` is a relational read
 > declared as a root entity plus a typed tuple `S` of joined, decoded
 > sources — *slots* — in join order, and a marker `R` recording whether
 > `limit` or `offset` has cut the read to a window of rows
-> (`[spec:pgorm:sem:query.graph.slice]`). `EntityTrait::graph()` constructs it, as `find()` constructs
+> (`[spec:pgorm:sem:query.graph.slice]`). `Entity::graph()` constructs it, as `find()` constructs
 > a `Select<E>`; `SelectGraph::<E>::new()` and `Default` are the same
-> construction; `EntityTrait::graph_in(entity)` roots
+> construction; `Entity::graph_in(entity)` roots
 > it at the table the entity instance names instead (`entity.traits.entity-name`).
 > Construction initialises the statement with
 > `FROM E::default().table_ref()`, or the instance's table, and immediately projects `E`'s columns
@@ -39,7 +39,7 @@ chapter is stated twice anywhere else.
 > inherited from a builder whose select list a caller may have edited.
 >
 > A slot is a zero-sized marker implementing the sealed `Slot` trait —
-> `Req<F>` or `Opt<F>`, `F: EntityTrait` — whose associated items fix
+> `Req<F>` or `Opt<F>`, `F: Entity` — whose associated items fix
 > everything the slot means in one place: the entity (`type Entity`), the
 > output shape (`type Out`: `F::Model` for `Req`, `Option<F::Model>` for
 > `Opt`), the `JoinType` the shape implies (`const JOIN`), and the decode
@@ -56,14 +56,14 @@ chapter is stated twice anywhere else.
 > junction table or a chain hop enters the graph: joined because the path
 > runs through it, invisible because nobody asked to read it.
 >
-> The graph implements `QueryFilter`, `QueryOrder` and `QueryTrait` over its
+> The graph implements `QueryFilter`, `QueryOrder` and `Statement` over its
 > `SelectStatement`, so WHERE, ORDER BY, `build()`, `to_string()` and
 > `apply_if` work as on every other builder. It deliberately does NOT
 > implement `QuerySelect`: the writer owns the projection, and the fluent
 > surface offers no way to edit it
 > (`[spec:pgorm:sem:query.graph.slots]`). Its row range is set by its own
 > `limit` and `offset`, which re-type it
-> (`[spec:pgorm:sem:query.graph.slice]`). `QueryTrait::query()` remains the
+> (`[spec:pgorm:sem:query.graph.slice]`). `Statement::query()` remains the
 > raw escape hatch it is everywhere — a caller mutating the statement
 > through it stands outside every guarantee this family states, on the same
 > terms as handing a hand-built statement to `Selector::from_select`.
@@ -184,10 +184,10 @@ chapter is stated twice anywhere else.
 
 ## Decoding
 
-> [spec:pgorm:sem:query.graph.decode+1]
+> [spec:pgorm:sem:query.graph.decode+2]
 > One row decodes as `(E::Model, S1::Out, …, Sn::Out)`; a slotless graph
 > decodes as a bare `E::Model`, not a one-tuple. The selector is
-> `GraphRow<E, S>`, a `SelectorTrait` implementor
+> `GraphRow<E, S>`, a `DecodeRow` implementor
 > (`[spec:pgorm:def:exec.crud]`) at every declarable arity. The root
 > decodes via `FromQueryResult::from_query_result` under `"s0_"`, then each
 > slot in declaration order under its own prefix: `Req<F>` through
@@ -213,7 +213,7 @@ chapter is stated twice anywhere else.
 
 ## Terminals
 
-> [spec:pgorm:sem:query.graph.terminals+2]
+> [spec:pgorm:sem:query.graph.terminals+3]
 > The graph terminates by converting into `Selector<GraphRow<E, S>>`;
 > everything past that conversion is machinery specified elsewhere, and the
 > graph MUST NOT duplicate any of it. `all(db)` and `one_opt(db)` are
@@ -224,7 +224,7 @@ chapter is stated twice anywhere else.
 > (`[spec:pgorm:sem:exec.stream.decode]`). These three exist on a sliced
 > graph as on an unsliced one, and read the window
 > `[spec:pgorm:sem:query.graph.slice]` states. Pagination and `count` reach
-> an unsliced graph through `PaginatorTrait` over the same selector
+> an unsliced graph through `Paginate` over the same selector
 > (`[spec:pgorm:def:exec.paginator]`); page boundaries fall between
 > *rows*, not between root models, so a root with several matching slot
 > rows spans pages exactly as the underlying SQL does — the grouped read
@@ -327,7 +327,7 @@ chapter is stated twice anywhere else.
 
 ## Slicing
 
-> [spec:pgorm:sem:query.graph.slice]
+> [spec:pgorm:sem:query.graph.slice+1]
 > `limit(n)` and `offset(n)` cut a graph's read to a window of rows. Each
 > takes `impl Into<Option<u64>>`, as `QuerySelect`'s do, so `None` removes
 > a limit or offset set before; sets its clause on the graph's one
@@ -356,7 +356,7 @@ chapter is stated twice anywhere else.
 > - `all_grouped` (`[spec:pgorm:sem:query.graph.grouped]`). A window of
 >   rows can start or end part-way through a root's children, and the entry
 >   holding the part is indistinguishable from a complete one.
-> - `PaginatorTrait`'s `paginate` and `count`
+> - `Paginate`'s `paginate` and `count`
 >   (`[spec:pgorm:sem:query.graph.terminals]`). A page's LIMIT and OFFSET
 >   replace the slice's (`[spec:pgorm:sem:exec.paginator.fetch]`) and the
 >   count strips them (`[spec:pgorm:sem:exec.paginator.count]`), so both
@@ -386,7 +386,7 @@ chapter is stated twice anywhere else.
 > `E::find().limit(n)`, then `load_many` or `load_many_via`
 > (`[spec:pgorm:req:query.loader]`).
 >
-> `QueryTrait::query()` remains the raw escape hatch it is everywhere
+> `Statement::query()` remains the raw escape hatch it is everywhere
 > (`[spec:pgorm:def:query.graph]`): a limit written through it leaves the
 > graph `Unsliced` in its type, outside this rule's guarantees.
 

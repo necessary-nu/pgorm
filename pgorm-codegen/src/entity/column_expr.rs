@@ -12,7 +12,7 @@
 //! named, never approximated.
 
 use pgorm_query::{
-    BinOper, CaseStatement, ColumnRef, Expr, ExprTrait, Func, Function, Keyword, Name, SimpleExpr,
+    BinOper, CaseStatement, ColumnRef, Expr, Expression, Func, Function, Keyword, Name, SimpleExpr,
     TypeName, UnOper, Value,
 };
 use rust_decimal::Decimal;

@@ -781,7 +781,7 @@ A model query covers the everyday reads. A model is also a table and its
 columns, which the [query builder](11-query-builder.md) takes as they are, as
 the examples above use them: common table expressions, window functions,
 lateral joins and grouping sets are written there. Here Python differs from
-Rust only in where the statement starts: Rust's `QueryTrait::query` hands a
+Rust only in where the statement starts: Rust's `pgorm::Statement::query` hands a
 `Select`'s statement to the query builder, and in Python the statement is
 written with the builder from the model's `table` and columns. SQL written by
 hand runs as `RawSQL` ([Raw SQL](10-raw-sql.md)), and [the

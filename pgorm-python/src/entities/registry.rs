@@ -4,8 +4,8 @@
 //! Python cannot add a generic instantiation, only use the ones compiled in.
 
 use pgorm::{
-    Disjoint, EntityTrait, GraphItem, GraphRow, IntoActiveModel, NoContext, OneOf, ScopedIn,
-    SelectGraph, SelectorTrait, pipeline::SourceList,
+    DecodeRow, Disjoint, Entity, GraphItem, GraphRow, IntoActiveModel, NoContext, OneOf, ScopedIn,
+    SelectGraph, pipeline::SourceList,
 };
 use pgorm_bindings::entity::{GraphSlots, SourceTypes};
 use pyo3::prelude::*;
@@ -32,7 +32,7 @@ impl Registry {
     // [spec:pgorm:req:bindings.entities+6]
     pub fn entity<E>(&mut self, name: &str) -> PyResult<&mut Self>
     where
-        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -47,7 +47,7 @@ impl Registry {
     // [spec:pgorm:req:bindings.entities+6]
     pub fn entity_in<E>(&mut self, name: &str, entity: E) -> PyResult<&mut Self>
     where
-        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -60,12 +60,12 @@ impl Registry {
     /// in tuple order, and must use those aliases in the corresponding joins.
     /// Register every source entity first. Python can vary aliases and builder
     /// operations but cannot change this Rust tuple's entity or slot types.
-    // [spec:pgorm:req:bindings.entity-graphs+4]
+    // [spec:pgorm:req:bindings.entity-graphs+5]
     pub fn graph<E, S, Build>(&mut self, name: &str, build: Build) -> PyResult<&mut Self>
     where
-        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         S: GraphSlots<E>,
-        GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
+        GraphRow<E, S>: DecodeRow + Send + Sync + 'static,
         GraphItem<E, S>: Send + 'static,
         Build: Fn(&[String]) -> SelectGraph<E, S> + Send + Sync + 'static,
     {

@@ -3,7 +3,7 @@
 
 use neon::{prelude::*, types::Finalize};
 use pgorm::pgorm_query::{ColumnType, Expr, GeneratedKind, Name, TableName, TypeName};
-use pgorm::{CaseStyle, ColumnDef, ColumnTypeTrait, Schema, TableColumn, TableShape};
+use pgorm::{CaseStyle, ColumnDef, ColumnTypeExt, Schema, TableColumn, TableShape};
 
 use crate::{
     codec::Codec,

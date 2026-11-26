@@ -193,7 +193,7 @@ class EmitPythonTests(unittest.TestCase):
         compile(source, "python.py", "exec")
         tree = emitted(source)
         self.assertIn("_descriptor(n_n0, None)", ast.unparse(tree))
-        self.assertIn('(p.ModelQuery, "pgorm::ConnectionTrait::query_raw")', source)
+        self.assertIn('(p.ModelQuery, "pgorm::Connection::query_raw")', source)
         self.assertIn("category in (p.ModelQuery, p.ModelRows)", source)
         tables = constant(tree, "FIXTURE_TABLES")
         self.assertIn("accounts", [table["name"] for table in tables])

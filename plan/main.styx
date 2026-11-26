@@ -21181,27 +21181,6 @@ children (
                     }
 
                     {
-                        id guide.python-gaps.postgres-target
-                        title "Python reports the PostgreSQL release a build targets as pgorm_query::POSTGRES_TARGET does, beside capabilities()[\"features\"] listing pg-19"
-                        deps (python.package)
-                        log (
-                            {
-                                at 2026-11-05T18:55:44.811369Z
-                                author "brendan@necessary.nu"
-                                kind @note
-                                text "nplan_start refused this node: \"dep python.package is Todo\", though nplan_node shows python.package done (shipped 75171d85), and an nplan_sync did not change the answer. Worked in the pool-config lane's worktree (nplan/guide.python-gaps.pool-config) without a claim, per the lane brief."
-                            }
-
-                            {
-                                at 2026-11-23T18:27:14.255603Z
-                                author "brendan@necessary.nu"
-                                kind @note
-                                text "pg19-only (2026-11-23) removed what this node delivered: pgorm targets PostgreSQL 19 alone, so the pg-19 feature, POSTGRES_TARGET and rule bindings.postgres-target are gone. Nothing outside tests and docs read the constant. The rule's implements claim was removed from this node with it."
-                            }
-                        )
-                    }
-
-                    {
                         id guide.python-gaps.raw-param-count-error
                         title "A raw statement given the wrong number of parameters raises ConstructionError naming the counts, not ConnectionError(\"PostgreSQL connection or protocol failure\") with no sqlstate"
                         kind @fix
@@ -21928,6 +21907,21 @@ children (
                 kind @test
                 deps (trait-names)
             }
+
+            {
+                id scopes.security-regressions
+                title "Five isolated live regressions expose scoped upsert, set-operation, outer-join, disjoint-kind and FROM/USING isolation failures until their fixes land"
+                kind @test
+                deps (scopes.rust)
+                log (
+                    {
+                        at 2026-11-24T09:41:46.543776Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
+            }
         )
         log (
             {
@@ -22010,12 +22004,20 @@ children (
         title "No trait carries a Trait suffix: Entity, Model, Column, Connection, Transact, Paginate and the rest are named for what they are"
         kind @refactor
         deps (scopes.rust)
+        sealed true
         log (
             {
                 at 2026-11-24T01:29:56.793767Z
                 author "brendan@necessary.nu"
                 kind @decision
                 text "2026-11-24, agreed with the operator (\"agreed to all\"): the Trait suffix (inherited from SeaORM) goes from all 19 traits, as a pure breaking rename with no aliases, COMING_FROM_SEAORM.md mapping old to new. Same name as the types each entity module generates, path-disambiguated like `impl std::error::Error for Error`: EntityTrait→Entity, ModelTrait→Model, ColumnTrait→Column, ActiveModelTrait→ActiveModel, RelationTrait→Relation, PrimaryKeyTrait→PrimaryKey, MigratorTrait→Migrator (the template's struct Migrator is the application's), PartialModelTrait→PartialModel (sharing its derive's name). Probe first whether a glob-imported trait shadowed by a local struct of the same name still resolves methods (Entity::find() in an entity module); if not, the preludes also re-export the traits `as _`. New names where pgorm or std already uses the bare one: PaginatorTrait→Paginate, CursorTrait→CursorSource, SelectorTrait→DecodeRow, QueryTrait→Statement, ExprTrait→Expression, ColumnTypeTrait→ColumnTypeExt (an extension of pgorm-query's ColumnType, the idiomatic Ext case), MigrationTrait→Migration (pgorm-migration's own Migration struct renamed for what it holds), CopyTrait folded away (copy_out onto the read connection trait, copy_in onto the write one). ConnectionTrait→Connection and TransactionTrait→Transact (what a connection can do). The read/write split (Connection for reads, ConnectionMut: Connection for writes; Mut meaning \"may change the database\", writes keeping &self) is read-only.rust's; this node renames ConnectionTrait to Connection and moves CopyTrait's methods so read-only.rust only splits. LoaderTrait→LoadRelated. Order agreed: scopes.rust lands, this rename runs alone with nothing else in flight, then read-only, then immutable and redact."
+            }
+
+            {
+                at 2026-11-25T16:18:11.061453Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
@@ -22042,6 +22044,41 @@ children (
                 title "JavaScript's ReadOnlyPool refuses writes, typed so TypeScript rejects a write given one and throwing TypeError at run time"
                 deps (read-only.rust)
             }
+
+            {
+                id read-only.lock-clauses
+                title "A SELECT that locks its rows (FOR UPDATE, FOR NO KEY UPDATE, FOR SHARE, FOR KEY SHARE) runs only on a ConnectionMut: refused by the types on a read-only connection, not by the server's 25006"
+                kind @feat
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.migration-status
+                title "A migrator's status and get_* reads, which write nothing since migration-status-reads, take a Connection, so a read-only connection answers a readiness check"
+                kind @feat
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.hook-connection
+                title "A pool hook on a ReadOnlyPool is given a connection that implements Connection alone, not a HookConnection that may write"
+                kind @fix
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.binding-native-refusal
+                title "The bindings' refusal of a read-only transaction mode on a native Turso pool is tested, and with metrics on it reports a begin error as it did"
+                kind @test
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.double-downgrade
+                title "read_only() on a connection that already only reads is answered: either the same read-only view or a written diagnostic, never a bare E0599"
+                kind @fix
+                deps (read-only.rust)
+            }
         )
         log (
             {
@@ -22049,6 +22086,864 @@ children (
                 author "brendan@necessary.nu"
                 kind @decision
                 text "2026-11-24, agreed with the operator: the capability to write is in the type, on the trait names trait-names settles. Connection covers what only reads (Select / graph / selector terminals, counts, pagination, cursors, pipeline terminals, loaders, copy_out); ConnectionMut: Connection adds inserts, updates, deletes, the ActiveModel and Model write methods, copy_in, migrations and raw SQL text. Every existing connection type implements both, so a function taking &impl Connection cannot write whatever it is handed. ReadOnlyPool / ReadOnlyConnection / ReadOnlyTransaction implement Connection alone, built by connect_read_only(config) and its _with forms (a replica or a read-only role fits), each connection opened with default_transaction_read_only = on so the server refuses what types cannot see (25006, e.g. a SELECT calling a writing function). Transaction modes move to the type they belong to: a read-write connection's transaction_with takes read-write modes only; read_only_transaction(isolation, |tx| ..) and snapshot(|tx| ..) (SERIALIZABLE READ ONLY DEFERRABLE) give a ReadOnlyTransaction, removing today's ReadOnly-mode handle that offers inserts. conn.read_only() downgrades a borrowed read-write connection by type alone; nothing upgrades. Raw SQL: sql! classifies its statement at compile time (SELECT, VALUES, TABLE, SHOW, EXPLAIN without ANALYZE; no data-modifying WITH, no FOR UPDATE/SHARE) and only a read runs on Connection; run-time text needs ConnectionMut, except the read-only types' own unchecked-text method, the server enforcing it there. Database roles stay the real boundary (a raw SET can undo the session setting). Writes to a read-only connection are compile errors with per-trait diagnostics. Python and JavaScript: ReadOnlyPool, write terminals typed to refuse it (mypy, TypeScript under deno check) and TypeError at run time. InstrumentedPool over a read-only pool stays read-only. Orthogonal to scopes (scope = which rows; capability = whether it may write)."
+            }
+
+            {
+                at 2026-11-25T17:52:06.262718Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-25, from trait-names' delivery (7ed60048): CopyTrait did not fold into Connection, because Connection is implemented on shared Copy handles (&DatabaseConnection, DatabaseRef, HookConnection) where copy_in(&mut self) could not hold the connection exclusively (conn.copy). It is CopyConnection, implemented by DatabaseConnection, DatabaseTransaction and the two metrics wrappers. read-only.rust splits it the way it splits Connection: CopyConnection keeps copy_out / copy_out_rows / copy_out_columns (reads), CopyConnectionMut: CopyConnection takes copy_in / copy_in_rows / copy_in_columns (writes); the read-only types implement CopyConnection alone. Native Turso (the turso feature, a path or :memory: in Config) refuses COPY already; a read-only pool over a native target either opens the database read-only, if the pinned engine can, or refuses connect_read_only for a native target before opening anything, decided with a probe."
+            }
+        )
+    }
+
+    {
+        id driver-vendor
+        title "Vendor upstream tokio-postgres as pgorm-driver and route every consumer and TLS connector through it"
+        kind @refactor
+        implements {
+            main ([spec:pgorm:req:conn.driver-source])
+        }
+        deps (decide.turso)
+        log (
+            {
+                at 2026-11-24T13:29:46.479885Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator approved vendoring now: import rust-postgres/rust-postgres master at 6c161e3226c0ca0f18f665610cbeb09862fe2f4b as crates/pgorm-driver, rename package and Rust imports, retain PostgreSQL behaviour, and route all workspace/detached consumers through direct path dependencies. Vendor the existing tokio-postgres-rustls 0.14.0 as pgorm-driver-rustls so its TLS traits use the same driver identity. Keep postgres-types and postgres-protocol upstream. Native turso_pg execution is a later change. Existing scope-security changes must be preserved."
+            }
+
+            {
+                at 2026-11-24T13:29:46.796702Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-24T13:53:18.373652Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Implementation complete in the working tree: imported rust-postgres master 6c161e3226c0ca0f18f665610cbeb09862fe2f4b into crates/pgorm-driver and tokio-postgres-rustls 0.14.0 at 0dd60da1804e6146633e5b87199a00db890b7ef5 into crates/pgorm-driver-rustls. All workspace/detached consumers and 15 committed lockfiles use the renamed path dependencies. Licenses, exact provenance, upstream tests/fixtures, update guidance and binding notices retained. Shared postgres-types/postgres-protocol remain upstream. All 33 driver source files match upstream after rename/formatting except the TLS documentation, so PostgreSQL execution is unchanged. Verification: workspace/bindings builds, scoped Clippy covering all tracked root tests, Rust feature matrix, Python 56 native tests, JavaScript 15 native tests, 326 generative Python tests, detached build/lint checks, binding type checks, dependency-identity regression, five upstream config-parser tests and Python sdist dependency resolution passed. Workspace nextest ran 2488 selected tests (existing scope-security WIP excluded): 2487 passed; the sole citation-format failure was corrected and passed on targeted rerun. The full required nplan check has only one failing check: workspace Clippy reports three pre-existing lints in the untouched untracked scope_security_tests target. Spec coverage is 647/647 covered and tested, zero stale. No native Turso execution added in this import."
+            }
+
+            {
+                at 2026-11-24T14:25:20.512294Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator explicitly approved the four import-only nplan code-quality exceptions on 2026-11-24 after review and all required checks passed: function-density (upstream Config API), complexity (generated SQLSTATE mapping), trivial-function (upstream forwarding helpers), and function-name (retained upstream test names). Preserve these upstream constructs in the initial vendoring commit rather than changing behavior or obscuring the import. This approval does not waive these gates for subsequent Turso implementation."
+            }
+        )
+    }
+
+    {
+        id turso
+        title "Experimental native Turso execution inside pgorm-driver, preserving pgorm's driver API and PostgreSQL performance"
+        kind @feat
+        deps (decide.turso)
+        children (
+            {
+                id turso.spec
+                title "Specify the experimental native backend contract, supported surface, feature isolation and performance criteria"
+                kind @docs
+                deps (decide.turso turso.performance-baseline)
+                sealed true
+                log (
+                    {
+                        at 2026-11-24T14:06:26.043174Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Define the native-backend rules under docs/spec before implementation and attach each defined rule to the corresponding WBS leaf. Read the pinned native engine API and establish its database/connection ownership, value and metadata representations, threading/execution constraints, cancellation behavior and error information. Specify the common public driver contract, supported-type policy including custom ToSql/FromSql implementations, statement ownership, partial execution, transactions, streaming, connection reuse and explicit unsupported outcomes. Distinguish engine limitations from limitations of its pgwire frontend and from unfinished pgorm integration; do not copy the old frontend limitation list as current facts. Preserve PostgreSQL's contracts, revising any spec wording that assumes every driver uses network request queues without weakening the PostgreSQL guarantees. Define optional feature propagation and the Rust/Python/JavaScript connection and packaging surface. Establish benchmark method and acceptance criteria from turso.performance-baseline rather than inventing unmeasured performance claims. Scope initial support explicitly so experimental delivery does not wait for complete PostgreSQL compatibility."
+                    }
+
+                    {
+                        at 2026-11-24T14:41:37.287182Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T14:41:41.293212Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Native source/probes at exact upstream revision adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa establish a practical initial subset: explicit driver parameter types or lazy native-only hints retained from pgorm Values, shared ToSql/FromSql binary codecs, BOOL/INT2/INT4/INT8/text/bytes and finite floating parameters with canonical FLOAT8 native REAL results. Native parameters expose count/name but no inferred PostgreSQL type vector. Public compiled expressions supply COUNT/boolean/BLOB result normalization without another SQL parser or Turso fork; genuinely lost type widths remain documented mismatches, and unresolved results fail explicitly. Current native API provides structured SQLSTATE errors, savepoints, cleanup and cross-thread interruption. Portable native IO can block, so a dedicated connection worker with bounded row/byte batches and cancellation-aware channel waits is required; no per-row task spawning. Runtime-destruction and retained-unpolled-stream shutdown were verified in a standalone prototype. Preserve PostgreSQL inference/cache behavior without allocating native hint vectors. The measured baseline 5ce33554 records variance; performance acceptance requires matched repeated measurements and correction of avoidable regressions, not an invented percentage. Existing broad wire-only rule wording will be narrowly revised with the implementation that adds the native case, preserving PostgreSQL behavior. Spec defines 17 new rules and maps them to the implementing WBS leaves; it does not claim implementation coverage."
+                    }
+
+                    {
+                        at 2026-11-24T15:31:35.020061Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id turso.performance-baseline
+                title "Capture repeatable PostgreSQL driver and ORM performance before adding native dispatch"
+                kind @perf
+                deps (driver-vendor)
+                sealed true
+                log (
+                    {
+                        at 2026-11-24T14:06:26.527364Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Add or reuse a repeatable release-build benchmark harness against the vendored PostgreSQL path before native integration. Cover prepared statement reuse, scalar reads, parameter-heavy reads/writes, streamed multi-row results, transactions and concurrent pool use. Record throughput, latency distributions and allocation/copy measurements where the harness supports them, with workload, machine, build features and revisions. Preserve a baseline for evaluating both turso-disabled builds and PostgreSQL connections in turso-enabled builds. This is a measurement prerequisite, not a new adapter abstraction; turso.performance compares the completed native path and its overhead to the direct embedded API using equivalent database settings."
+                    }
+
+                    {
+                        at 2026-11-24T14:27:26.967859Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T14:40:05.639923Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Implemented and measured the release benchmark at benches/driver_baseline.rs, with instructions and a 42-measurement report under docs/performance/. Covers direct driver versus pgorm scalar, 16-parameter reads/writes, model lookup, 128-row streams, transactions and four-worker pool use over three alternating rounds. PostgreSQL 19 on Apple M5 Pro over TCP; zero other active server sessions at start; source fingerprint unchanged during final run. Report identifies the executable hash and labels compiler/source/flags as runtime-inspected metadata rather than build provenance. Allocation/copy/residency metrics remain explicitly unmeasured. Median-of-round p50 driver/ORM: scalar 96.00/94.58 us, model lookup 99.29/102.17 us, 128-row stream 158.12/161.17 us, transaction 278.08/284.62 us; concurrent pool about 34.1k operations/s each. Writes varied substantially across rounds, so the report makes no overhead ranking from those values and sets no arbitrary percentage gate. Independent review corrected provenance, warmup and combined cleanup-error handling. Release smoke/full run, strict benchmark Clippy, formatting and all required nplan checks pass."
+                    }
+
+                    {
+                        at 2026-11-24T14:40:05.916004Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id turso.native
+                title "Add the optional native Turso engine and database lifecycle inside pgorm-driver"
+                implements {
+                    main ([spec:pgorm:req:turso.feature] [spec:pgorm:sem:turso.lifecycle])
+                }
+                deps (driver-vendor turso.spec turso.performance-baseline)
+                log (
+                    {
+                        at 2026-11-24T14:06:26.998858Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Select and record an exact upstream revision for the native embedded API and wire its dependency behind turso through direct dependencies that also resolve correctly in detached workspaces. Implement in-process file/in-memory database opening, shared database ownership, per-client connection ownership, close and reopen behavior, and the execution mechanism the native API actually requires. Inspect Send/Sync and blocking behavior rather than assuming tokio compatibility or spawning work per row. Keep native engine code and backend dispatch inside pgorm-driver. Build with the feature off without compiling or linking Turso; preserve the existing PostgreSQL path. Acceptance includes file persistence/reopen, isolated in-memory ownership, opening/closing failure cleanup, feature-off dependency checks, and targeted lifecycle tests."
+                    }
+
+                    {
+                        at 2026-11-24T15:32:43.778285Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T16:03:01.161649Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Native lifecycle uses one shared database handle and a distinct blocking worker per Client, with runtime-owned shutdown supervision, operation-scoped cancellation and terminal-state cleanup before reuse. Public query methods remain explicitly unsupported until the following codec/execution items. Focused tests cover memory sharing/isolation, file reopen, startup failure, cancellation before first VM step and during RETURNING, cleanup failure, worker panic, and runtime destruction with a retained unpolled Connection. Feature and lock tests preserve one codec identity and keep the engine off by default."
+                    }
+
+                    {
+                        at 2026-11-24T16:07:54.070288Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The pinned native engine's turso_pg_parser has a transitive pg_query dependency. This is Turso's own frontend parser, not an ORM-side SQL inference/parser layer. Existing fork-pin tests must permit only that pinned native dependency edge while continuing to forbid pg_query as a direct pgorm dependency and in the feature-off graph. PostgreSQL parsing and fingerprinting remain on the existing pinned pgsql-syntax fork."
+                    }
+                )
+            }
+
+            {
+                id turso.types
+                title "Integrate native scalar codecs and result metadata through shared driver queries"
+                implements {
+                    main ([spec:pgorm:req:turso.values] [spec:pgorm:req:turso.rows] [spec:pgorm:req:turso.errors])
+                }
+                deps (turso.native)
+                log (
+                    {
+                        at 2026-11-24T14:06:27.466799Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Implement the conversion between the native engine and shared postgres-types plus pgorm-driver's existing Row, column metadata and Error representations. Existing consumers continue to use ToSql/FromSql; adding required ToSqlText/FromSqlText bounds is outside the approved design. Handle nulls, exact numeric and temporal values, arrays and the remaining supported types according to an explicit matrix, with correct names/types and parameter arity. Retain available error causes and structured SQLSTATE information; never invent SQLSTATE fidelity or collapse known error distinctions into success. Custom codecs and user-defined types must work where the engine exposes the required representation, or fail explicitly where unsupported. Avoid text or JSON as a universal intermediate representation; reuse buffers and account for necessary conversions. Verify round trips, null/type mismatches, bounds, precision, error classification and unsupported cases against the existing PostgreSQL codec contract."
+                    }
+
+                    {
+                        at 2026-11-24T16:08:13.888585Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Include the basic prepared-query worker plumbing needed to exercise codecs and common Rows through the public driver. A codec module with no production callers would not establish usable conversion behavior and would require temporary dead-code allowances. This item supplies integrated scalar round-trips; turso.execution then delivers the full execution/stream contract, parameter-typing/ORM cache hints, and broader command, ownership and cancellation verification. Preserve bounded streaming and lifecycle cleanup in the basic path from the outset."
+                    }
+
+                    {
+                        at 2026-11-24T16:15:23.466364Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T16:15:23.997383Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Continuing the operator's explicit Turso implementation request after lifecycle delivery 764968fb. Its declared prerequisites are complete. The global next command also shows an unrelated Python guide item in an earlier pass; this task remains scoped to the requested Turso work without changing that item's priority or dependencies. Untracked scope-security work remains outside this delivery."
+                    }
+
+                    {
+                        at 2026-11-24T16:38:48.849627Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Integrated native driver tests pass for scalar values, metadata, custom codecs, row storage and lifecycle. Review found that the native engine can automatically reprepare cached statements after a schema/context change while the public Statement retains its original metadata; adding a pre-step compatibility check before delivering this item so invalidated metadata cannot silently escape."
+                    }
+
+                    {
+                        at 2026-11-24T16:46:18.263601Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The shared-driver PostgreSQL regression run with --features turso passed all 26 tests across driver_types_tests, error_model_tests, statement_cache_tests and stream_tests. The required check sweep passes workspace check/clippy, formatting and feature configurations. A new cross-connection schema-invalidation regression exposed a fresh-prepare context issue; fixing that before delivery rather than weakening the guard."
+                    }
+
+                    {
+                        at 2026-11-24T16:58:15.663371Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Final native suite passes all 56 tests (34 unit, 9 lifecycle, 11 scalar integration, 2 unsupported-operation); all ten scoped nplan platform checks pass. Pre-step context checking and retained prepared-program identity prevent stale metadata, including a deterministic reprepare race. A native COW schema-identity bug at the exact pin is stabilized only before fresh autocommit preparation with differing local/shared schema handles; cached execution gains no synchronization query or reparse. The 26 real PostgreSQL feature-on regressions also pass."
+                    }
+                )
+            }
+
+            {
+                id turso.execution
+                title "Execute native prepared and raw queries through Client, Statement and RowStream"
+                implements {
+                    main ([spec:pgorm:sem:turso.execution] [spec:pgorm:sem:turso.streaming] [spec:pgorm:req:turso.parameters])
+                }
+                deps (turso.types)
+                log (
+                    {
+                        at 2026-11-24T14:06:27.930322Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Implement the native paths for preparation/typed preparation, parameterized queries, execute/count results, query_one/query_opt, streaming and batch execution behind the existing driver API. Parameter metadata and result types come from native execution/description or explicitly supplied types, not a pgwire Parse/Bind workaround or speculative SQL-text inference. Statements remain bound to the right connection/backend and stale or foreign handles fail predictably. Stream incrementally with bounded buffering, normal poll/backpressure behavior and correct early-drop cleanup; do not materialize every result to manufacture RowStream. Preserve PostgreSQL batching/pipelining behavior and avoid adding per-cell backend dispatch. Tests cover prepare/reuse, typed/untyped binds, empty/multiple results, errors mid-execution, metadata and partial stream consumption. Missing native operations must be identified for turso.capabilities rather than reported as successful."
+                    }
+
+                    {
+                        at 2026-11-24T16:01:25.847375Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The parameters rule includes public typed-query execution and lazy ORM cache hints, so its delivery is tracked here after the codec foundation. turso.types supplies and tests value conversion, native result metadata and common Row storage; this node wires preparation/execution and the ORM hint carrier into those components. This avoids claiming public typed-query support while the lifecycle-only Client still refuses queries."
+                    }
+
+                    {
+                        at 2026-11-24T17:02:22.014284Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T17:02:22.52702Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the operator-directed Turso subtree after bf820720 completes its types dependency; the global unrelated guide task is outside the requested work. Retain native-only Value type hints through a sealed internal SQL wrapper and resolve them lazily through the existing typed cache. Preserve PostgreSQL inference/empty-type cache keys and SQLSTATE 0A000 recovery unchanged. Native invalidation evicts its exact typed key and returns the error without automatic retry, since post-step invalidation can have effects. Expand existing wire-only spec prose narrowly to describe the native case."
+                    }
+
+                    {
+                        at 2026-11-24T17:07:03.666103Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Narrowly revised conn.sql-text to v4 (internal borrowed native hint wrapper; public str/String forms unchanged), conn.pool.conn-trait to v11 (native typed cache and script route) and conn.pool.statement-cache.invalidate to v5 (native marker, no automatic replay). Reviewed the existing PostgreSQL test sites in statement_cache_tests, execute_unprepared_tests and metric_tests: their assertions still verify unchanged PostgreSQL behavior and are repinned. Native late stream invalidation marks the shared prepared handle for lazy removal before next cache use, preserving RowStream's public type."
+                    }
+
+                    {
+                        at 2026-11-24T17:20:43.305773Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Native ORM integration passes all nine tests, including model CRUD, count, pagination/keyset/streaming, typed scalar nulls, unsigned range refusal, exact typed-cache reuse and invalidation without replay. The real PostgreSQL regression run with --features turso passes 46 tests across bind_type_tests, execute_unprepared_tests, metric_tests and statement_cache_tests. New native public execution tests and library tests pass (14 + 35). Added persistent nplan checks for native ORM integration, native ORM Clippy and the minimal native ORM feature build."
+                    }
+                )
+            }
+
+            {
+                id turso.transactions
+                title "Preserve transaction, cancellation and connection-reuse semantics on native execution"
+                implements {
+                    main ([spec:pgorm:sem:turso.transactions] [spec:pgorm:sem:turso.cleanup])
+                }
+                deps (turso.execution)
+                log (
+                    {
+                        at 2026-11-24T14:06:28.398663Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Implement commit/rollback, supported transaction modes and nested savepoints through the native backend while retaining the existing transaction API. Unsupported modes must be refused rather than accepted and ignored. Define and test ordering when a transaction future or row stream is dropped, a task is cancelled, an operation fails or a connection closes. A connection must not return to useful pooled service with an unfinished operation or unknown transaction outcome; discard it when recovery cannot be established. Preserve causal error reporting and avoid automatically retrying failures the backend cannot classify. Use interleaved operations and multi-connection tests for the semantics actually promised by the experimental contract; document remaining native-engine divergences rather than emulating PostgreSQL isolation with misleading success."
+                    }
+
+                    {
+                        at 2026-11-24T17:37:33.381042Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-24T17:39:02.665722Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the user-directed Turso dependency chain after 8e117f22; the unrelated global guide candidate remains outside this request. Use one native actor command for checked commit or aborted rollback, retain PostgreSQL commit probing unchanged, and queue drop rollback in the same bounded FIFO as execution. Native pool recycling must observe completed cleanup and idle state; unfinished work is disposed. Refuse unsupported transaction modes before beginning. Keep SQLSTATE diagnostics while excluding failed cleanup and unknown outcomes from transaction retry. Implement with three coordinated agents and preserve unrelated scope-security work."
+                    }
+
+                    {
+                        at 2026-11-24T18:30:47.555807Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "First integrated runtime run passed 36 pgorm-driver library tests and all seven native transaction tests, including aborted outcomes, nested rollback-on-drop, refused modes and RepeatableRead snapshots. Compiler checks exposed an inaccessible upstream enum and a blanket From conversion that made existing wire code inference ambiguous; both were resolved using public state predicates and an explicit native error conversion, leaving wire source unchanged. Native ORM/pool tests and deterministic boundary cancellation tests are in progress."
+                    }
+
+                    {
+                        at 2026-11-24T18:57:38.077371Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Native transaction tests exposed a real cache boundary: this engine revision advances its preparation context on ROLLBACK TO even without DDL. Public statements now share invalidation flags published before rollback completion, and a pending-restore counter makes cache preparation follow queued drop rollback. Existing Statement allocations are reused through weak handles; unchanged contexts skip cache scans. Validation so far: 48 driver unit tests, eight native transaction tests, 14 ORM/pool transaction tests, nine native ORM execution tests, 42 PostgreSQL ORM transaction/cache tests, and 35 PostgreSQL pool tests passed. Checked native commit preserves aborted outcomes and cleanup failures; uncertain outcomes close the client and do not authorize retry. Required nplan checks are running before delivery."
+                    }
+
+                    {
+                        at 2026-11-25T12:45:23.932412Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Delivery validation is green: all 14 required nplan checks passed or were content-witnessed. The complete native driver suite passes 92 tests, and ORM native transaction/execution suites pass 14/9. Real PostgreSQL regressions pass 42 ORM transaction/cache and 35 pool tests with Turso enabled. Full-suite checks caught an old expectation that encoding preceded local-DDL invalidation; the test now requires zero codec calls and an already-invalidated shared handle. Test-helper failure messages satisfy strict Clippy. No implementation or gate bypass was needed."
+                    }
+                )
+            }
+
+            {
+                id turso.connect
+                title "Accept native database paths through the existing connect and pool APIs"
+                implements {
+                    main ([spec:pgorm:req:turso.pool])
+                }
+                deps (turso.transactions)
+                log (
+                    {
+                        at 2026-11-24T14:06:28.893183Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Add the experimental Rust connection entry point, connect_turso(path) and only the configuration variants required by the agreed spec, backed by pgorm-pool's existing client/statement-cache/transaction surface. Make the pool's connection factory and raw-connection lifecycle support native clients with changes contained to connection construction; do not duplicate the ORM or its pool. Pool clients for one database share the intended native database handle, including in-memory databases, while separate databases stay isolated. Verify acquisition/recycling, hooks, statement-cache reuse/invalidation, close, concurrent borrowers, failed connections and persistence after pool reopen. PostgreSQL constructors and TLS retain their existing behavior. Propagate the optional feature across driver, pool and ORM without enabling Turso for ordinary builds."
+                    }
+
+                    {
+                        at 2026-11-25T12:47:46.3909Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T12:47:46.809498Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the user-directed Turso dependency chain after f8a21623. Reuse the existing pool through a native connection factory sharing one TursoDatabase. Expose async connect_turso and connect_turso_with with eager connection/health validation, rejecting Clean and notification cache channels before opening the path. Refuse native raw listener connections immediately. Preserve PostgreSQL lazy constructors and TLS behavior. Keep unrelated scope-security work intact. Root owns public constructors/spec wording, driver_review owns the pool factory/refusal and listener reference review, and performance_baseline owns public pool integration tests; serialize Cargo."
+                    }
+
+                    {
+                        at 2026-11-25T13:12:38.357656Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Public constructor validation passes all 12 native pool tests plus 12 PostgreSQL notification and nine PostgreSQL pool-configuration regressions. Native cases establish eager startup/errors, unsupported-option refusal before file creation, shared/isolated memory ownership, typed cache and hook reuse/clear, timeout progress, zero-size and invalid builder refusal, immediate listener refusal, checked-out connection behavior after close, committed file reopen, and refusal of hooks leaving BEGIN or a retained active stream. The constructor checks cleanliness before queuing health to prevent that retained-stream deadlock. Required staged checks are running before delivery."
+                    }
+
+                    {
+                        at 2026-11-25T13:27:25.579527Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Delivery validation is green without source corrections: all 15 staged nplan checks passed, including native minimal builds, strict workspace/native Clippy, feature isolation, full native driver tests, nine ORM execution tests, 12 public native pool tests and 14 native ORM transaction tests. Separately ran 12 PostgreSQL listener and nine pool-configuration tests with Turso enabled. Public pool tests passed on their first run. Comment review and spec reference reconciliation are complete."
+                    }
+
+                    {
+                        at 2026-11-25T13:29:26.827381Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The final commit quality check required shortening two test names to the configured eight-word limit. Only those names changed; all 15 staged checks passed or were witnessed again. No gate bypass was used."
+                    }
+
+                    {
+                        at 2026-11-25T14:22:34.634563Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "User explicitly directed paths through existing connect APIs after reviewing examples. Replace separate native constructors with driver Config path/:memory: targets and existing Client/Connection return types. Rust pool construction stays synchronous/lazy; acquisition opens one shared native database. Config clones copy settings with independent memory state. Existing async binding connect validates via its normal pool path; no alternate connection API. Preserve PostgreSQL parsing and reject malformed recognized DSNs before file effects. Driver agent owns Config/Connection; root owns pool/ORM/JS/spec; native API agent owns shared/Python; performance agent migrates public tests before timing."
+                        after_done true
+                    }
+
+                    {
+                        at 2026-11-25T14:50:01.602101Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Unified-connect validation passes: default driver path parsing 4 tests; complete native driver suite 111 tests; focused public run 80 tests (PostgreSQL listeners 12, metrics 25, pool configuration 9; native capabilities 7, paired compatibility 6, ORM execution 9, public pooling 12). Both backends use the existing lazy Rust constructors. Review confirms the default wire connection remains inline with no new PostgreSQL connection allocation. Binding builds now run in separate target directories to avoid artifact contention; measurements still wait for a quiet machine and frozen measured sources."
+                        after_done true
+                    }
+                )
+            }
+
+            {
+                id turso.capabilities
+                title "Report native backend capabilities and unsupported operations accurately"
+                implements {
+                    main ([spec:pgorm:req:turso.capabilities])
+                }
+                deps (turso.connect)
+                log (
+                    {
+                        at 2026-11-24T14:06:29.387003Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Attach backend identity/capability information to connection construction, not server-banner guessing. Determine actual support at the selected native revision for COPY, notifications, cancellation, isolation modes, metadata/catalog-dependent operations, migrations/codegen and other exposed operations. Provide actionable errors for unsupported operations at the layer that has reliable information, preserving real backend errors and avoiding an ORM-wide SQL parsing or translation layer. No silent no-ops, isolation downgrades or simulated success. Keep engine gaps, integration gaps and unverified behavior distinct; do not assert that the old frontend's LISTEN/MERGE/catalog restrictions necessarily apply to native execution. Test known refusal paths and ensure PostgreSQL connections remain unaffected."
+                    }
+
+                    {
+                        at 2026-11-25T12:59:46.978452Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Read-only review at pinned native revision found concrete probes for this item. StatementResultKind publicly distinguishes Command/Rows/CopyOut, but current driver ignores it: generic COPY TO STDOUT may bypass the dedicated COPY refusal, and Command placeholders may leak internal SELECT 0 columns. Native prerequisite execution can replace the compiled program (not ordinary deferred CREATE SCHEMA/RESET), so probe serial/identity DDL for false invalidation after effects. Native LOCK ACCESS SHARE source checks only transaction presence and ignores relation names: probe/document engine mismatch. Separate typed/literal probes for pg_notify, pg_advisory_xact_lock and to_regclass from the migrator's current raw-parameter typing refusal; test exact catalog queries rather than extrapolating broad catalog support. Codegen is offline DDL-to-model generation, not catalog introspection. These are source findings awaiting execution probes, not passing capability claims."
+                    }
+
+                    {
+                        at 2026-11-25T13:31:26.198618Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:31:28.726156Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the user-directed Turso chain after 7221399d. Honor native StatementResultKind rather than parsing or rewriting SQL: refuse unsupported CopyOut transport before stepping, keep Command placeholders out of public rows, and distinguish native prerequisite program changes from unsafe row metadata changes. Probe catalog/SQL/tooling behavior independently of driver typing to classify integration gaps, engine gaps, known mismatches and unverified behavior accurately. Preserve PostgreSQL execution and use construction-time Client identity; do not introduce a generic adapter or server-banner detection. Three agents own disjoint native implementation, native engine probes, and public ORM capability cases; root owns the matrix/spec review and serialized validation."
+                    }
+
+                    {
+                        at 2026-11-25T13:45:40.951128Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Eight direct-native/driver capability probes and three unsupported-operation tests pass; all 16 execution tests pass. Seven public capability tests plus 20 PostgreSQL COPY and 14 COPY-row regressions pass. Native Command metadata is hidden, native CopyOut is refused before stepping, and serial/identity prerequisites finish before invalidating their handles. Native COPY refusal bypasses PostgreSQL COPY-start disposal and precedes ORM preparation/metadata queries, preserving usable clients and transactions. Reviewed conn.copy+4 and conn.copy.rows+6 scope additions and all reference repins; no stale refs. Actual probes establish 42883 for missing migration/notification functions before parameter inference, 42P01 for tested information_schema queries, canonical catalog metadata, and the missing-relation LOCK mismatch. Compatibility matrix records these as engine gaps/mismatches separately from driver gaps and unverified file COPY/codegen runtime behavior."
+                    }
+                )
+            }
+
+            {
+                id turso.tests
+                title "Run an isolated-file native compatibility suite alongside real PostgreSQL"
+                kind @test
+                implements {
+                    main ([spec:pgorm:req:turso.compatibility])
+                }
+                deps (turso.connect turso.capabilities)
+                log (
+                    {
+                        at 2026-11-24T14:06:29.88486Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Add a native test harness using a fresh temporary database per test or an explicitly shared in-memory handle within one test; do not send PostgreSQL CREATE/DROP DATABASE setup SQL to Turso. Exercise the driver and ORM paths through connect_turso: values, queries, metadata, statement cache, transactions, streaming, cancellation, pool reuse, concurrency and errors. Compare equivalent supported operations against the repository's real PostgreSQL oracle. Record a revisioned compatibility matrix of passing, unsupported, known mismatching and unverified behavior with reproducible cases and reasons; expected failures must be specific and visible, not broad skips. Retain and run the existing PostgreSQL suite, test both feature states and add an experimental CI lane. A complete PostgreSQL pass is not the entry criterion for experimental support; the supported subset and regressions must be measurable."
+                    }
+
+                    {
+                        at 2026-11-25T13:53:12.655041Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:53:26.64967Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the explicitly user-directed Turso scope after capability delivery 9edd03da; its four dependent leaves are ready and implemented in parallel as requested. Preserve unrelated scope-security WIP and the global guide candidate. Driver review owns the paired corpus/CI, performance agent owns benchmark artifacts, native API agent owns shared typed carrier/pool infrastructure and Python, root owns JavaScript and spec review. Serialize Cargo and final timing runs; deliver each node only with its required evidence."
+                    }
+                )
+            }
+
+            {
+                id turso.performance
+                title "Measure native driver overhead and guard the existing PostgreSQL execution path"
+                kind @perf
+                implements {
+                    main ([spec:pgorm:req:turso.performance])
+                }
+                deps (turso.performance-baseline turso.connect turso.capabilities)
+                log (
+                    {
+                        at 2026-11-24T14:06:30.381501Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Use the baseline harness to compare the direct embedded API with pgorm-driver native execution and the ORM for the same supported workloads, database settings, durability and concurrency. Compare the PostgreSQL path before/after with turso disabled and enabled. Report latency distributions, throughput, allocations/copies, statement reuse and streaming memory, identifying backend conversion, scheduling and dispatch costs separately. Resolve avoidable regressions and verify the performance criteria defined with turso.spec. Retain reproducible benchmark commands and results for the pinned revisions; do not claim performance from removing TCP alone, and do not introduce pgwire/duplex/text conversion as an unmeasured convenience fallback."
+                    }
+
+                    {
+                        at 2026-11-25T13:53:25.354302Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:53:26.988436Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the explicitly user-directed Turso scope after capability delivery 9edd03da; its four dependent leaves are ready and implemented in parallel as requested. Preserve unrelated scope-security WIP and the global guide candidate. Driver review owns the paired corpus/CI, performance agent owns benchmark artifacts, native API agent owns shared typed carrier/pool infrastructure and Python, root owns JavaScript and spec review. Serialize Cargo and final timing runs; deliver each node only with its required evidence."
+                    }
+
+                    {
+                        at 2026-11-25T15:53:04.452569Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Separate the completed benchmark harness into a build commit before measuring, so its formatting, Clippy and structural gates pass before the frozen measurement window. This is progress only: the perf delivery remains pending actual repeated PostgreSQL off/on, direct-native/driver/ORM, allocation and growing-stream evidence. Keep other builds and tests out of our measurement window and record observed external load without claiming host isolation."
+                    }
+
+                    {
+                        at 2026-11-25T16:19:33.777442Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "The completed27-process baseline measured stable driver scalar11 allocations/3696 requested bytes, ORM16/5769, and bounded stream peaks through1M rows. PostgreSQL attribution is inconclusive under recorded external host activity; retain all distributions without inventing zero-regression or speedup claims. Investigate the concrete eager32-row pending-batch reservation with a narrow native-only change: inline first row, promote on second, no unused successor reserve. Preserve before artifacts, validate observable row/byte/error boundaries, and use separate after binaries for interleaved scalar/stream latency and allocation comparisons before accepting the optimization."
+                        after_done true
+                    }
+
+                    {
+                        at 2026-11-25T16:53:56.83445Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Reject the optional inline-first-row batch optimization after the corrected 16-process comparison. Its scalar requested-byte savings are established, but memory stream driver throughput divided by the unchanged direct-control ratio was lower in 3 of 4 pairs (approximately 0.85–0.86), covering both variant orders; file results were mixed/faster. This is not proof of a universal regression or causal attribution on the shared host, but does not justify shipping the optimization given the performance priority. Restore the prior production batch storage, retain the new boundary/error tests, and preserve both comparison windows and unfavorable results. Final performance claims describe the pre-optimization implementation; reconsider batch storage only with controlled-host evidence."
+                        after_done true
+                    }
+
+                    {
+                        at 2026-11-25T16:56:04.464861Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The production query batching implementation was restored byte-for-byte to 418d5a73; the added cardinality, partial-error and exact-byte regressions remain. The restored source passed 86 focused native tests (49 unit, 17 execution, 9 lifecycle, 11 types), strict driver Clippy and formatting. Final delivery uses the original measured storage implementation; the rejected allocation experiment is retained in the report, not claimed as a shipped improvement."
+                        after_done true
+                    }
+                )
+            }
+
+            {
+                id turso.python
+                title "Expose experimental native Turso connections through the existing Python binding"
+                implements {
+                    python ([spec:pgorm:req:turso.python])
+                }
+                deps (turso.connect turso.capabilities)
+                log (
+                    {
+                        at 2026-11-24T14:06:30.84798Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Add the Python file/in-memory connection entry point and optional native build feature using the same pgorm pool, models, codecs, transactions and errors. Do not create a parallel binding backend. Preserve Python async/threading, cancellation, lifetime and connection-close behavior. Specify and test feature availability and package behavior when Turso is absent, enabled or opening fails. Verify an installed-package smoke path, parameterized reads/writes, shared in-memory pooling, persistence, transactions, streaming and unsupported-operation errors. Update type stubs, binding lockfiles, notices and distribution contents for the pinned dependency. Ordinary Rust and Python builds remain free of an implicit Turso dependency."
+                    }
+
+                    {
+                        at 2026-11-24T16:03:01.753961Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "When implementing native binding packaging, generate dependency notices for the actual Turso-enabled graph as well as the default graph. An unfinished optional-notices patch was set aside at /tmp/pgorm-driver-import/turso-notices-followup.patch; all-features metadata also pulls additional packages such as antithesis_sdk whose license evidence must be inspected. No notice-generator behavior change is included in the lifecycle foundation."
+                    }
+
+                    {
+                        at 2026-11-25T13:53:13.21415Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:53:27.350131Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the explicitly user-directed Turso scope after capability delivery 9edd03da; its four dependent leaves are ready and implemented in parallel as requested. Preserve unrelated scope-security WIP and the global guide candidate. Driver review owns the paired corpus/CI, performance agent owns benchmark artifacts, native API agent owns shared typed carrier/pool infrastructure and Python, root owns JavaScript and spec review. Serialize Cargo and final timing runs; deliver each node only with its required evidence."
+                    }
+
+                    {
+                        at 2026-11-25T15:31:05.035559Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Python compilation passes with and without turso; shared bindings unit suites pass38/38 in each feature state. Fresh installed default wheel passes12 tests with4 native-only skips; installed native wheel passes16/16, covering paths, lazy opening, pooling, persistence, hooks, typed parameters, models, transactions, streaming/cancellation and loop ownership. Explicit pathlib.Path inputs use lexical absolute paths so filenames resembling libpq settings keep filesystem intent. Wheels, exact native sources in source archives, stubs/signatures and460-package notices are verified. The final source archive contains current README, while wheel metadata matches DESCRIPTION.md. Report: target/python-turso/summary.json. Required repository checks continue."
+                    }
+                )
+            }
+
+            {
+                id turso.javascript
+                title "Expose experimental native Turso connections through the existing JavaScript binding"
+                implements {
+                    javascript ([spec:pgorm:req:turso.javascript])
+                }
+                deps (turso.connect turso.capabilities)
+                log (
+                    {
+                        at 2026-11-24T14:06:31.312016Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Add the JavaScript file/in-memory connection entry point and optional native build feature using the same pgorm pool, models, codecs, transactions and errors. Do not create a parallel binding backend. Preserve event-loop/worker behavior, cancellation, lifetimes and close semantics. Specify and test feature availability and package behavior when Turso is absent, enabled or opening fails. Verify installed-package smoke paths for supported runtimes, parameterized reads/writes, shared in-memory pooling, persistence, transactions, streaming and unsupported-operation errors. Update TypeScript declarations, binding lockfiles, notices and native package contents for the pinned dependency. Ordinary Rust and JavaScript builds remain free of an implicit Turso dependency."
+                    }
+
+                    {
+                        at 2026-11-25T13:53:26.010649Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T13:53:27.812968Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Continue the explicitly user-directed Turso scope after capability delivery 9edd03da; its four dependent leaves are ready and implemented in parallel as requested. Preserve unrelated scope-security WIP and the global guide candidate. Driver review owns the paired corpus/CI, performance agent owns benchmark artifacts, native API agent owns shared typed carrier/pool infrastructure and Python, root owns JavaScript and spec review. Serialize Cargo and final timing runs; deliver each node only with its required evidence."
+                    }
+
+                    {
+                        at 2026-11-25T14:30:01.099801Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "User replaced the standalone native constructor design with paths through existing connect/Pool APIs. Public connectTurso and native-only option type removed. Both bindings use shared PoolSettings parsing and driver Config selection; network timeout presence remains optional so unsupported explicit native settings can be refused while PG keeps its effective10s default. Native feature metadata, lazy type hints and installed-package validation remain required."
+                    }
+
+                    {
+                        at 2026-11-25T15:31:04.170807Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Installed npm artifacts pass on darwin-arm64 with Node26.11.1 and Deno2.9.8: default build12 passed/7 native skips per runtime; turso build19/19 per runtime, plus missing/mismatched/unoffered package refusal checks. Both addons expose accurate feature metadata. Native missing-parent opening preserves the engine's DatabaseError XX000; the installed test now asserts that diagnostic rather than incorrectly expecting a transport ConnectionError. No production change was required by the native package run. Locked450-package notices and bundled parser licenses are verified. Reports: target/napi-package/report.json and target/napi-package-turso/report.json."
+                    }
+
+                    {
+                        at 2026-11-25T15:53:05.155033Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Executed the exact native connection blocks from the JavaScript README and distribution guide against the installed Turso tarballs under Node26.11.1 and Deno2.9.8. All four runs passed in separate temporary directories. Existing installed suites remain 19/19 per runtime for native and 12 passed/7 native skips per runtime for default. Main-file-only scratch cleanup left MVCC/WAL companions; the harness now isolates the whole directory and the final user guide will state that file-lifetime boundary."
+                    }
+                )
+            }
+
+            {
+                id turso.docs
+                title "Document experimental native Turso setup, compatibility, performance and upgrade procedure"
+                kind @docs
+                implements {
+                    main ([spec:pgorm:req:turso.documentation])
+                }
+                deps (
+                    turso.tests
+                    turso.performance
+                    turso.python
+                    turso.javascript
+                )
+                log (
+                    {
+                        at 2026-11-24T14:06:31.778647Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Publish Rust, Python and JavaScript setup/examples for the actual shipped feature/package combinations and connection entry points. Document database ownership, file/in-memory lifetime, supported operations and types, explicit refusals and known mismatches, linking the revisioned compatibility matrix and benchmark evidence. Explain the native driver architecture and how the existing public driver types are preserved, without implying complete PostgreSQL compatibility. Record the engine revision, licenses/notices, upgrade procedure and checks to rerun on upstream changes. Examples must execute in the relevant native test/package environments; PostgreSQL remains the reference for PostgreSQL semantics."
+                    }
+
+                    {
+                        at 2026-11-25T16:47:45.579861Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T16:53:00.577775Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "The native setup guide now documents existing connect/Pool path entry points, lazy construction, memory ownership, typing and refusal boundaries, companion files, exact engine provenance/licenses, measured-performance links and upgrade checks. Its Rust example is byte-identical to the executed README block (SHA-256 b72c54808eb95224518d4f803ff3f9a51240bbd7671288948b22778647f067b8), run successfully with turso in a fresh directory. The Python README bound INSERT/SELECT example passed unchanged in an installed native wheel (SHA-256 01c25a879ebc984ea373b0b5325175eb891076a263ae0d9c293b281d2e36e8c5). JavaScript README and distribution native examples passed unchanged in installed packages under both Node and Deno, each in a fresh directory. Local guide links were checked; package availability remains scoped to the locally validated platform."
+                    }
+
+                    {
+                        at 2026-11-25T17:00:52.763873Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Documentation verification is linked to the existing default_constructor_waits_until_first_acquisition regression: it opens a fresh file with connect(path.parse()), acquires lazily and asserts the documented SELECT 1/i32 result. That test passed in the final native pool suite. This executable contract check complements the separately recorded verbatim Rust/Python/JavaScript documentation-example runs; it does not claim to automatically inspect all prose or validate every documented limitation."
+                    }
+                )
+            }
+
+            {
+                id turso.suite-gaps
+                title "The suites the Turso delivery left failing pass: the guide's feature table lists turso, the Python distribution chapter's inventory example admits pg_query's bundled sources under the optional feature, and the bindings surface declares JavaScript's features"
+                kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T17:44:55.856089Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T17:47:26.405738Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id turso.ci-gaps
+                title "The Turso delivery passes CI: the Python sdist parses pgorm's manifest without its test files, the vendored driver resolves at the workspace's Rust 1.89 and drops its unused chrono and time support, and the supply-chain audit allows Turso's pinned git source with chrono's advisory ignored for turso_core alone"
+                kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T23:25:01.940354Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
+        )
+        log (
+            {
+                at 2026-11-24T14:06:25.576276Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "Operator approved this architecture on 2026-11-24 and requested the WBS: pgorm -> the existing vendored pgorm-driver -> Turso's native embedded API. The compatibility boundary is inside crates/pgorm-driver: preserve Client, Statement, Row, RowStream, Error and the shared postgres-types ToSql/FromSql contract for existing consumers. Open databases in-process; do not add a separate pgorm backend, another tokio-postgres fork, an embedded pgwire server, duplex transport, or a generic text-format protocol mode. Native value conversion is real implementation work, contained in the driver. The turso Cargo feature is experimental and off by default. Performance is a primary acceptance concern. Experimental support is incremental: record actual support and known mismatches for the pinned native engine; full PostgreSQL parity is not a prerequisite. Real PostgreSQL remains the conformance oracle. The former decide.turso verdict concerned an older pgwire frontend and is not evidence of current native API limitations. driver-vendor supplies the fork and is not duplicated here. Focused tests belong to each implementation item; turso.tests supplies the broader compatibility suite. New spec claims are attached to the implementing nodes by turso.spec once their rules are defined; no speculative rule IDs are claimed here."
+            }
+        )
+    }
+
+    {
+        id build-speed
+        title "Builds stop redoing work: debug builds carry no dependency debug info, tools stop overwriting each other's artifacts, the commit gate stops checking what clippy checks, and integration tests link as a few binaries"
+        kind @build
+        children (
+            {
+                id build-speed.debuginfo
+                title "Debug builds in every workspace of the repository keep line tables for its own crates and no debug info for dependencies"
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T18:21:42.97724Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T18:45:15.263922Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id build-speed.check-dedupe
+                title "nplan check runs no cargo check that a clippy of the same scope and features already covers"
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T18:45:45.87088Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T23:25:03.949446Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id build-speed.tool-thrash
+                title "No two of the repository's builds sharing a target directory rebuild each other's units: the cause of each rebuild found with cargo's fingerprint log and removed"
+                deps (build-speed.debuginfo)
+            }
+
+            {
+                id build-speed.test-binaries
+                title "Each crate's integration tests link as one test binary (plus one per required feature set) rather than one per file"
+                kind @test
+                deps (read-only.rust)
+            }
+
+            {
+                id build-speed.no-incremental
+                title "Debug builds in every workspace of the repository compile without incremental caches, which held 24 of a 29 GB target after one nplan check"
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T22:44:54.546321Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "2026-11-25, operator (\"do it\"): after one nplan check on Rust 1.100, main's target was 29G, 24G of it debug/incremental. The incremental cache serves one crate's edit loop but is made per unit for every workspace member in every feature set nplan check builds, which never reuse it. The operator had deleted target/ twice that day for size. Traded: a small edit in pgorm recompiles the whole crate. Set in .cargo/config.toml so every run agrees; per-run CARGO_INCREMENTAL would churn fingerprints between runs that disagree."
+                    }
+
+                    {
+                        at 2026-11-25T23:23:01.866954Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T23:25:04.865718Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+        )
+    }
+
+    {
+        id rust-1-100
+        title "The compile-fail tests' expected output is Rust 1.100's, the stable CI runs and the local toolchain follows"
+        kind @test
+        sealed true
+        log (
+            {
+                at 2026-11-25T23:25:02.500195Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id codeql-test-code
+        title "CodeQL scans what ships and not test-only code, whose credentials for throwaway servers its hard-coded-cryptographic-value rule reported 99 times once the vendored driver's tests arrived"
+        kind @ci
+        deps (driver-vendor)
+        sealed true
+        log (
+            {
+                at 2026-11-26T00:23:47.734947Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator chose \"Exclude test-only code\" over dismissing the 99 alerts or rewriting every test credential. PR #44's CodeQL reported 99 critical rust/hard-coded-cryptographic-value alerts, all false positives: test connection strings in the vendored driver's tests (89), Turso and support-crate tests, the maintenance database name \"postgres\" in pgorm-test-support/src, and pgorm-driver-rustls's in-source test module. Fix: a CodeQL config ignoring tests/, **/tests/**, **/benches/**, pgorm-test-support and pgorm-guide-support, with the rustls crate's public-API tests moved out of src into tests/ (its private channel-binding digest tests stay in src)."
+            }
+
+            {
+                at 2026-11-26T00:23:48.104762Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-26T00:30:38.591967Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

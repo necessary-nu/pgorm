@@ -4,10 +4,10 @@ pub mod common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::error::RuntimeError;
 pub use pgorm::{
-    ConnectionTrait, DatabaseConnection, EntityName, entity::*, error::ConstraintViolation,
+    Connection, DatabaseConnection, EntityName, entity::*, error::ConstraintViolation,
     error::Error, error::SqlError, set, tests_cfg,
 };
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 use uuid::Uuid;
 
 fn sql_state(err: &Error) -> SqlState {
@@ -125,7 +125,7 @@ async fn sql_error_classification() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:error.model.bind-refusal/test]    a value its parameter's type refuses is a
+// [spec:pgorm:sem:error.model.bind-refusal+1/test]    a value its parameter's type refuses is a
 // BindRefusal naming the parameter by its placeholder and carrying pgorm's reason, its Display the
 // text the bindings report, and a refusal the server makes is none
 #[pgorm_macros::test]
@@ -170,12 +170,12 @@ async fn bind_refusal_names_the_parameter_and_reason() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:error.model.parameter-count/test]    a statement given another number of parameters
+// [spec:pgorm:sem:error.model.parameter-count+1/test]    a statement given another number of parameters
 // than it takes is a ParameterCountRefusal holding both counts, its Display the text the bindings
 // report, and no other failure is one
 #[pgorm_macros::test]
 async fn parameter_count_refusal_names_both_counts() {
-    use pgorm::{ConnectionTrait, DecodeRaw, ParameterCountRefusal, pgorm_query::Values};
+    use pgorm::{Connection, DecodeRaw, ParameterCountRefusal, pgorm_query::Values};
 
     let ctx = TestContext::new("parameter_count_refusal").await;
     let db = ctx.db.get().await.unwrap();
@@ -220,7 +220,7 @@ async fn parameter_count_refusal_names_both_counts() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:sem:error.model.decode-refusal/test]    a column the driver cannot read as what was
+// [spec:pgorm:sem:error.model.decode-refusal+1/test]    a column the driver cannot read as what was
 // asked is a DecodeRefusal naming what it was reading and carrying the decoder's reason, its Display
 // the text the bindings report, and a refusal the server makes or a bind refusal is none
 #[pgorm_macros::test]

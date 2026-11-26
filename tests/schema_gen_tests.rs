@@ -240,7 +240,7 @@ mod roster {
 mod hand_keyed {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     pub struct Entity;
 
     impl EntityName for Entity {
@@ -375,7 +375,7 @@ fn key_columns<K>(key: &TableKey<K>) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    table ref, comment, per-column projection, single-column key, unique keys, belongs-to foreign keys
+// [spec:pgorm:sem:schema.from-entity+13/test]    table ref, comment, per-column projection, single-column key, unique keys, belongs-to foreign keys
 #[test]
 fn create_table_from_entity_projects_columns() {
     let schema = Schema::new();
@@ -480,7 +480,7 @@ fn create_table_from_entity_projects_columns() {
     assert!(!widget::Relation::Factory.def().is_owner);
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    a composite key is the table's key, named pk-{table}
+// [spec:pgorm:sem:schema.from-entity+13/test]    a composite key is the table's key, named pk-{table}
 #[test]
 fn create_table_composite_key_emits_index() {
     let schema = Schema::new();
@@ -507,7 +507,7 @@ fn create_table_composite_key_emits_index() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    the entity comment first, then the commented
+// [spec:pgorm:sem:schema.from-entity+13/test]    the entity comment first, then the commented
 // columns in Column order, targeting entity.table_ref() with the text quoted
 #[test]
 fn create_comments_from_entity_emits_statements() {
@@ -706,7 +706,7 @@ fn create_enum_from_active_enum_errs_non_enum() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    the projected DDL is accepted by Postgres and enforces what it declares
+// [spec:pgorm:sem:schema.from-entity+13/test]    the projected DDL is accepted by Postgres and enforces what it declares
 // [spec:pgorm:sem:schema.from-entity.index+2/test]    the schema-qualified index executes and reaches pg_indexes under its generated name
 // [spec:pgorm:sem:schema.from-entity.enum+3/test]    the projected type is a usable Postgres enum
 #[pgorm_macros::test]
@@ -893,7 +893,7 @@ async fn array_only_enum_schema_executes_on_postgres() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    a composite key's generated
+// [spec:pgorm:sem:schema.from-entity+13/test]    a composite key's generated
 // column carries its identity, the supplied column nothing, and neither the
 // serial family nor an inline PRIMARY KEY
 #[test]
@@ -928,7 +928,7 @@ fn composite_key_identity_lands_on_its_column() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    a one-column key that fills
+// [spec:pgorm:sem:schema.from-entity+13/test]    a one-column key that fills
 // itself — an identity or a default of its own — is not also drawn from the
 // serial family, which PostgreSQL refuses beside either (42601)
 #[test]
@@ -968,7 +968,7 @@ fn key_with_its_own_fill_is_not_serial() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    the tables a key that fills
+// [spec:pgorm:sem:schema.from-entity+13/test]    the tables a key that fills
 // itself projects to are ones the server builds, and fill the key unasked
 #[pgorm_macros::test]
 async fn self_filling_keys_execute_on_postgres() -> Result<(), Error> {
@@ -1015,7 +1015,7 @@ async fn self_filling_keys_execute_on_postgres() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    the comment statements execute, and only they
+// [spec:pgorm:sem:schema.from-entity+13/test]    the comment statements execute, and only they
 // attach anything: the text arrives in pg_description exactly as declared
 #[pgorm_macros::test]
 async fn entity_comments_land_in_pg_description() -> Result<(), Error> {
@@ -1075,7 +1075,7 @@ fn parcel_names() -> [String; 5] {
     .map(|full| pgorm::result_column_name("", &full))
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    a derived key or foreign key name that would reach 63 bytes is bounded as composed result names are, its head kept, so two long names stay two
+// [spec:pgorm:sem:schema.from-entity+13/test]    a derived key or foreign key name that would reach 63 bytes is bounded as composed result names are, its head kept, so two long names stay two
 // [spec:pgorm:sem:schema.from-entity.index+2/test]
 // [spec:pgorm:req:entity.relation.fk+6/test]
 #[test]
@@ -1128,7 +1128,7 @@ fn derived_names_past_the_bound_are_bounded() {
     );
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    the server creates every derived constraint and index under exactly the name generation gives it, none truncated and none colliding
+// [spec:pgorm:sem:schema.from-entity+13/test]    the server creates every derived constraint and index under exactly the name generation gives it, none truncated and none colliding
 // [spec:pgorm:sem:schema.from-entity.index+2/test]
 #[pgorm_macros::test]
 async fn bounded_derived_names_are_the_servers_live() -> Result<(), Error> {
@@ -1184,8 +1184,8 @@ async fn bounded_derived_names_are_the_servers_live() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    an entity's composite unique keys are written after its columns' own, in declaration order, under the name each declares or none
-// [spec:pgorm:req:entity.traits.entity-name+6/test]
+// [spec:pgorm:sem:schema.from-entity+13/test]    an entity's composite unique keys are written after its columns' own, in declaration order, under the name each declares or none
+// [spec:pgorm:req:entity.traits.entity-name+7/test]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10/test]
 #[test]
 fn composite_unique_keys_are_written() {
@@ -1214,8 +1214,8 @@ fn composite_unique_keys_are_written() {
     assert!(gadget::Entity.unique_keys().is_empty());
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    a unique key an `EntityName` written by hand describes with no columns is refused as `Error::Type` naming the entity, since PostgreSQL cannot write `UNIQUE ()`
-// [spec:pgorm:req:entity.traits.entity-name+6/test]
+// [spec:pgorm:sem:schema.from-entity+13/test]    a unique key an `EntityName` written by hand describes with no columns is refused as `Error::Type` naming the entity, since PostgreSQL cannot write `UNIQUE ()`
+// [spec:pgorm:req:entity.traits.entity-name+7/test]
 #[test]
 fn a_unique_key_of_no_columns_is_refused() {
     match Schema::new().create_table_from_entity(hand_keyed::Entity) {
@@ -1229,11 +1229,11 @@ fn a_unique_key_of_no_columns_is_refused() {
     }
 }
 
-// [spec:pgorm:sem:schema.from-entity+12/test]    the server holds each composite unique key as declared: a repeated pair is refused under the declared name, and under the key treating nulls as equal two null nicknames in one team are too
+// [spec:pgorm:sem:schema.from-entity+13/test]    the server holds each composite unique key as declared: a repeated pair is refused under the declared name, and under the key treating nulls as equal two null nicknames in one team are too
 #[pgorm_macros::test]
 async fn composite_unique_keys_hold_live() -> Result<(), Error> {
     use pgorm::set;
-    use tokio_postgres::error::SqlState;
+    use pgorm_driver::error::SqlState;
 
     let ctx = TestContext::new("schema_gen_composite_unique").await;
     let db = ctx.db.get().await?;

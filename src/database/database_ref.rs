@@ -1,10 +1,10 @@
 use std::fmt;
 
 use crate::{
-    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, HookConnection, SqlText,
+    Connection, DatabaseConnection, DatabaseTransaction, Error, HookConnection, SqlText,
     metric::{InstrumentedConnection, InstrumentedTransaction, MetricsCollector, NoOpMetrics},
 };
-use tokio_postgres::{
+use pgorm_driver::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };
@@ -15,19 +15,19 @@ use tokio_postgres::{
 ///
 /// Code that chooses at run time where a statement runs — a language binding
 /// holding whichever handle its caller passed — reaches pgorm's generic
-/// terminals through this one [`ConnectionTrait`] type, each method the
+/// terminals through this one [`Connection`] type, each method the
 /// borrowed executor's own.
 ///
 /// ```
 /// # async fn count(db: &pgorm::DatabaseConnection) -> Result<(), pgorm::Error> {
-/// use pgorm::{ConnectionTrait, DatabaseRef};
+/// use pgorm::{Connection, DatabaseRef};
 ///
 /// let either: DatabaseRef<'_> = DatabaseRef::from(db);
 /// either.execute("SELECT 1", &[]).await?;
 /// # Ok(())
 /// # }
 /// ```
-// [spec:pgorm:def:conn.database-ref+1]
+// [spec:pgorm:def:conn.database-ref+2]
 pub enum DatabaseRef<'a, M: MetricsCollector = NoOpMetrics> {
     /// A connection, statements running on it outside any transaction.
     Connection(&'a DatabaseConnection),
@@ -104,9 +104,9 @@ macro_rules! delegate {
     };
 }
 
-// [spec:pgorm:def:conn.database-ref+1]
+// [spec:pgorm:def:conn.database-ref+2]
 #[async_trait::async_trait]
-impl<M: MetricsCollector> ConnectionTrait for DatabaseRef<'_, M> {
+impl<M: MetricsCollector> Connection for DatabaseRef<'_, M> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,

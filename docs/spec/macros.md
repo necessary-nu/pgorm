@@ -11,9 +11,9 @@ known limitations.
 
 ## The macro suite
 
-> [spec:pgorm:def:macros.derive+8]
+> [spec:pgorm:def:macros.derive+9]
 > The `pgorm-macros` crate exposes the ORM's derive macros, all gated behind the crate's
-> `derive` feature: `Entity`, `EntityTrait`, `Model`, `Column`, `Relation`,
+> `derive` feature: `Entity`, `Model`, `Column`, `Relation`,
 > `ActiveEnum`, `Disjoint`, `IntoActiveModel`, `PartialModel`, `FromQueryResult`,
 > `ValueType`, `JsonValueType`, `CreatedRange`, `Scope`, `ScopeContext`,
 > `MigrationName`, `SqlName` and `StaticName`, named as `macros.derive.names` says,
@@ -28,7 +28,7 @@ known limitations.
 > `DeriveRelatedEntity` derive it gated, and the codegen option that emitted a
 > `RelatedEntity` enum are all deleted rather than kept as a shim. The gated expansion
 > named `seaography::RelationBuilder` and `async_graphql` paths no crate in the
-> dependency graph provided, and the real Seaography targets sea-orm's `EntityTrait`, so
+> dependency graph provided, and the real Seaography targets sea-orm's `Entity`, so
 > no crate could have satisfied it; with the feature off the derive expanded to nothing,
 > which made it a no-op that still broke the workspace feature matrix when enabled.
 >
@@ -57,7 +57,7 @@ known limitations.
 
 ## Form, names and attribute values
 
-> [spec:pgorm:req:macros.derive.one-form]
+> [spec:pgorm:req:macros.derive.one-form+1]
 > An entity MUST have one written form: the composite derive on its `Model`
 > struct and the relation derive on its `Relation` enum, configured by
 > attributes. There is no hand-assembled form, so the derives that existed
@@ -71,15 +71,16 @@ known limitations.
 > two tables as the join binds them, as well as an expression that ignores
 > them. One case keeps a hand-written part: an entity whose table or schema
 > name is computed at run time declares its own `Entity` struct, implements
-> `EntityName` on it, and puts the entity-trait derive on it beside a
-> composite derive given no `table_name`.
+> `EntityName` on it, and derives `Entity` on it too, beside a composite derive
+> given no `table_name`.
 
-> [spec:pgorm:req:macros.derive.names+3]
+> [spec:pgorm:req:macros.derive.names+4]
 > Every derive MUST be named for what it makes or implements, as Rust's own
 > derives and serde's are, with no `Derive` prefix; a derive and a trait
 > live in different namespaces, so the two can share a name. The derives
-> are `Entity` (the composite derive, on a `Model` struct), `EntityTrait`
-> (on a hand-written `Entity` struct whose names are computed), `Model` (a
+> are `Entity` (on a `Model` struct the composite derive, on a hand-written
+> `Entity` struct whose names are computed the `Entity` trait alone,
+> `macros.derive.entity`), `Model` (a
 > further model of an entity), `Column` (a column enum for a custom
 > select), `Relation`, `ActiveEnum`, `Disjoint` (an enum stored as a base
 > table and its kinds' tables, `[spec:pgorm:def:disjoint.declare]`), `OneOf`
@@ -168,7 +169,7 @@ known limitations.
 
 ## The composite derive
 
-> [spec:pgorm:sem:macros.derive.entity-model+9]
+> [spec:pgorm:sem:macros.derive.entity-model+10]
 > `Entity` is the composite derive: applied to a `Model` struct, it expands
 > the entity-model generation, re-runs the `Model` derive on the same input and writes the
 > `ActiveModel` (`macros.derive.active-model`), so one derive yields the full entity
@@ -177,7 +178,7 @@ known limitations.
 > non-ignored field, beside the impls the `Column` derive writes for an enum
 > (`macros.derive.column`), each variant named for its field's `column_name` or else the
 > snake_case of the variant, and iterable over every variant but `table_iden`'s
-> `Table`; (2) an `impl ColumnTrait for Column` with
+> `Table`; (2) an `impl pgorm::Column for Column` with
 > `type EntityName = Entity`, a `def()` match arm per column, a `json_key()` match arm
 > per column, and `select_as`/`save_as`/`save_array_as`
 > overrides for columns carrying `select_as`/`save_as` attributes, or naming the
@@ -194,13 +195,13 @@ known limitations.
 > *identifier*-borne type name quoted
 > — a `save_as = "T"` column's `save_array_as` casts to `T[]`, so scalar and array
 > comparisons carry the same cast — and otherwise fall back to
-> `ColumnTrait::select_enum_as`/`save_enum_as`/`save_enum_array_as`; (3) only when
+> `Column::select_enum_as`/`save_enum_as`/`save_enum_array_as`; (3) only when
 > `table_name` is given, a `pub struct Entity;` deriving
-> `Copy, Clone, Default, Debug, EntityTrait` together with a hand-rolled `EntityName`
+> `Copy, Clone, Default, Debug, Entity` together with a hand-rolled `EntityName`
 > impl returning the `table_name`, optional `schema_name`, and optional `comment` —
 > without one, the entity's names are computed at run time and its `Entity` is written
 > by hand (`macros.derive.entity`); and (4) a `PrimaryKey` enum deriving
-> `Copy, Clone, Debug`, iterable, with its name, column mapping and `PrimaryKeyTrait`
+> `Copy, Clone, Debug`, iterable, with its name, column mapping and `PrimaryKey`
 > impls (see `[spec:pgorm:sem:macros.derive.entity-model.primary-key]`).
 >
 > A `select_with`, `save_with` or `save_array_with` names a function of the hook's own
@@ -224,9 +225,11 @@ known limitations.
 > the variant, not the key — which is the point of the two namespaces being separate
 > (`[spec:pgorm:def:entity.traits.column]`).
 
-> [spec:pgorm:req:macros.derive.entity-model.reject+4]
-> The `Entity` derive's input MUST be a struct named exactly `Model`; any other identifier
-> is the compile error "`Entity` is derived on the struct named `Model`",
+> [spec:pgorm:req:macros.derive.entity-model.reject+5]
+> The `Entity` derive's input MUST be a struct named exactly `Model`, the composite
+> derive's, or `Entity`, a hand-written entity's (`macros.derive.entity`); any other
+> identifier is the compile error "`Entity` is derived on the struct named `Model`, or on
+> a hand-written struct named `Entity`",
 > spanned at the offending identifier rather than raised as a macro panic. The
 > entity MUST have at least one `#[pgorm(primary_key)]` field: with none, the derive
 > emits the compile error "Entity must have a primary key column. See SeaORM's issue
@@ -325,8 +328,8 @@ known limitations.
 > of the `Column` derive's default (snake_case of the variant), so a field given a
 > `variant` and no `column_name` names its column after the variant.
 
-> [spec:pgorm:sem:macros.derive.entity-model.column-def+10]
-> Each `def()` arm builds `ColumnTypeTrait::def(<column type>)`. The column type is the
+> [spec:pgorm:sem:macros.derive.entity-model.column-def+11]
+> Each `def()` arm builds `ColumnTypeExt::def(<column type>)`. The column type is the
 > `column_type` expression if present, taken as written with no implicit prefix, so a
 > helper's call (`column_type = varchar(40)`) or a type named at run time is one;
 > otherwise it is inferred by matching the
@@ -405,9 +408,9 @@ known limitations.
 > the `ValueType` derive too: a newtype over one of the four refused types is the same
 > compile error.
 
-> [spec:pgorm:sem:macros.derive.entity-model.primary-key+7]
+> [spec:pgorm:sem:macros.derive.entity-model.primary-key+8]
 > Every `primary_key` field contributes a variant to the generated `PrimaryKey` enum and
-> its type to `PrimaryKeyTrait::ValueType` — a bare type for a single key, a tuple for
+> its type to `PrimaryKey::ValueType` — a bare type for a single key, a tuple for
 > composite keys. `auto_increment()` reports whether the database generates the whole
 > key (`entity.traits.primary-key`). When no key field declares an identity or a
 > generated column it returns
@@ -467,11 +470,12 @@ known limitations.
 > (`macros.derive.entity-model.casing`) — and a `PrimaryKeyToColumn` impl whose
 > `into_column`/`from_column` map variants to the same-named variants of `Column`.
 
-> [spec:pgorm:sem:macros.derive.entity+7]
-> The `EntityTrait` derive wires up an entity's `Entity` struct: the composite derive
-> puts it on the unit struct it writes, and an entity whose names are computed at run
+> [spec:pgorm:sem:macros.derive.entity+8]
+> Derived on a struct named `Entity`, the `Entity` derive wires up an entity's `Entity`
+> struct: the composite derive puts it on the unit struct it writes, and an entity whose
+> names are computed at run
 > time puts it on the struct it writes itself (`macros.derive.one-form`). It always
-> generates `impl EntityTrait` with associated types `Model`, `ActiveModel`, `Column`,
+> generates `impl Entity` with associated types `Model`, `ActiveModel`, `Column`,
 > `PrimaryKey`, `Relation` — each identifier defaulting to those names but overridable
 > via struct-level `#[pgorm(model = Ident, active_model = Ident, column = Ident,
 > primary_key = Ident, relation = Ident)]`, every such attribute on the struct read —
@@ -503,9 +507,9 @@ known limitations.
 > spanned at the key. The composite derive writes the same impls for the `Column` it
 > makes, from each field's column name rather than an attribute.
 
-> [spec:pgorm:sem:macros.derive.model+7]
+> [spec:pgorm:sem:macros.derive.model+8]
 > The `Model` derive (named-field structs only; otherwise a compile error) generates
-> `FromQueryResult`, `ModelTrait` and `ColumnField`. `FromQueryResult`: each field is read with
+> `FromQueryResult`, `Model` and `ColumnField`. `FromQueryResult`: each field is read with
 > `row.try_get(pre, Column::<Variant>.as_str())`, where the variant name follows the
 > same trim/UpperCamelCase/keyword-escape/`variant` rules as
 > `[spec:pgorm:sem:macros.derive.entity-model.casing]`; `#[pgorm(ignore)]` fields are
@@ -514,7 +518,7 @@ known limitations.
 > `TryGetable::accepts` and carrying the read cast of its column
 > (`ExpectedColumn::selected_as`), so an entity model can be checked against a raw
 > statement (`exec.verify`) and a pipeline's model terminals cast what it reads
-> (`pipeline.terminal`); ignored fields read no column and are left out. `ModelTrait`: `get` clones the field and
+> (`pipeline.terminal`); ignored fields read no column and are left out. `Model`: `get` clones the field and
 > converts it `.into()` a `Value`; `set` converts through `ValueType::from_value` and
 > assigns, answering `Error::Type("value does not match the type of {Model} field
 > {field}")` when the value is of another type. Ignored fields have no match arm, so
@@ -530,13 +534,13 @@ known limitations.
 > it reads a field's `variant` and `ignore` and leaves the rest of the input to the
 > composite (`macros.derive.entity-model.attrs`).
 
-> [spec:pgorm:sem:macros.derive.active-model+9]
+> [spec:pgorm:sem:macros.derive.active-model+10]
 > The composite derive writes, beside its `Model`, a
 > `pub struct ActiveModel` — name and entity are hard-coded as `ActiveModel`/`Entity` —
 > with one `pub field: ActiveValue<T>` per non-ignored field, plus: `Default`
 > delegating to `ActiveModelBehavior::new()`; `From<Model>` mapping every field through
 > `ActiveValue::unchanged`; an `IntoActiveModel` impl for `Model`; and
-> `ActiveModelTrait` with `take`, `get` and `set`, which share one answer for an
+> `ActiveModel` with `take`, `get` and `set`, which share one answer for an
 > unmatched column — `Error::Type("This ActiveModel does not have this field")`,
 > generated from a single spelling of that message so the three cannot drift
 > apart — plus, for `set` alone, `Error::Type("value does not match the type of
@@ -553,7 +557,7 @@ known limitations.
 > implements it (`macros.derive.boilerplate`); it writes it whether or not the rest of
 > the composite's expansion is refused, so a refusal elsewhere is not echoed as a missing
 > implementation. The `IntoActiveModel` impl names the struct as `Model`, not as the
-> projection `<Entity as EntityTrait>::Model`: across crates coherence does not
+> projection `<Entity as Entity>::Model`: across crates coherence does not
 > normalize a projection in another crate's impl header, so a form deriving
 > `IntoActiveModel` for this `ActiveModel` in a crate of its own would otherwise be
 > refused as conflicting with it (E0119).
@@ -652,7 +656,7 @@ known limitations.
 
 ## Relations
 
-> [spec:pgorm:syn:macros.derive.relation+8]
+> [spec:pgorm:syn:macros.derive.relation+9]
 > The `Relation` derive applies to enums only. Each variant requires exactly one of
 > `belongs_to = path`, `has_one = path` or `has_many = path`, the entity it reaches
 > written as a path (`belongs_to = super::cake::Entity`); none is the error "Missing
@@ -692,7 +696,7 @@ known limitations.
 > and `related = false` on a variant whose entity another variant also reaches is refused
 > at its value, since the derive writes no `Related` for that entity anyway. The
 > expansion is an
-> `impl RelationTrait` whose `def()` matches each variant to
+> `impl Relation` whose `def()` matches each variant to
 > `Entity::belongs_to/has_one/has_many(target)` plus the paired column calls, the
 > chained modifiers and a catch-all arm panicking "No RelationDef for {Relation}"; the
 > enum's iteration over its variants in declaration order (`macros.derive.enum-iter`);
@@ -707,18 +711,18 @@ known limitations.
 
 ## Projection and value derives
 
-> [spec:pgorm:sem:macros.derive.partial-model+7]
+> [spec:pgorm:sem:macros.derive.partial-model+8]
 > The `PartialModel` derive accepts only non-generic named-field structs (generics and other
 > shapes are compile errors). The container attribute `entity = Type` names the source
 > entity, written as a type; it is required unless every field carries `from_col`,
 > `from_expr` or `skip`, and its absence otherwise produces "you need specific which entity
 > you are using". Per field: no attribute selects
-> `<entity as EntityTrait>::Column::{UpperCamelCase(field)}`; `from_col = path` selects
+> `<entity as Entity>::Column::{UpperCamelCase(field)}`; `from_col = path` selects
 > the column the path names, taken as written (`from_col = cake::Column::Name`), under
 > the column's own `select_as` and aliased to the field name; `from_expr = <expr>`
 > selects the expression aliased to the field name; and `skip` selects nothing, whatever
 > else the field names, since the field reads no column and decodes as its type's
-> `Default`. The expansion implements `PartialModelTrait::select_cols` by chaining
+> `Default`. The expansion implements `PartialModel::select_cols` by chaining
 > `QuerySelect::column` / `column_as` calls; the chain's type is `S::Projected`, so a
 > struct with no fields — whose chain is empty and whose body is therefore the
 > unprojected `S` — does not compile. It also implements `FromQueryResult` for the
@@ -907,7 +911,7 @@ known limitations.
 
 ## Compile-time SQL validation
 
-> [spec:pgorm:def:macros.sql+8]
+> [spec:pgorm:def:macros.sql+9]
 > `pgorm-sql-macro` is a proc-macro crate exporting two function-like macros for
 > callers: `sql!`, specified here, and `prql!` (`[spec:pgorm:def:macros.prql]`). A
 > third, hidden from its documentation, is the compile-time half of pgorm-migration's
@@ -941,7 +945,7 @@ known limitations.
 > worse than no list, because an auditor who trusts it audits a quarter of the
 > surface. The rule is the `SqlText` bound (`[spec:pgorm:def:conn.sql-text]`):
 > every function taking its SQL as `&T where T: SqlText`. On a connection that is
-> each `ConnectionTrait` method — `execute`, `execute_raw`, `query_one`,
+> each `Connection` method — `execute`, `execute_raw`, `query_one`,
 > `query_opt`, `query_all`, `query_raw` — plus `batch_execute`, which takes its
 > `&str` directly because it runs a script through the simple-query protocol. Away
 > from a connection a raw statement is SQL text paired with its values, and every
@@ -1007,7 +1011,7 @@ prqlc compiler and the same oracle over what it emits, but for queries known who
 compile time, where the pipeline's composability buys nothing and a literal buys
 build-time checking of the finished statement.
 
-> [spec:pgorm:def:macros.prql+3]
+> [spec:pgorm:def:macros.prql+4]
 > `prql!` takes one PRQL string literal followed by zero or more argument expressions
 > (`prql!("from invoice | filter total > $1 | take 5", min_total)`). While the calling
 > crate compiles, the literal's text is compiled by prqlc — the text path: parse,
@@ -1019,7 +1023,7 @@ build-time checking of the finished statement.
 > `Into<Value>`, in placeholder order. The expansion is a pure tuple expression — no
 > runtime helper, no new public types — so `let (sql, values) = prql!(...)` lands
 > directly on the raw-SQL entry points (`SelectorRaw::from_statement`,
-> `ConnectionTrait::query_raw`), and a failed conversion is an ordinary type error
+> `Connection::query_raw`), and a failed conversion is an ordinary type error
 > spanned on the argument. The expansion names `::pgorm` absolutely, so the calling
 > crate must depend on `pgorm` under that name. A placeholder may be reused: `$1`
 > twice in the query is one argument, bound once, with the SQL carrying `$1` twice.

@@ -3,7 +3,7 @@
 //! [`Expr`] is where an expression starts: a column, a value, a template, a
 //! subquery test. [`SimpleExpr`] is the expression tree node every clause
 //! holds. What an expression can become — compared, combined, cast,
-//! aggregated — is [`ExprTrait`](crate::ExprTrait)'s, which both implement.
+//! aggregated — is [`Expression`](crate::Expression)'s, which both implement.
 
 use crate::{
     LikeExpr, SqlJson, Subscript, error::Result, func::*, query::*, template::SqlTemplate,
@@ -12,8 +12,8 @@ use crate::{
 
 /// The entry point of an expression: a column, a value, another expression,
 /// a template or a subquery test, to be built on with
-/// [`ExprTrait`](crate::ExprTrait)'s methods.
-// [spec:pgorm:def:sql.ast.expr+8]
+/// [`Expression`](crate::Expression)'s methods.
+// [spec:pgorm:def:sql.ast.expr+9]
 #[derive(Debug, Clone)]
 pub struct Expr(SimpleExpr);
 
@@ -21,7 +21,7 @@ pub struct Expr(SimpleExpr);
 ///
 /// [`SimpleExpr`] is a node in the expression tree and can represent identifiers, function calls,
 /// various operators and sub-queries.
-// [spec:pgorm:def:sql.ast.expr+8]
+// [spec:pgorm:def:sql.ast.expr+9]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum SimpleExpr {
@@ -39,7 +39,7 @@ pub enum SimpleExpr {
     Template(SqlTemplate),
     Keyword(Keyword),
     /// THE cast: `CAST(operand AS type)`, and the only node shape a cast has.
-    // [spec:pgorm:req:sql.ast.cast-shape+2]
+    // [spec:pgorm:req:sql.ast.cast-shape+3]
     AsEnum(Box<TypeName>, Box<SimpleExpr>),
     /// The searched `CASE`, whose arms each test a condition.
     Case(Box<CaseStatement>),
@@ -47,11 +47,11 @@ pub enum SimpleExpr {
     // [spec:pgorm:def:sql.ast.case+3]
     SimpleCase(Box<SimpleCaseStatement>),
     /// An array subscript or slice of the first expression: `a[i]`, `a[l:u]`.
-    // [spec:pgorm:req:sql.ast.expr.subscript+2]
+    // [spec:pgorm:req:sql.ast.expr.subscript+3]
     Subscript(Box<SimpleExpr>, Box<Subscript>),
     /// The first expression under a named collation: `(a COLLATE "C")`. The
     /// right-hand side is a collation's *name*, not an expression.
-    // [spec:pgorm:req:sql.ast.expr.collate+2]
+    // [spec:pgorm:req:sql.ast.expr.collate+3]
     Collate(Box<SimpleExpr>, Box<Collation>),
     /// `GROUPING(a, …)`, which reads a row's grouping set.
     // [spec:pgorm:def:sql.ast.select.grouping]
@@ -530,7 +530,7 @@ impl Expr {
     ///     r#"SELECT "id" FROM "character" WHERE "id" = ANY(ARRAY(SELECT "id" FROM "character"))"#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.ast.expr+8]
+    // [spec:pgorm:def:sql.ast.expr+9]
     pub fn array(sel: SelectStatement) -> SimpleExpr {
         SimpleExpr::SubQuery(
             Some(SubQueryOper::Array),

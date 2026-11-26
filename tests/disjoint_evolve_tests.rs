@@ -12,14 +12,14 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, DdlStatement, DisjointChange, DisjointShape, DisjointStep,
-    Error, KindedDisjoint, Schema, TransactionError, TransactionTrait, check_disjoint,
+    Connection, DatabaseConnection, DdlStatement, DisjointChange, DisjointShape, DisjointStep,
+    Error, KindedDisjoint, Schema, Transact, TransactionError, check_disjoint,
     entity::prelude::*,
     pgorm_query::{Name, TableName},
 };
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::fmt::Debug;
-use tokio_postgres::error::SqlState;
 
 pub mod car {
     use pgorm::entity::prelude::*;

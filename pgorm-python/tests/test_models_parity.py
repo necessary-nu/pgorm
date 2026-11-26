@@ -204,7 +204,7 @@ def canonical(value):
 
 
 class ModelParity(unittest.TestCase):
-    # [spec:pgorm:req:bindings.models+6/test]
+    # [spec:pgorm:req:bindings.models+7/test]
     def test_the_cases_are_the_golden_files(self):
         self.assertEqual(sorted(CASES), sorted(GOLDEN))
 
@@ -216,7 +216,7 @@ class ModelParity(unittest.TestCase):
     # [spec:pgorm:req:bindings.pagination/test]
     # [spec:pgorm:req:bindings.model-clauses/test]
     # [spec:pgorm:req:bindings.model-projections/test]
-    # [spec:pgorm:req:bindings.partial-models/test]
+    # [spec:pgorm:req:bindings.partial-models+1/test]
     # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]
     def test_each_case_builds_what_pgorm_builds(self):
         for name, build in CASES.items():

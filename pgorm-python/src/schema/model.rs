@@ -2,7 +2,7 @@
 //! disjoint model's tables are written from.
 
 use pgorm::pgorm_query::{ColumnType, Expr, GeneratedKind, Name, TableName, TypeName};
-use pgorm::{CaseStyle, ColumnDef, ColumnTypeTrait, Schema, TableColumn, TableShape};
+use pgorm::{CaseStyle, ColumnDef, ColumnTypeExt, Schema, TableColumn, TableShape};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
 
 use super::{

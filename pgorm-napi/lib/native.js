@@ -81,7 +81,7 @@ export function loadAddon() {
       : `there is no prebuilt package for this platform; ${offered.length ? `prebuilt packages exist for ${offered.join(", ")}` : "no platform has one"}, and DISTRIBUTION.md says how to build the addon from source`;
     throw new Error(`${own.name} ${own.version} has no native addon for ${running}: ${reason}`, { cause: error });
   }
-  /** @type {{ version: string }} */
+  /** @type {{ version: string, pgormFeatures?: string[] }} */
   const installed = require(manifestPath);
   if (installed.version !== own.version) {
     throw new Error(
@@ -99,6 +99,9 @@ export function loadAddon() {
   }
   if (addon.version !== own.version) {
     throw new Error(`${wanted}'s addon is version ${addon.version}, not ${own.version}: reinstall ${own.name}`);
+  }
+  if (JSON.stringify(addon.features) !== JSON.stringify(installed.pgormFeatures)) {
+    throw new Error(`${wanted}'s addon features do not match its package metadata: reinstall ${own.name}`);
   }
   return addon;
 }

@@ -12,9 +12,9 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ColumnType, Name, extension::Type};
-use pgorm::{ConnectionTrait, entity::prelude::*};
+use pgorm::{Connection, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 fn n(name: &str) -> Name {
     Name::runtime(name)
@@ -60,7 +60,7 @@ fn attribute(name: &str, ty: &str, collation: Option<&str>) -> (String, String, 
 /// is its own statement. A drop passes over a missing attribute with `IF
 /// EXISTS`, where the plain drop is refused (`42703`), and an attribute added
 /// twice is refused (`42701`).
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]    against a live server: chained changes
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]    against a live server: chained changes
 // and a rename make the attributes they say, and the server judges the names
 #[pgorm_macros::test]
 async fn attribute_changes_apply_in_order() -> Result<(), Error> {
@@ -119,7 +119,7 @@ async fn attribute_changes_apply_in_order() -> Result<(), Error> {
 /// into the table's columns; without it every change is refused (`2BP01`),
 /// said `RESTRICT` or not. A column of the type in another table refuses a
 /// retype even with `CASCADE` (`0A000`).
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]    against a live server: CASCADE carries
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]    against a live server: CASCADE carries
 // each change into a typed table, which refuses them otherwise
 #[pgorm_macros::test]
 async fn cascade_carries_changes_into_typed_tables() -> Result<(), Error> {

@@ -4,12 +4,12 @@ pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::{IsolationLevel, TransactionError, TransactionMode, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 async fn insert_bakery<C>(db: &C, name: &str, profit_margin: f64) -> Result<(), Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     bakery::ActiveModel {
         name: set(name),
@@ -24,7 +24,7 @@ where
 
 async fn count_bakeries<C>(db: &C, search_name: &str) -> Result<usize, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     Ok(Bakery::find()
         .filter(bakery::Column::Name.contains(search_name))
@@ -35,7 +35,7 @@ where
 
 async fn show<C>(db: &C, setting: &str) -> Result<String, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let row = db
         .query_one(format!("SHOW {setting}").as_str(), &[])
@@ -135,7 +135,7 @@ async fn insert_then_drop(db: &mut DatabaseConnection, names: &[&str]) {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.guard+4/test]    a dropped closure future rolls back, and the queued ROLLBACK lands ahead of the connection's next statement
+// [spec:pgorm:sem:conn.tx.guard+6/test]    a dropped closure future rolls back, and the queued ROLLBACK lands ahead of the connection's next statement
 #[pgorm_macros::test]
 pub async fn transaction_dropped_future_rolls_back() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_dropped_future_rolls_back").await;
@@ -154,7 +154,7 @@ pub async fn transaction_dropped_future_rolls_back() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.guard+4/test]    a closure stopped by a timeout rolls back
+// [spec:pgorm:sem:conn.tx.guard+6/test]    a closure stopped by a timeout rolls back
 #[pgorm_macros::test]
 pub async fn transaction_timed_out_rolls_back() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_timed_out_rolls_back").await;
@@ -253,7 +253,7 @@ pub async fn transaction_error_rollback() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.guard+4/test]    an Err rolls back, and the ROLLBACK is awaited before the call returns
+// [spec:pgorm:sem:conn.tx.guard+6/test]    an Err rolls back, and the ROLLBACK is awaited before the call returns
 #[pgorm_macros::test]
 pub async fn transaction_err_rolls_back() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_err_rolls_back_txrollback").await;
@@ -282,7 +282,7 @@ pub async fn transaction_err_rolls_back() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.guard+4/test]    the ROLLBACK a dropped future queues still lands after the connection returns to the pool
+// [spec:pgorm:sem:conn.tx.guard+6/test]    the ROLLBACK a dropped future queues still lands after the connection returns to the pool
 #[pgorm_macros::test]
 pub async fn transaction_drop_rollback_survives_handback() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_drop_rollback_survives_handback").await;
@@ -325,7 +325,7 @@ pub async fn transaction_drop_rollback_survives_handback() -> Result<(), Error> 
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.guard+4/test]    a failing COMMIT reaches the caller as TransactionError::Connection(Error::Postgres)
+// [spec:pgorm:sem:conn.tx.guard+6/test]    a failing COMMIT reaches the caller as TransactionError::Connection(Error::Postgres)
 #[pgorm_macros::test]
 pub async fn transaction_commit_failure_maps_error() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_commit_failure_maps_error").await;
@@ -371,7 +371,7 @@ pub async fn transaction_commit_failure_maps_error() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+3/test]    ReadOnly emits both clauses, and the server enforces the access mode
+// [spec:pgorm:req:conn.tx+5/test]    ReadOnly emits both clauses, and the server enforces the access mode
 #[pgorm_macros::test]
 pub async fn transaction_read_only_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_read_only_txconfig").await;
@@ -408,7 +408,7 @@ pub async fn transaction_read_only_txconfig() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+3/test]    ReadWrite carries the isolation level, and still commits
+// [spec:pgorm:req:conn.tx+5/test]    ReadWrite carries the isolation level, and still commits
 #[pgorm_macros::test]
 pub async fn transaction_serializable_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_serializable_txconfig").await;
@@ -436,7 +436,7 @@ pub async fn transaction_serializable_txconfig() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+3/test]    Default appends no clause, so the session default stands
+// [spec:pgorm:req:conn.tx+5/test]    Default appends no clause, so the session default stands
 #[pgorm_macros::test]
 pub async fn transaction_default_inherits_session_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_default_inherits_session_txconfig").await;
@@ -473,7 +473,7 @@ pub async fn transaction_default_inherits_session_txconfig() -> Result<(), Error
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+3/test]    ReadWrite overrides a read-only session default
+// [spec:pgorm:req:conn.tx+5/test]    ReadWrite overrides a read-only session default
 #[pgorm_macros::test]
 pub async fn transaction_read_write_overrides_default_txconfig() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_read_write_overrides_default_txconfig").await;
@@ -702,7 +702,7 @@ pub async fn transaction_nested() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    a savepoint nested in a connection transaction, both plain closures, runs in a spawned task and commits
+// [spec:pgorm:sem:conn.tx.closure+7/test]    a savepoint nested in a connection transaction, both plain closures, runs in a spawned task and commits
 #[pgorm_macros::test]
 pub async fn transaction_nested_in_spawned_task() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_nested_in_spawned_task").await;
@@ -740,7 +740,7 @@ fn serializable() -> TransactionMode {
     }
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    Ok commits, and the value is returned
+// [spec:pgorm:sem:conn.tx.closure+7/test]    Ok commits, and the value is returned
 #[pgorm_macros::test]
 pub async fn transaction_closure_commit_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_closure_commit_txclosure").await;
@@ -774,7 +774,7 @@ pub async fn transaction_closure_commit_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    each closure form's future is Send, so it runs in a spawned task
+// [spec:pgorm:sem:conn.tx.closure+7/test]    each closure form's future is Send, so it runs in a spawned task
 #[pgorm_macros::test]
 pub async fn transaction_closures_run_in_spawned_tasks() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_closures_run_in_spawned_tasks").await;
@@ -821,7 +821,7 @@ pub async fn transaction_closures_run_in_spawned_tasks() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    Err rolls back and is wrapped, not swallowed
+// [spec:pgorm:sem:conn.tx.closure+7/test]    Err rolls back and is wrapped, not swallowed
 #[pgorm_macros::test]
 pub async fn transaction_closure_error_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_closure_error_txclosure").await;
@@ -855,7 +855,7 @@ pub async fn transaction_closure_error_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.closure+6/test]    a ROLLBACK that fails after the closure's error is reported beside it
+// [spec:pgorm:sem:conn.tx.closure+7/test]    a ROLLBACK that fails after the closure's error is reported beside it
 #[pgorm_macros::test]
 pub async fn transaction_failed_rollback_is_reported() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_failed_rollback_is_reported").await;
@@ -990,7 +990,7 @@ pub async fn savepoint_failed_rollback_is_not_lost() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.retry+3/test]    SQLSTATE 40001 raised by a statement is retried
+// [spec:pgorm:sem:conn.tx.retry+4/test]    SQLSTATE 40001 raised by a statement is retried
 #[pgorm_macros::test]
 pub async fn transaction_retry_concurrent_update_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_retry_concurrent_update_txclosure").await;
@@ -1052,7 +1052,7 @@ pub async fn transaction_retry_concurrent_update_txclosure() -> Result<(), Error
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.retry+3/test]    write skew between two serializable transactions
+// [spec:pgorm:sem:conn.tx.retry+4/test]    write skew between two serializable transactions
 #[pgorm_macros::test]
 pub async fn transaction_retry_write_skew_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_retry_write_skew_txclosure").await;
@@ -1095,7 +1095,7 @@ pub async fn transaction_retry_write_skew_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:conn.tx.retry+3/test]    a non-retryable error is returned on the first attempt
+// [spec:pgorm:sem:conn.tx.retry+4/test]    a non-retryable error is returned on the first attempt
 #[pgorm_macros::test]
 pub async fn transaction_retry_non_retryable_txclosure() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_retry_non_retryable_txclosure").await;
@@ -1129,7 +1129,7 @@ pub async fn transaction_retry_non_retryable_txclosure() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+3/test]    a savepoint under a configured outer transaction
+// [spec:pgorm:req:conn.tx+5/test]    a savepoint under a configured outer transaction
 #[pgorm_macros::test]
 pub async fn transaction_nested_under_config_txtests() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_nested_under_config_txtests").await;
@@ -1177,7 +1177,7 @@ pub async fn transaction_nested_under_config_txtests() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.tx+3/test]    DeferrableSnapshot carries serializable + read only, the one combination DEFERRABLE needs
+// [spec:pgorm:req:conn.tx+5/test]    DeferrableSnapshot carries serializable + read only, the one combination DEFERRABLE needs
 #[pgorm_macros::test]
 pub async fn transaction_deferrable_txtests() -> Result<(), Error> {
     let ctx = TestContext::new("transaction_deferrable_txtests").await;

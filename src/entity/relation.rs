@@ -1,6 +1,6 @@
 use crate::query::join::join_related_rev;
 use crate::{
-    ColumnPairs, EntityTrait, Iterable, NoContext, ScopeContext, ScopedIn, Scopes, Select,
+    ColumnPairs, Entity, Iterable, NoContext, ScopeContext, ScopedIn, Scopes, Select,
     unpack_table_name,
 };
 use core::marker::PhantomData;
@@ -24,17 +24,17 @@ pub enum RelationType {
 pub(crate) type ForeignKeyAction = pgorm_query::ForeignKeyAction;
 
 /// Defines the relations of an Entity
-// [spec:pgorm:req:entity.relation+1]
-pub trait RelationTrait: Iterable + Debug + 'static {
+// [spec:pgorm:req:entity.relation+2]
+pub trait Relation: Iterable + Debug + 'static {
     /// The method to call
     fn def(&self) -> RelationDef;
 }
 
 /// Checks if Entities are related
-// [spec:pgorm:req:entity.relation+1]
+// [spec:pgorm:req:entity.relation+2]
 pub trait Related<R>
 where
-    R: EntityTrait,
+    R: Entity,
 {
     /// Check if an entity is related to another entity
     fn to() -> RelationDef;
@@ -80,7 +80,7 @@ where
 }
 
 /// Defines a relationship
-// [spec:pgorm:def:entity.relation.def+12]
+// [spec:pgorm:def:entity.relation.def+13]
 pub struct RelationDef {
     /// The type of relationship defined in [RelationType]
     pub rel_type: RelationType,
@@ -104,10 +104,10 @@ pub struct RelationDef {
     pub fk_name: Option<String>,
     /// Whether the server holds rows to the foreign key, if the relation
     /// says: a `NOT ENFORCED` key is recorded and never checked.
-    // [spec:pgorm:def:entity.relation.def+12]
+    // [spec:pgorm:def:entity.relation.def+13]
     pub enforcement: Option<Enforcement>,
     /// When the foreign key's check runs, if the relation says.
-    // [spec:pgorm:def:entity.relation.def+12]
+    // [spec:pgorm:def:entity.relation.def+13]
     pub deferrability: Option<Deferrability>,
     /// Condition type of join on expression
     pub condition_type: ConditionType,
@@ -175,8 +175,8 @@ pub struct NoColumns;
 // [spec:pgorm:req:entity.relation.builder+1]
 pub struct RelationBuilder<E, R, C = ColumnPairs>
 where
-    E: EntityTrait,
-    R: EntityTrait,
+    E: Entity,
+    R: Entity,
 {
     entities: PhantomData<(E, R)>,
     rel_type: RelationType,
@@ -195,8 +195,8 @@ where
 
 impl<E, R, C> std::fmt::Debug for RelationBuilder<E, R, C>
 where
-    E: EntityTrait,
-    R: EntityTrait,
+    E: Entity,
+    R: Entity,
     C: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -250,7 +250,7 @@ impl RelationDef {
     /// written for `(source, target)` never silently starts receiving
     /// `(target, source)`. A closure attached *after* reversing is authored
     /// against the reversed roles, as its author sees them.
-    // [spec:pgorm:def:entity.relation.def+12]
+    // [spec:pgorm:def:entity.relation.def+13]
     pub fn rev(mut self) -> Self {
         let on_condition = self.on_condition.take().map(|f| {
             Box::new(move |left: Name, right: Name| f(right, left))
@@ -334,7 +334,7 @@ impl RelationDef {
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::{cake, cake_filling}};
-    /// use pgorm_query::{Expr, ExprTrait, IntoCondition};
+    /// use pgorm_query::{Expr, Expression, IntoCondition};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -372,7 +372,7 @@ impl RelationDef {
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::{cake, cake_filling}};
-    /// use pgorm_query::{Expr, ExprTrait, IntoCondition, ConditionType};
+    /// use pgorm_query::{Expr, Expression, IntoCondition, ConditionType};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -405,8 +405,8 @@ impl RelationDef {
 
 impl<E, R> RelationBuilder<E, R, NoColumns>
 where
-    E: EntityTrait,
-    R: EntityTrait,
+    E: Entity,
+    R: Entity,
 {
     pub(crate) fn new(rel_type: RelationType, from: E, to: R, is_owner: bool) -> Self {
         Self {
@@ -452,8 +452,8 @@ where
 
 impl<E, R> RelationBuilder<E, R, ColumnPairs>
 where
-    E: EntityTrait,
-    R: EntityTrait,
+    E: Entity,
+    R: Entity,
 {
     pub(crate) fn from_rel(rel_type: RelationType, rel: RelationDef, is_owner: bool) -> Self {
         Self {
@@ -490,7 +490,7 @@ where
     /// REFERENCES .. (.., PERIOD to)`. The relation joins a row to each row
     /// whose period overlaps its own, of which there may be several — the
     /// versions of one key whose periods together cover it.
-    // [spec:pgorm:def:entity.relation.def+12]
+    // [spec:pgorm:def:entity.relation.def+13]
     pub fn period(mut self, from: E::Column, to: R::Column) -> Self {
         self.columns.set_period(from, to);
         self
@@ -499,8 +499,8 @@ where
 
 impl<E, R, C> RelationBuilder<E, R, C>
 where
-    E: EntityTrait,
-    R: EntityTrait,
+    E: Entity,
+    R: Entity,
 {
     /// An operation to perform on a foreign key when a delete operation occurs
     pub fn on_delete(mut self, action: ForeignKeyAction) -> Self {
@@ -541,7 +541,7 @@ where
     /// Say whether the server holds rows to the relation's foreign key:
     /// [`Enforcement::NotEnforced`] records the key without checking it, so
     /// the table may hold rows it references nothing for.
-    // [spec:pgorm:def:entity.relation.def+12]
+    // [spec:pgorm:def:entity.relation.def+13]
     pub fn enforcement(mut self, enforcement: Enforcement) -> Self {
         self.enforcement = Some(enforcement);
         self
@@ -549,7 +549,7 @@ where
 
     /// Say when the relation's foreign key is checked
     /// ([`Deferrability::DeferrableInitiallyDeferred`] checks it at commit).
-    // [spec:pgorm:def:entity.relation.def+12]
+    // [spec:pgorm:def:entity.relation.def+13]
     pub fn deferrability(mut self, deferrability: Deferrability) -> Self {
         self.deferrability = Some(deferrability);
         self
@@ -559,8 +559,8 @@ where
 // [spec:pgorm:req:entity.relation.builder+1]
 impl<E, R> From<RelationBuilder<E, R, ColumnPairs>> for RelationDef
 where
-    E: EntityTrait,
-    R: EntityTrait,
+    E: Entity,
+    R: Entity,
 {
     fn from(b: RelationBuilder<E, R, ColumnPairs>) -> Self {
         RelationDef {
@@ -648,7 +648,7 @@ pub(crate) fn foreign_key_of(relation: &RelationDef) -> ForeignKeyCreateStatemen
 /// Creates a column definition for example to update a table.
 /// ```
 /// use pgorm_query::{ConditionType, FromItem, IntoName, Table, TableForeignKey, TableName};
-/// use pgorm::{alias, ColumnPairs, SqlName, PrimaryKeyTrait, RelationDef, RelationTrait, RelationType};
+/// use pgorm::{alias, ColumnPairs, SqlName, PrimaryKey, RelationDef, Relation, RelationType};
 ///
 /// let relation = RelationDef {
 ///     rel_type: RelationType::HasOne,

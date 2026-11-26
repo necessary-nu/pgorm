@@ -22,7 +22,7 @@ pub use materialized::{
 /// refused by the constructor when PostgreSQL's grammar would refuse its tie
 /// limit or WINDOW clause, and written with its values inlined: a view's
 /// definition is stored as SQL and cannot take bind parameters.
-// [spec:pgorm:req:sql.ddl.view+1]
+// [spec:pgorm:req:sql.ddl.view+2]
 #[derive(Debug, Clone, Copy)]
 pub struct View;
 
@@ -38,7 +38,7 @@ pub struct View;
 /// through no executor that could check it first. The body has no setter, so
 /// the query checked here is the one that renders. A `SELECT` nested in it is
 /// the server's to refuse, as it is for the two checks on their own.
-// [spec:pgorm:req:sql.ddl.view+1]
+// [spec:pgorm:req:sql.ddl.view+2]
 pub(crate) fn definition_body(body: SelectStatement) -> Result<SelectStatement> {
     body.check_clauses()?;
     Ok(body)
@@ -143,7 +143,7 @@ impl ViewDefinition {
 /// view's own condition alone; `CASCADED` to the condition of every view it
 /// reads from as well, whatever their own option says. The bare `WITH CHECK
 /// OPTION` is `CASCADED`, so it has no spelling of its own here.
-// [spec:pgorm:req:sql.ddl.view+1]
+// [spec:pgorm:req:sql.ddl.view+2]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewCheckOption {
     /// `WITH LOCAL CHECK OPTION`: this view's condition alone.
@@ -207,7 +207,7 @@ impl ViewCheckOption {
 /// );
 /// # Ok::<(), pgorm_query::error::Error>(())
 /// ```
-// [spec:pgorm:req:sql.ddl.view+1]
+// [spec:pgorm:req:sql.ddl.view+2]
 #[derive(Debug, Clone)]
 pub struct ViewCreateStatement {
     pub(crate) definition: ViewDefinition,
@@ -263,7 +263,7 @@ pub struct ViewCreateStatement {
 /// );
 /// # Ok::<(), pgorm_query::error::Error>(())
 /// ```
-// [spec:pgorm:req:sql.ddl.view+1]
+// [spec:pgorm:req:sql.ddl.view+2]
 #[derive(Debug, Clone)]
 pub struct RecursiveViewCreateStatement {
     pub(crate) definition: ViewDefinition,
@@ -435,7 +435,7 @@ pub(crate) use relation_drop_methods;
 ///     r#"DROP VIEW IF EXISTS "a", "app"."b" CASCADE"#
 /// );
 /// ```
-// [spec:pgorm:req:sql.ddl.view+1]
+// [spec:pgorm:req:sql.ddl.view+2]
 #[derive(Debug, Clone)]
 pub struct ViewDropStatement {
     pub(crate) relations: RelationDrop,

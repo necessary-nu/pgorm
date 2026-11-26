@@ -1,14 +1,14 @@
 //! What converts into an `ActiveModel`, and into one of its values.
 
-use crate::{ActiveModelTrait, ActiveValue, NotSet, Value};
+use crate::{ActiveModel, ActiveValue, NotSet, Value};
 use pgorm_query::Nullable;
 
 /// What an `ActiveModel` `A` is made from: `A` itself, and a form struct in
 /// any module or crate that `#[derive(IntoActiveModel)]` implements it on.
-// [spec:pgorm:req:entity.active-model.into+3]
+// [spec:pgorm:req:entity.active-model.into+4]
 pub trait IntoActiveModel<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// The `ActiveModel` this value sets, a field it leaves out `NotSet`.
     fn into_active_model(self) -> A;
@@ -16,7 +16,7 @@ where
 
 impl<A> IntoActiveModel<A> for A
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     fn into_active_model(self) -> A {
         self
@@ -27,7 +27,7 @@ where
 /// sets: the built-in column types and the value types the derives make, each
 /// setting its column, and an `Option` of one, whose `None` leaves the column
 /// `NotSet`.
-// [spec:pgorm:req:entity.active-model.into+3]
+// [spec:pgorm:req:entity.active-model.into+4]
 pub trait IntoActiveValue<V>
 where
     V: Into<Value>,

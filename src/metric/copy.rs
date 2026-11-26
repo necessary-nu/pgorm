@@ -7,11 +7,11 @@ use async_trait::async_trait;
 use pgorm_query::{CopyFormat, CopyFromStatement, CopyToStatement};
 
 use super::{InstrumentedConnection, InstrumentedTransaction, MetricsCollector, QueryContext};
-use crate::{CopyColumn, CopyInSink, CopyOutStream, CopyTrait, Error};
+use crate::{CopyColumn, CopyConnection, CopyInSink, CopyOutStream, Error};
 
-// [spec:pgorm:req:metric.layer.copy]    COPY on an instrumented connection
+// [spec:pgorm:req:metric.layer.copy+1]    COPY on an instrumented connection
 #[async_trait]
-impl<M: MetricsCollector> CopyTrait for InstrumentedConnection<M> {
+impl<M: MetricsCollector> CopyConnection for InstrumentedConnection<M> {
     async fn copy_in<F>(
         &mut self,
         statement: &CopyFromStatement<F>,
@@ -57,9 +57,9 @@ impl<M: MetricsCollector> CopyTrait for InstrumentedConnection<M> {
     }
 }
 
-// [spec:pgorm:req:metric.layer.copy]    COPY inside an instrumented transaction
+// [spec:pgorm:req:metric.layer.copy+1]    COPY inside an instrumented transaction
 #[async_trait]
-impl<M: MetricsCollector> CopyTrait for InstrumentedTransaction<'_, M> {
+impl<M: MetricsCollector> CopyConnection for InstrumentedTransaction<'_, M> {
     async fn copy_in<F>(
         &mut self,
         statement: &CopyFromStatement<F>,

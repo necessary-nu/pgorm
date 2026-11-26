@@ -27,7 +27,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
 /// What a stream that decodes its own rows makes of each: a disjoint read's
 /// codec's rows, or a registered read's models.
 pub(crate) type RowDecode =
-    Arc<dyn Fn(tokio_postgres::Row) -> Result<crate::connect::job::Output, Failure> + Send + Sync>;
+    Arc<dyn Fn(pgorm_driver::Row) -> Result<crate::connect::job::Output, Failure> + Send + Sync>;
 
 /// A stream as JavaScript reads it: pgorm-bindings' stream, which holds its
 /// connection until the last row or `close`, and what each row becomes.
@@ -106,7 +106,14 @@ fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
         Err(failure) => return settle::rejected(&mut cx, failure),
     };
     let work = async move {
-        let state = StreamState::on_connection(operation, sql, params, abort.token()).await?;
+        let state = StreamState::on_connection(
+            operation,
+            sql,
+            params,
+            crate::params::Param::native_value,
+            abort.token(),
+        )
+        .await?;
         Ok(Stream::new(state, decode))
     };
     settle::promise(&mut cx, work, |cx, stream| {

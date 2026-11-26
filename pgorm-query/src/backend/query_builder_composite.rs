@@ -10,7 +10,7 @@ impl QueryBuilder {
     /// A composite's `(<attribute>, ...)`. The parentheses are written for an
     /// empty list too: `AS ()` is the empty composite, and `AS` alone is no
     /// statement.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub(super) fn prepare_composite_attributes(
         &self,
         attributes: &[CompositeAttribute],
@@ -29,7 +29,7 @@ impl QueryBuilder {
 
     /// One attribute: its quoted name, the type as a column writes it, and
     /// its collation when it has one.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     fn prepare_composite_attribute(&self, attribute: &CompositeAttribute, sql: &mut dyn SqlWriter) {
         attribute.name.prepare(sql.as_writer());
         write!(sql, " ").unwrap();
@@ -47,7 +47,7 @@ impl QueryBuilder {
 
     /// `ALTER TYPE <type> <change>[ <behavior>], ...`, the behavior written
     /// after each change.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub(crate) fn prepare_composite_alter_statement(
         &self,
         alter: &CompositeAlterStatement,
@@ -88,7 +88,7 @@ impl QueryBuilder {
     }
 
     /// `ALTER TYPE <type> RENAME ATTRIBUTE "from" TO "to"[ <behavior>]`.
-    // [spec:pgorm:req:sql.ddl.type-composite+2]
+    // [spec:pgorm:req:sql.ddl.type-composite+3]
     pub(crate) fn prepare_attribute_rename_statement(
         &self,
         rename: &AttributeRenameStatement,

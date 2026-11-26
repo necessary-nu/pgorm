@@ -1,5 +1,5 @@
 """A declared model's record writes and the hooks around them, the dialect of
-Rust's ``ActiveModelTrait`` and ``ActiveModelBehavior``: ``Model.active(values)``
+Rust's ``pgorm::ActiveModel`` and ``ActiveModelBehavior``: ``Model.active(values)``
 holds the fields a write sets, and its ``insert``, ``update`` and ``delete``
 write one record by the model's own statement builders, each between the
 model's ``before_*`` and ``after_*`` hooks."""
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 Values = Mapping[str, Any]
 
 
-# [spec:pgorm:req:bindings.model-hooks]
+# [spec:pgorm:req:bindings.model-hooks+1]
 class ModelHooks(TypedDict, total=False):
     """The hooks a model runs around its record writes, each optional and each
     a function or a coroutine function, as Rust's ``ActiveModelBehavior``
@@ -59,12 +59,12 @@ async def _run(hook: Callable[..., Any], *arguments: Any) -> Any:
     return await answer if inspect.isawaitable(answer) else answer
 
 
-# [spec:pgorm:req:bindings.model-hooks]
+# [spec:pgorm:req:bindings.model-hooks+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class ModelActive:
     """The fields one record write sets, as a Rust ``ActiveModel`` holds them:
     ``insert``, ``update`` and ``delete`` write the record and run the model's
-    hooks around the write, as ``ActiveModelTrait`` does. A model's statement
+    hooks around the write, as ``pgorm::ActiveModel`` does. A model's statement
     builders, ``insert``, ``update`` and ``delete`` on the model itself, run
     none, as Rust's ``Insert``, ``Update`` and ``Delete`` run none."""
 
@@ -109,14 +109,14 @@ class ModelActive:
         return {field: values[field] for field in model.primary_key}
 
     async def insert(self, db: Database) -> ModelRecord:
-        """``ActiveModelTrait::insert``: ``before_save(values, True)``, the
+        """``pgorm::ActiveModel::insert``: ``before_save(values, True)``, the
         row inserted and read back, then ``after_save(record, True)``."""
         values = await self._before("before_save", True)
         record = await self.model.insert(values).returning().one(db)
         return await self._saved(record, True)
 
     async def update(self, db: Database) -> ModelRecord:
-        """``ActiveModelTrait::update``: ``before_save(values, False)``, the
+        """``pgorm::ActiveModel::update``: ``before_save(values, False)``, the
         row the key names updated with the other fields set and read back,
         then ``after_save(record, False)``. A key no row has is a
         ``DecodeError``, as Rust's ``RecordNotUpdated`` is an error."""
@@ -129,7 +129,7 @@ class ModelActive:
         return await self._saved(rows[0], False)
 
     async def delete(self, db: Database) -> int:
-        """``ActiveModelTrait::delete``: ``before_delete(values)``, the row
+        """``pgorm::ActiveModel::delete``: ``before_delete(values)``, the row
         the key names deleted, then ``after_delete(values)``; the rows
         deleted."""
         values = await self._before("before_delete")

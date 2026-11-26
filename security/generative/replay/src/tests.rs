@@ -449,7 +449,7 @@ fn a_report_is_executed_until_a_step_fails() {
     report.failed(
         "s1",
         "execute",
-        &["pgorm::ConnectionTrait::execute_raw"],
+        &["pgorm::Connection::execute_raw"],
         &ObservedError::new("DecodeError", "column 0", None),
     );
     assert_eq!(report.len(), 2);
@@ -498,7 +498,7 @@ fn a_utc_instant_round_trips_through_the_canon() -> TestResult {
 
 #[test]
 fn the_copied_entity_keeps_its_hostile_enum() {
-    use pgorm::{ColumnTrait, EntityTrait, QueryFilter, QueryTrait};
+    use pgorm::{Column, Entity, QueryFilter, Statement};
 
     let (sql, values) = entities::account::Entity::find()
         .filter(entities::account::Column::State.eq(entities::account::State::Busy))
@@ -584,7 +584,7 @@ fn an_absent_slot_observes_as_absent() -> TestResult {
 
 #[test]
 fn the_copied_graphs_quote_their_given_aliases() {
-    use pgorm::QueryTrait;
+    use pgorm::Statement;
 
     let aliases = vec!["n\" 雪".to_owned()];
     let (sql, _) = entities::graphs::optional(&aliases).build();
@@ -663,7 +663,7 @@ fn range_validation_rejects_what_the_python_format_rejects() {
 // overlapping period, and by a key the server does not enforce
 #[test]
 fn temporal_graphs_join_by_period_and_key() {
-    use pgorm::QueryTrait;
+    use pgorm::Statement;
 
     let aliases = vec!["r\" 雪".to_owned()];
     let (sql, _) = entities::graphs::stay_rooms(&aliases).build();
@@ -676,7 +676,7 @@ fn temporal_graphs_join_by_period_and_key() {
 
 /// An interval travels as its three fields, each its own decimal text, so a
 /// month and thirty days stay two values and an infinity is its triple.
-// [spec:pgorm:def:sql.value.interval+2/test]
+// [spec:pgorm:def:sql.value.interval+3/test]
 #[test]
 fn an_interval_travels_as_its_three_fields() -> TestResult {
     let interval = |value: Interval| encoded(Value::from(value));
@@ -724,7 +724,7 @@ fn an_interval_travels_as_its_three_fields() -> TestResult {
     Ok(())
 }
 
-// [spec:pgorm:def:sql.value.interval+2/test]
+// [spec:pgorm:def:sql.value.interval+3/test]
 #[test]
 fn interval_validation_rejects_what_the_python_format_rejects() {
     let interval = |data: Json| json!({"version": 1, "type": {"kind": "interval"}, "sql_null": false, "data": data});

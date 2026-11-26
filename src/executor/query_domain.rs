@@ -1,8 +1,8 @@
 //! Reading an array of a domain as an array of the type the domain is over.
 
+use pgorm_driver::types::{FromSql, Kind, Type};
 use pgorm_query::base_type;
 use std::borrow::Cow;
-use tokio_postgres::types::{FromSql, Kind, Type};
 
 /// An array read as an array of the type its elements' domain is over.
 ///
@@ -51,7 +51,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Transparent<T> {
 mod tests {
     use super::*;
     use bytes::BytesMut;
-    use tokio_postgres::types::ToSql;
+    use pgorm_driver::types::ToSql;
 
     fn named(name: &str, kind: Kind) -> Type {
         Type::new(name.to_owned(), 16_384, kind, "public".to_owned())

@@ -242,7 +242,7 @@ export function array(select) {
 /**
  * The quantifier and the values `value` ranges over when it is `any(..)` or
  * `all(..)` over a list holding no expression: what a registered column
- * converts to its declared kind and compares through its `ColumnTrait`.
+ * converts to its declared kind and compares through its `pgorm::Column`.
  *
  * @type {(value: unknown) => readonly ["any" | "all", readonly unknown[]] | undefined}
  */

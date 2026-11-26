@@ -5,7 +5,7 @@ use syn::{Data, DataStruct, Field, Fields, Type, punctuated::IntoIter};
 
 /// The `ActiveModel` the composite derive writes beside its `Model`, and its
 /// `ActiveModelBehavior` with no hooks unless the program writes its own.
-// [spec:pgorm:sem:macros.derive.active-model+9]
+// [spec:pgorm:sem:macros.derive.active-model+10]
 // [spec:pgorm:sem:macros.derive.boilerplate]
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]    the field-key vocabulary this
 // expansion shares with the `Entity` derive
@@ -80,8 +80,8 @@ fn derive_active_model(all_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
         }
 
         #[automatically_derived]
-        impl std::convert::From<<Entity as pgorm::EntityTrait>::Model> for ActiveModel {
-            fn from(m: <Entity as pgorm::EntityTrait>::Model) -> Self {
+        impl std::convert::From<<Entity as pgorm::Entity>::Model> for ActiveModel {
+            fn from(m: <Entity as pgorm::Entity>::Model) -> Self {
                 Self {
                     #(#field: pgorm::ActiveValue::unchanged(m.#field)),*
                 }
@@ -100,12 +100,12 @@ fn derive_active_model(all_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
         }
 
         #[automatically_derived]
-        impl pgorm::ActiveModelTrait for ActiveModel {
+        impl pgorm::ActiveModel for ActiveModel {
             type Entity = Entity;
 
-            fn take(&mut self, c: <Self::Entity as pgorm::EntityTrait>::Column) -> std::result::Result<pgorm::ActiveValue<pgorm::Value>, pgorm::Error> {
+            fn take(&mut self, c: <Self::Entity as pgorm::Entity>::Column) -> std::result::Result<pgorm::ActiveValue<pgorm::Value>, pgorm::Error> {
                 match c {
-                    #(<Self::Entity as pgorm::EntityTrait>::Column::#name => {
+                    #(<Self::Entity as pgorm::Entity>::Column::#name => {
                         let mut value = pgorm::ActiveValue::not_set();
                         std::mem::swap(&mut value, &mut self.#field);
                         Ok(value.into_wrapped_value())
@@ -114,16 +114,16 @@ fn derive_active_model(all_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
                 }
             }
 
-            fn get(&self, c: <Self::Entity as pgorm::EntityTrait>::Column) -> std::result::Result<pgorm::ActiveValue<pgorm::Value>, pgorm::Error> {
+            fn get(&self, c: <Self::Entity as pgorm::Entity>::Column) -> std::result::Result<pgorm::ActiveValue<pgorm::Value>, pgorm::Error> {
                 match c {
-                    #(<Self::Entity as pgorm::EntityTrait>::Column::#name => Ok(self.#field.clone().into_wrapped_value()),)*
+                    #(<Self::Entity as pgorm::Entity>::Column::#name => Ok(self.#field.clone().into_wrapped_value()),)*
                     _ => Err(pgorm::Error::Type(#missing_msg.to_owned())),
                 }
             }
 
-            fn set(&mut self, c: <Self::Entity as pgorm::EntityTrait>::Column, v: pgorm::Value) -> std::result::Result<(), pgorm::Error> {
+            fn set(&mut self, c: <Self::Entity as pgorm::Entity>::Column, v: pgorm::Value) -> std::result::Result<(), pgorm::Error> {
                 match c {
-                    #(<Self::Entity as pgorm::EntityTrait>::Column::#name => {
+                    #(<Self::Entity as pgorm::Entity>::Column::#name => {
                         self.#field = pgorm::ActiveValue::set(
                             pgorm::pgorm_query::ValueType::from_value(v)
                                 .map_err(|_| pgorm::Error::Type(#mismatch_msg.to_owned()))?,
@@ -134,16 +134,16 @@ fn derive_active_model(all_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
                 }
             }
 
-            fn not_set(&mut self, c: <Self::Entity as pgorm::EntityTrait>::Column) {
+            fn not_set(&mut self, c: <Self::Entity as pgorm::Entity>::Column) {
                 match c {
-                    #(<Self::Entity as pgorm::EntityTrait>::Column::#name => self.#field = pgorm::ActiveValue::not_set(),)*
+                    #(<Self::Entity as pgorm::Entity>::Column::#name => self.#field = pgorm::ActiveValue::not_set(),)*
                     _ => {},
                 }
             }
 
-            fn is_not_set(&self, c: <Self::Entity as pgorm::EntityTrait>::Column) -> bool {
+            fn is_not_set(&self, c: <Self::Entity as pgorm::Entity>::Column) -> bool {
                 match c {
-                    #(<Self::Entity as pgorm::EntityTrait>::Column::#name => self.#field.is_not_set(),)*
+                    #(<Self::Entity as pgorm::Entity>::Column::#name => self.#field.is_not_set(),)*
                     _ => panic!("This ActiveModel does not have this field"),
                 }
             }
@@ -154,9 +154,9 @@ fn derive_active_model(all_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
                 }
             }
 
-            fn reset(&mut self, c: <Self::Entity as pgorm::EntityTrait>::Column) {
+            fn reset(&mut self, c: <Self::Entity as pgorm::Entity>::Column) {
                 match c {
-                    #(<Self::Entity as pgorm::EntityTrait>::Column::#name => self.#field.reset(),)*
+                    #(<Self::Entity as pgorm::Entity>::Column::#name => self.#field.reset(),)*
                     _ => panic!("This ActiveModel does not have this field"),
                 }
             }
@@ -197,7 +197,7 @@ fn derive_into_model(model_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
 
     Ok(quote!(
         #[automatically_derived]
-        impl std::convert::TryFrom<ActiveModel> for <Entity as pgorm::EntityTrait>::Model {
+        impl std::convert::TryFrom<ActiveModel> for <Entity as pgorm::Entity>::Model {
             type Error = pgorm::Error;
             fn try_from(mut a: ActiveModel) -> Result<Self, pgorm::Error> {
                 #(if matches!(a.#active_model_field, pgorm::ActiveValue::NotSet) {
@@ -212,8 +212,8 @@ fn derive_into_model(model_fields: IntoIter<Field>) -> syn::Result<TokenStream> 
         }
 
         #[automatically_derived]
-        impl pgorm::TryIntoModel<<Entity as pgorm::EntityTrait>::Model> for ActiveModel {
-            fn try_into_model(self) -> Result<<Entity as pgorm::EntityTrait>::Model, pgorm::Error> {
+        impl pgorm::TryIntoModel<<Entity as pgorm::Entity>::Model> for ActiveModel {
+            fn try_into_model(self) -> Result<<Entity as pgorm::Entity>::Model, pgorm::Error> {
                 self.try_into()
             }
         }

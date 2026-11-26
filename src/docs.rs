@@ -1,6 +1,6 @@
 //! 1. Async
 //!
-//!    Built on [tokio-postgres](https://github.com/sfackler/rust-postgres) and
+//!    Built on pgorm-driver (maintained from [tokio-postgres](https://github.com/rust-postgres/rust-postgres)) and
 //!    [deadpool](https://github.com/bikeshedder/deadpool), pgorm is async from
 //!    day 1: a connection is a pooled handle, and independent queries can be
 //!    driven concurrently on separate handles.

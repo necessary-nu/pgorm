@@ -108,6 +108,8 @@ pub enum Failure {
     /// An argument's value cannot become what pgorm sends: a
     /// `ConstructionError`.
     Construction(String),
+    /// An optional backend is absent from this package build.
+    UnsupportedCapability(String),
     /// The driver refused a parameter's value as it encoded it, pgorm's
     /// `BindRefusal`: a `ConstructionError` carrying its fields.
     Bind {
@@ -215,7 +217,9 @@ impl Failure {
             Self::Database(diagnostics) => diagnostics.class(),
             Self::Connection(_) => Class::Connection,
             Self::Decode(_) | Self::Unreadable { .. } => Class::Decode,
-            Self::Construction(_) | Self::Bind { .. } => Class::Construction,
+            Self::Construction(_) | Self::UnsupportedCapability(_) | Self::Bind { .. } => {
+                Class::Construction
+            }
             Self::Internal(_) => Class::Internal,
             Self::Lifecycle(_) => Class::Lifecycle,
             Self::Timeout(_) => Class::Timeout,
@@ -231,6 +235,7 @@ impl Failure {
             Self::Connection(message)
             | Self::Decode(message)
             | Self::Construction(message)
+            | Self::UnsupportedCapability(message)
             | Self::Internal(message)
             | Self::Lifecycle(message)
             | Self::Timeout(message)
@@ -263,6 +268,12 @@ impl fmt::Display for Failure {
 }
 
 impl std::error::Error for Failure {}
+
+impl From<crate::Refusal> for Failure {
+    fn from(error: crate::Refusal) -> Self {
+        Self::Construction(error.into_message())
+    }
+}
 
 /// The most values one statement binds, as PostgreSQL's protocol counts them
 /// in sixteen bits.
@@ -306,7 +317,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
     }
     let mut source: &(dyn std::error::Error + 'static) = error;
     loop {
-        if let Some(postgres) = source.downcast_ref::<tokio_postgres::Error>() {
+        if let Some(postgres) = source.downcast_ref::<pgorm_driver::Error>() {
             return marked(postgres_failure(postgres, None, secrets));
         }
         match source.source() {
@@ -328,7 +339,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
         // caller's input, as a parameter that cannot be bound is.
         // [spec:pgorm:req:bindings.listen+3]
         Error::Listen(ListenError::ChannelTooLong { .. }) => Failure::Construction(message()),
-        // [spec:pgorm:req:conn.copy.statement+2]
+        // [spec:pgorm:req:conn.copy.statement+3]
         Error::CopyStatement => Failure::Construction(format!(
             "a COPY runs through {copy_in} or {copy_out}, which carry its data, not as a \
              statement: {}",
@@ -354,7 +365,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
         // refuses to run as written, and the refusal an application's
         // ActiveModelBehavior hook returns: the bindings make no
         // `Error::Custom` of their own.
-        // [spec:pgorm:req:bindings.entity-writes+1]
+        // [spec:pgorm:req:bindings.entity-writes+2]
         Error::NothingToSet
         | Error::PrimaryKeyNotSet
         | Error::ImmutableColumn { .. }
@@ -370,7 +381,7 @@ pub fn classify(error: &Error, secrets: &Redactions, dialect: Dialect) -> Failur
 /// `error` as the failure its SQLSTATE names, its message the server's
 /// unless `message` replaces it.
 fn postgres_failure(
-    error: &tokio_postgres::Error,
+    error: &pgorm_driver::Error,
     message: Option<&str>,
     secrets: &Redactions,
 ) -> Failure {
@@ -390,7 +401,7 @@ fn postgres_failure(
                 reason: reason(&refusal.reason),
             }
         } else if let Some(refusal) = ParameterCountRefusal::of(error) {
-            // [spec:pgorm:sem:error.model.parameter-count]
+            // [spec:pgorm:sem:error.model.parameter-count+1]
             Failure::Construction(refusal.to_string())
         } else {
             Failure::Connection(format!(

@@ -7,8 +7,8 @@
 // or its direction does not take is refused as it is called. COPY takes no
 // bind parameters, so `inspect()` gives its SQL, every value in it a
 // literal, and no values.
-// [spec:pgorm:req:bindings.copy]
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy+1]
+// [spec:pgorm:req:bindings.copy-rows+3]
 
 import { arg, Builder, trusted, TRUSTED } from "./builder.js";
 import { describedColumns } from "./copy-columns.js";

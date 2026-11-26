@@ -70,8 +70,8 @@ pub async fn create_and_update(db: &DatabaseConnection) -> Result<(), Error> {
 #[pgorm_macros::test]
 async fn bit_spellings_create_the_types_they_name() -> Result<(), Error> {
     use pgorm::pgorm_query::{ColumnDef, ColumnType, Name, Table};
+    use pgorm_driver::error::SqlState;
     use std::sync::Arc;
-    use tokio_postgres::error::SqlState;
 
     let n = Name::runtime;
 

@@ -55,5 +55,98 @@
       "source": "https://raw.githubusercontent.com/ardaku/wasite/3f7d6ad926848cd52c8d2142fdb2f43ab01ae8ec/LICENSE_MIT.txt",
       "sha256": "508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1"
     }
+  ],
+  "antithesis_sdk@0.3.0": [
+    {
+      "file": "antithesis-sdk-MIT.txt",
+      "source": "https://raw.githubusercontent.com/antithesishq/antithesis-sdk-rust/7ef217a6558dcb1a6b5e2b65d6d8b2d62af5b359/LICENSE",
+      "sha256": "c83c984b103721df0fbbab8b2d9a8d03453476e543003b00f1d0e67f94fed425"
+    }
+  ],
+  "aristo-macros@0.4.1": [
+    {
+      "file": "aristo-MIT.txt",
+      "source": "https://raw.githubusercontent.com/aretta-ai/aristo/b6f9585a26a5ff2064134143aa10c813d2795546/LICENSE",
+      "sha256": "e581d9bf9d912c35c1c4c975edd5bb696ef232e0e193fdcd518257b9dff41e55"
+    }
+  ],
+  "aristo@0.4.1": [
+    {
+      "file": "aristo-MIT.txt",
+      "source": "https://raw.githubusercontent.com/aretta-ai/aristo/b6f9585a26a5ff2064134143aa10c813d2795546/LICENSE",
+      "sha256": "e581d9bf9d912c35c1c4c975edd5bb696ef232e0e193fdcd518257b9dff41e55"
+    }
+  ],
+  "assoc@0.1.3": [
+    {
+      "file": "assoc-Cargo.toml",
+      "source": "https://raw.githubusercontent.com/mingyli/assoc/8a5b7b23efc3d05d32e48fed310db3b804b9e690/Cargo.toml",
+      "sha256": "f9d8a4a47ed959f42a4116adef092c976997150bd786905d4288f2a0ed7f147a"
+    },
+    {
+      "file": "MIT-SPDX.txt",
+      "source": "https://raw.githubusercontent.com/spdx/license-list-data/d46e94e2c78ceede1cfc63cfa0396472d2798d4c/text/MIT.txt",
+      "sha256": "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5"
+    }
+  ],
+  "cfg_block@0.1.1": [
+    {
+      "file": "APACHE-2.0.txt",
+      "source": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    }
+  ],
+  "pack1@1.1.0": [
+    {
+      "file": "pack1-Cargo.toml",
+      "source": "https://raw.githubusercontent.com/Lokathor/pack1/fb975e9d592d94fe4624908ebfae3a71c984d3ff/Cargo.toml",
+      "sha256": "b6e9eae213907cbd6b06be7c7393e18b122c2a454143aaffea0e88def1aa93f9"
+    },
+    {
+      "file": "APACHE-2.0.txt",
+      "source": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    }
+  ],
+  "pg_query@18.1.0": [
+    {
+      "file": "pg-query-MIT.txt",
+      "source": "https://raw.githubusercontent.com/pganalyze/pg_query.rs/20f3a182dc74ef0406752548bc6fb79fbfb591b1/LICENSE",
+      "sha256": "39fac7e7daa7cf3173d96f9e8a167f980b93b90386b83c342de70db3bc7bbb68"
+    },
+    {
+      "file": "libpg-query-BSD.txt",
+      "source": "https://raw.githubusercontent.com/pganalyze/libpg_query/c1546e7e97edc93fe8474d7a59881e91fbf48cfc/LICENSE",
+      "sha256": "f9352c20940619a380a5e9f23cebe34d8f797cfbd747fc236a7a3e5fc8ef9b41"
+    },
+    {
+      "file": "libpg-query-PostgreSQL.txt",
+      "source": "https://raw.githubusercontent.com/pganalyze/libpg_query/c1546e7e97edc93fe8474d7a59881e91fbf48cfc/src/postgres/COPYRIGHT",
+      "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+    },
+    {
+      "file": "libpg-query-upb-BSD.txt",
+      "source": "https://raw.githubusercontent.com/pganalyze/libpg_query/c1546e7e97edc93fe8474d7a59881e91fbf48cfc/vendor/upb/LICENSE",
+      "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"
+    },
+    {
+      "file": "libpg-query-utf8-range-MIT.txt",
+      "source": "https://raw.githubusercontent.com/pganalyze/libpg_query/c1546e7e97edc93fe8474d7a59881e91fbf48cfc/vendor/upb/third_party/utf8_range/LICENSE",
+      "sha256": "02de69b64fc36d9e938f418e52723e42f0b2b226d58a9cb3c8dcbdf7059f5074"
+    }
+  ],
+  "simsimd@6.5.16": [
+    {
+      "file": "simsimd-APACHE.txt",
+      "source": "https://raw.githubusercontent.com/ashvardanian/SimSIMD/fb7cbdda3d187e4875cef71f2d16c1b739bff38f/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ],
+  "valuable@0.1.1": [
+    {
+      "file": "valuable-MIT.txt",
+      "source": "https://raw.githubusercontent.com/tokio-rs/valuable/9efc29b6e58cef28f6566a47aa7e142a55fead77/LICENSE",
+      "sha256": "ed60d479b8fd1f64e9cbc3de449a16a53ac1b3d1b6aeb9bf9d190a8e93061b44"
+    }
   ]
 }

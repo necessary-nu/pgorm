@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { type MigrationTrait, migrations, SqlMigration } from "@necessary/pgorm";
+import { type Migration, migrations, SqlMigration } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -15,7 +15,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   ]);
   assert.deepEqual(frozen.map((file) => file.commitsAfter), [false, false, true, false]);
 
-  const firstVoucher: MigrationTrait = {
+  const firstVoucher: Migration = {
     name: "m20260301_000002_first_voucher",
     async up(tx) {
       // The base row and its kind's row reference each other, so the keys are

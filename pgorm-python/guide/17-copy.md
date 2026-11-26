@@ -3,7 +3,7 @@
 `COPY` moves rows between a table and the client in bulk. It is the fastest
 way to load many rows into PostgreSQL, or to read many out: the rows stream
 over the connection as one data flow, with no statement per row. pgorm runs
-it through Rust's `CopyTrait`, and Python reaches it through four methods,
+it through Rust's `pgorm::CopyConnection`, and Python reaches it through four methods,
 `copy_in`, `copy_out`, `copy_in_rows` and `copy_out_rows`, each on a `Pool`,
 a `Connection` and a `Transaction` (and so a savepoint). A pool's COPY runs on
 a connection it lends for the COPY alone.

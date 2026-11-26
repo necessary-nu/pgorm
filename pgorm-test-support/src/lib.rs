@@ -45,7 +45,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use tokio_postgres::{Client, Config, Error, NoTls, error::SqlState};
+use pgorm_driver::{Client, Config, Error, NoTls, error::SqlState};
 
 mod clears;
 mod prepared;
@@ -122,7 +122,7 @@ pub fn this_run() -> Creator {
 
 /// A database or role name for `label`, unique to this process and to this
 /// call within it.
-// [spec:pgorm:req:testing.isolation]    the per-run name every live test object takes
+// [spec:pgorm:req:testing.isolation+1]    the per-run name every live test object takes
 pub fn scoped_name(label: &str) -> String {
     name_for(label, this_run())
 }
@@ -216,7 +216,7 @@ async fn sweep_once(maintenance: &Client) {
 /// The databases are dropped without `FORCE`: a session that connected after
 /// the catalogue was read makes the drop fail rather than be evicted. Each
 /// failure is left for a later sweep.
-// [spec:pgorm:req:testing.isolation]    only a provably gone creator's leftovers are dropped
+// [spec:pgorm:req:testing.isolation+1]    only a provably gone creator's leftovers are dropped
 pub async fn sweep(maintenance: &Client) -> Result<(), Error> {
     let databases = maintenance
         .query(

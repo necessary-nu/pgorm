@@ -6,10 +6,10 @@
 use std::time::Duration;
 
 use pgorm::{
-    Bytes, BytesMut, ChannelBinding, Config, ConnectionTrait, CopyInSink, CopyOutStream,
-    CopyRowEncoder, CopyRowStream, DbError, Error, Hook, HookError, Host, LoadBalanceHosts,
-    Notifications, PoolConfig, PoolError, PostgresError, QueueMode, Row, RowStream, Runtime, Sink,
-    SqlState, SslMode, SslNegotiation, Status, Stream, TargetSessionAttrs, TimeoutType, Timeouts,
+    Bytes, BytesMut, ChannelBinding, Config, Connection, CopyInSink, CopyOutStream, CopyRowEncoder,
+    CopyRowStream, DbError, Error, Hook, HookError, Host, LoadBalanceHosts, Notifications,
+    PoolConfig, PoolError, PostgresError, QueueMode, Row, RowStream, Runtime, Sink, SqlState,
+    SslMode, SslNegotiation, Status, Stream, TargetSessionAttrs, TimeoutType, Timeouts,
     connect_with_builder,
 };
 
@@ -24,7 +24,7 @@ fn sink<S: Sink<Bytes, Error = Error>>() {}
 
 fn stream<S: Stream>() {}
 
-// [spec:pgorm:req:conn.driver-types/test]    the traits pgorm's sinks and streams implement
+// [spec:pgorm:req:conn.driver-types+2/test]    the traits pgorm's sinks and streams implement
 #[test]
 fn sinks_and_streams_are_named_through_pgorm() {
     sink::<CopyInSink<'static>>();
@@ -34,7 +34,7 @@ fn sinks_and_streams_are_named_through_pgorm() {
     stream::<Notifications>();
 }
 
-// [spec:pgorm:req:conn.driver-types/test]    what Config's setters take and its getters return
+// [spec:pgorm:req:conn.driver-types+2/test]    what Config's setters take and its getters return
 #[test]
 fn config_vocabulary_is_named_through_pgorm() {
     let mut config = Config::new();
@@ -57,7 +57,7 @@ fn config_vocabulary_is_named_through_pgorm() {
     assert_eq!(config.get_load_balance_hosts(), LoadBalanceHosts::Random);
 }
 
-// [spec:pgorm:req:conn.driver-types/test]    the buffer the COPY encoder writes into
+// [spec:pgorm:req:conn.driver-types+2/test]    the buffer the COPY encoder writes into
 #[test]
 fn copy_buffer_is_named_through_pgorm() {
     let mut data = BytesMut::new();
@@ -79,7 +79,7 @@ fn server_error(error: &PostgresError) -> Option<&DbError> {
     error.as_db_error()
 }
 
-// [spec:pgorm:req:conn.driver-types/test]    rows, the driver's error and the SQLSTATE it reports
+// [spec:pgorm:req:conn.driver-types+2/test]    rows, the driver's error and the SQLSTATE it reports
 #[tokio::test]
 async fn rows_and_driver_errors_are_named_through_pgorm() -> Result<(), Error> {
     let pool = pgorm::connect(maintenance_config());
@@ -106,7 +106,7 @@ async fn rows_and_driver_errors_are_named_through_pgorm() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.driver-types/test]    the pool's setters' arguments, its status and its error
+// [spec:pgorm:req:conn.driver-types+2/test]    the pool's setters' arguments, its status and its error
 #[tokio::test]
 async fn pool_vocabulary_is_named_through_pgorm() -> Result<(), Error> {
     let pool = connect_with_builder(maintenance_config(), |builder| {

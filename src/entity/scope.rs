@@ -4,10 +4,8 @@
 
 use crate::entity::column_def::{compared_column, compared_value};
 use crate::pipeline::{Binder, Expr as PipelineExpr};
-use crate::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, EntityName, EntityTrait, StaticName, Value,
-};
-use pgorm_query::{Condition, Expr, ExprTrait, Name};
+use crate::{ActiveModel, ActiveValue, Column, Entity, EntityName, StaticName, Value};
+use pgorm_query::{Condition, Expr, Expression, Name};
 use std::any::{Any, TypeId};
 use std::fmt;
 use std::marker::PhantomData;
@@ -19,7 +17,7 @@ use std::marker::PhantomData;
 /// A scope value is a context of its own, holding itself:
 /// `company::Entity::find_for(&CompanyId(7))` reads company 7's row, the
 /// company entity being scoped by `CompanyId` alone.
-// [spec:pgorm:def:scope.declare]
+// [spec:pgorm:def:scope.declare+1]
 pub trait Scope: Clone + 'static {}
 
 /// How a [`ScopeContext`] holds one scope: one value, which a statement under
@@ -172,13 +170,13 @@ impl ScopeContext for NoContext {
 /// they are a scoped entity's compile errors, and each `_for` form by
 /// `ScopedIn<Cx>` for the context it is given.
 // [spec:pgorm:req:scope.compile]
-pub trait ScopedIn<Cx: ScopeContext + ?Sized>: EntityTrait {}
+pub trait ScopedIn<Cx: ScopeContext + ?Sized>: Entity {}
 
 /// What an entity declares about scopes apart from any context: the scopes,
 /// and how a context's values become the condition on its rows and the
 /// columns of a row it inserts. The `Entity` derive implements it for every
 /// entity, an unscoped one with the defaults.
-// [spec:pgorm:def:scope.declare]
+// [spec:pgorm:def:scope.declare+1]
 pub trait EntityScopes {
     /// The scopes, or `None` for an unscoped entity.
     fn scopes() -> Option<Scopes> {
@@ -189,10 +187,10 @@ pub trait EntityScopes {
     /// value `cx` does not hold, for an insert under `cx`.
     fn fill_scopes(
         cx: &dyn ScopeContext,
-        row: &mut <Self as EntityTrait>::ActiveModel,
+        row: &mut <Self as Entity>::ActiveModel,
     ) -> Result<(), ScopeError>
     where
-        Self: EntityTrait,
+        Self: Entity,
     {
         let _ = (cx, row);
         Ok(())
@@ -204,7 +202,7 @@ pub trait EntityScopes {
 /// the entity read under a given name. A [`RelationDef`](crate::RelationDef)
 /// carries its sides' scopes, so a join into a scoped table is scoped by the
 /// context of the form that adds it, or refused.
-// [spec:pgorm:def:scope.declare]
+// [spec:pgorm:def:scope.declare+1]
 #[derive(Clone, Copy)]
 pub struct Scopes {
     names: &'static [&'static str],
@@ -316,7 +314,7 @@ impl Scopes {
 /// table's own or the alias a join reads it under, and qualifies its columns
 /// by it. Under an [`Every`] of the scope neither is called.
 // [spec:pgorm:def:scope.written]
-pub trait ScopeOn<E: EntityTrait>: Scope {
+pub trait ScopeOn<E: Entity>: Scope {
     /// The condition this value puts on a row of `E` read under `table`.
     fn condition(&self, table: Name) -> Condition;
 
@@ -425,7 +423,7 @@ fn not_held<E: EntityName>(scope: &'static str) -> ScopeError {
 /// The condition `cx`'s scopes put on a row of `E` written under `E`'s own
 /// name, or the refusal of a context that does not hold one of them.
 // [spec:pgorm:sem:scope.write]
-pub(crate) fn scope_condition<E: EntityTrait>(
+pub(crate) fn scope_condition<E: Entity>(
     cx: &dyn ScopeContext,
 ) -> Result<Option<Condition>, ScopeError> {
     match E::scopes() {
@@ -453,7 +451,7 @@ impl<E> fmt::Debug for ScopeConditions<'_, E> {
 }
 
 // [spec:pgorm:sem:scope.read]
-impl<'a, E: EntityTrait> ScopeConditions<'a, E> {
+impl<'a, E: Entity> ScopeConditions<'a, E> {
     /// No condition yet, for rows read under `table`.
     pub fn new(cx: &'a dyn ScopeContext, table: Name) -> Self {
         Self {
@@ -473,11 +471,11 @@ impl<'a, E: EntityTrait> ScopeConditions<'a, E> {
     }
 
     /// `column = value` for the value of `S` the context holds, compared
-    /// under the column's casts as [`ColumnTrait::eq`] compares it.
+    /// under the column's casts as [`Column::eq`] compares it.
     pub fn column<S, C>(self, scope: &'static str, column: C) -> Result<Self, ScopeError>
     where
         S: Scope + Into<Value>,
-        C: ColumnTrait,
+        C: Column,
     {
         match held_by::<S, E>(self.cx, scope)? {
             Held::One(value) => {
@@ -510,12 +508,12 @@ impl<'a, E: EntityTrait> ScopeConditions<'a, E> {
 /// A row an insert under a context writes, its scope columns filled one scope
 /// at a time: what the `Entity` derive's fill writes.
 #[doc(hidden)]
-pub struct ScopeFill<'a, E: EntityTrait> {
+pub struct ScopeFill<'a, E: Entity> {
     cx: &'a dyn ScopeContext,
     row: &'a mut E::ActiveModel,
 }
 
-impl<E: EntityTrait> fmt::Debug for ScopeFill<'_, E> {
+impl<E: Entity> fmt::Debug for ScopeFill<'_, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ScopeFill")
             .field("row", &self.row)
@@ -524,7 +522,7 @@ impl<E: EntityTrait> fmt::Debug for ScopeFill<'_, E> {
 }
 
 // [spec:pgorm:sem:scope.insert]
-impl<'a, E: EntityTrait> ScopeFill<'a, E> {
+impl<'a, E: Entity> ScopeFill<'a, E> {
     /// Nothing filled yet.
     pub fn new(cx: &'a dyn ScopeContext, row: &'a mut E::ActiveModel) -> Self {
         Self { cx, row }

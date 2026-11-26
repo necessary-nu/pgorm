@@ -75,15 +75,15 @@ def dispatch(name, i, d, p, fixture):
         case "model.returning":
             return i["query"].returning(*d["columns"]), ["pgorm_query::ReturningClause"]
         case "entity":
-            return p.entity(d["name"]), ["pgorm::EntityTrait"]
+            return p.entity(d["name"]), ["pgorm::Entity"]
         case "entity.column":
-            return i["entity"].col(d["name"]).expr(), ["pgorm::ColumnTrait::into_expr"]
+            return i["entity"].col(d["name"]).expr(), ["pgorm::Column::into_expr"]
         case "entity.predicate":
             return getattr(i["entity"].col(d["column"]), d["operator"])(i["value"]), [
-                "pgorm::ColumnTrait::" + d["operator"]
+                "pgorm::Column::" + d["operator"]
             ]
         case "entity.find":
-            return i["entity"].find(), ["pgorm::EntityTrait::find"]
+            return i["entity"].find(), ["pgorm::Entity::find"]
         case "entity.filter" | "graph.filter":
             return i["query"].where(i["predicate"]), ["pgorm::QueryFilter::filter"]
         case "entity.order" | "graph.order":
@@ -97,18 +97,18 @@ def dispatch(name, i, d, p, fixture):
         case "active.set":
             if d["state"] == "set":
                 return i["model"].set(d["column"], i["value"]), [
-                    "pgorm::ActiveModelTrait::set"
+                    "pgorm::ActiveModel::set"
                 ]
             if "value" in i:
                 raise p.ConstructionError("reset and not_set cannot receive a value")
             return getattr(i["model"], d["state"])(d["column"]), [
-                "pgorm::ActiveModelTrait::" + d["state"]
+                "pgorm::ActiveModel::" + d["state"]
             ]
         case "graph":
             return p.graph(d["name"]), ["pgorm::SelectGraph"]
         case "graph.find":
             query = i["graph"].find(aliases=d["aliases"])
-            paths = ["pgorm::EntityTrait::graph"]
+            paths = ["pgorm::Entity::graph"]
             if d["aliases"]:
                 method = (
                     "join_one_as"

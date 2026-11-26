@@ -4,8 +4,8 @@ pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::{
-    Error, PartialModelTrait, PrimaryKeyTrait, QueryResult, Related, RelationDef, RelationTrait,
-    Schema, Select, Value, Values, entity::prelude::*,
+    Error, PartialModel, PrimaryKey, QueryResult, Related, Relation, RelationDef, Schema, Select,
+    Value, Values, entity::prelude::*,
 };
 use pgorm_query::{
     BinOper, Expr, IntoName, IntoValueTuple, QueryBuilder, TableName, TryFromValueTuple,
@@ -92,14 +92,14 @@ mod quad {
 }
 
 /// An entity whose key is written by hand, which the traits allow: its
-/// `Entity` names the key through the `EntityTrait` derive's `primary_key` override. It
+/// `Entity` names the key through the `Entity` derive's `primary_key` override. It
 /// deliberately declares a `ValueType` with more components than the key has
 /// variants, which is what the `find_by_id` / `delete_by_id` arity guard exists
 /// to catch; no derive writes such a key.
 mod too_many_values {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     #[pgorm(primary_key = WideKey)]
     pub struct Entity;
 
@@ -163,7 +163,7 @@ mod too_many_values {
         }
     }
 
-    impl PrimaryKeyTrait for WideKey {
+    impl pgorm::PrimaryKey for WideKey {
         type ValueType = (i32, i32);
 
         fn auto_increment() -> bool {
@@ -176,7 +176,7 @@ mod too_many_values {
 mod too_few_values {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     #[pgorm(primary_key = NarrowKey)]
     pub struct Entity;
 
@@ -244,7 +244,7 @@ mod too_few_values {
         }
     }
 
-    impl PrimaryKeyTrait for NarrowKey {
+    impl pgorm::PrimaryKey for NarrowKey {
         type ValueType = i32;
 
         fn auto_increment() -> bool {
@@ -259,7 +259,7 @@ mod too_few_values {
 mod mistyped_key {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     #[pgorm(primary_key = MistypedKey)]
     pub struct Entity;
 
@@ -321,7 +321,7 @@ mod mistyped_key {
         }
     }
 
-    impl PrimaryKeyTrait for MistypedKey {
+    impl pgorm::PrimaryKey for MistypedKey {
         type ValueType = String;
 
         fn auto_increment() -> bool {
@@ -335,16 +335,16 @@ mod mistyped_key {
 // ---------------------------------------------------------------------------
 
 /// Every associated type of a concrete entity really does satisfy the bounds
-/// `EntityTrait` declares. This only compiles if the five associated types are
+/// `Entity` declares. This only compiles if the five associated types are
 /// wired the way the spec says.
 fn assert_entity_family<E>()
 where
-    E: EntityTrait + EntityName + StaticName + Default,
-    E::Model: ModelTrait<Entity = E> + FromQueryResult,
+    E: Entity + EntityName + StaticName + Default,
+    E::Model: Model<Entity = E> + FromQueryResult,
     E::ActiveModel: ActiveModelBehavior<Entity = E>,
-    E::Column: ColumnTrait,
-    E::Relation: RelationTrait,
-    E::PrimaryKey: PrimaryKeyTrait + PrimaryKeyToColumn<Column = E::Column>,
+    E::Column: Column,
+    E::Relation: Relation,
+    E::PrimaryKey: PrimaryKey + PrimaryKeyToColumn<Column = E::Column>,
 {
 }
 
@@ -354,9 +354,9 @@ fn via_default<E: Default>() -> E {
     E::default()
 }
 
-// [spec:pgorm:def:entity.traits+4/test]    `StaticName` as the base identifier
+// [spec:pgorm:def:entity.traits+5/test]    `StaticName` as the base identifier
 // contract (`as_str` alongside `SqlName`'s quoting), `EntityName: StaticName +
-// Default`, and `EntityTrait`'s five associated types resolving for both a
+// Default`, and `Entity`'s five associated types resolving for both a
 // derived entity and one whose name and key are written by hand
 #[test]
 fn entity_trait_family() {
@@ -391,7 +391,7 @@ fn entity_trait_family() {
     assert_eq!(entity.as_str(), copied.as_str());
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+6/test]    `table_name` is the only
+// [spec:pgorm:req:entity.traits.entity-name+7/test]    `table_name` is the only
 // required method; `schema_name` and `comment` default to `None` and
 // `module_name` to `table_name()`; `table_ref` yields a bare `TableName::Table`
 // without a schema and a `SchemaTable` with one, and every statement that names
@@ -459,7 +459,7 @@ fn entity_name_defaults_and_table_ref() {
 // entity.traits.crud
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:req:entity.traits.crud+5/test]    the static CRUD surface: `find`
+// [spec:pgorm:req:entity.traits.crud+6/test]    the static CRUD surface: `find`
 // returns a fresh `Select`, `find_by_id` adds one equality filter per key column
 // in primary-key iteration order, and `insert` / `insert_many` / `update` /
 // `update_many` / `delete` / `delete_many` / `delete_by_id` build their
@@ -601,7 +601,7 @@ fn entity_crud_surface() {
     );
 }
 
-// [spec:pgorm:req:entity.traits.crud+5/test]    `find_by_id` panics with
+// [spec:pgorm:req:entity.traits.crud+6/test]    `find_by_id` panics with
 // `primary key arity mismatch` when more values arrive than the key has columns
 #[test]
 #[should_panic(expected = "primary key arity mismatch")]
@@ -609,7 +609,7 @@ fn find_by_id_panics_when_values_outnumber_key() {
     let _ = too_many_values::Entity::find_by_id((1, 2));
 }
 
-// [spec:pgorm:req:entity.traits.crud+5/test]    ...and in the other direction too,
+// [spec:pgorm:req:entity.traits.crud+6/test]    ...and in the other direction too,
 // when the key has more columns than values were supplied
 #[test]
 #[should_panic(expected = "primary key arity mismatch")]
@@ -617,7 +617,7 @@ fn find_by_id_panics_when_key_outnumbers_values() {
     let _ = too_few_values::Entity::find_by_id(1);
 }
 
-// [spec:pgorm:req:entity.traits.crud+5/test]    `delete_by_id` carries the same
+// [spec:pgorm:req:entity.traits.crud+6/test]    `delete_by_id` carries the same
 // guard as `find_by_id`, in both directions
 #[test]
 #[should_panic(expected = "primary key arity mismatch")]
@@ -625,7 +625,7 @@ fn delete_by_id_panics_when_values_outnumber_key() {
     let _ = too_many_values::Entity::delete_by_id((1, 2));
 }
 
-// [spec:pgorm:req:entity.traits.crud+5/test]
+// [spec:pgorm:req:entity.traits.crud+6/test]
 #[test]
 #[should_panic(expected = "primary key arity mismatch")]
 fn delete_by_id_panics_when_key_outnumbers_values() {
@@ -637,8 +637,8 @@ fn delete_by_id_panics_when_key_outnumbers_values() {
 // the entity's `ValueType` does not have, naming both lengths
 #[test]
 fn primary_key_value_type_errs_on_arity() {
-    type ItemKey = <item::PrimaryKey as PrimaryKeyTrait>::ValueType;
-    type PairKey = <pair::PrimaryKey as PrimaryKeyTrait>::ValueType;
+    type ItemKey = <item::PrimaryKey as PrimaryKey>::ValueType;
+    type PairKey = <pair::PrimaryKey as PrimaryKey>::ValueType;
 
     assert_eq!(
         ItemKey::try_from_value_tuple((1i32, 2i32).into_value_tuple()),
@@ -669,7 +669,7 @@ fn primary_key_value_type_errs_on_arity() {
 // reconstruct from, so the `Error::Type` the reconstruction used to raise is not
 // reachable here. Only `exec_returning_pk` decodes the key, so only it can fail
 // this way; plain `exec` asks for no key and reports the row it wrote.
-// [spec:pgorm:sem:exec.crud.update+7/test]    the no-op read reuses the
+// [spec:pgorm:sem:exec.crud.update+8/test]    the no-op read reuses the
 // statement's own `WHERE` and never consults `ValueType`, so even a mistyped
 // key declaration re-reads the model successfully
 // [spec:pgorm:req:exec.crud.exec-vocabulary+2/test]    the two insert terminals
@@ -707,7 +707,7 @@ async fn mistyped_primary_key_errs_on_crud() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:exec.crud.update+7/test]    a composite key's no-op read
+// [spec:pgorm:sem:exec.crud.update+8/test]    a composite key's no-op read
 // carries every key predicate and the caller's guard together
 #[pgorm_macros::test]
 async fn composite_key_noop_update_keeps_filters() -> Result<(), Error> {
@@ -757,8 +757,8 @@ fn sql(expr: pgorm_query::SimpleExpr) -> String {
 
 const SELECT_ITEM: &str = r#"SELECT "item"."id", "item"."name", "item"."note" FROM "item" WHERE "#;
 
-// [spec:pgorm:def:entity.traits.column+9/test]    the expression-building surface
-// `ColumnTrait` wraps around `Expr`: comparisons, ranges and their symmetric
+// [spec:pgorm:def:entity.traits.column+10/test]    the expression-building surface
+// `Column` wraps around `Expr`: comparisons, ranges and their symmetric
 // forms, null-safe comparisons, pattern matching and its sugar, aggregates,
 // null checks, set membership and subqueries — plus
 // `def`, `entity_name`, `as_column_ref`, `into_expr` and `into_returning_expr`
@@ -938,7 +938,7 @@ fn column_trait_expression_surface() {
     let _: ColumnType = pgorm_query::ColumnType::Integer;
 }
 
-// [spec:pgorm:def:entity.traits.column+9/test]    the column-to-column family
+// [spec:pgorm:def:entity.traits.column+10/test]    the column-to-column family
 // `eq_col` / `ne_col` / `gt_col` / `gte_col` / `lt_col` / `lte_col` and the
 // expression form `eq_expr` — each side qualified by its own entity, same SQL as
 // the `Expr::col` escape they replace, and the value-taking `eq` left alone
@@ -1004,7 +1004,7 @@ fn column_trait_column_to_column_surface() {
 // entity.traits.column-def
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:req:entity.traits.column-def+2/test]    `ColumnTypeTrait::def()`
+// [spec:pgorm:req:entity.traits.column-def+3/test]    `ColumnTypeExt::def()`
 // initialises a definition as non-null, non-unique, non-indexed with no default
 // and no comment; each builder method flips exactly one attribute; and
 // `get_column_type` / `is_null` expose the type and nullability
@@ -1058,7 +1058,7 @@ fn column_def_defaults_and_builders() {
         &ColumnType::Boolean
     );
 
-    // `ColumnTypeTrait` is also implemented for `ColumnDef` itself, where `def()`
+    // `ColumnTypeExt` is also implemented for `ColumnDef` itself, where `def()`
     // is the identity — that is the "or an existing ColumnDef" bridge.
     let built = ColumnType::Integer.def().unique().nullable();
     assert_eq!(built.clone().def(), built);
@@ -1077,7 +1077,7 @@ fn column_def_defaults_and_builders() {
 // entity.traits.primary-key
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:def:entity.traits.primary-key+8/test]    `PrimaryKeyArity::ARITY` is
+// [spec:pgorm:def:entity.traits.primary-key+9/test]    `PrimaryKeyArity::ARITY` is
 // 1 for any single scalar and matches the component count for tuples up to 12;
 // `auto_increment` reports whether the key is database-generated; and
 // `PrimaryKeyToColumn` maps variants to columns and back, with `from_column`
@@ -1102,11 +1102,11 @@ fn primary_key_trait_surface() {
 
     // An entity's `ValueType` picks up the matching arity.
     assert_eq!(
-        <<item::PrimaryKey as PrimaryKeyTrait>::ValueType as PrimaryKeyArity>::ARITY,
+        <<item::PrimaryKey as PrimaryKey>::ValueType as PrimaryKeyArity>::ARITY,
         1
     );
     assert_eq!(
-        <<pair::PrimaryKey as PrimaryKeyTrait>::ValueType as PrimaryKeyArity>::ARITY,
+        <<pair::PrimaryKey as PrimaryKey>::ValueType as PrimaryKeyArity>::ARITY,
         2
     );
 
@@ -1143,7 +1143,7 @@ fn primary_key_trait_surface() {
 // entity.traits.model
 // ---------------------------------------------------------------------------
 
-// [spec:pgorm:def:entity.traits.model+3/test]    `ModelTrait::get` reads a column
+// [spec:pgorm:def:entity.traits.model+4/test]    `Model::get` reads a column
 // as a `Value` and `set` writes one; `find_related` scopes a `Select` to this
 // instance; and `TryIntoModel` has a blanket identity impl for any model
 #[test]
@@ -1183,7 +1183,7 @@ fn model_trait_get_set_and_identity() {
     assert_eq!(model.note, None);
     assert!(model.set(item::Column::Name, Value::Int(Some(1))).is_err());
 
-    // `TryIntoModel` has a blanket identity impl for any `ModelTrait`.
+    // `TryIntoModel` has a blanket identity impl for any `Model`.
     let same = model.clone().try_into_model().unwrap();
     assert_eq!(same, model);
 
@@ -1206,7 +1206,7 @@ fn model_trait_get_set_and_identity() {
     );
 }
 
-// [spec:pgorm:def:entity.traits.model+3/test]    `into_active` converts a model
+// [spec:pgorm:def:entity.traits.model+4/test]    `into_active` converts a model
 // into its own entity's ActiveModel with the destination fixed by the entity, so
 // unlike `into_active_model` the call site carries no type annotation
 #[test]
@@ -1228,8 +1228,8 @@ fn model_trait_into_active_needs_no_annotation() {
     assert_eq!(annotated.name, ActiveValue::Unchanged("Apple".to_owned()));
 }
 
-// [spec:pgorm:def:entity.traits.model+3/test]    `ModelTrait::delete` converts the
-// model through `IntoActiveModel` and delegates to `ActiveModelTrait::delete`,
+// [spec:pgorm:def:entity.traits.model+4/test]    `Model::delete` converts the
+// model through `IntoActiveModel` and delegates to `ActiveModel::delete`,
 // so the behavior hooks run on the way through
 #[pgorm_macros::test]
 async fn model_trait_delete_runs_through_active_model() -> Result<(), Error> {
@@ -1346,11 +1346,11 @@ impl FromQueryResult for PrefixProbe {
     }
 }
 
-// [spec:pgorm:def:entity.traits.from-query-result+5/test]    `from_query_result`
+// [spec:pgorm:def:entity.traits.from-query-result+6/test]    `from_query_result`
 // instantiates a type from a row under a column-name prefix,
 // `from_query_result_optional` answers `Ok(None)` for an absent row and reports
 // every other decode failure, `find_by_statement` runs raw SQL into typed rows,
-// and `PartialModelTrait::select_cols` narrows a select to the columns it needs
+// and `PartialModel::select_cols` narrows a select to the columns it needs
 // [spec:pgorm:req:exec.decode.absent/test]    the witness both branches of the
 // absence rule are decided on
 #[pgorm_macros::test]
@@ -1431,7 +1431,7 @@ async fn from_query_result_surface() -> Result<(), Error> {
         }
     );
 
-    // `PartialModelTrait::select_cols` declares exactly the columns it needs,
+    // `PartialModel::select_cols` declares exactly the columns it needs,
     // so the built statement projects only those.
     let narrowed = ItemNameOnly::select_cols(item::Entity::find().select_only());
     assert_eq!(

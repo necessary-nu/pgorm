@@ -30,8 +30,8 @@ impl<T> Raise<T> for Result<T, Failure> {
 }
 
 // [spec:pgorm:req:bindings.errors+6]
-// [spec:pgorm:sem:error.model.parameter-count]
-// [spec:pgorm:req:conn.copy.statement+2]
+// [spec:pgorm:sem:error.model.parameter-count+1]
+// [spec:pgorm:req:conn.copy.statement+3]
 pub(crate) fn database_error(
     error: impl std::borrow::Borrow<pgorm::Error>,
     secrets: &Redactions,
@@ -55,6 +55,9 @@ pub(crate) fn raised(failure: Failure) -> PyErr {
         Failure::Connection(message) => ConnectionError::new_err(message),
         Failure::Decode(message) => DecodeError::new_err(message),
         Failure::Construction(message) => ConstructionError::new_err(message),
+        Failure::UnsupportedCapability(message) => {
+            crate::UnsupportedCapabilityError::new_err(message)
+        }
         Failure::Internal(message) => InternalError::new_err(message),
         Failure::Lifecycle(message) => LifecycleError::new_err(message),
         Failure::Timeout(message) => TimeoutError::new_err(message),

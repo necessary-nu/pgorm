@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use jiff::civil::{Time, time};
-use tokio_postgres::types::{FromSql, ToSql, Type};
+use pgorm_driver::types::{FromSql, ToSql, Type};
 
 use super::codecs::CheckedArray;
 

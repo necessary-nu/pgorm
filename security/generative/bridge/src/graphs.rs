@@ -1,7 +1,7 @@
 use crate::{account, note, room, stay};
 
 use pgorm::pgorm_query::{Deferrability, Enforcement, Name};
-use pgorm::{EntityTrait, Opt, RelationDef, Req, SelectGraph};
+use pgorm::{Entity, Opt, RelationDef, Req, SelectGraph};
 
 pub fn relation() -> RelationDef {
     note::Entity::belongs_to(account::Entity)

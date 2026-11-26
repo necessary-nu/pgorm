@@ -2,14 +2,14 @@
 //! definition is `immutable` ([`ColumnDef::immutable`](crate::ColumnDef::immutable)),
 //! and every update, upsert and disjoint write is held to it here.
 
-use crate::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, Iterable, StaticName};
+use crate::{ActiveModel, ActiveValue, Column, Entity, Error, Iterable, StaticName};
 use pgorm_query::{ConflictAction, ConflictAssignment, OnConflict, UpdateStatement};
 
 /// Refuse an `ON CONFLICT .. DO UPDATE SET` assigning a column of `E` its
 /// definition marks immutable, which an update of the row it conflicted with
 /// would change.
 // [spec:pgorm:req:scope.immutable]
-pub(crate) fn immutable_on_conflict<E: EntityTrait>(
+pub(crate) fn immutable_on_conflict<E: Entity>(
     on_conflict: Option<&OnConflict>,
 ) -> Result<(), Error> {
     let Some(OnConflict::Targeted {
@@ -32,7 +32,7 @@ pub(crate) fn immutable_on_conflict<E: EntityTrait>(
 /// Refuse `name` where it names a column of `E` its definition marks
 /// immutable.
 // [spec:pgorm:req:scope.immutable]
-pub(crate) fn immutable_column<E: EntityTrait>(name: &str) -> Result<(), Error> {
+pub(crate) fn immutable_column<E: Entity>(name: &str) -> Result<(), Error> {
     let immutable = E::Column::iter().any(|col| col.as_str() == name && col.def().is_immutable());
     if immutable {
         return Err(Error::ImmutableColumn {
@@ -46,7 +46,7 @@ pub(crate) fn immutable_column<E: EntityTrait>(name: &str) -> Result<(), Error> 
 /// Refuse an update whose `SET` names a column of `E` its definition marks
 /// immutable.
 // [spec:pgorm:req:scope.immutable]
-pub(crate) fn immutable_set<E: EntityTrait>(query: &UpdateStatement) -> Result<(), Error> {
+pub(crate) fn immutable_set<E: Entity>(query: &UpdateStatement) -> Result<(), Error> {
     for (name, _) in query.get_values() {
         immutable_column::<E>(&name.to_string())?;
     }
@@ -57,7 +57,7 @@ pub(crate) fn immutable_set<E: EntityTrait>(query: &UpdateStatement) -> Result<(
 /// Refuse a row of `E` an update writes that sets a column its definition
 /// marks immutable.
 // [spec:pgorm:req:scope.immutable]
-pub(crate) fn immutable_unset<E: EntityTrait>(row: &E::ActiveModel) -> Result<(), Error> {
+pub(crate) fn immutable_unset<E: Entity>(row: &E::ActiveModel) -> Result<(), Error> {
     for column in E::Column::iter() {
         if column.def().is_immutable() && matches!(row.get(column), Ok(ActiveValue::Set(_))) {
             return Err(Error::ImmutableColumn {

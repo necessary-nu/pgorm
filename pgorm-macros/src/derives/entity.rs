@@ -20,7 +20,7 @@ impl PartNames {
     /// is refused at the key rather than dropped: the composite derive's keys
     /// and `entity` with a message saying where they belong, anything else as
     /// unknown.
-    // [spec:pgorm:req:macros.derive.names+3]
+    // [spec:pgorm:req:macros.derive.names+4]
     fn parse(attrs: &[syn::Attribute]) -> syn::Result<Self> {
         let mut names = Self::default();
         for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
@@ -39,21 +39,21 @@ impl PartNames {
                     "entity" => {
                         return Err(meta.error(
                             "`entity` names the entity a model or relation belongs to; \
-                             `EntityTrait` is derived on the entity itself",
+                             this struct is the entity itself",
                         ));
                     }
                     composite if COMPOSITE_KEYS.contains(&composite) => {
                         return Err(meta.error(format!(
-                            "`{key}` is the composite derive's: an entity under \
-                             `EntityTrait` implements `EntityName` by hand, its names \
-                             computed at run time, so `{key}` goes on the `Model` under \
-                             `Entity`"
+                            "`{key}` is the composite derive's: a hand-written \
+                             `Entity` implements `EntityName` by hand, its names \
+                             computed at run time, so `{key}` goes on the `Model`"
                         )));
                     }
                     _ => {
                         return Err(meta.error(format!(
-                            "unknown pgorm attribute `{key}`: `EntityTrait` reads \
-                             `active_model`, `column`, `model`, `primary_key` and `relation`"
+                            "unknown pgorm attribute `{key}`: `Entity` on a hand-written \
+                             `Entity` reads `active_model`, `column`, `model`, \
+                             `primary_key` and `relation`"
                         )));
                     }
                 };
@@ -65,7 +65,7 @@ impl PartNames {
     }
 }
 
-struct EntityTrait {
+struct Entity {
     column_ident: syn::Ident,
     ident: syn::Ident,
     model_ident: syn::Ident,
@@ -74,7 +74,7 @@ struct EntityTrait {
     relation_ident: syn::Ident,
 }
 
-impl EntityTrait {
+impl Entity {
     fn new(input: syn::DeriveInput) -> Result<Self, syn::Error> {
         let pgorm_attr = PartNames::parse(&input.attrs)?;
 
@@ -91,7 +91,7 @@ impl EntityTrait {
             .relation
             .unwrap_or_else(|| format_ident!("Relation"));
 
-        Ok(EntityTrait {
+        Ok(Entity {
             column_ident,
             ident,
             model_ident,
@@ -126,7 +126,7 @@ impl EntityTrait {
 
         quote!(
             #[automatically_derived]
-            impl pgorm::entity::EntityTrait for #ident {
+            impl pgorm::entity::Entity for #ident {
                 type Model = #model_ident;
 
                 type ActiveModel = #active_model_ident;
@@ -140,7 +140,7 @@ impl EntityTrait {
         )
     }
 
-    // [spec:pgorm:sem:macros.derive.entity+7]
+    // [spec:pgorm:sem:macros.derive.entity+8]
     fn impl_iden(&self) -> TokenStream {
         let ident = &self.ident;
 
@@ -172,7 +172,7 @@ impl EntityTrait {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.entity+7]
+// [spec:pgorm:sem:macros.derive.entity+8]
 pub fn expand_derive_entity(input: syn::DeriveInput) -> syn::Result<TokenStream> {
-    Ok(EntityTrait::new(input)?.expand())
+    Ok(Entity::new(input)?.expand())
 }

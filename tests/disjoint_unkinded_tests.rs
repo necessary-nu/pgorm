@@ -23,7 +23,7 @@ use pgorm::tests_cfg::{
     storefront, web_shop,
 };
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, Disjoint, DisjointColumn, DisjointShape, DisjointTable,
+    Connection, DatabaseConnection, Disjoint, DisjointColumn, DisjointShape, DisjointTable,
     DisjointValues, Error, RuntimeError, SelectDisjoint, entity::prelude::*,
 };
 use pretty_assertions::assert_eq;

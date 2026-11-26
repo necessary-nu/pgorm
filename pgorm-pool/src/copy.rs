@@ -2,8 +2,8 @@
 //! unable to account for.
 
 use bytes::Buf;
+use pgorm_driver::{CopyInSink, Error};
 use tokio::task::AbortHandle;
-use tokio_postgres::{CopyInSink, Error};
 
 /// Start `COPY … FROM STDIN` through `start`, closing the connection behind
 /// `connection` if it does not start.
@@ -23,7 +23,7 @@ use tokio_postgres::{CopyInSink, Error};
 /// is closed instead, every later call on it fails as closed, and the pool's
 /// recycling discards it. A cancelled start closes it too, since whether the
 /// server refused is then unknown.
-// [spec:pgorm:req:conn.copy+2]    a refused start closes the connection
+// [spec:pgorm:req:conn.copy+5]    a refused start closes the connection
 pub(crate) async fn guarded<F, U>(
     connection: &AbortHandle,
     start: F,

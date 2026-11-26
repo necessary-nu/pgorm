@@ -1,6 +1,6 @@
 use super::*;
 use crate::common::setup::create_table;
-use pgorm::{ConnectionTrait, DatabasePool, error::*, pgorm_query};
+use pgorm::{Connection, DatabasePool, error::*, pgorm_query};
 use pgorm_query::{ColumnDef, ForeignKey, ForeignKeyAction, Name, Table, TableKey};
 
 pub async fn create_tables(db: &DatabasePool) -> Result<(), Error> {
@@ -19,7 +19,7 @@ pub async fn create_tables(db: &DatabasePool) -> Result<(), Error> {
 
 pub async fn create_bakery_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Table::create(bakery::Entity)
         .col(
@@ -42,7 +42,7 @@ where
 
 pub async fn create_baker_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Table::create(baker::Entity)
         .col(
@@ -78,7 +78,7 @@ where
 
 pub async fn create_customer_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Table::create(customer::Entity)
         .col(
@@ -97,7 +97,7 @@ where
 
 pub async fn create_order_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Table::create(order::Entity)
         .col(
@@ -152,7 +152,7 @@ where
 
 pub async fn create_lineitem_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Table::create(lineitem::Entity)
         .col(
@@ -211,7 +211,7 @@ where
 
 pub async fn create_cakes_bakers_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Table::create(cakes_bakers::Entity)
         .col(
@@ -258,7 +258,7 @@ where
 
 pub async fn create_cake_table<C>(db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let stmt = Table::create(cake::Entity)
         .col(

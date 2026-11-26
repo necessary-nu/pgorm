@@ -12,9 +12,9 @@ pub mod common;
 pub use common::TestContext;
 
 use pgorm::tests_cfg::vehicle::{self, Vehicle, VehicleKind};
-use pgorm::{ConnectionTrait, Error, Schema, check_disjoint, entity::prelude::*};
+use pgorm::{Connection, Error, Schema, check_disjoint, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 /// A kind entity keyed as every base below is, by one `i32` it is given.
 pub mod given_key {

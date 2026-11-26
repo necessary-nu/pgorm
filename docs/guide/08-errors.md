@@ -11,7 +11,7 @@ This chapter goes through each, and how a program tells them apart.
 ## What the database refused
 
 A statement the server rejects comes back as
-[`Error::Postgres`](crate::Error::Postgres), holding the tokio-postgres
+[`Error::Postgres`](crate::Error::Postgres), holding the pgorm-driver
 error, [`PostgresError`](crate::PostgresError), with everything the server
 reported: its SQLSTATE code, its message, and the table, column or
 constraint involved.
@@ -142,7 +142,7 @@ assert!(matches!(clash.sql_error(), Some(SqlError::ExclusionConstraintViolation(
 ```
 
 Any other refusal is read off the server's SQLSTATE. `Error::Postgres`
-holds tokio-postgres's error, re-exported as
+holds pgorm-driver's error, re-exported as
 [`PostgresError`](crate::PostgresError), whose
 [`code`](crate::PostgresError::code) is a [`SqlState`](crate::SqlState)
 with a constant for every code PostgreSQL defines, and whose
@@ -154,7 +154,7 @@ server sent, a [`DbError`](crate::DbError):
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("errors_sqlstate").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{ConnectionTrait, Error, SqlState};
+use pgorm::{Connection, Error, SqlState};
 
 let missing = db.query_all("SELECT * FROM pastry", &[]).await;
 let Err(Error::Postgres(error)) = missing else {
@@ -199,7 +199,7 @@ has a classifier:
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("errors_refusals").await;
 # let db = scratch.pool.get().await?;
-use pgorm::{ConnectionTrait, DecodeRaw, Values};
+use pgorm::{Connection, DecodeRaw, Values};
 
 // The parameter is a smallint, and an i32 is not one.
 let too_wide = db

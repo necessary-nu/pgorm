@@ -25,7 +25,7 @@ mod tests;
 #[cfg(test)]
 mod variants;
 
-use pgorm::pgorm_query::{BinOper, ExprTrait, SimpleExpr};
+use pgorm::pgorm_query::{BinOper, Expression, SimpleExpr};
 use pyo3::prelude::*;
 
 use crate::statements::PyQuantified;

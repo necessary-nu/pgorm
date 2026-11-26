@@ -6,7 +6,7 @@ and writes it. Every value travels to the server as a bound parameter, never
 pasted into the SQL text, and each statement is prepared once per connection
 and reused.
 
-pgorm runs on [tokio-postgres] and a [deadpool] connection pool, on the tokio
+pgorm runs on [pgorm-driver] and a [deadpool] connection pool, on the tokio
 runtime. Because it targets one database, it can offer what PostgreSQL has and
 other databases lack: `RETURNING`, `ON CONFLICT`, `MERGE`, `COPY`,
 `LISTEN`/`NOTIFY`, enums, domains, ranges, arrays and JSON among them.
@@ -14,7 +14,7 @@ other databases lack: `RETURNING`, `ON CONFLICT`, `MERGE`, `COPY`,
 This chapter adds pgorm to a project, connects to a database and runs a first
 query.
 
-[tokio-postgres]: https://docs.rs/tokio-postgres
+[pgorm-driver]: https://github.com/necessary-nu/pgorm/tree/main/crates/pgorm-driver
 [deadpool]: https://docs.rs/deadpool
 
 ## Adding the dependency
@@ -39,6 +39,7 @@ pgorm needs Rust 1.89 or later. Its features are:
 | `with-uuid` | on | `uuid` columns as [`uuid::Uuid`](https://docs.rs/uuid) |
 | `postgres-array` | on | Array columns as `Vec<T>` |
 | `metrics-fingerprint` | off | Query fingerprints in the [metrics](crate::guide::metrics) layer |
+| `turso` | off | Experimental: a database file path or `:memory:`, given where a PostgreSQL connection string goes, opens a native Turso database in-process |
 
 pgorm targets PostgreSQL 19, and nothing older is supported
 ([PostgreSQL 19](crate::guide::postgres_releases)).
@@ -69,7 +70,7 @@ its own, so what one example writes no other example sees.
 
 ## Connecting
 
-[`pgorm::connect`](crate::connect) takes a tokio-postgres
+[`pgorm::connect`](crate::connect) takes a pgorm-driver
 [`Config`](crate::Config), which parses from a connection URL, and returns a
 [`DatabasePool`](crate::DatabasePool). Building a pool connects to nothing:
 the pool opens connections when they are first asked for, so a wrong host or
@@ -85,7 +86,7 @@ dropped.
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 # let scratch = pgorm_guide_support::Scratch::bakery("getting_started_connect").await;
 # let url = scratch.url();
-use pgorm::ConnectionTrait;
+use pgorm::Connection;
 
 // The URL of the bakery database, such as
 // "postgres://postgres:postgres@localhost:5432/bakery".
@@ -108,7 +109,7 @@ clone shares the same connections. Take a connection for each unit of work,
 such as one request, and let it drop when the work is done.
 
 The pool is not itself a connection. `DatabasePool` does not implement
-[`ConnectionTrait`](crate::ConnectionTrait), so a query cannot run on
+[`Connection`](crate::Connection), so a query cannot run on
 "whichever connection the pool hands out":
 
 ```rust,compile_fail,E0277
@@ -129,7 +130,7 @@ the same time take two connections.
 
 The bakery's entities are Rust modules, one per table. Each holds a `Model`,
 the struct a row decodes into, and an `Entity`, the type queries start from.
-[`find`](crate::EntityTrait::find) starts a `SELECT`, the builder methods
+[`find`](crate::Entity::find) starts a `SELECT`, the builder methods
 refine it, and a terminal such as [`all`](crate::Select::all) runs it:
 
 ```rust
@@ -161,7 +162,7 @@ the builders use, the connection types, [`Error`](crate::Error), and the
 column value types.
 
 A query is a value until it runs, and it can be rendered without a database.
-[`build`](crate::QueryTrait::build) returns the SQL and the values it binds:
+[`build`](crate::Statement::build) returns the SQL and the values it binds:
 
 ```rust
 # use pgorm_guide_support::cake;
@@ -184,7 +185,7 @@ so a row decodes without knowing the type's internal id.
 
 ## A first write
 
-Writes go through an [`ActiveModel`](crate::ActiveModelTrait), a row in which
+Writes go through an [`ActiveModel`](crate::ActiveModel), a row in which
 each column is either set to a value or left out. [`set`](crate::set) sets
 one, and a column left out takes its default in the database:
 

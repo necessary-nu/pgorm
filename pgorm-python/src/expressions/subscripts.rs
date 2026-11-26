@@ -1,6 +1,6 @@
 //! `Expr`'s array subscripts: one element, `a[i]`, and a slice, `a[l:u]`.
 
-use pgorm::pgorm_query::{Expr, ExprTrait, Subscript};
+use pgorm::pgorm_query::{Expr, Expression, Subscript};
 use pyo3::prelude::*;
 
 use super::{PyExpr, coerce};
@@ -9,7 +9,7 @@ use super::{PyExpr, coerce};
 // [spec:pgorm:req:python.expressions+7]
 #[pymethods]
 impl PyExpr {
-    /// `a[index]`: one element, through Rust's `ExprTrait::index`. Arrays count
+    /// `a[index]`: one element, through Rust's `Expression::index`. Arrays count
     /// from 1, and an index outside the array's bounds is NULL rather than an
     /// error. The index is bound unless it is an expression.
     fn at(&self, index: &Bound<'_, PyAny>) -> PyResult<Self> {

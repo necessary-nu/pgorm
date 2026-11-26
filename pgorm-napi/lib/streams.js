@@ -20,7 +20,7 @@ let decoding;
  * `stream`, its items made by `decode` rather than as row objects: how a
  * model streams its records. Only the module calls this, before the first
  * pull.
- * [spec:pgorm:req:bindings.model-records+1]
+ * [spec:pgorm:req:bindings.model-records+2]
  *
  * @param {RowStream} stream
  * @param {Decode} decode

@@ -1,7 +1,7 @@
 //! Pages and keyset cursors with their Rust types erased, for code that picks
 //! a read at run time and holds it behind one trait object whatever its
 //! selector and key types: a language binding reading an entity or a graph an
-//! application registered. [`ErasedPages`] reads a [`PaginatorTrait`] read's
+//! application registered. [`ErasedPages`] reads a [`Paginate`] read's
 //! pages and [`ErasedCursor`] runs a [`Cursor`] under a [`CursorPlan`], each
 //! decoding its items through a function the caller gives into rows of its
 //! own type, and each running on a [`DatabaseRef`].
@@ -12,20 +12,20 @@ use futures::future::BoxFuture;
 use pgorm_query::{SelectStatement, ValueTuple};
 
 use super::{
-    Cursor, ItemsAndPagesNumber, PaginatorTrait, SelectorTrait, count_statement,
+    Cursor, DecodeRow, ItemsAndPagesNumber, Paginate, count_statement,
     graph::{GraphItem, GraphRow},
     page_statement,
 };
 use crate::{
-    DatabaseRef, EntityTrait, Error, FromQueryResult, Opt, QueryTrait, Select, SelectGraph, Slot,
-    SlotAt, Slots,
+    DatabaseRef, Entity, Error, FromQueryResult, Opt, Select, SelectGraph, Slot, SlotAt, Slots,
+    Statement,
     metric::{MetricsCollector, NoOpMetrics},
     pgorm_query::{Key, Name},
 };
 
 /// A read's pages at any page size, as pgorm's [`Paginator`](super::Paginator)
 /// reads and counts them, its items decoded into rows `R`.
-// [spec:pgorm:def:exec.paginator.erased]
+// [spec:pgorm:def:exec.paginator.erased+1]
 pub trait ErasedPages<R, M: MetricsCollector = NoOpMetrics>: fmt::Debug + Send + Sync {
     /// The statement reading page `page` of `size` rows, or with `None` the
     /// one counting the rows, as the paginator writes them.
@@ -47,25 +47,25 @@ pub trait ErasedPages<R, M: MetricsCollector = NoOpMetrics>: fmt::Debug + Send +
     ) -> BoxFuture<'a, Result<ItemsAndPagesNumber, Error>>;
 }
 
-/// A read `Q` whose pages [`PaginatorTrait`] reads through its selector `S`,
+/// A read `Q` whose pages [`Paginate`] reads through its selector `S`,
 /// and the decode of each item into a row `R`.
 ///
 /// ```
 /// use std::num::NonZeroU64;
-/// use pgorm::{EntityTrait, ErasedPages, PagedRead, tests_cfg::cake};
+/// use pgorm::{Entity, ErasedPages, PagedRead, tests_cfg::cake};
 ///
 /// let pages: Box<dyn ErasedPages<String>> =
 ///     Box::new(PagedRead::new(cake::Entity::find(), |cake: cake::Model| cake.name));
 /// let second = pages.statement(NonZeroU64::new(10).unwrap(), Some(1)).unwrap();
 /// assert!(second.to_string().ends_with("LIMIT 10 OFFSET 10"));
 /// ```
-// [spec:pgorm:def:exec.paginator.erased]
-pub struct PagedRead<Q, S: SelectorTrait, R> {
+// [spec:pgorm:def:exec.paginator.erased+1]
+pub struct PagedRead<Q, S: DecodeRow, R> {
     query: Q,
     decode: Arc<dyn Fn(S::Item) -> R + Send + Sync>,
 }
 
-impl<Q, S: SelectorTrait, R> PagedRead<Q, S, R> {
+impl<Q, S: DecodeRow, R> PagedRead<Q, S, R> {
     /// The pages of `query`, each item decoded by `decode`.
     pub fn new(query: Q, decode: impl Fn(S::Item) -> R + Send + Sync + 'static) -> Self {
         Self {
@@ -75,24 +75,24 @@ impl<Q, S: SelectorTrait, R> PagedRead<Q, S, R> {
     }
 }
 
-impl<Q, S: SelectorTrait, R> fmt::Debug for PagedRead<Q, S, R> {
+impl<Q, S: DecodeRow, R> fmt::Debug for PagedRead<Q, S, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PagedRead").finish_non_exhaustive()
     }
 }
 
-// [spec:pgorm:def:exec.paginator.erased]
+// [spec:pgorm:def:exec.paginator.erased+1]
 impl<Q, S, R, M> ErasedPages<R, M> for PagedRead<Q, S, R>
 where
     M: MetricsCollector,
-    Q: QueryTrait<QueryStatement = SelectStatement> + Clone + Send + Sync + 'static,
-    for<'db, 'c> Q: PaginatorTrait<'db, DatabaseRef<'c, M>, Selector = S>,
-    S: SelectorTrait + Send + Sync + 'static,
+    Q: Statement<QueryStatement = SelectStatement> + Clone + Send + Sync + 'static,
+    for<'db, 'c> Q: Paginate<'db, DatabaseRef<'c, M>, Selector = S>,
+    S: DecodeRow + Send + Sync + 'static,
     S::Item: Send,
     R: Send + 'static,
 {
     fn statement(&self, size: NonZeroU64, page: Option<u64>) -> Result<SelectStatement, Error> {
-        let query = QueryTrait::as_query(&self.query);
+        let query = Statement::as_query(&self.query);
         match page {
             Some(page) => page_statement(query, size, page),
             None => count_statement(query),
@@ -178,7 +178,7 @@ pub trait ErasedCursor<R, M: MetricsCollector = NoOpMetrics>: fmt::Debug + Send 
 /// decode of its items into rows `R`.
 ///
 /// ```
-/// use pgorm::{CursorPlan, CursorWindow, EntityTrait, ErasedCursor, KeyedRead, pgorm_query::IntoValueTuple, tests_cfg::cake};
+/// use pgorm::{CursorPlan, CursorWindow, Entity, ErasedCursor, KeyedRead, pgorm_query::IntoValueTuple, tests_cfg::cake};
 ///
 /// let cursor: Box<dyn ErasedCursor<i32>> = Box::new(KeyedRead::new(
 ///     || cake::Entity::find().cursor_by(cake::Column::Id),
@@ -189,12 +189,12 @@ pub trait ErasedCursor<R, M: MetricsCollector = NoOpMetrics>: fmt::Debug + Send 
 /// assert!(sql.ends_with(r#"WHERE "cake"."id" > 10 ORDER BY "cake"."id" ASC LIMIT 2"#), "{sql}");
 /// ```
 // [spec:pgorm:def:exec.cursor.erased]
-pub struct KeyedRead<S: SelectorTrait, K, R> {
+pub struct KeyedRead<S: DecodeRow, K, R> {
     cursor: Box<dyn Fn() -> Cursor<S, K> + Send + Sync>,
     decode: Arc<dyn Fn(S::Item) -> R + Send + Sync>,
 }
 
-impl<S: SelectorTrait, K, R> KeyedRead<S, K, R> {
+impl<S: DecodeRow, K, R> KeyedRead<S, K, R> {
     /// The cursor `cursor` makes, each item decoded by `decode`.
     pub fn new(
         cursor: impl Fn() -> Cursor<S, K> + Send + Sync + 'static,
@@ -232,7 +232,7 @@ impl<S: SelectorTrait, K, R> KeyedRead<S, K, R> {
     }
 }
 
-impl<S: SelectorTrait, K, R> fmt::Debug for KeyedRead<S, K, R> {
+impl<S: DecodeRow, K, R> fmt::Debug for KeyedRead<S, K, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KeyedRead").finish_non_exhaustive()
     }
@@ -242,7 +242,7 @@ impl<S: SelectorTrait, K, R> fmt::Debug for KeyedRead<S, K, R> {
 impl<S, K, R, M> ErasedCursor<R, M> for KeyedRead<S, K, R>
 where
     M: MetricsCollector,
-    S: SelectorTrait + Send + Sync + 'static,
+    S: DecodeRow + Send + Sync + 'static,
     S::Item: Send,
     K: Send + Sync + 'static,
     R: Send + 'static,
@@ -340,7 +340,7 @@ pub fn select_cursor<E, R, M>(
 ) -> Result<Arc<dyn ErasedCursor<R, M>>, KeyArity>
 where
     M: MetricsCollector,
-    E: EntityTrait + Send + Sync + 'static,
+    E: Entity + Send + Sync + 'static,
     E::Model: FromQueryResult + Send + Sync,
     Select<E>: Clone + Send + Sync + 'static,
     R: Send + 'static,
@@ -373,8 +373,8 @@ pub fn grouped_read<E, F, A, B, M>(
 ) -> GroupedRead<A, B, M>
 where
     M: MetricsCollector,
-    E: EntityTrait + Send + Sync + 'static,
-    F: EntityTrait + Send + Sync + 'static,
+    E: Entity + Send + Sync + 'static,
+    F: Entity + Send + Sync + 'static,
     SelectGraph<E, (Opt<F>,)>: Clone + Send + Sync + 'static,
     A: Send + 'static,
     B: Send + 'static,
@@ -479,7 +479,7 @@ pub const MAX_KEY_COLUMNS: usize = 6;
 ///
 /// ```
 /// use std::sync::Arc;
-/// use pgorm::{CursorPlan, EntityTrait, ErasedCursor, RelationTrait, graph_cursor, tests_cfg::{cake, fruit}};
+/// use pgorm::{CursorPlan, Entity, ErasedCursor, Relation, graph_cursor, tests_cfg::{cake, fruit}};
 ///
 /// let graph = cake::Entity::graph().join_maybe::<fruit::Entity>(cake::Relation::Fruit.def());
 /// let cursor: Arc<dyn ErasedCursor<i32>> =
@@ -495,10 +495,10 @@ pub fn graph_cursor<E, S, R, M>(
 ) -> Result<Arc<dyn ErasedCursor<R, M>>, KeyArity>
 where
     M: MetricsCollector,
-    E: EntityTrait + Send + Sync + 'static,
+    E: Entity + Send + Sync + 'static,
     S: Slots,
     SelectGraph<E, S>: Clone + Send + Sync + 'static,
-    GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
+    GraphRow<E, S>: DecodeRow + Send + Sync + 'static,
     GraphItem<E, S>: Send,
     R: Send + 'static,
 {
@@ -512,15 +512,15 @@ where
 // [spec:pgorm:def:exec.cursor.erased]
 pub fn graph_cursor_on<const I: usize, E, S, R, M>(
     graph: &SelectGraph<E, S>,
-    columns: &[<<<S as SlotAt<I>>::Slot as Slot>::Entity as EntityTrait>::Column],
+    columns: &[<<<S as SlotAt<I>>::Slot as Slot>::Entity as Entity>::Column],
     decode: impl Fn(GraphItem<E, S>) -> R + Send + Sync + 'static,
 ) -> Result<Arc<dyn ErasedCursor<R, M>>, KeyArity>
 where
     M: MetricsCollector,
-    E: EntityTrait + Send + Sync + 'static,
+    E: Entity + Send + Sync + 'static,
     S: SlotAt<I>,
     SelectGraph<E, S>: Clone + Send + Sync + 'static,
-    GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
+    GraphRow<E, S>: DecodeRow + Send + Sync + 'static,
     GraphItem<E, S>: Send,
     R: Send + 'static,
 {
@@ -565,7 +565,7 @@ pub fn graph_cursor_key<'a>(
 mod tests {
     use super::*;
     use crate::{
-        RelationTrait,
+        Relation,
         tests_cfg::{cake, fruit},
     };
     use pgorm_query::IntoValueTuple;

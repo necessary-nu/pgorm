@@ -53,7 +53,7 @@ fn graph_names(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `graphGet(registry, name)`: the graph shape registered as `name`.
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 fn graph_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     let registry = held!(cx, super::RegistryHandle, 0);
     let name = text!(cx, 1);
@@ -93,7 +93,7 @@ fn aliases(cx: &mut FunctionContext, factory: &dyn GraphBackend) -> NeonResult<V
 
 /// `graphFind(graph, aliases)`: the graph built by its factory under the
 /// aliases.
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 fn graph_find(mut cx: FunctionContext) -> JsResult<JsValue> {
     let factory = held!(cx, GraphHandle, 0);
     let aliases = aliases(&mut cx, factory.as_ref())?;
@@ -120,7 +120,7 @@ fn query_change(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `graphQueryCol(query, source, column)`: a column of a decoded source,
 /// qualified as the query names it — the root by its table, a slot by its
 /// alias.
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 fn query_col(mut cx: FunctionContext) -> JsResult<JsValue> {
     let query = held!(cx, GraphQueryHandle, 0);
     let source = cx.argument::<JsNumber>(1)?.value(&mut cx);

@@ -13,7 +13,7 @@
 
 pub mod common;
 pub use common::{TestContext, setup::*};
-use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
+use pgorm::{Connection, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 /// The entity pgorm-codegen generates from its interval schema: the file its

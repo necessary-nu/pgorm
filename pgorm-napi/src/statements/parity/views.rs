@@ -3,7 +3,7 @@
 //! pgorm-query's builders directly. Each body's values render inlined.
 
 use pgorm::pgorm_query::{
-    BinOper, Expr, ExprTrait, FromItem, MaterializedView, NamedTable, Query, SelectStatement,
+    BinOper, Expr, Expression, FromItem, MaterializedView, NamedTable, Query, SelectStatement,
     SimpleExpr, Table, TableName, UnionType, Values, View, ViewCheckOption,
 };
 

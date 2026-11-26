@@ -5,10 +5,10 @@
 mod common;
 
 use common::*;
-use pgorm::{ColumnTrait, ColumnTypeTrait, Iterable, StaticName};
+use pgorm::{Column, ColumnTypeExt, Iterable, StaticName};
 use pgorm_codegen::parse_schema;
 use pgorm_query::{
-    ColumnType, Domain, Expr, ExprTrait, ForeignKey, Name, StringLen, TableCreateStatement,
+    ColumnType, Domain, Expr, Expression, ForeignKey, Name, StringLen, TableCreateStatement,
     extension::{RangeDefinition, Type},
 };
 use std::sync::Arc;

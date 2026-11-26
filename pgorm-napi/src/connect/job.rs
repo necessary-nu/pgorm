@@ -2,7 +2,7 @@
 //! `Select::all`, `ActiveModel::insert`, `Cursor::all` — on whichever
 //! executor the JavaScript handle holds: a connection a pool lends for the
 //! one job, a connection the caller holds, or a transaction or savepoint.
-//! The terminals are generic over `ConnectionTrait`, so a job takes the one
+//! The terminals are generic over `Connection`, so a job takes the one
 //! [`Database`] that is either, and the operation around it — the busy lock,
 //! the abort, the discard of a connection whose state the abort left unknown
 //! — is the one a statement of SQL text gets.

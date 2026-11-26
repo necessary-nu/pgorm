@@ -70,7 +70,7 @@ struct VariantAttrs {
 }
 
 impl VariantAttrs {
-    // [spec:pgorm:syn:macros.derive.relation+8]
+    // [spec:pgorm:syn:macros.derive.relation+9]
     // [spec:pgorm:req:macros.derive.code-values+4]
     fn parse(variant: &syn::Variant) -> syn::Result<Self> {
         let mut attrs = Self::default();
@@ -162,7 +162,7 @@ fn once<T>(meta: &ParseNestedMeta<'_>, slot: &mut Option<T>, value: T) -> syn::R
 
 /// The entity the relations belong to, from the container's `entity`, the one
 /// key the derive reads there.
-// [spec:pgorm:syn:macros.derive.relation+8]
+// [spec:pgorm:syn:macros.derive.relation+9]
 fn relation_entity(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Ident>> {
     let mut entity = None;
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("pgorm")) {
@@ -220,7 +220,7 @@ impl Relation {
     /// such an entity gets none, and `related = false` on either says
     /// nothing and is refused.
     // [spec:pgorm:sem:macros.derive.boilerplate]
-    // [spec:pgorm:syn:macros.derive.relation+8]
+    // [spec:pgorm:syn:macros.derive.relation+9]
     fn impl_related(&self) -> syn::Result<TokenStream> {
         let ident = &self.ident;
         let entity_ident = &self.entity_ident;
@@ -265,7 +265,7 @@ impl Relation {
                     #[automatically_derived]
                     impl pgorm::entity::Related<#path> for #entity_ident {
                         fn to() -> pgorm::entity::RelationDef {
-                            pgorm::entity::RelationTrait::def(&#ident::#variant)
+                            pgorm::entity::Relation::def(&#ident::#variant)
                         }
                     }
                 }),
@@ -363,7 +363,7 @@ impl Relation {
 
         Ok(quote!(
             #[automatically_derived]
-            impl pgorm::entity::RelationTrait for #ident {
+            impl pgorm::entity::Relation for #ident {
                 fn def(&self) -> pgorm::entity::RelationDef {
                     match self {
                         #( #variant_relation_defs, )*
@@ -381,7 +381,7 @@ impl Relation {
     /// and a temporal foreign key takes no referential action but `NO
     /// ACTION`, PostgreSQL refusing the rest (0A000), so an action is a
     /// path ending in `NoAction` or refused.
-    // [spec:pgorm:syn:macros.derive.relation+8]
+    // [spec:pgorm:syn:macros.derive.relation+9]
     fn period(variant: &syn::Variant, attr: &VariantAttrs) -> syn::Result<TokenStream> {
         let (from, to) = match (&attr.from_period, &attr.to_period) {
             (Some(from), Some(to)) => (from, to),
@@ -426,8 +426,8 @@ impl Relation {
     /// the join binds them. A closure `|left, right| ..` is that closure, its
     /// parameters typed as the names they are where it left them untyped; any
     /// other expression is the condition whatever the tables are called.
-    // [spec:pgorm:req:macros.derive.one-form]
-    // [spec:pgorm:syn:macros.derive.relation+8]
+    // [spec:pgorm:req:macros.derive.one-form+1]
+    // [spec:pgorm:syn:macros.derive.relation+9]
     fn on_condition(condition: &Expr) -> syn::Result<TokenStream> {
         let mut closure = match condition.clone() {
             Expr::Closure(closure) => closure,
@@ -503,7 +503,7 @@ impl Relation {
 }
 
 /// Method to derive a Relation
-// [spec:pgorm:syn:macros.derive.relation+8]
+// [spec:pgorm:syn:macros.derive.relation+9]
 pub fn expand_derive_relation(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let ident_span = input.ident.span();
 

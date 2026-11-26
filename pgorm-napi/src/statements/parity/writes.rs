@@ -2,7 +2,7 @@
 //! directly.
 
 use pgorm::pgorm_query::{
-    Asterisk, BinOper, CommonTableExpression, Expr, ExprTrait, FromItem, Func, NamedTable,
+    Asterisk, BinOper, CommonTableExpression, Expr, Expression, FromItem, Func, NamedTable,
     OnConflict, Overriding, Query, ReturningRow, SelectStatement, SimpleExpr, TableName, TypeName,
     Value, Values, WithClause,
 };

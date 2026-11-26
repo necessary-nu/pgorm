@@ -8,11 +8,11 @@
 //! `n_`, and decodes a model from each.
 
 use crate::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, Insert,
-    IntoActiveModel, Iterable, ManyRows, OneRow, QueryResult, UpdateMany, UpdateOne, error::*,
+    ActiveModel, Column, Connection, Entity, FromQueryResult, Insert, IntoActiveModel, Iterable,
+    ManyRows, OneRow, QueryResult, UpdateMany, UpdateOne, error::*,
 };
+use pgorm_driver::types::ToSql;
 use pgorm_query::{Expr, IntoName, Name, Query, ReturningClause, StaticName, Values};
-use tokio_postgres::types::ToSql;
 
 use super::{ValueHolder, result_name::result_column_name, update::find_unchanged_model};
 
@@ -64,7 +64,7 @@ const NEW_PREFIX: &str = "n_";
 /// its version's prefix by the bounded composition every prefixed decode
 /// reads (`query.graph.writer`).
 // [spec:pgorm:sem:exec.crud.versions]
-fn both_versions<E: EntityTrait>() -> ReturningClause {
+fn both_versions<E: Entity>() -> ReturningClause {
     let items = [(OLD, OLD_PREFIX), (NEW, NEW_PREFIX)]
         .into_iter()
         .flat_map(|(row, prefix)| {
@@ -102,12 +102,14 @@ fn change_of<M: FromQueryResult>(row: QueryResult) -> Result<Change<M>, Error> {
 }
 
 /// Run `sql` and return every row.
-async fn rows_of<C: ConnectionTrait>(
+async fn rows_of<C: Connection>(
     sql: &str,
     values: Values,
     db: &C,
 ) -> Result<Vec<QueryResult>, Error> {
     let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+    #[cfg(feature = "turso")]
+    let sql = &crate::database::ValueSql::new(sql, &values);
     let values = values
         .iter()
         .map(|x| x as _)
@@ -122,7 +124,7 @@ async fn rows_of<C: ConnectionTrait>(
 
 impl<A> UpdateOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the update and return the row before and after it.
     ///
@@ -135,10 +137,10 @@ where
     pub async fn exec_returning_change<C>(
         mut self,
         db: &C,
-    ) -> Result<Change<<A::Entity as EntityTrait>::Model>, Error>
+    ) -> Result<Change<<A::Entity as Entity>::Model>, Error>
     where
-        <A::Entity as EntityTrait>::Model: IntoActiveModel<A>,
-        C: ConnectionTrait,
+        <A::Entity as Entity>::Model: IntoActiveModel<A>,
+        C: Connection,
     {
         self.refusal()?;
         if self.query.get_values().is_empty() {
@@ -159,7 +161,7 @@ where
 
 impl<E> UpdateMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Execute the update and return every row it changed, before and after,
     /// in the order the server returned them.
@@ -171,7 +173,7 @@ where
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     pub async fn exec_returning_changes<C>(mut self, db: &C) -> Result<Vec<Change<E::Model>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         if self.query.get_values().is_empty() {
@@ -193,10 +195,10 @@ where
 async fn exec_upserts<A, C>(
     mut statement: pgorm_query::InsertStatement,
     db: &C,
-) -> Result<Vec<Upserted<<A::Entity as EntityTrait>::Model>>, Error>
+) -> Result<Vec<Upserted<<A::Entity as Entity>::Model>>, Error>
 where
-    A: ActiveModelTrait,
-    C: ConnectionTrait,
+    A: ActiveModel,
+    C: Connection,
 {
     statement.returning(both_versions::<A::Entity>());
     let (sql, values) = statement.build();
@@ -214,7 +216,7 @@ where
 
 impl<A> Insert<A, OneRow>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the insert and say what it did with the row: inserted it, or,
     /// under `ON CONFLICT DO UPDATE`, updated the row it conflicted with,
@@ -228,9 +230,9 @@ where
     pub async fn exec_returning_upsert<C>(
         self,
         db: &C,
-    ) -> Result<Option<Upserted<<A::Entity as EntityTrait>::Model>>, Error>
+    ) -> Result<Option<Upserted<<A::Entity as Entity>::Model>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         Ok(exec_upserts::<A, C>(self.query, db).await?.pop())
@@ -239,7 +241,7 @@ where
 
 impl<A> Insert<A, ManyRows>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the insert and say, for every row it wrote, whether it inserted
     /// it or updated the row it conflicted with, in the order the database
@@ -254,9 +256,9 @@ where
     pub async fn exec_returning_upserts<C>(
         self,
         db: &C,
-    ) -> Result<Vec<Upserted<<A::Entity as EntityTrait>::Model>>, Error>
+    ) -> Result<Vec<Upserted<<A::Entity as Entity>::Model>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;

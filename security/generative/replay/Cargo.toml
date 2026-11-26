@@ -23,7 +23,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 # `raw_value` backs the decoder's numeric-fidelity check; `float_roundtrip`
 # keeps a JSON float's shortest representation across decode and re-render.
 serde_json = { version = "1.0.151", features = ["raw_value", "float_roundtrip"] }
-tokio-postgres = "0.7.18"
+pgorm-driver = { path = "../../../crates/pgorm-driver", version = "0.2.0" }
 # A streamed step observes a bounded prefix, so the harness has to drive
 # `RowStream` item by item rather than collect it.
 futures-util = { version = "0.3.34", default-features = false, features = ["std"] }

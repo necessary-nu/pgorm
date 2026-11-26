@@ -8,7 +8,7 @@
 //! has to survive. Each test owns a throwaway database named after it.
 
 use pgorm::{
-    ConnectionTrait, DatabaseConnection, DecodeRaw,
+    Connection, DatabaseConnection, DecodeRaw,
     pgorm_query::{
         Asterisk, ColumnDef, ColumnType, Comment, CommonTableExpression, Domain, DomainCheck, Expr,
         ExtendedWindow, ForeignKey, Func, Index, IntoNamedTable, MergeInsert, MergeUpdate,
@@ -17,7 +17,7 @@ use pgorm::{
         extension::{RangeDefinition, Type},
     },
 };
-use pgorm_query::ExprTrait;
+use pgorm_query::Expression;
 
 use super::corpus::NUL_NAME;
 use crate::common::TestContext;
@@ -110,7 +110,7 @@ async fn catalogue_count(db: &DatabaseConnection, sql: &str, name: &str) -> i64 
 /// `InsertStmt` target columns and `ColumnRef.fields`: a schema, a table and a
 /// column all named with the hostile name, created, written and read through
 /// the builders.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_relation_schema_and_column_names() {
     let (ctx, db) = open("ident_oracle_live_relation").await;
@@ -157,7 +157,7 @@ async fn live_relation_schema_and_column_names() {
 /// `ResTarget.name`, `RangeVar.alias.aliasname`, `RangeSubselect.alias`,
 /// `CommonTableExpr.ctename` and `ReturningOption.value`: every alias kind,
 /// read back as the server labels it.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_alias_names() {
     let (ctx, db) = open("ident_oracle_live_alias").await;
@@ -227,7 +227,7 @@ async fn live_alias_names() {
 
 /// `FuncCall.funcname` and `TypeCast.type_name`: a function and a domain
 /// created under the hostile name, called and cast to through the builders.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_function_and_type_names() {
     let (ctx, db) = open("ident_oracle_live_function_type").await;
@@ -258,7 +258,7 @@ async fn live_function_and_type_names() {
 
 /// `WindowDef.name` / `WindowDef.refname` / `FuncCall.over`: a window
 /// defined, extended and referenced under the hostile name.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_window_names() {
     let (ctx, db) = open("ident_oracle_live_window").await;
@@ -294,7 +294,7 @@ async fn live_window_names() {
 /// `CollateClause.collname` and `ColumnDef.coll_clause`: a collation created
 /// under the hostile name as a copy of `"C"`, named by an expression and by a
 /// column definition through the builders.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_collation_names() {
     let (ctx, db) = open("ident_oracle_live_collation").await;
@@ -332,7 +332,7 @@ async fn live_collation_names() {
 /// `OnConflictClause.infer.conname`: a unique constraint created under the
 /// hostile name and named as the arbiter of an upsert through the builder,
 /// which has to reach it for the conflicting row to be updated.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_conflict_constraint_names() {
     let (ctx, db) = open("ident_oracle_live_conflict").await;
@@ -384,7 +384,7 @@ async fn live_conflict_constraint_names() {
 /// and a column created under the hostile name, then merged into through the
 /// builder with the table aliased by the name too. The matched row's column
 /// has to be updated and the unmatched source row inserted under it.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_merge_names() {
     let (ctx, db) = open("ident_oracle_live_merge").await;
@@ -450,7 +450,7 @@ async fn live_merge_names() {
 /// column, then restarted, renamed and dropped through the builders. A table
 /// and a sequence share one namespace, so the sequence's names are the hostile
 /// name with a suffix, every hostile byte still in them.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_sequence_names() {
     let (ctx, db) = open("ident_oracle_live_sequence").await;
@@ -531,7 +531,7 @@ async fn live_sequence_names() {
 /// `CreateSchemaStmt.schemaname`, `RenameStmt.subname` / `newname` and a
 /// schema `DropStmt`'s names: a schema created under the hostile name, a
 /// table put in it, the schema renamed, then dropped with what it holds.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_schema_names() {
     let (ctx, db) = open("ident_oracle_live_schema").await;
@@ -586,7 +586,7 @@ async fn live_schema_names() {
 /// domain `DropStmt`'s names: a domain created under the hostile name with a
 /// check of that name, a table column typed with it, both renamed, then the
 /// domain dropped with the column.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_domain_names() {
     let (ctx, db) = open("ident_oracle_live_domain").await;
@@ -671,7 +671,7 @@ async fn live_domain_names() {
 /// `coll_clause`: a collation created under the hostile name, then a
 /// composite type of that name whose one attribute has the name too and is
 /// collated by it, checked in the catalogue and dropped through the builders.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_composite_type_names() {
     let (ctx, db) = open("ident_oracle_live_composite").await;
@@ -711,9 +711,9 @@ async fn live_composite_type_names() {
 /// in that schema ordered and measured by them, with a multirange named after
 /// it, and a second range over `text` collated by it — each checked in the
 /// catalogue and dropped through the builders. A value cast to the range type,
-/// and one cast to its multirange, by `ExprTrait::as_range` reaches that type,
+/// and one cast to its multirange, by `Expression::as_range` reaches that type,
 /// inline and bound.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_range_type_names() {
     let (ctx, db) = open("ident_oracle_live_range").await;
@@ -834,7 +834,7 @@ async fn live_range_type_names() {
 
 /// `IndexStmt.idxname`, `Constraint.conname`, `CreateEnumStmt` type names and
 /// labels, and `COMMENT ON` targets: DDL-only names, checked in the catalogue.
-// [spec:pgorm:req:security.ident-oracle+18/test]
+// [spec:pgorm:req:security.ident-oracle+19/test]
 #[tokio::test]
 async fn live_ddl_object_names_and_labels() {
     let (ctx, db) = open("ident_oracle_live_ddl").await;

@@ -22,7 +22,7 @@ COLUMNS = {
 
 
 class Declaration(unittest.TestCase):
-    # [spec:pgorm:req:bindings.model-hooks/test]    the hooks a model takes, and what describe() says of them
+    # [spec:pgorm:req:bindings.model-hooks+1/test]    the hooks a model takes, and what describe() says of them
     def test_hooks_are_declared_and_described(self):
         special = p.Model("special", COLUMNS, schema=SCHEMA, hooks={"before_save": lambda values, insert: values})
         self.assertEqual(special.describe()["hooks"], ["before_save"])
@@ -77,7 +77,7 @@ class RecordWrites(unittest.IsolatedAsyncioTestCase):
                    "before_delete": before_delete, "after_delete": after_delete},
         )
 
-    # [spec:pgorm:req:bindings.model-hooks/test]    insert, update and delete run the hooks around the write
+    # [spec:pgorm:req:bindings.model-hooks+1/test]    insert, update and delete run the hooks around the write
     async def test_record_writes_run_the_hooks(self):
         special = self.hooked()
         saved = await special.active({"name": "Saturday buns"}).insert(self.pool)
@@ -92,7 +92,7 @@ class RecordWrites(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual((self.calls[0][2], self.calls[2][2]), (True, False))
 
-    # [spec:pgorm:req:bindings.model-hooks/test]    a before hook's error refuses the write; an after hook's comes after it
+    # [spec:pgorm:req:bindings.model-hooks+1/test]    a before hook's error refuses the write; an after hook's comes after it
     async def test_refusals_and_after_errors(self):
         special = self.hooked()
         with self.assertRaisesRegex(ValueError, "a special needs a name"):
@@ -118,7 +118,7 @@ class RecordWrites(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(p.ConstructionError, "declares no primary key"):
             await keyless.active({"name": "x"}).update(self.pool)
 
-    # [spec:pgorm:req:bindings.model-hooks/test]    the statement builders run no hook
+    # [spec:pgorm:req:bindings.model-hooks+1/test]    the statement builders run no hook
     async def test_statement_builders_run_no_hooks(self):
         special = self.hooked()
         await special.insert({"name": "plain", "note": "n"}).execute(self.pool)

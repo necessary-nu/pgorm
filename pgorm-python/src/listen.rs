@@ -54,7 +54,7 @@ pub(crate) fn open<'py>(
 /// pgorm's `connect_listener` does: the connection string and TLS options
 /// read as a pool's are, every refusal raised before anything is sent.
 // [spec:pgorm:req:bindings.listen+3]
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 #[pyfunction]
 #[pyo3(name = "_connect_listener", signature = (dsn, capacity, *, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=10.0))]
 #[allow(clippy::too_many_arguments)]

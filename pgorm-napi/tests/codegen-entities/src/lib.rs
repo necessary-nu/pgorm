@@ -10,7 +10,7 @@ pub mod note;
 pub mod sample;
 
 use pgorm::pgorm_query::Name;
-use pgorm::{EntityTrait, Opt, RelationTrait, Req, SelectGraph};
+use pgorm::{Entity, Opt, Relation, Req, SelectGraph};
 
 fn alias(aliases: &[String], at: usize) -> Name {
     Name::runtime(aliases.get(at).map_or("note", String::as_str))

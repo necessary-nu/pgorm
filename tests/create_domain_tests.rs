@@ -20,11 +20,11 @@ use pgorm::pgorm_query::{
     ColumnType, ConstraintDrop, Domain, DomainCheck, Expr, Name, Query, Schema, alias,
     extension::Type,
 };
-use pgorm::{ConnectionTrait, QueryTrait, TransactionTrait, entity::prelude::*};
+use pgorm::{Connection, Statement, Transact, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pgorm_test_support::PREPARED_STATEMENT;
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
-use tokio_postgres::error::SqlState;
 
 /// A mood: the enum type `cheerful` is a domain over.
 mod mood {
@@ -161,7 +161,7 @@ fn checked_by(error: &Error, constraint: &str, domain: &str) {
 }
 
 /// A statement the server refuses, and the error it refused it with.
-async fn refused(db: &impl ConnectionTrait, sql: &str) -> Error {
+async fn refused(db: &impl Connection, sql: &str) -> Error {
     db.batch_execute(sql)
         .await
         .expect_err(&format!("the server refuses {sql}"))
@@ -169,7 +169,7 @@ async fn refused(db: &impl ConnectionTrait, sql: &str) -> Error {
 
 /// `billing.quantity`, `code` and `cheerful`, each created by the builder
 /// over the type the entity's field holds.
-async fn domains(db: &impl ConnectionTrait) -> Result<(), Error> {
+async fn domains(db: &impl Connection) -> Result<(), Error> {
     db.batch_execute(&Schema::create(n("billing")).to_string())
         .await?;
     let generator = pgorm::Schema::new();
@@ -210,10 +210,7 @@ async fn domains(db: &impl ConnectionTrait) -> Result<(), Error> {
 }
 
 /// Each column of `table` with its type as the server prints it.
-async fn columns_of(
-    db: &impl ConnectionTrait,
-    table: &str,
-) -> Result<Vec<(String, String)>, Error> {
+async fn columns_of(db: &impl Connection, table: &str) -> Result<Vec<(String, String)>, Error> {
     let rows = db
         .query_all(
             "SELECT attname::text, format_type(atttypid, atttypmod) FROM pg_attribute \
@@ -226,7 +223,7 @@ async fn columns_of(
 
 /// A domain's constraints: each one's name, kind and whether it is validated.
 async fn constraints_of(
-    db: &impl ConnectionTrait,
+    db: &impl Connection,
     domain: &str,
 ) -> Result<Vec<(String, String, bool)>, Error> {
     let rows = db
@@ -243,7 +240,7 @@ async fn constraints_of(
 }
 
 /// One `t` row's `v`, by id.
-async fn value_of(db: &impl ConnectionTrait, id: i32) -> Result<Option<i32>, Error> {
+async fn value_of(db: &impl Connection, id: i32) -> Result<Option<i32>, Error> {
     let row = db
         .query_one("SELECT v FROM t WHERE id = $1", &[&id])
         .await?;
@@ -268,7 +265,7 @@ fn written(id: i32, qty: i32, mood: Mood, codes: &[&str]) -> line::Model {
 // filters through them, a predicate on the enum's domain comparing as the enum, and a check's
 // refusal arrives as 23514 naming the constraint
 // [spec:pgorm:def:sql.types.column-type+11/test]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]
 // [spec:pgorm:def:exec.decode.array+2/test]
 #[pgorm_macros::test]
 async fn an_entity_reads_and_writes_through_domains() -> Result<(), Error> {
@@ -352,7 +349,7 @@ async fn an_entity_reads_and_writes_through_domains() -> Result<(), Error> {
 /// A domain over `money` reads and writes as `numeric`, a `Decimal` field's
 /// value cast to the domain so that its check holds, and compares through the
 /// same cast; an array of the domain does the same element by element.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    a domain over `money`, and an
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    a domain over `money`, and an
 // array of it, is read as `numeric` and written through `numeric` to the domain, by name
 #[pgorm_macros::test]
 async fn a_money_domain_reads_and_writes_as_decimal() -> Result<(), Error> {
@@ -417,7 +414,7 @@ async fn a_money_domain_reads_and_writes_as_decimal() -> Result<(), Error> {
 
 /// The ids of the lines `filter` selects, in id order.
 async fn ids_where(
-    db: &impl ConnectionTrait,
+    db: &impl Connection,
     filter: impl pgorm::pgorm_query::IntoCondition,
 ) -> Result<Vec<i32>, Error> {
     Ok(line::Entity::find()
@@ -435,7 +432,7 @@ async fn ids_where(
 /// no operator for the domain itself. The value is compared, not written, so
 /// the domain's check does not refuse it, and a keyset cursor over the column
 /// pages by the enum's order in either direction.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    every value predicate, the
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    every value predicate, the
 // column-taking and expression-taking forms and if_null cast a column whose domain is over an
 // enum, and its values, to the enum, live
 // [spec:pgorm:sem:exec.cursor.keyset+8/test]    a keyset cursor over a column whose domain is
@@ -540,7 +537,7 @@ async fn domain_enum_predicates_compare_as_the_enum() -> Result<(), Error> {
 
 /// Lines 1 to 5, calm, glad, calm, glad, calm, beside a calm and a glad
 /// temper, each table created from its entity over the same domain.
-async fn lines_and_tempers(db: &impl ConnectionTrait) -> Result<(), Error> {
+async fn lines_and_tempers(db: &impl Connection) -> Result<(), Error> {
     domains(db).await?;
     let schema = pgorm::Schema::new();
     db.batch_execute(&schema.create_table_from_entity(line::Entity)?.to_string())
@@ -572,7 +569,7 @@ async fn lines_and_tempers(db: &impl ConnectionTrait) -> Result<(), Error> {
 /// enum, with the subquery's projection cast beside it — even a projection of
 /// the same domain, which the enum does not compare with either — and max and
 /// min aggregate the column as the enum, the domain having neither.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    in_subquery and
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    in_subquery and
 // not_in_subquery against a subquery projecting the same domain, and max and min of the
 // column, live
 #[pgorm_macros::test]
@@ -653,7 +650,7 @@ async fn domain_enum_subqueries_and_extrema_compare() -> Result<(), Error> {
 /// through the subquery's array, with `NOT IN`'s answer to a null member. A
 /// `*` wider than one column, and several projected expressions, are refused
 /// by the server as they are under any `IN`, never narrowed to one column.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    in_subquery and not_in_subquery
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    in_subquery and not_in_subquery
 // against a `*`, a table's `*` and a windowed projection of the domain compare as the enum,
 // live, while a wider `*` and several projections are refused with 42601
 #[pgorm_macros::test]
@@ -752,7 +749,7 @@ async fn domain_enum_subqueries_of_every_shape_compare() -> Result<(), Error> {
 /// as the enum wherever it is joined: a related read, the graph's edge, both
 /// loaders — whose batch key is the column — and a linked read scoped by a
 /// key of the domain.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    a relation over columns whose
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    a relation over columns whose
 // domain is over an enum joins them as the enum in a related graph read, inner_join, a graph
 // edge, load_one and load_many, and find_related and find_linked scope by such a key, live
 // [spec:pgorm:sem:query.build.join+5/test]    a pair over such columns joins them cast
@@ -760,7 +757,7 @@ async fn domain_enum_subqueries_of_every_shape_compare() -> Result<(), Error> {
 // key column and its values, from either side of the relation
 #[pgorm_macros::test]
 async fn domain_enum_relations_join_as_the_enum() -> Result<(), Error> {
-    use pgorm::{LoaderTrait, RelatedLink};
+    use pgorm::{LoadRelated, RelatedLink};
 
     let ctx = TestContext::new("domain_enum_relations").await;
     let db = ctx.db.get().await?;
@@ -1035,7 +1032,7 @@ async fn domain_enum_appended_tiebreak_compares_as_enum() -> Result<(), Error> {
 /// A pipeline compares an entity column whose domain is over an enum as the
 /// enum — against a literal, a bound value, a list, or the same domain across
 /// a join — and min and max aggregate it as the enum.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    pipeline comparisons, in_array,
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    pipeline comparisons, in_array,
 // coalesce, a join condition and min / max over a column whose domain is over an enum, live
 #[pgorm_macros::test]
 async fn domain_enum_pipeline_compares_as_the_enum() -> Result<(), Error> {
@@ -1096,7 +1093,7 @@ async fn domain_enum_pipeline_compares_as_the_enum() -> Result<(), Error> {
 /// relation's column through `Named::col`, which the entity types, and a
 /// `col` reference or an alias token through `compares_as`, which names the
 /// enum. Each left bare is compared as the domain, which the server refuses.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    a named relation's column,
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    a named relation's column,
 // a col reference and an alias token naming a projection compare as the enum, bound or
 // literal, live, where each left bare is refused with 42883
 #[pgorm_macros::test]
@@ -1168,7 +1165,7 @@ const PLAN_MARK: &str = "CREATE TABLE plan_mark (n integer); INSERT INTO plan_ma
                          CREATE FUNCTION plan_mark() RETURNS integer IMMUTABLE LANGUAGE plpgsql \
                          AS $$ BEGIN RETURN (SELECT n FROM plan_mark); END $$";
 
-async fn plan_mark(db: &impl ConnectionTrait) -> Result<i32, Error> {
+async fn plan_mark(db: &impl Connection) -> Result<i32, Error> {
     Ok(db.query_one("SELECT plan_mark()", &[]).await?.get(0))
 }
 
@@ -1176,7 +1173,7 @@ async fn plan_mark(db: &impl ConnectionTrait) -> Result<i32, Error> {
 /// so that the session answers 1 until it re-plans its statements and 2 after.
 /// Run before the statement whose plan is in question is prepared, so that a
 /// re-plan of that statement is a re-plan of this one too.
-async fn mark_plans(db: &impl ConnectionTrait) -> Result<(), Error> {
+async fn mark_plans(db: &impl Connection) -> Result<(), Error> {
     db.batch_execute(PLAN_MARK).await?;
     assert_eq!(plan_mark(db).await?, 1);
     db.batch_execute("UPDATE plan_mark SET n = 2").await
@@ -1188,7 +1185,7 @@ async fn mark_plans(db: &impl ConnectionTrait) -> Result<(), Error> {
 /// server's shared invalidation queue, which other databases' catalogue churn
 /// can cause at any moment; asked after a statement ran, a no says that the
 /// statement ran with the plan it was prepared with.
-async fn replanned(db: &impl ConnectionTrait) -> Result<bool, Error> {
+async fn replanned(db: &impl Connection) -> Result<bool, Error> {
     Ok(plan_mark(db).await? != 1)
 }
 
@@ -1325,12 +1322,12 @@ async fn a_reset_replans_the_kept_insert() -> Result<(), Error> {
 
 /// The server process behind a connection, which names the physical
 /// connection the pool lent.
-async fn backend(db: &impl ConnectionTrait) -> Result<i32, Error> {
+async fn backend(db: &impl Connection) -> Result<i32, Error> {
     Ok(db.query_one("SELECT pg_backend_pid()", &[]).await?.get(0))
 }
 
 /// The insert into `line` the connection's session holds prepared, or `None`.
-async fn prepared_insert(db: &impl ConnectionTrait) -> Result<Option<String>, Error> {
+async fn prepared_insert(db: &impl Connection) -> Result<Option<String>, Error> {
     Ok(db
         .query_opt(PREPARED_STATEMENT, &[&r#"INSERT INTO "line""#])
         .await?
@@ -1342,7 +1339,7 @@ async fn prepared_insert(db: &impl ConnectionTrait) -> Result<Option<String>, Er
 /// as soon as it is lent, and one checked out at the time once it is returned
 /// and lent again, keeping its insert until then. The insert it had prepared
 /// is closed on the server before it runs anything.
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    idle and checked-out connections that
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    idle and checked-out connections that
 // prepared an insert before SET DEFAULT write the new default once next lent, their old statement
 // deallocated on the server, while a connection still checked out keeps it
 // [spec:pgorm:req:sql.ddl.domain+4/test]    the clear is the remedy for a planned default

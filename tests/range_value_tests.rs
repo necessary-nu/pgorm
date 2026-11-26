@@ -17,11 +17,11 @@ use pgorm::pgorm_query::{
     extension::{RangeDefinition, Type},
 };
 use pgorm::{
-    ConnectionTrait, DecodeRaw, QuerySelect, Schema, TryGetable, TryGetableMany, entity::prelude::*,
+    Connection, DecodeRaw, QuerySelect, Schema, TryGetable, TryGetableMany, entity::prelude::*,
 };
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use std::ops::Bound::{self, Excluded, Included, Unbounded};
-use tokio_postgres::error::SqlState;
 
 mod spans {
     use pgorm::entity::prelude::*;
@@ -145,8 +145,8 @@ fn model(id: i32) -> spans::Model {
 /// its select, a NULL range included; a numeric bound keeps its scale and a
 /// timestamp bound its microseconds.
 // [spec:pgorm:def:sql.value.range+5/test]
-// [spec:pgorm:def:exec.decode.range+5/test]
-// [spec:pgorm:req:exec.cursor.binding-range+3/test]
+// [spec:pgorm:def:exec.decode.range+6/test]
+// [spec:pgorm:req:exec.cursor.binding-range+4/test]
 async fn every_range_type_round_trips_through_an_entity(
     db: &DatabaseConnection,
 ) -> Result<(), Error> {
@@ -242,8 +242,8 @@ async fn a_discrete_range_comes_back_canonical(db: &DatabaseConnection) -> Resul
 /// nothing, it reads back as `Empty`, and it is never the range of every
 /// value, which is two unbounded sides.
 // [spec:pgorm:def:sql.value.range+5/test]
-// [spec:pgorm:def:exec.decode.range+5/test]
-// [spec:pgorm:req:exec.cursor.binding-range+3/test]
+// [spec:pgorm:def:exec.decode.range+6/test]
+// [spec:pgorm:req:exec.cursor.binding-range+4/test]
 async fn the_empty_range_is_not_every_value(db: &DatabaseConnection) -> Result<(), Error> {
     let empty = Value::from(Range::<i32>::Empty);
     let everything = Value::from(Range::<i32>::from(..));
@@ -269,7 +269,7 @@ async fn the_empty_range_is_not_every_value(db: &DatabaseConnection) -> Result<(
 /// server keeps it inside the brackets and reports the side as finite, and
 /// the decode refuses it as it refuses that value outside a range, rather
 /// than reading it as unbounded.
-// [spec:pgorm:def:exec.decode.range+5/test]
+// [spec:pgorm:def:exec.decode.range+6/test]
 async fn an_infinite_bound_is_not_unbounded(db: &DatabaseConnection) -> Result<(), Error> {
     let unbounded: Range<Date> = read(
         db,
@@ -300,8 +300,8 @@ async fn an_infinite_bound_is_not_unbounded(db: &DatabaseConnection) -> Result<(
 /// A multirange is stored sorted, with overlapping and adjacent ranges merged
 /// and empty ones dropped; the empty multirange is a value of its own.
 // [spec:pgorm:def:sql.value.range+5/test]
-// [spec:pgorm:def:exec.decode.range+5/test]
-// [spec:pgorm:req:exec.cursor.binding-range+3/test]
+// [spec:pgorm:def:exec.decode.range+6/test]
+// [spec:pgorm:req:exec.cursor.binding-range+4/test]
 async fn a_multirange_comes_back_merged(db: &DatabaseConnection) -> Result<(), Error> {
     let written: Multirange<i32> = [
         Range::from(5..8),
@@ -343,7 +343,7 @@ async fn a_multirange_comes_back_merged(db: &DatabaseConnection) -> Result<(), E
 /// on every bound, on the empty range, and on a NULL bound, which both read
 /// as no bound.
 // [spec:pgorm:sem:sql.value.render+2/test]
-// [spec:pgorm:req:exec.cursor.binding-range+3/test]
+// [spec:pgorm:req:exec.cursor.binding-range+4/test]
 async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Result<(), Error> {
     async fn both<T>(db: &DatabaseConnection, value: Value, cast: &'static str) -> Result<T, Error>
     where
@@ -429,7 +429,7 @@ async fn the_bound_and_inline_renderings_agree(db: &DatabaseConnection) -> Resul
 /// The containment and overlap operators take a bound range; an element
 /// beside a range is typed as the range by the server, so it is refused
 /// before it is sent unless the caller pins it to the subtype.
-// [spec:pgorm:req:exec.cursor.binding-range+3/test]
+// [spec:pgorm:req:exec.cursor.binding-range+4/test]
 async fn the_operators_read_ranges(db: &DatabaseConnection) -> Result<(), Error> {
     let ids = |condition: SimpleExpr| {
         spans::Entity::find()
@@ -481,9 +481,9 @@ async fn the_operators_read_ranges(db: &DatabaseConnection) -> Result<(), Error>
 /// the subtype's; with no canonical function it stores bounds as written. Its
 /// multirange reaches the driver as a simple type, so it is refused both
 /// ways rather than guessed at.
-// [spec:pgorm:req:exec.cursor.binding-range+3/test]
-// [spec:pgorm:def:exec.decode.range+5/test]
-// [spec:pgorm:req:sql.ddl.type-range+2/test]
+// [spec:pgorm:req:exec.cursor.binding-range+4/test]
+// [spec:pgorm:def:exec.decode.range+6/test]
+// [spec:pgorm:req:sql.ddl.type-range+3/test]
 async fn a_created_range_type_binds_by_its_subtype(db: &DatabaseConnection) -> Result<(), Error> {
     db.batch_execute(
         &Type::create(Name::runtime("slot"))
@@ -562,7 +562,7 @@ async fn the_server_refuses_what_it_cannot_store(db: &DatabaseConnection) -> Res
 /// order, each element canonical as it would be alone, the empty range kept
 /// apart from every value and an empty array from a NULL one.
 // [spec:pgorm:def:sql.value.array+7/test]    `Vec<Range<T>>` and `Vec<Multirange<T>>` convert
-// [spec:pgorm:def:exec.decode.range+5/test]    and decode as arrays
+// [spec:pgorm:def:exec.decode.range+6/test]    and decode as arrays
 // [spec:pgorm:def:sql.value.range+5/test]
 async fn arrays_of_ranges_round_trip_through_an_entity(
     db: &DatabaseConnection,
@@ -633,10 +633,10 @@ async fn arrays_of_ranges_round_trip_through_an_entity(
 /// An array decodes only from an array of its own range type — a created
 /// range type over the same subtype included — and a NULL element fails the
 /// whole array, as it does in every other `Vec<T>`.
-// [spec:pgorm:def:exec.decode.range+5/test]
+// [spec:pgorm:def:exec.decode.range+6/test]
 // [spec:pgorm:sem:exec.verify.accepts+1/test]    an array of ranges answers through the newtype
 async fn an_array_reads_only_its_own_range_type(db: &DatabaseConnection) -> Result<(), Error> {
-    use tokio_postgres::types::Type as Wire;
+    use pgorm_driver::types::Type as Wire;
 
     assert!(<Vec<Range<i32>> as TryGetable>::accepts(
         &Wire::INT4_RANGE_ARRAY
@@ -683,7 +683,7 @@ async fn an_array_reads_only_its_own_range_type(db: &DatabaseConnection) -> Resu
 /// `overlaps` is `&&`: true when two ranges, a multirange and a range, two
 /// multiranges or two arrays share a value; the empty range overlaps
 /// nothing, every value included; and an element is no operand of it.
-// [spec:pgorm:req:sql.ast.expr.operators+7/test]    `overlaps` reads ranges, multiranges and
+// [spec:pgorm:req:sql.ast.expr.operators+8/test]    `overlaps` reads ranges, multiranges and
 // arrays live
 async fn overlap_reads_ranges_multiranges_and_arrays(db: &DatabaseConnection) -> Result<(), Error> {
     let ids = |condition: SimpleExpr| {

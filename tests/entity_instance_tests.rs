@@ -14,7 +14,7 @@ use pretty_assertions::assert_eq;
 mod tenant_cake {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Debug, Entity)]
     pub struct Entity {
         pub tenant: &'static str,
     }
@@ -54,15 +54,15 @@ fn cake(id: i32, name: &str) -> Model {
     }
 }
 
-// [spec:pgorm:req:entity.traits.crud+5/test]    the reads and the key delete
+// [spec:pgorm:req:entity.traits.crud+6/test]    the reads and the key delete
 // take the instance whose schema they read
 // [spec:pgorm:sem:query.build.insert+6/test]
 // [spec:pgorm:sem:query.build.update+5/test]
 // [spec:pgorm:sem:query.build.delete+4/test]
-// [spec:pgorm:def:query.graph+2/test]    a graph rooted at an instance
-// [spec:pgorm:sem:pipeline.qualify+4/test]    a pipeline over an instance, its
+// [spec:pgorm:def:query.graph+3/test]    a graph rooted at an instance
+// [spec:pgorm:sem:pipeline.qualify+5/test]    a pipeline over an instance, its
 // model terminal and its source selection
-// [spec:pgorm:req:entity.active-model.persistence+3/test]    the active model's `_in`
+// [spec:pgorm:req:entity.active-model.persistence+4/test]    the active model's `_in`
 // writes
 #[pgorm_macros::test]
 async fn statements_take_the_tenant_from_the_instance() -> Result<(), Error> {
@@ -140,7 +140,7 @@ async fn statements_take_the_tenant_from_the_instance() -> Result<(), Error> {
     assert_eq!(
         Update::many(acme)
             .col_expr(Column::Name, Expr::value("Acme Bun"))
-            .filter(ColumnTrait::eq(&Column::Id, 1))
+            .filter(pgorm::Column::eq(&Column::Id, 1))
             .exec(&db)
             .await?,
         1

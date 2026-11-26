@@ -6,17 +6,17 @@ makes sure no one ever sees an order with half its lines, and that a failure
 part-way leaves nothing behind.
 
 In pgorm a transaction exists only while a closure runs. You hand
-[`transaction`](crate::TransactionTrait::transaction) an async closure, and
+[`transaction`](crate::Transact::transaction) an async closure, and
 what the closure returns ends the transaction: `Ok` commits it, `Err` rolls it
 back. There is no handle to commit later and no transaction to forget to end.
 
 ## Running a closure in a transaction
 
-[`transaction`](crate::TransactionTrait::transaction) is a method of
-[`TransactionTrait`](crate::TransactionTrait), which the prelude brings in. It
+[`transaction`](crate::Transact::transaction) is a method of
+[`Transact`](crate::Transact), which the prelude brings in. It
 takes the connection by `&mut`, so the connection must be mutable. The
 closure receives a [`DatabaseTransaction`](crate::DatabaseTransaction), a
-[`ConnectionTrait`](crate::ConnectionTrait) like the connection, and every
+[`Connection`](crate::Connection) like the connection, and every
 statement it runs is part of the transaction:
 
 ```rust
@@ -199,7 +199,7 @@ fn give_back<T>(db: DatabaseConnection, outcome: &Result<T, TransactionError<Err
 
 ## Savepoints
 
-A transaction is itself a `TransactionTrait`. Its `transaction` opens a
+A transaction is itself a `Transact`. Its `transaction` opens a
 savepoint: a transaction nested inside the first, which commits into it or
 rolls back alone. A savepoint's `transaction` returns a `TransactionError`
 like any other, and a `TransactionError` converts into an
@@ -601,11 +601,11 @@ assert_eq!((noon.id, noon.name.as_str()), (3, "Noon"));
 # }
 ```
 
-Code generic over `C: TransactionTrait`, rather than written for a concrete
+Code generic over `C: Transact`, rather than written for a concrete
 connection type, gets a future the compiler does not know to be `Send`: Rust
 cannot yet state that an async closure's future is `Send` in a trait's
 signature. Write such code for `DatabaseConnection` or `DatabaseTransaction`
 where it has to run in a spawned task.
 
-The metrics wrappers of [Metrics](crate::guide::metrics) are `TransactionTrait`s
+The metrics wrappers of [Metrics](crate::guide::metrics) are `Transact`s
 too, and their transactions stay instrumented.

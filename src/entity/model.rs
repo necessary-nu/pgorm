@@ -1,7 +1,7 @@
 use crate::{
-    ActiveModelBehavior, ActiveModelTrait, ConnectionTrait, EntityTrait, Error, ExpectedColumn,
-    IntoActiveModel, Linked, NoContext, QueryFilter, QueryResult, Related, ScopeContext, ScopedIn,
-    Select, SelectModel, SelectorRaw, SqlText,
+    ActiveModel, ActiveModelBehavior, Connection, Entity, Error, ExpectedColumn, IntoActiveModel,
+    Linked, NoContext, QueryFilter, QueryResult, Related, ScopeContext, ScopedIn, Select,
+    SelectModel, SelectorRaw, SqlText,
 };
 use async_trait::async_trait;
 pub use pgorm_query::Value;
@@ -9,42 +9,42 @@ use pgorm_query::Values;
 use std::fmt::Debug;
 
 /// A Trait for a Model
-// [spec:pgorm:def:entity.traits.model+3]
+// [spec:pgorm:def:entity.traits.model+4]
 #[async_trait]
-pub trait ModelTrait: Clone + Send + Debug {
+pub trait Model: Clone + Send + Debug {
     #[allow(missing_docs)]
-    type Entity: EntityTrait;
+    type Entity: Entity;
 
     /// Get the [Value] of a column from an Entity
-    fn get(&self, c: <Self::Entity as EntityTrait>::Column) -> Value;
+    fn get(&self, c: <Self::Entity as Entity>::Column) -> Value;
 
     /// Set the [Value] of a column in an Entity, reporting a column this model
     /// does not carry, or a value of the wrong type for it, as [`Error::Type`].
-    fn set(&mut self, c: <Self::Entity as EntityTrait>::Column, v: Value) -> Result<(), Error>;
+    fn set(&mut self, c: <Self::Entity as Entity>::Column, v: Value) -> Result<(), Error>;
 
     /// Find related Models
     fn find_related<R>(&self, _: R) -> Select<R>
     where
-        R: EntityTrait + ScopedIn<NoContext>,
+        R: Entity + ScopedIn<NoContext>,
         Self::Entity: Related<R> + ScopedIn<NoContext>,
     {
         <Self::Entity as Related<R>>::find_related().belongs_to(self)
     }
 
-    /// [`find_related`](ModelTrait::find_related) under the context `cx`, as
+    /// [`find_related`](Model::find_related) under the context `cx`, as
     /// [`Related::find_related_for`] reads it.
     // [spec:pgorm:sem:scope.join]
     fn find_related_for<Cx, R>(&self, cx: &Cx, _: R) -> Select<R>
     where
         Cx: ScopeContext,
-        R: EntityTrait + ScopedIn<Cx>,
+        R: Entity + ScopedIn<Cx>,
         Self::Entity: Related<R> + ScopedIn<Cx>,
     {
         <Self::Entity as Related<R>>::find_related_for(cx).belongs_to(self)
     }
 
     /// Find linked Models
-    // [spec:pgorm:req:entity.relation.linked+4]
+    // [spec:pgorm:req:entity.relation.linked+5]
     fn find_linked<L>(&self, l: L) -> Select<L::ToEntity>
     where
         L: Linked<FromEntity = Self::Entity>,
@@ -54,9 +54,9 @@ pub trait ModelTrait: Clone + Send + Debug {
         l.find_linked().belongs_to_tbl_alias(self, tbl_alias)
     }
 
-    /// [`find_linked`](ModelTrait::find_linked) under the context `cx`, as
+    /// [`find_linked`](Model::find_linked) under the context `cx`, as
     /// [`Linked::find_linked_for`] reads it.
-    // [spec:pgorm:req:entity.relation.linked+4]
+    // [spec:pgorm:req:entity.relation.linked+5]
     // [spec:pgorm:sem:scope.join]
     fn find_linked_for<Cx, L>(&self, cx: &Cx, l: L) -> Select<L::ToEntity>
     where
@@ -88,9 +88,9 @@ pub trait ModelTrait: Clone + Send + Debug {
     /// am.name = set("Apple");
     /// assert!(am.is_changed());
     /// ```
-    fn into_active(self) -> <Self::Entity as EntityTrait>::ActiveModel
+    fn into_active(self) -> <Self::Entity as Entity>::ActiveModel
     where
-        Self: IntoActiveModel<<Self::Entity as EntityTrait>::ActiveModel>,
+        Self: IntoActiveModel<<Self::Entity as Entity>::ActiveModel>,
     {
         self.into_active_model()
     }
@@ -100,22 +100,22 @@ pub trait ModelTrait: Clone + Send + Debug {
     where
         Self: IntoActiveModel<A>,
         Self::Entity: ScopedIn<NoContext>,
-        C: ConnectionTrait,
-        A: ActiveModelTrait<Entity = Self::Entity> + ActiveModelBehavior + Send + 'a,
+        C: Connection,
+        A: ActiveModel<Entity = Self::Entity> + ActiveModelBehavior + Send + 'a,
     {
         self.into_active_model().delete(db).await
     }
 
-    /// [`delete`](ModelTrait::delete) under the context `cx`, as
-    /// [`ActiveModelTrait::delete_for`] deletes it.
+    /// [`delete`](Model::delete) under the context `cx`, as
+    /// [`ActiveModel::delete_for`] deletes it.
     // [spec:pgorm:sem:scope.write]
     async fn delete_for<'a, Cx, A, C>(self, cx: &'a Cx, db: &'a C) -> Result<u64, Error>
     where
         Self: IntoActiveModel<A>,
         Self::Entity: ScopedIn<Cx>,
         Cx: ScopeContext + Sync,
-        C: ConnectionTrait,
-        A: ActiveModelTrait<Entity = Self::Entity> + ActiveModelBehavior + Send + 'a,
+        C: Connection,
+        A: ActiveModel<Entity = Self::Entity> + ActiveModelBehavior + Send + 'a,
     {
         self.into_active_model().delete_for(cx, db).await
     }
@@ -140,20 +140,20 @@ pub trait ModelTrait: Clone + Send + Debug {
 ///     ColumnField::<{ fruit::Column::CakeId as usize }>::field(&fruit);
 /// assert_eq!(cake_id, &Some(2));
 /// ```
-// [spec:pgorm:sem:macros.derive.model+7]
+// [spec:pgorm:sem:macros.derive.model+8]
 // [spec:pgorm:def:disjoint.one-of+4]
 pub trait ColumnField<const COLUMN: usize> {
     /// The type the model declares the field as, an `Option` where the column
     /// is nullable.
     type Value;
 
-    /// Borrow the field at its declared type, where [`ModelTrait::get`] gives
+    /// Borrow the field at its declared type, where [`Model::get`] gives
     /// a `Value`.
     fn field(&self) -> &Self::Value;
 }
 
 /// A Trait for implementing a [QueryResult]
-// [spec:pgorm:def:entity.traits.from-query-result+5]
+// [spec:pgorm:def:entity.traits.from-query-result+6]
 pub trait FromQueryResult: Sized {
     /// Instantiate a Model from a [QueryResult]
     fn from_query_result(res: &QueryResult, pre: &str) -> Result<Self, Error>;
@@ -242,7 +242,7 @@ pub trait FromQueryResult: Sized {
     /// # }
     /// # }
     /// ```
-    // [spec:pgorm:sem:exec.crud.selector-entry+3]
+    // [spec:pgorm:sem:exec.crud.selector-entry+4]
     fn find_by_statement<T>(sql: &T, values: Values) -> SelectorRaw<SelectModel<Self>>
     where
         T: ?Sized + SqlText,
@@ -254,7 +254,7 @@ pub trait FromQueryResult: Sized {
 /// A Trait for any type that can be converted into an Model
 pub trait TryIntoModel<M>
 where
-    M: ModelTrait,
+    M: Model,
 {
     /// Method to call to perform the conversion
     fn try_into_model(self) -> Result<M, Error>;
@@ -262,7 +262,7 @@ where
 
 impl<M> TryIntoModel<M> for M
 where
-    M: ModelTrait,
+    M: Model,
 {
     fn try_into_model(self) -> Result<M, Error> {
         Ok(self)

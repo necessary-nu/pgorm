@@ -65,7 +65,7 @@ pub enum ArrayType {
     Vector,
 
     /// `interval[]`.
-    // [spec:pgorm:def:sql.value.interval+2]
+    // [spec:pgorm:def:sql.value.interval+3]
     Interval,
 
     /// A range over one of the built-in range types, `int4range[]`.
@@ -84,7 +84,7 @@ pub enum ArrayType {
 /// The float-carrying variants (`Float`, `Double` and `Vector`) compare by bit pattern
 /// rather than by IEEE equality, which is what lets `PartialEq`, `Eq` and `Hash` agree:
 /// `NaN` equals itself, and `0.0` and `-0.0` are distinct values.
-// [spec:pgorm:def:sql.value+3]
+// [spec:pgorm:def:sql.value+4]
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum Value {
@@ -131,7 +131,7 @@ pub enum Value {
     /// An `interval`, its three fields kept apart. Boxed though it holds no
     /// pointer: inline, its sixteen bytes and the `Option` around them would
     /// widen every `Value` from 24 bytes to 32.
-    // [spec:pgorm:def:sql.value.interval+2]
+    // [spec:pgorm:def:sql.value.interval+3]
     Interval(Option<Box<Interval>>),
 
     /// A range, tagged with the built-in range type it is so that a NULL and

@@ -2,7 +2,7 @@
 
 //! The SQL-building contract of `src/query/`.
 //!
-//! Every assertion in this file renders a statement through `QueryTrait`, so
+//! Every assertion in this file renders a statement through `Statement`, so
 //! none of it needs a database: the claims under `query.build` are about what
 //! the builders *produce*, and the produced text is the observable.
 //!
@@ -11,7 +11,7 @@
 
 use pgorm::alias;
 use pgorm::pgorm_query::{
-    Asterisk, ConditionType, DeleteStatement, Expr, ExprTrait, Func, GroupingElement,
+    Asterisk, ConditionType, DeleteStatement, Expr, Expression, Func, GroupingElement,
     InsertStatement, IntoCondition, IntoName, LockBehavior, LockType, Name, NullOrdering,
     OnConflict, QueryBuilder, SelectStatement, SimpleExpr, UpdateStatement, Value, Values,
 };
@@ -21,10 +21,10 @@ use pgorm::tests_cfg::{
     lunch_set, vendor,
 };
 use pgorm::{
-    ActiveValue, ColumnTrait, Condition, Delete, DeleteMany, DeleteOne, EntityTrait, Error, Insert,
-    IntoActiveModel, Iterable, JoinType, Linked, ManyRows, ModelTrait, OneRow, Order, QueryFilter,
-    QueryOrder, QuerySelect, QueryTrait, Related, RelationTrait, Select, StaticName, TryInsert,
-    Update, UpdateMany, UpdateOne,
+    ActiveValue, Column, Condition, Delete, DeleteMany, DeleteOne, Entity, Error, Insert,
+    IntoActiveModel, Iterable, JoinType, Linked, ManyRows, Model, OneRow, Order, QueryFilter,
+    QueryOrder, QuerySelect, Related, Relation, Select, Statement, StaticName, TryInsert, Update,
+    UpdateMany, UpdateOne,
 };
 use pretty_assertions::assert_eq;
 
@@ -49,8 +49,8 @@ where
         .limit(1)
 }
 
-// [spec:pgorm:req:query.build+2/test]    every builder in the inventory, each
-// wrapping exactly one pgorm-query statement reachable through `QueryTrait`,
+// [spec:pgorm:req:query.build+3/test]    every builder in the inventory, each
+// wrapping exactly one pgorm-query statement reachable through `Statement`,
 // and the blanket `QuerySelect`/`QueryOrder`/`QueryFilter` surface
 #[test]
 fn every_builder_wraps_one_statement() {
@@ -114,7 +114,7 @@ fn every_builder_wraps_one_statement() {
     );
 }
 
-// [spec:pgorm:sem:query.build.select-defaults+1/test]    the select list is every
+// [spec:pgorm:sem:query.build.select-defaults+2/test]    the select list is every
 // column in `Column::iter()` order through `select_as`, the FROM is the
 // entity's table ref, and nothing else is applied
 #[test]
@@ -157,7 +157,7 @@ fn select_new_has_only_columns_and_from() {
     }
 }
 
-// [spec:pgorm:def:query.build.query-trait+2/test]    `query`, `as_query`,
+// [spec:pgorm:def:query.build.query-trait+3/test]    `query`, `as_query`,
 // `into_query` and `build` — the last rendering PostgreSQL text with `$n`
 // placeholders and a parallel `Values`, taking no backend argument
 #[test]
@@ -178,7 +178,7 @@ fn query_trait_exposes_the_statement_four_ways() {
     );
 
     // `query` is mutable access to the very same statement.
-    QueryTrait::query(&mut select).and_where(cake::Column::Name.like("%pie%"));
+    Statement::query(&mut select).and_where(cake::Column::Name.like("%pie%"));
     assert_eq!(
         select.build().0,
         r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."id" = $1 AND "cake"."name" LIKE $2"#
@@ -192,7 +192,7 @@ fn query_trait_exposes_the_statement_four_ways() {
     );
 }
 
-// [spec:pgorm:def:query.build.query-trait+2/test]    `apply_if` runs the closure
+// [spec:pgorm:def:query.build.query-trait+3/test]    `apply_if` runs the closure
 // only for `Some`, leaving the fluent chain unbroken for `None`
 #[test]
 fn apply_if_runs_only_on_some() {
@@ -208,8 +208,8 @@ fn apply_if_runs_only_on_some() {
     );
 }
 
-// [spec:pgorm:def:query.build.query-trait+2/test]    `IntoSimpleExpr` accepts a
-// `ColumnTrait` (yielding a table-qualified column reference), an `Expr` and a
+// [spec:pgorm:def:query.build.query-trait+3/test]    `IntoSimpleExpr` accepts a
+// `Column` (yielding a table-qualified column reference), an `Expr` and a
 // `SimpleExpr` (identity)
 #[test]
 fn into_simple_expr_accepts_three_shapes() {
@@ -239,12 +239,12 @@ fn into_simple_expr_accepts_three_shapes() {
     );
 }
 
-// [spec:pgorm:def:query.build.query-trait+2/test]    a function call, a cast
+// [spec:pgorm:def:query.build.query-trait+3/test]    a function call, a cast
 // and an aggregate are expressions in their own right: each stands in
 // `column_as`, `group_by`, `order_by` and `select` with no `Expr::expr`, and
 // compares in `having` and `filter`
-// [spec:pgorm:req:sql.ast.expr.operators+7/test]
-// [spec:pgorm:sem:query.build.modifiers+11/test]
+// [spec:pgorm:req:sql.ast.expr.operators+8/test]
+// [spec:pgorm:sem:query.build.modifiers+12/test]
 #[test]
 fn function_calls_and_aggregates_are_expressions() {
     let shout = Func::upper(Expr::col((cake::Entity, cake::Column::Name)));
@@ -285,7 +285,7 @@ fn function_calls_and_aggregates_are_expressions() {
     );
 }
 
-// [spec:pgorm:sem:query.build.filter+2/test]    repeated `filter` calls AND
+// [spec:pgorm:sem:query.build.filter+3/test]    repeated `filter` calls AND
 // together; condition trees, `add_option` and raw pgorm-query expressions all
 // arrive through the same entry point
 #[test]
@@ -341,7 +341,7 @@ fn filter_accumulates_and_accepts_trees() {
     );
 }
 
-// [spec:pgorm:def:entity.traits.column+9/test]    `eq_any` / `ne_all` spend one
+// [spec:pgorm:def:entity.traits.column+10/test]    `eq_any` / `ne_all` spend one
 // parameter on the whole list, so the statement text is the same at every
 // cardinality, where `is_in` / `is_not_in` spend one per element
 #[test]
@@ -381,7 +381,7 @@ fn eq_any_filters_through_one_parameter() {
     );
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    an enum column casts
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    an enum column casts
 // the whole array parameter to `{enum_name}[]`, where the per-element operators
 // cast each element to `{enum_name}`
 #[test]
@@ -431,7 +431,7 @@ fn eq_any_casts_enum_arrays_as_a_whole() {
     );
 }
 
-// [spec:pgorm:sem:query.build.filter+2/test]    `belongs_to` emits one equality
+// [spec:pgorm:sem:query.build.filter+3/test]    `belongs_to` emits one equality
 // per primary-key column of the model's entity; `belongs_to_tbl_alias`
 // qualifies the same columns with a table alias
 #[test]
@@ -483,7 +483,7 @@ fn belongs_to_filters_every_primary_key_column() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11/test]    `select_only` clears the list;
+// [spec:pgorm:sem:query.build.modifiers+12/test]    `select_only` clears the list;
 // `column`/`columns` re-add through `select_as`; `column_as`, `expr_as`,
 // `tbl_col_as`, `expr` and `exprs` append explicit expressions
 #[test]
@@ -535,7 +535,7 @@ fn select_list_modifiers_rewrite_the_list() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11/test]    `select` clears the list and
+// [spec:pgorm:sem:query.build.modifiers+12/test]    `select` clears the list and
 // projects in one call, rendering exactly what `select_only` plus `columns`
 // does, and casting an enum column the same way
 #[test]
@@ -580,7 +580,7 @@ fn select_clears_and_projects_in_one_call() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11/test]    a tuple is the mixed list: two
+// [spec:pgorm:sem:query.build.modifiers+12/test]    a tuple is the mixed list: two
 // entities' columns, a raw expression and an alias token have no common array
 // element type
 #[test]
@@ -627,7 +627,7 @@ fn select_tuple_mixes_columns_and_expressions() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11/test]    rendering a cleared select
+// [spec:pgorm:sem:query.build.modifiers+12/test]    rendering a cleared select
 // list still emits the text as written — `to_string` and `build` have no
 // `Result` channel, so the empty projection is refused at execution instead
 // (see `empty_select_tests.rs`)
@@ -639,7 +639,7 @@ fn cleared_select_list_renders_verbatim() {
     assert_eq!(query.build().0, r#"SELECT  FROM "cake""#);
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11/test]    `limit`/`offset` take
+// [spec:pgorm:sem:query.build.modifiers+12/test]    `limit`/`offset` take
 // `Into<Option<u64>>`: the last `Some` wins and `None` removes the clause
 #[test]
 fn limit_and_offset_last_call_wins() {
@@ -675,7 +675,7 @@ fn limit_and_offset_last_call_wins() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11/test]    `group_by` adds GROUP BY,
+// [spec:pgorm:sem:query.build.modifiers+12/test]    `group_by` adds GROUP BY,
 // `having` accumulates AND-ed conditions, `distinct` / `distinct_on` and the
 // four locking helpers each add their clause
 #[test]
@@ -720,7 +720,7 @@ fn grouping_distinct_and_locking_clauses() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11/test]    `group_by_element` passes a grouping
+// [spec:pgorm:sem:query.build.modifiers+12/test]    `group_by_element` passes a grouping
 // element through to the same GROUP BY list `group_by` fills
 #[test]
 fn group_by_element_joins_the_group_by_list() {
@@ -742,7 +742,7 @@ fn group_by_element_joins_the_group_by_list() {
     );
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11/test]    ORDER BY expressions append in
+// [spec:pgorm:sem:query.build.modifiers+12/test]    ORDER BY expressions append in
 // call order and are never deduplicated
 #[test]
 fn order_by_appends_and_never_dedups() {
@@ -920,7 +920,7 @@ fn related_helpers_join_via_then_target() {
     );
 }
 
-// [spec:pgorm:sem:query.build.join.rel/test]    each `*_join_rel` method is its
+// [spec:pgorm:sem:query.build.join.rel+1/test]    each `*_join_rel` method is its
 // `join(JoinType::X, rel.def())` spelling and each `*_join_rel_rev` its
 // `join_rev` one, for a relation carrying whatever `on_condition` it likes
 #[test]
@@ -1291,7 +1291,7 @@ fn update_one_errs_on_unset_primary_key() {
     .expect_err("half a composite key is not a key");
     assert_eq!(err, Error::PrimaryKeyNotSet);
 
-    // `EntityTrait::update` forwards the same error.
+    // `Entity::update` forwards the same error.
     let err = Update::one(cake::ActiveModel {
         id: ActiveValue::NotSet,
         name: set("Apple Pie"),
@@ -1399,7 +1399,7 @@ fn delete_one_errs_on_unset_primary_key() {
     .expect_err("half a composite key is not a key");
     assert_eq!(err, Error::PrimaryKeyNotSet);
 
-    // `EntityTrait::delete` forwards the same error.
+    // `Entity::delete` forwards the same error.
     let err = Delete::one(cake::ActiveModel {
         id: ActiveValue::NotSet,
         name: set("Apple Pie"),
@@ -1480,7 +1480,7 @@ fn alias_token_declares_and_references_one_name() {
     assert!(undeclared.ends_with(r#"WHERE "nope" > 1"#), "{undeclared}");
 }
 
-// [spec:pgorm:req:entity.relation.linked+4/test]    the alias a linked join
+// [spec:pgorm:req:entity.relation.linked+5/test]    the alias a linked join
 // binds its last hop to is derived from the chain, not retyped by the caller
 #[test]
 fn last_hop_alias_matches_the_emitted_join() {
@@ -1505,7 +1505,7 @@ fn last_hop_alias_matches_the_emitted_join() {
     );
 }
 
-// [spec:pgorm:def:exec.crud+2/test]    a decoded selector renders the statement
+// [spec:pgorm:def:exec.crud+3/test]    a decoded selector renders the statement
 // the `Select` it came from does, whichever decode target it reads into
 #[test]
 fn decoded_selectors_render_their_statement() {

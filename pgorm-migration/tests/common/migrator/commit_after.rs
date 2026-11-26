@@ -28,8 +28,8 @@ const MOOD_USED: Script = Script {
 pub struct MoodCreated;
 
 #[async_trait::async_trait]
-impl MigratorTrait for MoodCreated {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for MoodCreated {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(MOOD_CREATED)]
     }
 }
@@ -39,8 +39,8 @@ impl MigratorTrait for MoodCreated {
 pub struct Moods;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Moods {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Moods {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(MOOD_CREATED),
             Box::new(MOOD_ADDED),
@@ -54,8 +54,8 @@ impl MigratorTrait for Moods {
 pub struct Unsplit;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Unsplit {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Unsplit {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(MOOD_CREATED),
             Box::new(Script {
@@ -71,8 +71,8 @@ impl MigratorTrait for Unsplit {
 pub struct FailingAfterCommit;
 
 #[async_trait::async_trait]
-impl MigratorTrait for FailingAfterCommit {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for FailingAfterCommit {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(MOOD_CREATED),
             Box::new(MOOD_ADDED),
@@ -97,7 +97,7 @@ impl MigrationName for Written {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for Written {
+impl Migration for Written {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let qty: i32 = tx.query_one(INSERT, &[&10]).await?.get(0);
         if qty == 3 {
@@ -116,8 +116,8 @@ impl MigrationTrait for Written {
 pub struct Redefaulted;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Redefaulted {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Redefaulted {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(CREATED),
             Box::new(DEFAULTED),

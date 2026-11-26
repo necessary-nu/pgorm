@@ -77,7 +77,7 @@ async function count(): Promise<number> {
   return Number(row!.n);
 }
 
-// [spec:pgorm:req:bindings.model-hooks/test]    the hooks a model takes, and what describe() says of them
+// [spec:pgorm:req:bindings.model-hooks+1/test]    the hooks a model takes, and what describe() says of them
 test("a model takes its hooks as functions and describes which it has", () => {
   const special = model("special", { schema: "hooks", columns, hooks: { beforeSave: (values) => values } });
   assert.deepStrictEqual(special.describe().hooks, ["beforeSave"]);
@@ -92,7 +92,7 @@ test("a model takes its hooks as functions and describes which it has", () => {
   assert.throws(() => special.active({ colour: "red" }), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.model-hooks/test]
+// [spec:pgorm:req:bindings.model-hooks+1/test]
 test("insert, update and delete of a record run the hooks around the write", async () => {
   const calls: unknown[][] = [];
   const special = hooked(calls);
@@ -112,7 +112,7 @@ test("insert, update and delete of a record run the hooks around the write", asy
   assert.deepStrictEqual([calls[0]![1], calls[2]![1]], [true, false]);
 });
 
-// [spec:pgorm:req:bindings.model-hooks/test]
+// [spec:pgorm:req:bindings.model-hooks+1/test]
 test("a before hook's error refuses the write, and an after hook's arrives once it is written", async () => {
   const special = hooked([]);
   await assert.rejects(special.active({ name: "" }).insert(pool()), /a special needs a name/);
@@ -136,7 +136,7 @@ test("a before hook's error refuses the write, and an after hook's arrives once 
   await assert.rejects(keyless.active({ name: "x" }).update(pool()), /declares no primary key/);
 });
 
-// [spec:pgorm:req:bindings.model-hooks/test]    the statement builders run no hook
+// [spec:pgorm:req:bindings.model-hooks+1/test]    the statement builders run no hook
 test("the statement builders run no hook", async () => {
   const calls: unknown[][] = [];
   const special = hooked(calls);

@@ -5,7 +5,7 @@
 // list, the ledger, the lock and the checksums are the addon's; what lives
 // here is the crossing, `dispatch`, which runs a migration's `up` on the
 // JavaScript thread with the transaction the runner lends it.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 
 import { fileURLToPath } from "node:url";
 
@@ -176,13 +176,13 @@ export class Migrations {
    *
    * @param {import("./index.d.ts").Queryable} db
    * @param {import("./index.d.ts").OperationOptions} [options]
-   * @returns {Promise<[import("./index.d.ts").Migration[], string[]]>}
+   * @returns {Promise<[import("./index.d.ts").MigrationWithStatus[], string[]]>}
    */
   async #read(db, options) {
     const [found, warnings] = /** @type {[[string, boolean][], string[]]} */ (
       await runJob(db, native.migrationsJob(this.#handle, false), options)
     );
-    /** @type {import("./index.d.ts").Migration[]} */
+    /** @type {import("./index.d.ts").MigrationWithStatus[]} */
     const migrations = found.map(([name, applied]) => Object.freeze({ name, status: applied ? "applied" : "pending" }));
     return [migrations, warnings];
   }
@@ -192,7 +192,7 @@ export class Migrations {
    *
    * @param {import("./index.d.ts").Queryable} db
    * @param {import("./index.d.ts").OperationOptions} [options]
-   * @returns {Promise<import("./index.d.ts").Migration[]>}
+   * @returns {Promise<import("./index.d.ts").MigrationWithStatus[]>}
    */
   async getMigrationWithStatus(db, options) {
     const [migrations, warnings] = await this.#read(db, options);
@@ -205,7 +205,7 @@ export class Migrations {
    *
    * @param {import("./index.d.ts").Queryable} db
    * @param {import("./index.d.ts").OperationOptions} [options]
-   * @returns {Promise<import("./index.d.ts").Migration[]>}
+   * @returns {Promise<import("./index.d.ts").MigrationWithStatus[]>}
    */
   async getPendingMigrations(db, options) {
     return (await this.getMigrationWithStatus(db, options)).filter((migration) => migration.status === "pending");
@@ -216,7 +216,7 @@ export class Migrations {
    *
    * @param {import("./index.d.ts").Queryable} db
    * @param {import("./index.d.ts").OperationOptions} [options]
-   * @returns {Promise<import("./index.d.ts").Migration[]>}
+   * @returns {Promise<import("./index.d.ts").MigrationWithStatus[]>}
    */
   async getAppliedMigrations(db, options) {
     return (await this.getMigrationWithStatus(db, options)).filter((migration) => migration.status === "applied");
@@ -258,7 +258,7 @@ export class Migrations {
  * with a `name` and an `up(tx)`, and optionally a `checksum` and a
  * `commitsAfter`, all read once, now.
  *
- * @param {readonly (SqlMigration | import("./index.d.ts").MigrationTrait)[]} list
+ * @param {readonly (SqlMigration | import("./index.d.ts").Migration)[]} list
  * @param {import("./index.d.ts").MigrationsOptions} [options]
  * @returns {Migrations}
  */

@@ -250,17 +250,16 @@ class ModelEmitter:
                 column = self.entity_column(self.registration(i["entity"]), d["name"])
                 return (
                     f"{Q}::SimpleExpr::from({Q}::Expr::col("
-                    f"pgorm::ColumnTrait::as_column_ref(&{column})))"
+                    f"pgorm::Column::as_column_ref(&{column})))"
                 )
             case "entity.predicate":
                 column = self.entity_column(self.registration(i["entity"]), d["column"])
                 return (
-                    f"pgorm::ColumnTrait::{d['operator']}"
-                    f"(&{column}, {self.use(i['value'])})"
+                    f"pgorm::Column::{d['operator']}(&{column}, {self.use(i['value'])})"
                 )
             case "entity.find":
                 entity = self.entity_type(self.registration(i["entity"]))
-                return f"<{entity} as pgorm::EntityTrait>::find()"
+                return f"<{entity} as pgorm::Entity>::find()"
             case "entity.filter":
                 query = self.use(i["query"])
                 return f"pgorm::QueryFilter::filter({query}, {self.predicate(i['predicate'])})"
@@ -271,7 +270,7 @@ class ModelEmitter:
             case "entity.active":
                 entity = self.entity_type(self.registration(i["entity"]))
                 return (
-                    f"<<{entity} as pgorm::EntityTrait>::ActiveModel"
+                    f"<<{entity} as pgorm::Entity>::ActiveModel"
                     " as pgorm::ActiveModelBehavior>::new()"
                 )
             case "entity.result":
@@ -319,13 +318,11 @@ class ModelEmitter:
             if "value" not in i:
                 raise UnsupportedInstruction("active.set set needs a value")
             body.append(
-                "    pgorm::ActiveModelTrait::set(&mut active, "
+                "    pgorm::ActiveModel::set(&mut active, "
                 f"{column}, {self.use(i['value'])})?;"
             )
         else:
-            body.append(
-                f"    pgorm::ActiveModelTrait::{d['state']}(&mut active, {column});"
-            )
+            body.append(f"    pgorm::ActiveModel::{d['state']}(&mut active, {column});")
         return "{\n" + "\n".join(body) + "\n    active\n    }"
 
     # -- compiled graphs and cursors ----------------------------------------
@@ -362,7 +359,7 @@ class ModelEmitter:
     def graph_column(self, node):
         """A graph's column, qualified the way the shape qualifies its sources.
 
-        The root keeps its entity's table name — `EntityTrait` fixes it, and no
+        The root keeps its entity's table name — `Entity` fixes it, and no
         alias is offered for it — while each joined slot answers to the alias
         the find supplied.
         """
@@ -551,7 +548,7 @@ class ModelEmitter:
         return "{\n" + "\n".join(body) + "\n    query\n    }"
 
     def model_result_value(self, node, registration):
-        """Read a retained model's column, the way `ModelTrait::get` does."""
+        """Read a retained model's column, the way `Model::get` does."""
         self.helpers.add("decoded")
         d = node["data"]
         variant = VARIANTS.get(d["type"]["kind"])
@@ -565,7 +562,7 @@ class ModelEmitter:
         rows = "r_" + d["step"]
         body = [
             (
-                f"    let found = pgorm::ModelTrait::get("
+                f"    let found = pgorm::Model::get("
                 f"&decoded(&{rows}, {int(d['row'])}usize)?, {column});"
             ),
             f"    if !matches!(found, {Q}::Value::{variant}(_)) {{",

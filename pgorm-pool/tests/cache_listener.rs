@@ -51,7 +51,7 @@ fn listening_pool(channel: &str) -> Pool {
         pool: Some(PoolConfig::new(1)),
         ..Default::default()
     };
-    cfg.create_pool(tokio_postgres::NoTls).unwrap()
+    cfg.create_pool(pgorm_driver::NoTls).unwrap()
 }
 
 /// Poll `probe` until it answers `Some`, failing the test past [`ARRIVAL`].
@@ -219,7 +219,7 @@ async fn dropping_the_pool_closes_the_listener() {
         url: Some(format!("{}/postgres", base_url())),
         ..Default::default()
     }
-    .create_pool(tokio_postgres::NoTls)
+    .create_pool(pgorm_driver::NoTls)
     .unwrap();
     eventually("the listener's disconnection", || async {
         (!backend_alive(&watcher.get().await.unwrap(), pid).await).then_some(())

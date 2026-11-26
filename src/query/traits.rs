@@ -1,9 +1,9 @@
 use pgorm_query::{QueryStatementBuilder, Values};
 
 /// A Trait for any type performing queries on a Model or ActiveModel
-// [spec:pgorm:req:query.build+2]
-// [spec:pgorm:def:query.build.query-trait+2]
-pub trait QueryTrait {
+// [spec:pgorm:req:query.build+3]
+// [spec:pgorm:def:query.build.query-trait+3]
+pub trait Statement {
     /// Constrain the QueryStatement to [QueryStatementBuilder] trait
     type QueryStatement: QueryStatementBuilder;
 
@@ -20,7 +20,7 @@ pub trait QueryTrait {
     ///
     /// Values are never inlined: each one becomes a `$n` placeholder in the
     /// SQL string and an entry in [`Values`], in binding order. Use
-    /// [`as_query`](QueryTrait::as_query) with `to_string` instead when you
+    /// [`as_query`](Statement::as_query) with `to_string` instead when you
     /// want a self-contained, value-inlined string to read.
     ///
     /// # Example
@@ -43,7 +43,7 @@ pub trait QueryTrait {
         self.as_query().build()
     }
 
-    /// Apply an operation on the [QueryTrait::QueryStatement] if the given `Option<T>` is `Some(_)`
+    /// Apply an operation on the [Statement::QueryStatement] if the given `Option<T>` is `Some(_)`
     ///
     /// # Example
     ///

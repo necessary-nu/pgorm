@@ -53,7 +53,7 @@ fn s(text: &str) -> String {
     text.to_owned()
 }
 
-// [spec:pgorm:req:sql.ddl.type-range+2/test]    the subtype, then each option that is set, every
+// [spec:pgorm:req:sql.ddl.type-range+3/test]    the subtype, then each option that is set, every
 // name quoted and the multirange's qualified as the range's can be
 #[test]
 fn a_range_type_writes_its_options() {
@@ -89,7 +89,7 @@ fn a_range_type_writes_its_options() {
     );
 }
 
-// [spec:pgorm:req:sql.ddl.type-range+2/test]    the subtype alone is a range type, written as a
+// [spec:pgorm:req:sql.ddl.type-range+3/test]    the subtype alone is a range type, written as a
 // column's type is
 #[test]
 fn a_range_type_needs_only_its_subtype() {
@@ -126,7 +126,7 @@ fn a_range_type_needs_only_its_subtype() {
     }
 }
 
-// [spec:pgorm:req:sql.ddl.type-range+2/test]    a range is a third kind of type, and choosing a
+// [spec:pgorm:req:sql.ddl.type-range+3/test]    a range is a third kind of type, and choosing a
 // kind replaces the others
 #[test]
 fn a_range_is_one_kind_of_type() {
@@ -151,7 +151,7 @@ fn a_range_is_one_kind_of_type() {
     assert_eq!(sql, r#"CREATE TYPE "t" AS RANGE (SUBTYPE = bigint)"#);
 }
 
-// [spec:pgorm:req:sql.ddl.type-range+2/test]    a range type binds nothing, so its two renderings
+// [spec:pgorm:req:sql.ddl.type-range+3/test]    a range type binds nothing, so its two renderings
 // agree
 #[test]
 fn a_range_type_binds_nothing() {
@@ -272,7 +272,7 @@ fn a_range_parameter_pins_to_its_range_type() {
     );
 }
 
-// [spec:pgorm:def:sql.value+3/test]    range values compare and hash structurally, bound by bound,
+// [spec:pgorm:def:sql.value+4/test]    range values compare and hash structurally, bound by bound,
 // and NULL keeps its range type
 #[test]
 fn range_values_agree_on_identity() {
@@ -301,7 +301,7 @@ fn range_values_agree_on_identity() {
     assert!(std::mem::size_of::<Value>() <= 4 * std::mem::size_of::<usize>());
 }
 
-// [spec:pgorm:req:sql.ast.expr.operators+7/test]    `overlaps` is `&&` between its operands, bound
+// [spec:pgorm:req:sql.ast.expr.operators+8/test]    `overlaps` is `&&` between its operands, bound
 // or inlined, and the parser reads one operator expression
 #[test]
 fn overlaps_renders_the_overlap_operator() {

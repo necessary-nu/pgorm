@@ -10,8 +10,7 @@ use std::{
 };
 
 use pgorm::{
-    EntityTrait, GraphItem, GraphRow, IntoActiveModel, SelectGraph, SelectorTrait,
-    pipeline::SourceList,
+    DecodeRow, Entity, GraphItem, GraphRow, IntoActiveModel, SelectGraph, pipeline::SourceList,
 };
 use pgorm::{NoContext, ScopedIn};
 
@@ -75,7 +74,7 @@ impl Registry {
     // [spec:pgorm:req:bindings.entities+6]
     pub fn entity_in<E>(&mut self, name: &str, entity: E) -> Result<(), Failure>
     where
-        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
@@ -105,12 +104,12 @@ impl Registry {
     /// factory receives one alias per joined slot, in tuple order, and must
     /// join each slot under its alias; every source entity is registered
     /// first.
-    // [spec:pgorm:req:bindings.entity-graphs+4]
+    // [spec:pgorm:req:bindings.entity-graphs+5]
     pub fn graph<E, S, Build>(&mut self, name: &str, build: Build) -> Result<(), Failure>
     where
-        E: EntityTrait + ScopedIn<NoContext> + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
         S: GraphSlots<E>,
-        GraphRow<E, S>: SelectorTrait + Send + Sync + 'static,
+        GraphRow<E, S>: DecodeRow + Send + Sync + 'static,
         GraphItem<E, S>: Send + 'static,
         Build: Fn(&[String]) -> SelectGraph<E, S> + Send + Sync + 'static,
     {
@@ -202,7 +201,7 @@ impl Registry {
 
     /// The registered entity `E`, refused as one a registration over it
     /// (`over`, "a graph or source tuple of it") needs first.
-    pub(super) fn backend<E: EntityTrait + 'static>(
+    pub(super) fn backend<E: Entity + 'static>(
         &self,
         over: &str,
     ) -> Result<Arc<dyn EntityBackend>, Failure> {
@@ -216,7 +215,7 @@ impl Registry {
 
     /// The registration of `E`, which a graph's or a source tuple's sources
     /// name.
-    pub fn registered<E: EntityTrait + 'static>(&self) -> Result<Arc<EntityInfo>, Failure> {
+    pub fn registered<E: Entity + 'static>(&self) -> Result<Arc<EntityInfo>, Failure> {
         self.backend::<E>("a graph or source tuple of it")
             .map(|entity| entity.info().clone())
     }
@@ -224,7 +223,7 @@ impl Registry {
 
 #[cfg(test)]
 mod tests {
-    use pgorm::EntityTrait;
+    use pgorm::Entity;
 
     use super::*;
 
@@ -313,7 +312,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:req:bindings.entity-graphs+4/test]    a graph's slots are joined under
+    // [spec:pgorm:req:bindings.entity-graphs+5/test]    a graph's slots are joined under
     // `g1`, `g2`, .. by default, a name the root's table takes skipped; an alias count
     // other than the slots', an alias repeated, or one naming the root's table is refused
     #[test]

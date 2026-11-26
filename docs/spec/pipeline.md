@@ -35,7 +35,7 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Surface
 
-> [spec:pgorm:req:pipeline.surface+4]
+> [spec:pgorm:req:pipeline.surface+5]
 > A `Pipeline` is constructed by `from(impl IntoSource)` or
 > `from_schema(schema, table)` — the only entry points, so a sourceless
 > pipeline is unrepresentable — and grown one whole transform at a time:
@@ -78,7 +78,7 @@ of the crate, compiled in every build. Rules are grouped under
 >
 > Every scalar position takes `impl Into<Expr>` and every list position takes
 > `impl ExprList`. `Into<Expr>` is implemented for `Expr` itself, for any
-> `ColumnTrait` column (qualified by its own entity,
+> `Column` column (qualified by its own entity,
 > `[spec:pgorm:sem:pipeline.qualify]`), for an `AliasName` token, and for
 > the Rust literals `i32`, `i64`, `f64`, `bool` and `&str`. `ExprList` is
 > implemented for a single expression, for `[T; N]` and `Vec<T>` of one
@@ -87,7 +87,7 @@ of the crate, compiled in every build. Rules are grouped under
 > spells a projection too.
 >
 > The operators live on the `ExprOps` trait, blanket-implemented for `Expr`,
-> for `AliasName` and for every `ColumnTrait` column, so a column or a token
+> for `AliasName` and for every `Column` column, so a column or a token
 > is as much an expression as an `Expr` is: comparisons (`eq`, `ne`, `gt`,
 > `gte`, `lt`, `lte`), `and` / `or` (and `Not` on `Expr`), arithmetic as
 > methods (`add`, `sub`, `mul`, `div`, `rem`) and as the std `ops` traits on
@@ -122,10 +122,10 @@ of the crate, compiled in every build. Rules are grouped under
 > stage introduced compiles, and the server answers for it
 > (`[spec:pgorm:req:pipeline.errors]`).
 >
-> `ExprOps`'s comparison names are also `ColumnTrait`'s. Both traits can be
-> in scope: the pipeline's methods take `self` by value and `ColumnTrait`'s
+> `ExprOps`'s comparison names are also `Column`'s. Both traits can be
+> in scope: the pipeline's methods take `self` by value and `Column`'s
 > take `&self`, so a column resolves to the pipeline's method where both are
-> imported, and the ORM spelling is then `ColumnTrait::gt(&col, v)`. The
+> imported, and the ORM spelling is then `Column::gt(&col, v)`. The
 > pipeline is in no prelude, so this is per-module and opt-in, and the
 > failure mode of getting it wrong is a type error at the ORM call site.
 >
@@ -540,9 +540,9 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Qualification
 
-> [spec:pgorm:sem:pipeline.qualify+4]
+> [spec:pgorm:sem:pipeline.qualify+5]
 > Column references are table-qualified by construction. An entity column
-> already carries its entity, so `Into<Expr>` for `ColumnTrait` recovers the
+> already carries its entity, so `Into<Expr>` for `Column` recovers the
 > qualification from `entity_name()` rather than making the caller restate
 > it, and a bare `order::Column::Total` mints the two-part identifier. The
 > unqualified form — ambiguous the moment a join appears — is never
@@ -550,7 +550,7 @@ of the crate, compiled in every build. Rules are grouped under
 > entity does not describe and for disambiguation, taking an `SqlName` pair.
 >
 > `IntoSource` is any relation a pipeline can read — the source, the join
-> operand, a set-operation operand — and there are four: an `EntityTrait`
+> operand, a set-operation operand — and there are four: an `Entity`
 > entity (which contributes its `table_name` and, when it has one, its
 > `EntityName::schema_name`, so an entity source is schema-correct without a
 > second spelling; the instance's, so an entity whose names are computed at run time
@@ -570,13 +570,13 @@ of the crate, compiled in every build. Rules are grouped under
 
 ## Termination
 
-> [spec:pgorm:sem:pipeline.terminal+1]
+> [spec:pgorm:sem:pipeline.terminal+2]
 > `into_sql()` yields `(String, Values)`, the raw-SQL currency of
 > `exec.crud.selector-entry`: `into_model::<M>()` and `into_tuple::<T>()`
 > stage exactly those entry points (`SelectorRaw::from_statement`,
 > `SelectorRaw::into_tuple`), and the convenience terminals `all::<M>(db)`,
 > `one::<M>(db)` and `one_opt::<M>(db)` go straight to `FromQueryResult`
-> models on any `ConnectionTrait`. `one` / `one_opt` append a `take 1`
+> models on any `Connection`. `one` / `one_opt` append a `take 1`
 > stage before compiling — the pipeline is still a pipeline at that point,
 > so the limit belongs to it, in contrast to `SelectorRaw::one`, which
 > executes its text as written.

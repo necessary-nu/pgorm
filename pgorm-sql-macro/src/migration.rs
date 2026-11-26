@@ -42,7 +42,7 @@ pub(crate) struct Script {
 
 /// The file's name and checked text as literals in a constant expression,
 /// with the file itself included so that editing it rebuilds the calling crate.
-// [spec:pgorm:def:migration.sql-file+1]
+// [spec:pgorm:def:migration.sql-file+2]
 // [spec:pgorm:req:migration.sql-file.compile+2]    the file is an input of the calling crate's build
 // [spec:pgorm:req:migration.sql-file.const]    a block of an item and a const fn call is a constant expression
 pub(crate) fn expand(input: &MigrationInput) -> Result<TokenStream, Error> {
@@ -155,7 +155,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:def:migration.sql-file+1/test]    the name is the file stem
+    // [spec:pgorm:def:migration.sql-file+2/test]    the name is the file stem
     // [spec:pgorm:req:migration.sql-file.checksum/test]    CRLF line endings are read as LF
     #[test]
     fn crlf_line_endings_are_read_as_lf() -> Result<(), Box<dyn std::error::Error>> {

@@ -2,14 +2,13 @@
 use _native::{account, graphs, note};
 use futures_util::TryStreamExt;
 use pgorm::pgorm_query::{
-    ColumnDef, ColumnType, Expr, ExprTrait, Name, OnConflict, Order, Query, Table,
+    ColumnDef, ColumnType, Expr, Expression, Name, OnConflict, Order, Query, Table,
 };
 use pgorm::pipeline::{self as pl, ExprOps, IntoSource, JoinSide};
 use pgorm::{
-    ActiveModelBehavior, ActiveModelTrait, Change, ColumnTrait, ConnectionTrait,
-    DatabaseConnection, EntityTrait, Insert, ModelTrait, QueryFilter, QueryOrder, Schema,
-    TransactionError, TransactionMode, TransactionTrait, Update, Upserted, ValueHolder, Values,
-    set,
+    ActiveModel, ActiveModelBehavior, Change, Column, Connection, DatabaseConnection, Entity,
+    Insert, Model, QueryFilter, QueryOrder, Schema, Transact, TransactionError, TransactionMode,
+    Update, Upserted, ValueHolder, Values, set,
 };
 use serde_json::{Value, json};
 
@@ -39,12 +38,12 @@ fn parameters(values: Values) -> Vec<ValueHolder> {
     values.0.into_iter().map(ValueHolder).collect()
 }
 
-async fn execute<C: ConnectionTrait>(db: &C, query: (String, Values)) -> Result<u64> {
+async fn execute<C: Connection>(db: &C, query: (String, Values)) -> Result<u64> {
     let values = parameters(query.1);
     Ok(db.execute_raw(&query.0, values.iter()).await?)
 }
 
-async fn runtime<C: ConnectionTrait>(db: &C) -> Result<Value> {
+async fn runtime<C: Connection>(db: &C) -> Result<Value> {
     let table = (Name::runtime("python_entities"), Name::runtime("runtime"));
     let ddl = Table::create(table.clone())
         .col(ColumnDef::new_with_type(
@@ -117,7 +116,7 @@ fn model(row: account::Model) -> Value {
     json!({"id": row.id, "name": row.name, "note": row.note, "version": row.version})
 }
 
-async fn models<C: ConnectionTrait>(db: &C) -> Result<Value> {
+async fn models<C: Connection>(db: &C) -> Result<Value> {
     db.execute(
         "TRUNCATE python_entities.notes, python_entities.accounts",
         &[],
@@ -142,7 +141,7 @@ async fn models<C: ConnectionTrait>(db: &C) -> Result<Value> {
         .collect();
     let one = model(query.clone().one(db).await?);
     let missing = query
-        .filter(ColumnTrait::eq(&account::Column::Id, 99))
+        .filter(Column::eq(&account::Column::Id, 99))
         .one_opt(db)
         .await?
         .is_none();
@@ -240,7 +239,7 @@ fn renamed() -> OnConflict {
         .into()
 }
 
-async fn versions<C: ConnectionTrait>(db: &C) -> Result<Value> {
+async fn versions<C: Connection>(db: &C) -> Result<Value> {
     db.execute(
         "TRUNCATE python_entities.notes, python_entities.accounts",
         &[],
@@ -256,7 +255,7 @@ async fn versions<C: ConnectionTrait>(db: &C) -> Result<Value> {
             account::Column::Note,
             account::Column::Note.save_as(Expr::val("bulk")),
         )
-        .filter(ColumnTrait::eq(&account::Column::Id, 2))
+        .filter(Column::eq(&account::Column::Id, 2))
         .exec_returning_changes(db)
         .await?;
     let one = Insert::one(active(1, "upserted"))
@@ -282,7 +281,7 @@ async fn versions<C: ConnectionTrait>(db: &C) -> Result<Value> {
     }))
 }
 
-async fn exercise<C: ConnectionTrait>(db: &C) -> Result<Value> {
+async fn exercise<C: Connection>(db: &C) -> Result<Value> {
     Ok(json!({
         "runtime": runtime(db).await?,
         "models": models(db).await?,

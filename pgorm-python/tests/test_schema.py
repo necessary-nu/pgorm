@@ -119,7 +119,7 @@ class SchemaConstruction(unittest.TestCase):
                   if isinstance(kind, type) and kind.__module__ == "pgorm.schema"}
         exported = {kind for kind in map(vars(s).get, s.__all__) if isinstance(kind, type)}
         unsampled = (native | exported) - {type(sample) for sample in samples}
-        self.assertEqual(unsampled, {s.EntitySchema, s.Migration, s.MigrationTrait})
+        self.assertEqual(unsampled, {s.EntitySchema, s.MigrationWithStatus, s.Migration})
         self.assertIn("__bool__", vars(s.EntitySchema))
 
     # [spec:pgorm:req:bindings.schema-indexes/test]    an access method is any identifier,

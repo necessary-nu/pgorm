@@ -1,7 +1,7 @@
 use crate::entity::entity_table;
 use crate::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, IntoActiveModel, Iterable,
-    NoContext, QueryTrait, RuntimeError, ScopeContext, ScopeError, ScopedIn, StaticName,
+    ActiveModel, ActiveValue, Column, Entity, Error, IntoActiveModel, Iterable, NoContext,
+    RuntimeError, ScopeContext, ScopeError, ScopedIn, Statement, StaticName,
 };
 use core::marker::PhantomData;
 use pgorm_query::{Expr, InsertStatement, OnConflict, SimpleExpr};
@@ -54,12 +54,12 @@ impl InsertColumns {
     /// blank state's shape.
     fn mismatch<A>(recorded: &[bool], present: &[bool]) -> Self
     where
-        A: ActiveModelTrait,
+        A: ActiveModel,
     {
         let set = |bitmap: &[bool], index: usize| bitmap.get(index).copied().unwrap_or(false);
         let mut first_only = Vec::new();
         let mut later_only = Vec::new();
-        for (index, col) in <A::Entity as EntityTrait>::Column::iter().enumerate() {
+        for (index, col) in <A::Entity as Entity>::Column::iter().enumerate() {
             match (set(recorded, index), set(present, index)) {
                 (true, false) => first_only.push(col.as_str().to_owned()),
                 (false, true) => later_only.push(col.as_str().to_owned()),
@@ -83,13 +83,11 @@ impl InsertColumns {
 /// the disagreement [`Insert::ensure_uniform_columns`] reports.
 // [spec:pgorm:sem:query.build.insert+6]
 // [spec:pgorm:sem:disjoint.write+2]
-pub(crate) fn saved_values<A>(
-    mut am: A,
-) -> Vec<(<A::Entity as EntityTrait>::Column, Option<SimpleExpr>)>
+pub(crate) fn saved_values<A>(mut am: A) -> Vec<(<A::Entity as Entity>::Column, Option<SimpleExpr>)>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
-    <A::Entity as EntityTrait>::Column::iter()
+    <A::Entity as Entity>::Column::iter()
         .map(|col| {
             let value = match am.take(col).unwrap_or_else(|_| ActiveValue::not_set()) {
                 ActiveValue::Set(value) | ActiveValue::Unchanged(value) => {
@@ -157,7 +155,7 @@ pub struct ManyRows;
 #[derive(Debug)]
 pub struct Insert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     pub(crate) query: InsertStatement,
     columns: InsertColumns,
@@ -171,7 +169,7 @@ where
 
 impl<A> Default for Insert<A, ManyRows>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     fn default() -> Self {
         Self::new()
@@ -181,7 +179,7 @@ where
 // [spec:pgorm:sem:query.build.insert+6]
 impl<A> Insert<A, OneRow>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Insert one Model or ActiveModel
     ///
@@ -250,7 +248,7 @@ where
     where
         Cx: ScopeContext,
         M: IntoActiveModel<A>,
-        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+        A::Entity: ScopedIn<Cx> + Entity<ActiveModel = A>,
     {
         Self::new().push_under(cx, m)
     }
@@ -289,7 +287,7 @@ where
 // [spec:pgorm:sem:query.build.insert+6]
 impl<A> Insert<A, ManyRows>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Insert many Model or ActiveModel
     ///
@@ -331,7 +329,7 @@ where
         Cx: ScopeContext,
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
-        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+        A::Entity: ScopedIn<Cx> + Entity<ActiveModel = A>,
     {
         Self::new().add_many_for(cx, models)
     }
@@ -352,7 +350,7 @@ where
 // [spec:pgorm:sem:query.build.insert+6]
 impl<A, R> Insert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     pub(crate) fn new() -> Self {
         Self::new_in(A::Entity::default())
@@ -459,7 +457,7 @@ where
     where
         Cx: ScopeContext,
         M: IntoActiveModel<A>,
-        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+        A::Entity: ScopedIn<Cx> + Entity<ActiveModel = A>,
     {
         self.push_under(cx, m).into_rows()
     }
@@ -470,7 +468,7 @@ where
     fn push_under<M>(mut self, cx: &dyn ScopeContext, m: M) -> Self
     where
         M: IntoActiveModel<A>,
-        A::Entity: EntityTrait<ActiveModel = A>,
+        A::Entity: Entity<ActiveModel = A>,
     {
         let mut am = m.into_active_model();
         match <A::Entity as crate::EntityScopes>::fill_scopes(cx, &mut am) {
@@ -544,7 +542,7 @@ where
         Cx: ScopeContext,
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
-        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+        A::Entity: ScopedIn<Cx> + Entity<ActiveModel = A>,
     {
         let mut batch = self.into_rows::<ManyRows>();
         for model in models.into_iter() {
@@ -609,7 +607,7 @@ where
     #[doc(alias = "do_nothing")]
     pub fn on_empty_do_nothing(self) -> TryInsert<A, R>
     where
-        A: ActiveModelTrait,
+        A: ActiveModel,
     {
         TryInsert::from_insert(self)
     }
@@ -640,9 +638,9 @@ where
     // [spec:pgorm:sem:query.build.insert.empty-failsafe+5]
     pub fn on_conflict_do_nothing(mut self) -> TryInsert<A, R>
     where
-        A: ActiveModelTrait,
+        A: ActiveModel,
     {
-        let mut primary_keys = <A::Entity as EntityTrait>::PrimaryKey::iter();
+        let mut primary_keys = <A::Entity as Entity>::PrimaryKey::iter();
         let on_conflict = match primary_keys.next() {
             Some(first) => OnConflict::column(first)
                 .and_columns(primary_keys)
@@ -655,9 +653,9 @@ where
     }
 }
 
-impl<A, R> QueryTrait for Insert<A, R>
+impl<A, R> Statement for Insert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     type QueryStatement = InsertStatement;
 
@@ -682,14 +680,14 @@ where
 #[derive(Debug)]
 pub struct TryInsert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     pub(crate) insert_struct: Insert<A, R>,
 }
 
 impl<A> Default for TryInsert<A, ManyRows>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     fn default() -> Self {
         Self::from_insert(Insert::new())
@@ -699,7 +697,7 @@ where
 #[allow(missing_docs)]
 impl<A> TryInsert<A, OneRow>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     pub fn one<M>(m: M) -> Self
     where
@@ -714,7 +712,7 @@ where
     where
         Cx: ScopeContext,
         M: IntoActiveModel<A>,
-        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+        A::Entity: ScopedIn<Cx> + Entity<ActiveModel = A>,
     {
         Self::from_insert(Insert::one_for(cx, m))
     }
@@ -732,7 +730,7 @@ where
 #[allow(missing_docs)]
 impl<A> TryInsert<A, ManyRows>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     pub fn many<M, I>(models: I) -> Self
     where
@@ -749,7 +747,7 @@ where
         Cx: ScopeContext,
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
-        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+        A::Entity: ScopedIn<Cx> + Entity<ActiveModel = A>,
     {
         Self::from_insert(Insert::many_for(cx, models))
     }
@@ -768,7 +766,7 @@ where
 #[allow(missing_docs)]
 impl<A, R> TryInsert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     #[allow(clippy::should_implement_trait)]
     pub fn add<M>(self, m: M) -> TryInsert<A, ManyRows>
@@ -784,7 +782,7 @@ where
     where
         Cx: ScopeContext,
         M: IntoActiveModel<A>,
-        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+        A::Entity: ScopedIn<Cx> + Entity<ActiveModel = A>,
     {
         TryInsert::from_insert(self.insert_struct.add_for(cx, m))
     }
@@ -804,7 +802,7 @@ where
         Cx: ScopeContext,
         M: IntoActiveModel<A>,
         I: IntoIterator<Item = M>,
-        A::Entity: ScopedIn<Cx> + EntityTrait<ActiveModel = A>,
+        A::Entity: ScopedIn<Cx> + Entity<ActiveModel = A>,
     {
         TryInsert::from_insert(self.insert_struct.add_many_for(cx, models))
     }
@@ -837,9 +835,9 @@ where
     }
 }
 
-impl<A, R> QueryTrait for TryInsert<A, R>
+impl<A, R> Statement for TryInsert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     type QueryStatement = InsertStatement;
 
@@ -860,7 +858,7 @@ mod tests {
     use pgorm_query::OnConflict;
 
     use crate::tests_cfg::cake::{self};
-    use crate::{ActiveValue, Insert, IntoActiveModel, ManyRows, QueryTrait, set};
+    use crate::{ActiveValue, Insert, IntoActiveModel, ManyRows, Statement, set};
 
     #[test]
     fn insert_1() {

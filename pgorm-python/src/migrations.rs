@@ -7,7 +7,7 @@
 use std::{fmt, path::PathBuf, sync::Arc};
 
 use pgorm_bindings::migrations::{Entry, Failed, Host, Listed, Ran, UNKNOWN_MIGRATIONS};
-use pgorm_migration::{MigrationName, MigrationTrait, SqlMigration};
+use pgorm_migration::{Migration, MigrationName, SqlMigration};
 use pyo3::{exceptions::PyTypeError, intern, prelude::*, types::PyString};
 use pyo3_async_runtimes::TaskLocals;
 
@@ -25,7 +25,7 @@ use crate::{
 
 /// A migration whose whole body is one SQL script, pgorm-migration's
 /// `SqlMigration`: what a `.sql` file holds, read as the program runs.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 #[derive(Debug)]
 #[pyclass(name = "SqlMigration", module = "pgorm.schema", frozen)]
 pub(crate) struct PySqlMigration {
@@ -109,7 +109,7 @@ type Written = pgorm_bindings::migrations::Written<Py<PyAny>>;
 
 /// What the runner reads of a migration written in Python, once, as the
 /// list is built.
-// [spec:pgorm:req:bindings.migrations]    name, checksum and commits_after read once
+// [spec:pgorm:req:bindings.migrations+1]    name, checksum and commits_after read once
 fn written(object: &Bound<'_, PyAny>) -> PyResult<Written> {
     let py = object.py();
     let name = object
@@ -191,7 +191,7 @@ impl Host for Call {
 /// A migrator built from Python's list: pgorm-migration's `Migrations`, its
 /// ledger placed, its channel named and a migration it does not know refused
 /// or warned of as given.
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 #[pyclass(name = "_Migrations", module = "pgorm._native", frozen)]
 pub(crate) struct NativeMigrations(Listed<Py<PyAny>>);
 
@@ -258,7 +258,7 @@ impl NativeMigrations {
 
     /// Apply the pending migrations through pgorm-migration's `up`, on
     /// connections of `pool`'s own, answering the warnings the run gave.
-    // [spec:pgorm:req:bindings.migrations]
+    // [spec:pgorm:req:bindings.migrations+1]
     #[pyo3(signature = (pool, steps))]
     fn up<'py>(
         &self,
@@ -318,15 +318,12 @@ pub(crate) fn capabilities() -> serde_json::Map<String, serde_json::Value> {
     [
         (
             "migrations.up",
-            "pgorm_migration::MigratorTrait::up for Migrations",
+            "pgorm_migration::Migrator::up for Migrations",
         ),
-        (
-            "migrations.install",
-            "pgorm_migration::MigratorTrait::install",
-        ),
+        ("migrations.install", "pgorm_migration::Migrator::install"),
         (
             "migrations.status",
-            "pgorm_migration::MigratorTrait::get_migration_with_status",
+            "pgorm_migration::Migrator::get_migration_with_status",
         ),
         (
             "migrations.unknown_migrations",

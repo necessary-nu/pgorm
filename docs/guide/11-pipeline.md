@@ -49,9 +49,9 @@ assert!(values.0.is_empty());
 Columns are the entity's own `Column` variants, and constants are Rust
 literals, written into the SQL as literals. The comparison and arithmetic
 operators come from [`ExprOps`](crate::pipeline::ExprOps). Its comparisons
-share their names with [`ColumnTrait`](crate::ColumnTrait)'s; with both in
+share their names with [`Column`](crate::Column)'s; with both in
 scope, a column resolves to `ExprOps`, so a module that writes pipelines
-imports `ExprOps` and writes `ColumnTrait::eq(&column, value)` where it means
+imports `ExprOps` and writes `Column::eq(&column, value)` where it means
 the other.
 
 A pipeline runs through its terminals. [`all`](crate::pipeline::Pipeline::all),

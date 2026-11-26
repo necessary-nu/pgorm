@@ -3,9 +3,9 @@
 // Models JavaScript declares: a table, schema-qualified or not, and its
 // columns' kinds, nullability, keys and defaults, read and written through
 // the statement builders. Declaring a model sends nothing and runs no DDL,
-// and claims no Rust entity: no derive, `EntityTrait` or ActiveModel hook is
+// and claims no Rust entity: no derive, `pgorm::Entity` or ActiveModel hook is
 // behind it.
-// [spec:pgorm:req:bindings.models+6]
+// [spec:pgorm:req:bindings.models+7]
 // [spec:pgorm:req:bindings.model-unique-keys+2]
 // [spec:pgorm:req:bindings.schema-from-model]
 

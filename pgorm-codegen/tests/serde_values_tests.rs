@@ -11,7 +11,7 @@ use common::*;
 use pgorm::entity::prelude::{
     Date, DateTime, DateTimeWithTimeZone, Decimal, Interval, Multirange, Range,
 };
-use pgorm::{ActiveModelTrait, ActiveValue, Iterable, ModelTrait};
+use pgorm::{ActiveModel, ActiveValue, Iterable, Model};
 use pgorm_codegen::WithSerde;
 use serde_json::{Value, json};
 
@@ -111,7 +111,7 @@ fn each_serde_mode_generates_the_compiled_fixtures() {
     }
 }
 
-// [spec:pgorm:def:sql.value.interval+2/test]    a generated Model serializes
+// [spec:pgorm:def:sql.value.interval+3/test]    a generated Model serializes
 // an interval as its three fields and reads them back
 // [spec:pgorm:def:sql.value.range+5/test]    and a range, a multirange and a
 // created range's newtype in the ranges' enum form
@@ -168,7 +168,7 @@ fn a_generated_model_round_trips_through_json() -> Result<(), serde_json::Error>
     Ok(())
 }
 
-// [spec:pgorm:req:entity.active-model.json+4/test]    `from_json` sets every
+// [spec:pgorm:req:entity.active-model.json+5/test]    `from_json` sets every
 // interval, range and multirange column of a generated entity to the value
 // the Model serialized
 #[test]

@@ -187,7 +187,7 @@ let minted = 0;
  * `{label}_{seq}__{owner}_{pid}_{stamp}`, the label cut to fit 63 bytes. The
  * Rust suites' `pgorm-test-support` crate says what each part is for.
  */
-// [spec:pgorm:req:testing.isolation]    the per-run name a scratch database takes
+// [spec:pgorm:req:testing.isolation+1]    the per-run name a scratch database takes
 export function scopedName(label: string): string {
   const { owner, pid, stamp } = thisRun();
   const hex = (value: number) => value.toString(16).padStart(8, "0");
@@ -251,7 +251,7 @@ function quoted(name: string): string {
  * be evicted; each failure is left for a later sweep, and a sweep that fails
  * outright fails no test.
  */
-// [spec:pgorm:req:testing.isolation]    only a provably gone creator's leftovers are dropped
+// [spec:pgorm:req:testing.isolation+1]    only a provably gone creator's leftovers are dropped
 async function sweep(server: string): Promise<void> {
   if (swept) return;
   swept = true;
@@ -285,7 +285,7 @@ async function sweep(server: string): Promise<void> {
  * `template`, the database is a copy of that one, on which no session may be
  * open while it is copied.
  */
-// [spec:pgorm:req:testing.isolation]    a run creates and drops only its own database
+// [spec:pgorm:req:testing.isolation+1]    a run creates and drops only its own database
 export async function scratchDatabase(
   prefix: string,
   { template }: { template?: string } = {},

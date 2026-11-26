@@ -286,7 +286,7 @@ async fn partial_model_target_verifies(db: &DatabaseConnection) -> Result<(), Er
     Ok(())
 }
 
-// [spec:pgorm:sem:macros.derive.model+7/test]    an entity model reports its columns
+// [spec:pgorm:sem:macros.derive.model+8/test]    an entity model reports its columns
 async fn entity_model_target_verifies(db: &DatabaseConnection) -> Result<(), Error> {
     db.verify::<widget::Model>(NO_ROWS).await?;
 
@@ -360,7 +360,7 @@ async fn verify_inside_transaction(db: &mut DatabaseConnection) -> Result<(), Er
 // [spec:pgorm:def:exec.verify.describe/test]    the result columns in order, by name and type,
 // on a connection and in a transaction, without running the statement
 async fn describe_gives_the_result_columns(db: &mut DatabaseConnection) -> Result<(), Error> {
-    use pgorm::TransactionTrait;
+    use pgorm::Transact;
     use pgorm::types::Type;
 
     let described = db.describe(NO_ROWS).await?;

@@ -4,7 +4,7 @@ pub mod common;
 
 pub use common::{TestContext, setup::create_table_without_asserts};
 pub use pgorm::{
-    ActiveValue::Unchanged, DatabaseConnection, PaginatorTrait, entity::*, error::*, pgorm_query,
+    ActiveValue::Unchanged, DatabaseConnection, Paginate, entity::*, error::*, pgorm_query,
     query::*, set, tests_cfg::*,
 };
 

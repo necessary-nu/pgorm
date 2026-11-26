@@ -14,8 +14,8 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, Sequence, SequenceOption, SequenceType};
-use pgorm::{ConnectionTrait, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm::{Connection, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {

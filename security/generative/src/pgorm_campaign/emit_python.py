@@ -135,8 +135,8 @@ async def _fetch(query, mode, connection):
         (p.EntityGraphCursor, "pgorm::Cursor"),
         (pl.Pipeline, "pgorm::pipeline::Pipeline"),
         (pl.SelectedSources, "pgorm::pipeline::SelectedSources"),
-        (p.ModelQuery, "pgorm::ConnectionTrait::query_raw"),
-        (p.ModelRows, "pgorm::ConnectionTrait::query_raw"),
+        (p.ModelQuery, "pgorm::Connection::query_raw"),
+        (p.ModelRows, "pgorm::Connection::query_raw"),
     ):
         if isinstance(query, category):
             if not hasattr(query, mode):
@@ -153,7 +153,7 @@ async def _fetch(query, mode, connection):
             break
     else:
         value = await getattr(connection, "query" if mode == "all" else mode)(query)
-        path = "pgorm::ConnectionTrait::query_raw"
+        path = "pgorm::Connection::query_raw"
     rows = value if mode == "all" else ([] if value is None else [value])
     return {"kind": "rows", "rows": [_row(item) for item in rows]}, [path], rows
 
@@ -166,13 +166,13 @@ async def _execute(query, connection):
         )
         else await connection.execute(query)
     )
-    paths = ["pgorm::ConnectionTrait::execute_raw"]
+    paths = ["pgorm::Connection::execute_raw"]
     return {"kind": "count", "value": value}, paths, []
 
 
 async def _active(model, method, connection):
     value = await getattr(model, method)(connection)
-    paths = ["pgorm::ActiveModelTrait::" + method]
+    paths = ["pgorm::ActiveModel::" + method]
     if method == "delete":
         return {"kind": "count", "value": value}, paths, []
     return {"kind": "rows", "rows": [_row(value)]}, paths, [value]
@@ -258,7 +258,7 @@ async def _stream(query, take, cancel, connection):
         "rows": [_row(item) for item in records],
         "stream": state,
     }
-    paths = ["pgorm::ConnectionTrait::query_raw", "tokio_postgres::RowStream"]
+    paths = ["pgorm::Connection::query_raw", "pgorm_driver::RowStream"]
     return observation, paths, records
 
 
@@ -1045,14 +1045,14 @@ class Emitter:
             path = "pgorm::DatabaseConnection::transaction_with"
         else:
             opened = call(connection, "transaction", [])
-            path = "pgorm::TransactionTrait::transaction"
+            path = "pgorm::Transact::transaction"
         lines.append(indent + "try:")
         for identity in self.required(parameters.input_ids(step["inputs"])):
             self.node(self.nodes[identity], body, lines)
         lines.append(f"{body}async with {opened} as {self.connection(d['child'])}:")
         self.observe([path], {"kind": "transaction", "scope": d["child"]}, inner, lines)
         consumed, closing = self.steps(remaining, inner, lines, True)
-        closed = (["pgorm::TransactionTrait::transaction"], {"kind": "unit"})
+        closed = (["pgorm::Transact::transaction"], {"kind": "unit"})
         if closing is not None and closing["op"] == "commit":
             self.observe(*closed, body, lines)
         else:

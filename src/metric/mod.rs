@@ -5,8 +5,8 @@ pub use fingerprint::{QueryContext, QueryFingerprint};
 pub use pool::InstrumentedPool;
 
 use crate::{
-    ConnectionTrait, DatabaseConnection, DatabaseTransaction, Error, RetryableError, SqlText,
-    TransactionError, TransactionMode, TransactionTrait,
+    Connection, DatabaseConnection, DatabaseTransaction, Error, RetryableError, SqlText, Transact,
+    TransactionError, TransactionMode,
     database::{
         OpenWith,
         sealed::{Close, Handle, Open, Token},
@@ -15,13 +15,13 @@ use crate::{
 };
 use async_trait::async_trait;
 use fingerprint::FingerprintSuffix;
-use std::time::{Duration, Instant};
-use tokio_postgres::{
+use pgorm_driver::{
     Row, RowStream,
     types::{BorrowToSql, ToSql},
 };
+use std::time::{Duration, Instant};
 
-/// The body every instrumented `ConnectionTrait` method shares: build the
+/// The body every instrumented `Connection` method shares: build the
 /// context, time the awaited delegation, report the outcome under the hook it
 /// selects, and hand back the wrapped value's own result untouched.
 ///
@@ -29,7 +29,7 @@ use tokio_postgres::{
 /// operation name, where the SQL text comes from, and how a row count is read
 /// out of the `Ok` payload — so those are the parameters and the rest is
 /// written once. `$rows` is evaluated against the payload by reference.
-// [spec:pgorm:req:metric.layer.delegate+5]    the timing and reporting body
+// [spec:pgorm:req:metric.layer.delegate+6]    the timing and reporting body
 macro_rules! report {
     ($self:ident, $operation:literal, $sql:expr, $call:expr, $ok:pat => $rows:expr) => {{
         let query = QueryContext::new($operation, $sql);
@@ -107,7 +107,7 @@ pub trait MetricsCollector: Clone + Send + Sync + 'static {
     /// drops, every hook is `async`, and `Drop::drop` is not.
     ///
     /// [`record_query_error`]: MetricsCollector::record_query_error
-    // [spec:pgorm:sem:metric.layer.tx+5]    the semantic an implementor reads at the trait
+    // [spec:pgorm:sem:metric.layer.tx+6]    the semantic an implementor reads at the trait
     async fn record_transaction_rollback(&self, duration: Duration);
 }
 
@@ -236,10 +236,10 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
     }
 
     /// [`DatabaseConnection::transaction_with`], reported as
-    /// [`transaction`](TransactionTrait::transaction) reports: the closure is
+    /// [`transaction`](Transact::transaction) reports: the closure is
     /// given an [`InstrumentedTransaction`], and the configured `BEGIN` is
     /// timed and reported as any opening is.
-    // [spec:pgorm:sem:metric.layer.tx+5]    a configured transaction on an instrumented connection
+    // [spec:pgorm:sem:metric.layer.tx+6]    a configured transaction on an instrumented connection
     pub async fn transaction_with<T, E, F>(
         &mut self,
         mode: TransactionMode,
@@ -254,7 +254,7 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
     /// [`DatabaseConnection::transaction_with_retry`], each attempt reported
     /// as one transaction: its opening, its statements, and its commit or
     /// rollback.
-    // [spec:pgorm:sem:metric.layer.tx+5]    every retried attempt reported as a transaction
+    // [spec:pgorm:sem:metric.layer.tx+6]    every retried attempt reported as a transaction
     pub async fn transaction_with_retry<T, E, F>(
         &mut self,
         mode: TransactionMode,
@@ -269,9 +269,9 @@ impl<M: MetricsCollector> InstrumentedConnection<M> {
     }
 }
 
-// [spec:pgorm:req:metric.layer.delegate+5]
+// [spec:pgorm:req:metric.layer.delegate+6]
 #[async_trait]
-impl<M: MetricsCollector> ConnectionTrait for InstrumentedConnection<M> {
+impl<M: MetricsCollector> Connection for InstrumentedConnection<M> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
@@ -327,7 +327,7 @@ impl<M: MetricsCollector> ConnectionTrait for InstrumentedConnection<M> {
             self.connection.query_all(statement, params).await, rows => Some(rows.len() as u64))
     }
 
-    // [spec:pgorm:sem:exec.stream.decode+1]    row count unknown at stream creation
+    // [spec:pgorm:sem:exec.stream.decode+2]    row count unknown at stream creation
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
@@ -348,7 +348,7 @@ impl<M: MetricsCollector> ConnectionTrait for InstrumentedConnection<M> {
 /// The handle a transaction closure on an [`InstrumentedConnection`] is given:
 /// a [`DatabaseTransaction`] whose statements, savepoints and ending are
 /// reported to the collector.
-// [spec:pgorm:sem:metric.layer.tx+5]    an instrumented handle for every instrumented transaction
+// [spec:pgorm:sem:metric.layer.tx+6]    an instrumented handle for every instrumented transaction
 #[derive(Debug)]
 pub struct InstrumentedTransaction<'a, M: MetricsCollector> {
     transaction: DatabaseTransaction<'a>,
@@ -367,9 +367,9 @@ impl<'a, M: MetricsCollector> InstrumentedTransaction<'a, M> {
     }
 }
 
-// [spec:pgorm:req:metric.layer.delegate+5]    statements inside a transaction
+// [spec:pgorm:req:metric.layer.delegate+6]    statements inside a transaction
 #[async_trait]
-impl<M: MetricsCollector> ConnectionTrait for InstrumentedTransaction<'_, M> {
+impl<M: MetricsCollector> Connection for InstrumentedTransaction<'_, M> {
     async fn execute<T>(&self, statement: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + SqlText + Sync,
@@ -425,7 +425,7 @@ impl<M: MetricsCollector> ConnectionTrait for InstrumentedTransaction<'_, M> {
             self.transaction.query_all(statement, params).await, rows => Some(rows.len() as u64))
     }
 
-    // [spec:pgorm:sem:exec.stream.decode+1]    row count unknown at stream creation
+    // [spec:pgorm:sem:exec.stream.decode+2]    row count unknown at stream creation
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + SqlText + Sync,
@@ -447,8 +447,8 @@ impl<M: MetricsCollector> ConnectionTrait for InstrumentedTransaction<'_, M> {
 // only to code after its definition, a child module's included.
 mod copy;
 
-// [spec:pgorm:sem:metric.layer.tx+5]    a transaction opened on an instrumented connection
-impl<M: MetricsCollector> TransactionTrait for InstrumentedConnection<M> {}
+// [spec:pgorm:sem:metric.layer.tx+6]    a transaction opened on an instrumented connection
+impl<M: MetricsCollector> Transact for InstrumentedConnection<M> {}
 
 impl<M: MetricsCollector> Handle for InstrumentedConnection<M> {
     type Transaction<'t> = InstrumentedTransaction<'t, M>;
@@ -469,8 +469,8 @@ impl<M: MetricsCollector> OpenWith for InstrumentedConnection<M> {
     }
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5]    a savepoint inside an instrumented transaction
-impl<M: MetricsCollector> TransactionTrait for InstrumentedTransaction<'_, M> {}
+// [spec:pgorm:sem:metric.layer.tx+6]    a savepoint inside an instrumented transaction
+impl<M: MetricsCollector> Transact for InstrumentedTransaction<'_, M> {}
 
 impl<M: MetricsCollector> Handle for InstrumentedTransaction<'_, M> {
     type Transaction<'t> = InstrumentedTransaction<'t, M>;
@@ -484,7 +484,7 @@ impl<M: MetricsCollector> Open for InstrumentedTransaction<'_, M> {
 
 /// Time `opening` and report it: `record_transaction_begin` once it is open,
 /// `record_query_error` under `"begin"` if the server refused it.
-// [spec:pgorm:sem:metric.layer.tx+5]    a timed BEGIN or SAVEPOINT
+// [spec:pgorm:sem:metric.layer.tx+6]    a timed BEGIN or SAVEPOINT
 async fn begun<'t, M: MetricsCollector>(
     metrics: M,
     opening: impl Future<Output = Result<DatabaseTransaction<'t>, Error>>,
@@ -510,7 +510,7 @@ async fn begun<'t, M: MetricsCollector>(
     }
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5]    the ending a closure's outcome selects, reported
+// [spec:pgorm:sem:metric.layer.tx+6]    the ending a closure's outcome selects, reported
 impl<M: MetricsCollector> Close for InstrumentedTransaction<'_, M> {
     /// A successful commit reports `record_transaction_commit`. A failed one
     /// reports the error through `record_query_error` under `"commit"` and then

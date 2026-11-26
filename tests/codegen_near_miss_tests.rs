@@ -17,9 +17,9 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::entity::prelude::*;
-use pgorm::{ConnectionTrait, Schema, set};
+use pgorm::{Connection, Schema, set};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 mod codegen_near_miss;
 
@@ -43,7 +43,7 @@ fn statements() -> Result<Vec<String>, Error> {
 }
 
 // [spec:pgorm:sem:codegen.entity.disjoint+3/test]    the round trip: the generated near-miss entities write the schema they were read from, statement for statement, the base's two composite unique keys among them
-// [spec:pgorm:sem:schema.from-entity+12/test]
+// [spec:pgorm:sem:schema.from-entity+13/test]
 #[test]
 fn generated_entities_write_the_schema_read_from() -> Result<(), Error> {
     let file: Vec<&str> = SCHEMA

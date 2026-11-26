@@ -1,14 +1,14 @@
-use tokio_postgres::error::SqlState;
+use pgorm_driver::error::SqlState;
 
 /// An error from unsuccessful database operations
-// [spec:pgorm:def:error.model+14]
+// [spec:pgorm:def:error.model+16]
 #[derive(thiserror::Error, Debug)]
 #[doc(alias = "DbErr")]
 #[non_exhaustive]
 pub enum Error {
     /// Postgres error
     #[error("Postgres Error: {0:?} {db:?}", db = .0.as_db_error())]
-    Postgres(#[from] tokio_postgres::Error),
+    Postgres(#[from] pgorm_driver::Error),
     /// Pool error
     #[error("Pool Error: {0}")]
     Pool(#[from] pgorm_pool::PoolError),
@@ -91,13 +91,13 @@ pub enum Error {
     #[error(
         "the transaction was rolled back, not committed: a statement that failed inside it had aborted it"
     )]
-    TransactionAborted(#[source] tokio_postgres::Error),
+    TransactionAborted(#[source] pgorm_driver::Error),
     /// SQL text holding a `COPY` was given to a statement method, which runs
     /// what it is given as a statement; a `COPY`'s data flows beside it, so it
-    /// runs only through [`CopyTrait`](crate::CopyTrait)'s `copy_in` and
+    /// runs only through [`CopyConnection`](crate::CopyConnection)'s `copy_in` and
     /// `copy_out`. Nothing was sent.
     #[error(
-        "a COPY runs through CopyTrait's copy_in or copy_out, which carry its data, not as a statement"
+        "a COPY runs through CopyConnection's copy_in or copy_out, which carry its data, not as a statement"
     )]
     CopyStatement,
     /// A statement on a scoped table that its context does not cover: a join
@@ -171,7 +171,7 @@ pub enum VerifyError {
 
 /// Why a [`Listener`](crate::Listener) refused a channel name, or why its
 /// [`Notifications`](crate::Notifications) ended.
-// [spec:pgorm:req:conn.listen]
+// [spec:pgorm:req:conn.listen+3]
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ListenError {
@@ -209,7 +209,7 @@ pub enum ListenError {
 ///
 /// assert!(first_cake_id().is_err());
 /// ```
-// [spec:pgorm:def:error.model+14]    crate-root Result alias
+// [spec:pgorm:def:error.model+16]    crate-root Result alias
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Runtime error
@@ -221,7 +221,7 @@ pub enum RuntimeError {
     Internal(String),
 }
 
-// [spec:pgorm:def:error.model+14]    Display-string equality
+// [spec:pgorm:def:error.model+16]    Display-string equality
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         self.to_string() == other.to_string()
@@ -317,7 +317,7 @@ pub struct ConstraintViolation {
 
 impl SqlError {
     // [spec:pgorm:sem:error.model.sql-class+5]    SQLSTATE to variant
-    fn classify(db_error: &tokio_postgres::error::DbError) -> Option<Self> {
+    fn classify(db_error: &pgorm_driver::error::DbError) -> Option<Self> {
         let variant = match *db_error.code() {
             SqlState::UNIQUE_VIOLATION => Self::UniqueConstraintViolation,
             SqlState::FOREIGN_KEY_VIOLATION => Self::ForeignKeyConstraintViolation,
@@ -343,7 +343,7 @@ impl SqlError {
 ///
 /// Its `Display` is `parameter $N cannot be bound: <reason>`, the text each
 /// language binding reports the refusal with.
-// [spec:pgorm:sem:error.model.bind-refusal]
+// [spec:pgorm:sem:error.model.bind-refusal+1]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct BindRefusal {
@@ -356,8 +356,8 @@ pub struct BindRefusal {
 
 impl BindRefusal {
     /// The refusal `error` is, or `None` for any other failure.
-    // [spec:pgorm:sem:error.model.bind-refusal]
-    pub fn of(error: &tokio_postgres::Error) -> Option<Self> {
+    // [spec:pgorm:sem:error.model.bind-refusal+1]
+    pub fn of(error: &pgorm_driver::Error) -> Option<Self> {
         // tokio-postgres 0.7.18 has no public kind for an encode failure. Its
         // top-level text names the phase and the zero-based position, and is
         // read rather than a cause, whose text a caller's value can shape.
@@ -389,7 +389,7 @@ impl std::fmt::Display for BindRefusal {
 ///
 /// Its `Display` is `the statement takes N parameters, and M were given`, the
 /// text each language binding reports the refusal with.
-// [spec:pgorm:sem:error.model.parameter-count]
+// [spec:pgorm:sem:error.model.parameter-count+1]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ParameterCountRefusal {
@@ -401,8 +401,8 @@ pub struct ParameterCountRefusal {
 
 impl ParameterCountRefusal {
     /// The refusal `error` is, or `None` for any other failure.
-    // [spec:pgorm:sem:error.model.parameter-count]
-    pub fn of(error: &tokio_postgres::Error) -> Option<Self> {
+    // [spec:pgorm:sem:error.model.parameter-count+1]
+    pub fn of(error: &pgorm_driver::Error) -> Option<Self> {
         // As for BindRefusal: tokio-postgres 0.7.18 has no public kind for
         // it, and its top-level text, which no value shapes, is read.
         let counts = error.to_string();
@@ -439,7 +439,7 @@ impl std::fmt::Display for ParameterCountRefusal {
 /// Its `Display` is the driver's account of what it was reading, followed by
 /// the decoder's reason where there is one, the text each language binding
 /// reports the failure with.
-// [spec:pgorm:sem:error.model.decode-refusal]
+// [spec:pgorm:sem:error.model.decode-refusal+1]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DecodeRefusal {
@@ -453,8 +453,8 @@ pub struct DecodeRefusal {
 
 impl DecodeRefusal {
     /// The refusal `error` is, or `None` for any other failure.
-    // [spec:pgorm:sem:error.model.decode-refusal]
-    pub fn of(error: &tokio_postgres::Error) -> Option<Self> {
+    // [spec:pgorm:sem:error.model.decode-refusal+1]
+    pub fn of(error: &pgorm_driver::Error) -> Option<Self> {
         // As for BindRefusal: the phase is read off the driver's own
         // top-level text, never off a cause a value can shape.
         let reading = error.to_string();
@@ -484,13 +484,13 @@ impl std::fmt::Display for DecodeRefusal {
 /// Implemented for [`Error`]; implement it for a domain error type to use that
 /// type as the closure error of
 /// [`DatabaseConnection::transaction_with_retry`](crate::DatabaseConnection::transaction_with_retry).
-// [spec:pgorm:sem:conn.tx.retry+3]    retryability predicate
+// [spec:pgorm:sem:conn.tx.retry+4]    retryability predicate
 pub trait RetryableError {
     /// Whether the transaction that produced this error is worth retrying.
     fn is_retryable(&self) -> bool;
 }
 
-// [spec:pgorm:sem:conn.tx.retry+3]
+// [spec:pgorm:sem:conn.tx.retry+4]
 impl RetryableError for Error {
     fn is_retryable(&self) -> bool {
         Error::is_retryable(self)
@@ -501,11 +501,18 @@ impl Error {
     /// Whether this is a transaction-rollback error PostgreSQL expects the
     /// client to retry: SQLSTATE `40001` (`serialization_failure`) or `40P01`
     /// (`deadlock_detected`).
-    // [spec:pgorm:sem:conn.tx.retry+3]    SQLSTATE classification
+    /// Native cleanup failures remain non-retryable even when they retain one
+    /// of those SQLSTATEs for diagnostics.
+    // [spec:pgorm:sem:conn.tx.retry+4]    SQLSTATE classification
+    // [spec:pgorm:sem:turso.transactions]
     pub fn is_retryable(&self) -> bool {
         let Error::Postgres(error) = self else {
             return false;
         };
+        #[cfg(feature = "turso")]
+        if error.is_turso_cleanup_failure() {
+            return false;
+        }
         let Some(db_error) = error.as_db_error() else {
             return false;
         };
@@ -516,7 +523,7 @@ impl Error {
     /// The value a statement's parameter refused, when this is that failure:
     /// [`BindRefusal::of`] the driver's error, and `None` for any other
     /// variant.
-    // [spec:pgorm:sem:error.model.bind-refusal]
+    // [spec:pgorm:sem:error.model.bind-refusal+1]
     pub fn bind_refusal(&self) -> Option<BindRefusal> {
         match self {
             Error::Postgres(e) => BindRefusal::of(e),
@@ -527,7 +534,7 @@ impl Error {
     /// The parameters a statement was given another number of than it takes,
     /// when this is that failure: [`ParameterCountRefusal::of`] the driver's
     /// error, and `None` for any other variant.
-    // [spec:pgorm:sem:error.model.parameter-count]
+    // [spec:pgorm:sem:error.model.parameter-count+1]
     pub fn parameter_count_refusal(&self) -> Option<ParameterCountRefusal> {
         match self {
             Error::Postgres(e) => ParameterCountRefusal::of(e),
@@ -538,7 +545,7 @@ impl Error {
     /// The result the driver could not read, when this is that failure:
     /// [`DecodeRefusal::of`] the driver's error, and `None` for any other
     /// variant.
-    // [spec:pgorm:sem:error.model.decode-refusal]
+    // [spec:pgorm:sem:error.model.decode-refusal+1]
     pub fn decode_refusal(&self) -> Option<DecodeRefusal> {
         match self {
             Error::Postgres(e) => DecodeRefusal::of(e),

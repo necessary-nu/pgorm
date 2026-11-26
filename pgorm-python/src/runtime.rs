@@ -2,7 +2,7 @@ use crate::errors::Raise as _;
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::panics::future_into_py;
-use pgorm::{ConnectionTrait, metric::InstrumentedPool};
+use pgorm::{Connection, metric::InstrumentedPool};
 use pgorm_bindings::Metrics;
 use pyo3::prelude::*;
 use tokio_util::sync::CancellationToken;
@@ -64,7 +64,7 @@ impl Drop for Closer {
 }
 
 // [spec:pgorm:req:python.runtime+2]
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 #[derive(Debug)]
 #[pyclass(name = "_Pool", module = "pgorm._native", frozen)]
 pub(crate) struct NativePool {
@@ -97,7 +97,7 @@ fn settings(
     ca_pem: Option<Vec<u8>>,
     cert_pem: Option<Vec<u8>>,
     key_pem: Option<Vec<u8>>,
-    connect_timeout: f64,
+    connect_timeout: Option<f64>,
     statement_cache_size: usize,
     recycle: &str,
     recycle_sql: Option<String>,
@@ -106,7 +106,9 @@ fn settings(
     Ok(pgorm_bindings::PoolSettings {
         dsn,
         tls: config::tls(tls, ca_pem, cert_pem, key_pem)?,
-        connect_timeout: seconds(connect_timeout, "connect_timeout")?,
+        connect_timeout: connect_timeout
+            .map(|value| seconds(value, "connect_timeout"))
+            .transpose()?,
         recycling_method: config::recycling(recycle, recycle_sql)?,
         statement_cache_size,
         statement_cache_channel,
@@ -117,7 +119,7 @@ fn settings(
 #[pymethods]
 impl NativePool {
     #[new]
-    #[pyo3(signature = (dsn, shape, *, tag=None, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=10.0, statement_cache_size=128, recycle="verified", recycle_sql=None, statement_cache_channel=None))]
+    #[pyo3(signature = (dsn, shape, *, tag=None, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=None, statement_cache_size=128, recycle="verified", recycle_sql=None, statement_cache_channel=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -128,7 +130,7 @@ impl NativePool {
         ca_pem: Option<Vec<u8>>,
         cert_pem: Option<Vec<u8>>,
         key_pem: Option<Vec<u8>>,
-        connect_timeout: f64,
+        connect_timeout: Option<f64>,
         statement_cache_size: usize,
         recycle: &str,
         recycle_sql: Option<String>,
@@ -162,7 +164,7 @@ impl NativePool {
     /// connection, TLS and manager configuration, in the tags' order.
     // [spec:pgorm:req:bindings.multi-pool]
     #[staticmethod]
-    #[pyo3(signature = (dsn, shapes, *, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=10.0, statement_cache_size=128, recycle="verified", recycle_sql=None, statement_cache_channel=None))]
+    #[pyo3(signature = (dsn, shapes, *, tls=None, ca_pem=None, cert_pem=None, key_pem=None, connect_timeout=None, statement_cache_size=128, recycle="verified", recycle_sql=None, statement_cache_channel=None))]
     #[allow(clippy::too_many_arguments)]
     fn multi(
         py: Python<'_>,
@@ -172,7 +174,7 @@ impl NativePool {
         ca_pem: Option<Vec<u8>>,
         cert_pem: Option<Vec<u8>>,
         key_pem: Option<Vec<u8>>,
-        connect_timeout: f64,
+        connect_timeout: Option<f64>,
         statement_cache_size: usize,
         recycle: &str,
         recycle_sql: Option<String>,
@@ -284,8 +286,8 @@ impl NativePool {
     /// Mark every connection's cached prepared statements stale, as
     /// `DatabasePool::clear_statement_caches` does. Nothing is sent, so a
     /// closed pool or another event loop is no reason to refuse it.
-    // [spec:pgorm:req:bindings.connections+3]
-    // [spec:pgorm:req:conn.pool.statement-cache.clear+1]
+    // [spec:pgorm:req:bindings.connections+4]
+    // [spec:pgorm:req:conn.pool.statement-cache.clear+2]
     fn clear_statement_caches(&self) {
         self.state.pool.clear_statement_caches();
     }
@@ -445,7 +447,7 @@ impl NativeConnection {
     /// Close the connection and discard it, as `DatabaseConnection::discard`
     /// does, so the pool opens a fresh one in its place; an instrumented
     /// pool's is discarded through the connection it wraps.
-    // [spec:pgorm:req:bindings.connections+3]
+    // [spec:pgorm:req:bindings.connections+4]
     fn discard<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.state.pool.check_owner(py)?;
         self.state.discard_now();
@@ -472,7 +474,7 @@ impl Drop for NativeConnection {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    // [spec:pgorm:req:bindings.connections+3]    the channel pgorm-migration's runner notifies
+    // [spec:pgorm:req:bindings.connections+4]    the channel pgorm-migration's runner notifies
     module.add("STATEMENT_CACHE_CHANNEL", pgorm::STATEMENT_CACHE_CHANNEL)?;
     module.add_class::<NativePool>()?;
     module.add_class::<NativePoolShape>()?;

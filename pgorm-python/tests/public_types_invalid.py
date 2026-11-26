@@ -111,13 +111,13 @@ async def invalid(connection: p.Connection) -> None:
     await selves.load(connection, [], accounts)  # expected-error: arg-type
     # [spec:pgorm:req:bindings.related/test]    a related path names its junction's relation as via
     accounts.related(selves)  # expected-error: call-arg
-    # [spec:pgorm:req:bindings.linked/test]    a chain is made of relations, and a hop is its index
+    # [spec:pgorm:req:bindings.linked+1/test]    a chain is made of relations, and a hop is its index
     accounts.linked(accounts)  # expected-error: arg-type
     accounts.linked(selves).hop("r0")  # expected-error: arg-type
     # [spec:pgorm:req:bindings.cursors+1/test]    a slot cursor's source is its index
     accounts.graph().join_one(selves).cursor_on("1", "id")  # expected-error: arg-type
     accounts.graph().join_one(selves).limit(2).cursor_on(1, "id")  # expected-error: misc
-    # [spec:pgorm:req:bindings.model-hooks/test]    a model's hooks are the four named functions, and a record write takes its database
+    # [spec:pgorm:req:bindings.model-hooks+1/test]    a model's hooks are the four named functions, and a record write takes its database
     p.Model("accounts", {"id": p.Column("i64", primary_key=True)}, hooks={"before_insert": lambda values, insert: values})  # expected-error: arg-type
     await accounts.active({"id": 1}).insert()  # expected-error: call-arg
     insert, update, delete = accounts.insert({"id": 1}), accounts.update({"id": 2}), accounts.delete()
@@ -153,7 +153,7 @@ async def invalid(connection: p.Connection) -> None:
     p.entity("app.Account").col("id").describe()  # expected-error: attr-defined
     # [spec:pgorm:req:bindings.entity-versions+3/test]    an entity's insert is typed by its row count, each with its own upsert terminal alone
     registered = p.entity("app.Account")
-    # [spec:pgorm:req:bindings.entity-active-changes/test]    set_if_not_equals names a column and its value; is_changed takes nothing
+    # [spec:pgorm:req:bindings.entity-active-changes+1/test]    set_if_not_equals names a column and its value; is_changed takes nothing
     registered.active().set_if_not_equals("id")  # expected-error: call-arg
     registered.active().is_changed("id")  # expected-error: call-arg
     await registered.insert(registered.active()).returning_upserts(connection)  # expected-error: attr-defined
@@ -177,7 +177,7 @@ async def invalid(connection: p.Connection) -> None:
     p.OneOf("ref", accounts, {"self": accounts})  # expected-error: dict-item
     p.Disjoint("shops", accounts, {"dormant": None}, unkinded=True, kind="state")  # expected-error: call-overload
     kinded: p.Disjoint = shops  # expected-error: assignment
-    # [spec:pgorm:req:bindings.migrations/test]    a migrator takes migrations, runs on a pool, and reads on an executor
+    # [spec:pgorm:req:bindings.migrations+1/test]    a migrator takes migrations, runs on a pool, and reads on an executor
     s.Migrations([object()])  # expected-error: list-item
     s.Migrations([s.SqlMigration("m1", "SELECT 1")], migration_table_name=1)  # expected-error: arg-type
     await s.Migrations([]).up(connection)  # expected-error: arg-type
@@ -192,7 +192,7 @@ async def invalid(connection: p.Connection) -> None:
     ids: list[int] = await projection.into_tuple().all(connection)  # expected-error: assignment
     projection.expr_as(p.call("count", accounts.col("id")), "n", "i64")  # expected-error: arg-type
     projection.column(p.col("id"))  # expected-error: arg-type
-    # [spec:pgorm:req:bindings.partial-models/test]    a partial model's field is a model column, a FromExpr or a Skip
+    # [spec:pgorm:req:bindings.partial-models+1/test]    a partial model's field is a model column, a FromExpr or a Skip
     p.PartialModel(accounts, {"id": "id"})  # expected-error: dict-item
     # [spec:pgorm:req:bindings.cursor-secondary-order+1/test]    a secondary ordering names a model, not a table's name
     accounts.find().cursor("id").add_secondary_order_by("accounts", "id")  # expected-error: arg-type
@@ -201,7 +201,7 @@ async def invalid(connection: p.Connection) -> None:
 
     # [spec:pgorm:req:bindings.template/test]    a template is a t-string, never a str built at run time
     p.template("char_length(name) < 40")  # expected-error: arg-type
-    # [spec:pgorm:req:bindings.batch-execute/test]    a script is text, never a RawSQL
+    # [spec:pgorm:req:bindings.batch-execute+1/test]    a script is text, never a RawSQL
     await connection.batch_execute(p.RawSQL("SELECT 1"))  # expected-error: arg-type
     # [spec:pgorm:req:bindings.raw-models/test]    a raw read takes a RawSQL, never bare text
     p.from_statement("SELECT 1")  # expected-error: arg-type

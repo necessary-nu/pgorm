@@ -120,7 +120,7 @@ pub async fn insert_and_delete_repository(db: &DatabaseConnection) -> Result<(),
 // answered from the RETURNING row like any other, not echoed back from the model
 // [spec:pgorm:sem:query.build.insert+6/test]    which is why `Insert::add` keeps
 // no primary-key value tuple to echo
-// [spec:pgorm:sem:exec.crud.update+7/test]    `UpdateOne::exec_returning_model`
+// [spec:pgorm:sem:exec.crud.update+8/test]    `UpdateOne::exec_returning_model`
 // returns the model
 // built from the full-column RETURNING, including a column set back to NULL
 pub async fn create_and_update_repository(db: &DatabaseConnection) -> Result<(), Error> {
@@ -152,7 +152,7 @@ pub async fn create_and_update_repository(db: &DatabaseConnection) -> Result<(),
         .exec_returning_model(db)
         .await;
 
-    // [spec:pgorm:sem:exec.crud.update+7] UpdateOne decodes through `one`, so a
+    // [spec:pgorm:sem:exec.crud.update+8] UpdateOne decodes through `one`, so a
     // filter matching zero rows surfaces RecordNotFound.
     assert_eq!(update_res, Err(Error::RecordNotFound));
 

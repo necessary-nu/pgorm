@@ -7,7 +7,7 @@ use crate::entity::prelude::*;
 /// The entity holds what its names are computed from. Statements over
 /// `Entity::default()` read the `public` tenant; the `_in` constructors read
 /// the tenant of the instance they are given.
-#[derive(Copy, Clone, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, Entity)]
 pub struct Entity {
     pub tenant: &'static str,
 }

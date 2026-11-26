@@ -48,7 +48,7 @@ class CopyRowSurface(unittest.IsolatedAsyncioTestCase):
         value: int = (await self.pool.one(p.RawSQL("SELECT count(*)::int AS n FROM python_copy_cakes")))["n"]
         return value
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    described columns carry their types,
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    described columns carry their types,
     # an enum's schema-qualified, for a COPY in any format, without starting it
     async def test_columns_are_described_with_their_types(self) -> None:
         columns = await self.pool.copy_in_columns(self.into)
@@ -68,7 +68,7 @@ class CopyRowSurface(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(await tx.copy_in_columns(self.into)), 3)
         self.assertEqual(await self.count(), 0)
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    a sink takes rows one at a time, a
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    a sink takes rows one at a time, a
     # refused row leaving it taking rows, and finish counts the rows written
     async def test_a_sink_takes_one_row_at_once(self) -> None:
         async with await self.pool.copy_in_rows(self.into) as sink:
@@ -80,7 +80,7 @@ class CopyRowSurface(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await sink.finish(), 2)
         self.assertEqual(await self.count(), 2)
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    a sink left unfinished writes nothing
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    a sink left unfinished writes nothing
     async def test_an_unfinished_sink_writes_nothing(self) -> None:
         async with self.pool.connection() as connection:
             async with await connection.copy_in_rows(self.into) as sink:
@@ -89,7 +89,7 @@ class CopyRowSurface(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await connection.ping())
         self.assertEqual(await self.count(), 0)
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    rows read as a model's records and
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    rows read as a model's records and
     # written back as them
     async def test_model_records_round_trip(self) -> None:
         model = cakes()
@@ -115,7 +115,7 @@ class CopyRowSurface(unittest.IsolatedAsyncioTestCase):
                 await sink.send_model(named[0])
         self.assertEqual(await self.count(), 4)
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    the program frames the binary format
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    the program frames the binary format
     # itself, and the decoder takes the data split anywhere
     async def test_encoder_and_decoder_frame_the_format(self) -> None:
         columns = [p.CopyColumn("name", "text"), p.CopyColumn("mood", "text"), p.CopyColumn("unit price", "numeric")]
@@ -144,7 +144,7 @@ class CopyRowSurface(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.DecodeError):
             truncated.finish()
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    a column of a built-in type is built
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    a column of a built-in type is built
     # by its name; another type, or money without its places, is refused
     def test_columns_a_program_builds(self) -> None:
         column = p.CopyColumn("tags", "text[]")

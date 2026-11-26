@@ -6,7 +6,7 @@ pub use common::{TestContext, setup::*};
 
 use async_trait::async_trait;
 use pgorm::{
-    ConnectionTrait, Error, SqlText, TransactionTrait,
+    Connection, Error, SqlText, Transact,
     metric::{
         InstrumentedConnection, InstrumentedPool, InstrumentedTransaction, LoggingMetrics,
         MetricsCollector, NoOpMetrics, QueryContext,
@@ -128,7 +128,7 @@ impl MetricsCollector for RecordingMetrics {
     }
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5/test]    a closure that fails reports its begin and its rollback, with the statements inside instrumented
+// [spec:pgorm:sem:metric.layer.tx+6/test]    a closure that fails reports its begin and its rollback, with the statements inside instrumented
 #[pgorm_macros::test]
 pub async fn instrumented_begin_and_rollback() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_rollback_metrictx").await;
@@ -170,7 +170,7 @@ pub async fn instrumented_begin_and_rollback() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5/test]    a closure that succeeds reports its begin and its commit
+// [spec:pgorm:sem:metric.layer.tx+6/test]    a closure that succeeds reports its begin and its commit
 #[pgorm_macros::test]
 pub async fn instrumented_begin_and_commit() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_commit_metrictx").await;
@@ -203,7 +203,7 @@ pub async fn instrumented_begin_and_commit() -> Result<(), Error> {
 /// A `COMMIT` the server refuses ends the transaction without committing, so
 /// it reports the rollback hook — and reports the error itself too, under the
 /// operation `"commit"`, rather than leaving a counter to imply it.
-// [spec:pgorm:sem:metric.layer.tx+5/test]    a failed commit reaches an error hook
+// [spec:pgorm:sem:metric.layer.tx+6/test]    a failed commit reaches an error hook
 // [spec:pgorm:def:metric.layer.collector+3/test]    what the rollback hook counts
 #[pgorm_macros::test]
 pub async fn a_failed_commit_reports_error_and_rollback() -> Result<(), Error> {
@@ -266,7 +266,7 @@ pub async fn a_failed_commit_reports_error_and_rollback() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:metric.layer.delegate+5/test]    query_opt's Some/None row counts
+// [spec:pgorm:req:metric.layer.delegate+6/test]    query_opt's Some/None row counts
 #[pgorm_macros::test]
 pub async fn query_opt_reports_one_row_or_zero() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_query_opt_metricopt").await;
@@ -333,18 +333,18 @@ mod widget {
     pub enum Relation {}
 }
 
-async fn widget_count<C: ConnectionTrait>(db: &C) -> Result<i64, Error> {
+async fn widget_count<C: Connection>(db: &C) -> Result<i64, Error> {
     Ok(db
         .query_one("SELECT count(*) FROM widget", &[])
         .await?
         .get(0))
 }
 
-// [spec:pgorm:req:metric.layer.delegate+5/test]    an instrumented closure's handle is passed as `&txn`
-// [spec:pgorm:def:conn.pool.conn-trait+10/test]    every closure's `&mut` handle is a connection
+// [spec:pgorm:req:metric.layer.delegate+6/test]    an instrumented closure's handle is passed as `&txn`
+// [spec:pgorm:def:conn.pool.conn-trait+12/test]    every closure's `&mut` handle is a connection
 #[pgorm_macros::test]
 pub async fn instrumented_handle_is_a_connection() -> Result<(), Error> {
-    use pgorm::EntityTrait;
+    use pgorm::Entity;
 
     let ctx = TestContext::new("metric_layer_handle_metrichandle").await;
     let metrics = RecordingMetrics::default();
@@ -390,8 +390,8 @@ pub async fn instrumented_handle_is_a_connection() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:metric.layer.delegate+5/test]    a cache hit is still a reported call
-// [spec:pgorm:def:conn.pool.conn-trait+10/test]    the wrapper inherits the routing it delegates to
+// [spec:pgorm:req:metric.layer.delegate+6/test]    a cache hit is still a reported call
+// [spec:pgorm:def:conn.pool.conn-trait+12/test]    the wrapper inherits the routing it delegates to
 #[pgorm_macros::test]
 pub async fn cached_statements_still_report_each_call() -> Result<(), Error> {
     const SQL: &str = "SELECT id FROM widget WHERE id = 1";
@@ -440,7 +440,7 @@ pub async fn cached_statements_still_report_each_call() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:metric.layer.delegate+5/test]    batch_execute reports a rowless success
+// [spec:pgorm:req:metric.layer.delegate+6/test]    batch_execute reports a rowless success
 #[pgorm_macros::test]
 pub async fn instrumented_batch_execute_reports_no_rows() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_batch_execute_txbatch").await;
@@ -484,7 +484,7 @@ pub async fn instrumented_batch_execute_reports_no_rows() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5/test]    a dropped closure future records no ending
+// [spec:pgorm:sem:metric.layer.tx+6/test]    a dropped closure future records no ending
 #[pgorm_macros::test]
 pub async fn dropped_instrumented_transaction_records_nothing() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_drop_metrictx").await;
@@ -518,7 +518,7 @@ pub async fn dropped_instrumented_transaction_records_nothing() -> Result<(), Er
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5/test]    a savepoint inside an instrumented transaction reports its own begin and ending
+// [spec:pgorm:sem:metric.layer.tx+6/test]    a savepoint inside an instrumented transaction reports its own begin and ending
 #[pgorm_macros::test]
 pub async fn instrumented_savepoints_report_their_ends() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_savepoint_metrictx").await;
@@ -568,7 +568,7 @@ pub async fn instrumented_savepoints_report_their_ends() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5/test]    an instrumented transaction runs in a spawned task
+// [spec:pgorm:sem:metric.layer.tx+6/test]    an instrumented transaction runs in a spawned task
 #[pgorm_macros::test]
 pub async fn instrumented_transaction_runs_in_spawned_task() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_spawned_metrictx").await;
@@ -602,7 +602,7 @@ pub async fn instrumented_transaction_runs_in_spawned_task() -> Result<(), Error
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5/test]    a configured transaction on an instrumented connection is reported, its mode applied, in a spawned task
+// [spec:pgorm:sem:metric.layer.tx+6/test]    a configured transaction on an instrumented connection is reported, its mode applied, in a spawned task
 #[pgorm_macros::test]
 pub async fn instrumented_transaction_with_mode_is_reported() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_tx_with_metrictx").await;
@@ -651,7 +651,7 @@ pub async fn instrumented_transaction_with_mode_is_reported() -> Result<(), Erro
     Ok(())
 }
 
-// [spec:pgorm:sem:metric.layer.tx+5/test]    every attempt a retried transaction makes is reported as a transaction of its own
+// [spec:pgorm:sem:metric.layer.tx+6/test]    every attempt a retried transaction makes is reported as a transaction of its own
 #[pgorm_macros::test]
 pub async fn instrumented_transaction_with_retry_reports_each_attempt() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_tx_retry_metrictx").await;
@@ -845,7 +845,7 @@ pub async fn logging_metrics_emits_expected_levels() {
 
 // [spec:pgorm:def:metric.layer+3/test]    three wrappers, their inner()/metrics() accessors, and the pool's
 // tag()/status()/clear_statement_caches()
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    the instrumented pool clears the pool it wraps
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    the instrumented pool clears the pool it wraps
 #[pgorm_macros::test]
 pub async fn wrappers_expose_inner_and_metrics() -> Result<(), Error> {
     fn assert_collector_bounds<M: MetricsCollector>() {
@@ -923,7 +923,7 @@ pub async fn wrappers_expose_inner_and_metrics() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:def:conn.sql-text+2/test]    what each statement form answers
+// [spec:pgorm:def:conn.sql-text+6/test]    what each statement form answers
 #[pgorm_macros::test]
 pub async fn sql_text_answers_with_the_statement_text() {
     let owned = "SELECT id FROM widget WHERE id = $1".to_owned();
@@ -931,15 +931,23 @@ pub async fn sql_text_answers_with_the_statement_text() {
     assert_eq!("SELECT 1".sql_text(), "SELECT 1");
     assert_eq!(owned.sql_text(), owned.as_str());
 
-    // The bound `ConnectionTrait` puts on its statement. A prepared
+    // The bound `Connection` puts on its statement. A prepared
     // `Statement` falls outside it, which the `compile_fail` doctest on
-    // `ConnectionTrait` holds.
+    // `Connection` holds.
     fn assert_statement_bound<T: ?Sized + SqlText + Sync>() {}
     assert_statement_bound::<str>();
     assert_statement_bound::<String>();
+
+    #[cfg(feature = "turso")]
+    {
+        let values = [pgorm::ValueHolder(pgorm_query::Value::Int(Some(7)))];
+        let statement = pgorm::ValueSql::new(&owned, &values);
+        assert_eq!(statement.sql_text(), owned.as_str());
+        assert_statement_bound::<pgorm::ValueSql<'_>>();
+    }
 }
 
-// [spec:pgorm:req:metric.fingerprint+5/test]    the hooks see the statement they report on
+// [spec:pgorm:req:metric.fingerprint+6/test]    the hooks see the statement they report on
 #[pgorm_macros::test]
 pub async fn query_context_carries_statement_text() -> Result<(), Error> {
     let ctx = TestContext::new("metric_layer_context_metricctx").await;
@@ -951,6 +959,20 @@ pub async fn query_context_carries_statement_text() -> Result<(), Error> {
         .await?;
     conn.execute("INSERT INTO widget (id) VALUES ($1)", &[&1i32])
         .await?;
+    #[cfg(feature = "turso")]
+    {
+        let params = [1_i32];
+        let statement =
+            pgorm::ValueSql::mapped("SELECT id FROM widget WHERE id = $1", &params, |_| {
+                panic!("PostgreSQL must not resolve native parameter hints")
+            });
+        assert_eq!(
+            conn.query_one(&statement, &[&params[0]])
+                .await?
+                .get::<_, i32>(0),
+            1
+        );
+    }
     let failed = conn
         .query_one("SELECT id FROM widget WHERE id = $1", &[&404i32])
         .await
@@ -973,6 +995,11 @@ pub async fn query_context_carries_statement_text() -> Result<(), Error> {
                 "execute".to_owned(),
                 Some("INSERT INTO widget (id) VALUES ($1)".to_owned())
             ),
+            #[cfg(feature = "turso")]
+            (
+                "query_one".to_owned(),
+                Some("SELECT id FROM widget WHERE id = $1".to_owned())
+            ),
             (
                 "query_one".to_owned(),
                 Some("SELECT id FROM widget WHERE id = $1".to_owned())
@@ -987,7 +1014,7 @@ pub async fn query_context_carries_statement_text() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:metric.fingerprint+5/test]    the canonical hex rendering
+// [spec:pgorm:req:metric.fingerprint+6/test]    the canonical hex rendering
 #[cfg(feature = "metrics-fingerprint")]
 #[pgorm_macros::test]
 pub async fn fingerprint_renders_canonical_hex() {
@@ -1017,7 +1044,7 @@ pub async fn fingerprint_renders_canonical_hex() {
     );
 }
 
-// [spec:pgorm:req:metric.fingerprint+5/test]    constants are normalized away
+// [spec:pgorm:req:metric.fingerprint+6/test]    constants are normalized away
 #[cfg(feature = "metrics-fingerprint")]
 #[pgorm_macros::test]
 pub async fn fingerprint_ignores_literal_values() {
@@ -1038,7 +1065,7 @@ pub async fn fingerprint_ignores_literal_values() {
     );
 }
 
-// [spec:pgorm:req:metric.fingerprint+5/test]    different shapes stay apart
+// [spec:pgorm:req:metric.fingerprint+6/test]    different shapes stay apart
 #[cfg(feature = "metrics-fingerprint")]
 #[pgorm_macros::test]
 pub async fn distinct_shapes_get_distinct_fingerprints() {
@@ -1063,7 +1090,7 @@ pub async fn distinct_shapes_get_distinct_fingerprints() {
     );
 }
 
-// [spec:pgorm:req:metric.fingerprint+5/test]    a fingerprint groups statements
+// [spec:pgorm:req:metric.fingerprint+6/test]    a fingerprint groups statements
 // by PostgreSQL 19's query-ID rules, as 18's: a schema qualifier is not part
 // of the identity, and an alias stands for the relation it names
 #[cfg(feature = "metrics-fingerprint")]
@@ -1103,7 +1130,7 @@ pub async fn fingerprint_follows_postgres_19_query_ids() {
     );
 }
 
-// [spec:pgorm:req:metric.fingerprint+5/test]    unidentifiable is not an error
+// [spec:pgorm:req:metric.fingerprint+6/test]    unidentifiable is not an error
 #[cfg(feature = "metrics-fingerprint")]
 #[pgorm_macros::test]
 pub async fn unparseable_sql_has_no_fingerprint() {
@@ -1132,7 +1159,7 @@ pub async fn unparseable_sql_has_no_fingerprint() {
     );
 }
 
-// [spec:pgorm:req:metric.fingerprint+5/test]    fingerprints reach the collector through the wrappers
+// [spec:pgorm:req:metric.fingerprint+6/test]    fingerprints reach the collector through the wrappers
 #[cfg(feature = "metrics-fingerprint")]
 #[pgorm_macros::test]
 pub async fn instrumented_wrapper_reports_fingerprints() -> Result<(), Error> {

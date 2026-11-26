@@ -1,7 +1,7 @@
 //! `Expr`'s `jsonb` accessors and key tests: `->`, `->>`, `#>`, `#>>`, `?`,
 //! `?|` and `?&`, through pgorm-query's methods of those meanings.
 
-use pgorm::pgorm_query::ExprTrait;
+use pgorm::pgorm_query::Expression;
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,

@@ -42,7 +42,7 @@ use crate::{
 /// # let _ = selector;
 /// # }
 /// ```
-// [spec:pgorm:sem:exec.crud.selector-entry+3]
+// [spec:pgorm:sem:exec.crud.selector-entry+4]
 pub trait DecodeSelect {
     /// Decode each row into a [`FromQueryResult`] type.
     fn into_model<M>(self) -> Selector<SelectModel<M>>
@@ -62,7 +62,7 @@ pub trait DecodeSelect {
         C: strum::IntoEnumIterator + pgorm_query::SqlName;
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3]    statement-first entry
+// [spec:pgorm:sem:exec.crud.selector-entry+4]    statement-first entry
 impl DecodeSelect for SelectStatement {
     fn into_model<M>(self) -> Selector<SelectModel<M>>
     where
@@ -91,7 +91,7 @@ impl DecodeSelect for SelectStatement {
 /// its row type.
 ///
 /// Implemented for `(sql, values)` pairs whose SQL is text as a
-/// [`ConnectionTrait`](crate::ConnectionTrait) method takes it — a `&str`, a
+/// [`Connection`](crate::Connection) method takes it — a `&str`, a
 /// `String` or a reference to one — which is what
 /// [`SelectStatement::build`], [`Pipeline::into_sql`](crate::pipeline) and the
 /// [`prql!`](crate::prql) macro all hand back, so the compiled query flows
@@ -109,7 +109,7 @@ impl DecodeSelect for SelectStatement {
 ///     .into_tuple::<(i32, String)>();
 /// # let _ = selector;
 /// ```
-// [spec:pgorm:sem:exec.crud.selector-entry+3]
+// [spec:pgorm:sem:exec.crud.selector-entry+4]
 pub trait DecodeRaw {
     /// Decode each row into a [`FromQueryResult`] type.
     fn into_model<M>(self) -> SelectorRaw<SelectModel<M>>
@@ -129,7 +129,7 @@ pub trait DecodeRaw {
         C: strum::IntoEnumIterator + pgorm_query::SqlName;
 }
 
-// [spec:pgorm:sem:exec.crud.selector-entry+3]    raw-statement entry, over the SQL text a connection takes
+// [spec:pgorm:sem:exec.crud.selector-entry+4]    raw-statement entry, over the SQL text a connection takes
 impl<S> DecodeRaw for (S, Values)
 where
     S: Deref,

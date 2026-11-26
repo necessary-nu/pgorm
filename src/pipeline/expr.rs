@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 
 use pgorm_query::{AliasName, IntoName, Name, SqlName, TypeName};
 
-use crate::ColumnTrait;
+use crate::Column;
 use crate::entity::{compared_enum, compared_value_cast};
 
 use super::adapter::{self, BinOp, PlExpr, UnOp};
@@ -32,13 +32,13 @@ pub struct Expr<'brand> {
     /// [`compares_as`](ExprOps::compares_as) names. Only the column itself
     /// carries it: what an operator builds from the column is a new
     /// expression of its own type.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     pub(super) compares_as: Option<TypeName>,
     /// The type a value compared with this column is cast to: an entity
-    /// column's, as its `ColumnTrait` casts a compared value
+    /// column's, as its `Column` casts a compared value
     /// ([`compared_value_cast`]), or the type `compares_as` names. Only the
     /// column itself carries it, as it carries `compares_as`.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     pub(super) values_as: Option<TypeName>,
     pub(super) operand: Operand,
     pub(super) _brand: PhantomData<fn(&'brand ()) -> &'brand ()>,
@@ -70,7 +70,7 @@ pub(super) fn name<'brand>(name: &str) -> Expr<'brand> {
 /// name becomes ambiguous the moment a join enters the pipeline. Minting the
 /// reference from a `(table, column)` [`SqlName`] pair makes the qualified form
 /// the only representable one.
-// [spec:pgorm:sem:pipeline.qualify+4]
+// [spec:pgorm:sem:pipeline.qualify+5]
 pub fn col<'brand>(table: impl IntoName, column: impl IntoName) -> Expr<'brand> {
     branded(adapter::ident_in(
         vec![SqlName::to_string(&*table.into_name())],
@@ -110,9 +110,9 @@ pub fn this<'brand>(column: impl IntoName) -> Expr<'brand> {
 /// An entity column read under `qualifier`, carrying the enum it compares as
 /// when its domain is over one: what the column says of its type holds under
 /// any name its relation is read by.
-// [spec:pgorm:sem:pipeline.qualify+4]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &C) -> Expr<'brand> {
+// [spec:pgorm:sem:pipeline.qualify+5]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+pub(super) fn entity_column<'brand, C: Column>(qualifier: String, column: &C) -> Expr<'brand> {
     let mut expr = branded(adapter::ident_in(
         vec![qualifier],
         SqlName::to_string(column),
@@ -124,9 +124,9 @@ pub(super) fn entity_column<'brand, C: ColumnTrait>(qualifier: String, column: &
 
 /// An entity column is a table-qualified expression: the column enum carries
 /// its entity, so the qualification is recovered rather than restated.
-// [spec:pgorm:sem:pipeline.qualify+4]
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-impl<'brand, C: ColumnTrait> From<C> for Expr<'brand> {
+// [spec:pgorm:sem:pipeline.qualify+5]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+impl<'brand, C: Column> From<C> for Expr<'brand> {
     fn from(column: C) -> Self {
         entity_column(SqlName::to_string(&*column.entity_name()), &column)
     }
@@ -134,7 +134,7 @@ impl<'brand, C: ColumnTrait> From<C> for Expr<'brand> {
 
 /// An alias token reads back the name it declared, unqualified — the name
 /// belongs to the pipeline, not to a table.
-// [spec:pgorm:req:pipeline.surface+4]
+// [spec:pgorm:req:pipeline.surface+5]
 impl<'brand> From<AliasName> for Expr<'brand> {
     fn from(token: AliasName) -> Self {
         name(token.as_str())
@@ -197,13 +197,13 @@ literal!(&str, lit_str, std::convert::identity);
 /// as it names `money` for a `money` column the pipeline reads by name.
 ///
 /// The comparison names (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `is_null`,
-/// `is_not_null`) are also [`ColumnTrait`] method names. Both can be in
-/// scope at once: because these take `self` by value and `ColumnTrait`'s
+/// `is_not_null`) are also [`Column`] method names. Both can be in
+/// scope at once: because these take `self` by value and `Column`'s
 /// take `&self`, a column resolves to *this* trait when both are imported,
-/// and the ORM spelling is then `ColumnTrait::gt(&col, v)`. A module usually
+/// and the ORM spelling is then `Column::gt(&col, v)`. A module usually
 /// speaks one of the two dialects, so importing the pipeline where it is
 /// used keeps them apart.
-// [spec:pgorm:req:pipeline.surface+4]
+// [spec:pgorm:req:pipeline.surface+5]
 // Every operator here consumes its receiver: these build an expression, they
 // never inspect one, so `is_null` takes `self` like the rest of the trait.
 #[allow(clippy::wrong_self_convention)]
@@ -249,7 +249,7 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     }
 
     /// `COALESCE(self, rhs)`. A column whose domain is over an enum is cast
-    /// to the enum, as [`ColumnTrait::if_null`] casts it, so what the
+    /// to the enum, as [`Column::if_null`] casts it, so what the
     /// coalesce yields can be compared.
     fn coalesce(self, rhs: impl Into<Expr<'brand>>) -> Expr<'brand> {
         bin(self.into(), BinOp::Coalesce, rhs.into())
@@ -313,7 +313,7 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     }
 
     /// Compare this expression as the type `type_name`, as an entity column
-    /// whose `ColumnTrait` compares as that type compares: every comparison,
+    /// whose `Column` compares as that type compares: every comparison,
     /// `in_array`, `coalesce`, `min` and `max` cast it to the type, each
     /// literal or bound value a comparison, `in_array` or `coalesce` sets
     /// beside it is cast to the type too, and sorting, grouping and
@@ -344,8 +344,8 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     /// assert_eq!(sql, "SELECT * FROM line WHERE CAST(mood AS mood) = CAST('glad' AS mood)");
     /// # Ok::<_, pgorm::pipeline::PipelineError>(())
     /// ```
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-    // [spec:pgorm:req:pipeline.surface+4]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+    // [spec:pgorm:req:pipeline.surface+5]
     fn compares_as(self, type_name: impl Into<TypeName>) -> Expr<'brand> {
         let type_name = type_name.into();
         let mut expr = self.into();
@@ -397,16 +397,16 @@ pub trait ExprOps<'brand>: Into<Expr<'brand>> + Sized {
     }
 }
 
-// [spec:pgorm:req:pipeline.surface+4]
+// [spec:pgorm:req:pipeline.surface+5]
 impl<'brand> ExprOps<'brand> for Expr<'brand> {}
 
-// [spec:pgorm:req:pipeline.surface+4]
+// [spec:pgorm:req:pipeline.surface+5]
 impl<'brand> ExprOps<'brand> for AliasName {}
 
 impl<'brand> ExprOps<'brand> for Name {}
 
-// [spec:pgorm:req:pipeline.surface+4]
-impl<'brand, C: ColumnTrait> ExprOps<'brand> for C {}
+// [spec:pgorm:req:pipeline.surface+5]
+impl<'brand, C: Column> ExprOps<'brand> for C {}
 
 /// A list of expressions, as the transforms that project, group and sort
 /// take one.
@@ -425,7 +425,7 @@ impl<'brand, C: ColumnTrait> ExprOps<'brand> for C {}
 ///     .select([C::Id, C::Name])                       // homogeneous
 ///     .select((C::Id, sum(C::Id).as_(total), total)); // mixed
 /// ```
-// [spec:pgorm:req:pipeline.surface+4]
+// [spec:pgorm:req:pipeline.surface+5]
 pub trait ExprList<'brand> {
     /// The expressions, in the order written.
     fn into_exprs(self) -> Vec<Expr<'brand>>;
@@ -449,7 +449,7 @@ impl<'brand> ExprList<'brand> for Name {
     }
 }
 
-impl<'brand, C: ColumnTrait> ExprList<'brand> for C {
+impl<'brand, C: Column> ExprList<'brand> for C {
     fn into_exprs(self) -> Vec<Expr<'brand>> {
         vec![self.into()]
     }

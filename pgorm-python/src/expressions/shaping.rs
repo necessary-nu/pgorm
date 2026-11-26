@@ -1,7 +1,7 @@
 //! What turns an `Expr` into something else: a cast, a collation, an alias,
 //! a window call, a sort key, and its inspection.
 
-use pgorm::pgorm_query::{Expr, ExprTrait, Query};
+use pgorm::pgorm_query::{Expr, Expression, Query};
 use pyo3::prelude::*;
 
 use super::{Aliased, Compiled, OrderBy, PyExpr};
@@ -23,7 +23,7 @@ impl PyExpr {
         )
     }
     /// `(expr COLLATE "name")`: this expression under a collation, through
-    /// Rust's `ExprTrait::collate`. It stays an operand, so it goes on to be
+    /// Rust's `Expression::collate`. It stays an operand, so it goes on to be
     /// compared, and `asc` or `desc` over it writes the clause into the sort
     /// key, where PostgreSQL reads an `ORDER BY`'s collation.
     // [spec:pgorm:req:bindings.collations]

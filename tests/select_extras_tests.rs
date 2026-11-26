@@ -16,9 +16,10 @@ pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{
-    ConnectionTrait, Error, PaginatorTrait, QueryTrait, RuntimeError, SelectGetableTuple, Selector,
+    Connection, Error, Paginate, RuntimeError, SelectGetableTuple, Selector, Statement,
     entity::prelude::*,
 };
+use pgorm_driver::error::SqlState;
 use pgorm_query::{
     ColumnType, Expr, Func, GroupingElement, LikeExpr, LockBehavior, LockType, Name, Order,
     OrderedStatement, Query, SampleMethod, SelectStatement, TableFunction, TableSample,
@@ -26,7 +27,6 @@ use pgorm_query::{
 };
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;
-use tokio_postgres::error::SqlState;
 
 mod player {
     use pgorm::entity::prelude::*;
@@ -172,7 +172,7 @@ async fn tie_limit_keeps_rows_tied_with_the_last(db: &DatabaseConnection) -> Res
 
 // [spec:pgorm:req:sql.ast.select.tie-limit+2/test]    the two refused shapes come back as builder
 // errors before anything is sent, where the server would refuse their text with 42601
-// [spec:pgorm:req:exec.tie-limit+1/test]
+// [spec:pgorm:req:exec.tie-limit+2/test]
 async fn refused_tie_limits_never_reach_the_server(db: &DatabaseConnection) -> Result<(), Error> {
     let unordered = Query::select()
         .expr(col("name"))
@@ -219,11 +219,11 @@ fn refusal_message(err: Error) -> String {
     }
 }
 
-// [spec:pgorm:req:exec.tie-limit+1/test]    the paginator and the cursor refuse a tie limit rather
+// [spec:pgorm:req:exec.tie-limit+2/test]    the paginator and the cursor refuse a tie limit rather
 // than replace it, `one` reads the first row of the order, and `all` keeps the ties
 async fn orm_row_limits_refuse_a_tie_limit(db: &DatabaseConnection) -> Result<(), Error> {
     let mut tied = player::Entity::find().order_by_desc(player::Column::Score);
-    QueryTrait::query(&mut tied).limit_with_ties(2);
+    Statement::query(&mut tied).limit_with_ties(2);
 
     let all = tied.clone().all(db).await?;
     assert_eq!(all.iter().map(|p| p.id).collect::<Vec<_>>(), [1, 2, 3]);
@@ -285,7 +285,7 @@ async fn group_by_distinct_groups_each_set_once(db: &DatabaseConnection) -> Resu
     Ok(())
 }
 
-// [spec:pgorm:req:sql.ast.expr.similar-to+3/test]    against a live server: the bound pattern is
+// [spec:pgorm:req:sql.ast.expr.similar-to+4/test]    against a live server: the bound pattern is
 // matched whole, alternation and escape included
 async fn similar_to_matches_bound_patterns(db: &DatabaseConnection) -> Result<(), Error> {
     let named = |predicate: pgorm_query::SimpleExpr| {

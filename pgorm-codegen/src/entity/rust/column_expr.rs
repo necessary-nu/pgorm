@@ -6,7 +6,7 @@ use crate::{ColumnExpr, CurrentKeyword, Operator, util::escape_rust_keyword};
 
 impl Operator {
     /// The builder method on `Expr` that writes this operator, or the
-    /// `BinOper` variant `ExprTrait::binary` takes for the two that have none.
+    /// `BinOper` variant `Expression::binary` takes for the two that have none.
     fn method(self) -> Result<&'static str, &'static str> {
         match self {
             Self::Add => Ok("add"),

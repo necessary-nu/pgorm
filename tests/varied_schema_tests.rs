@@ -14,9 +14,8 @@ pub mod common;
 
 use futures::TryStreamExt;
 use pgorm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Error, LoaderTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, RelationTrait, Schema, TryInsertResult,
-    entity::prelude::*, entity::*, query::*,
+    Column, Connection, DatabaseConnection, Entity, Error, LoadRelated, Paginate, QueryFilter,
+    QueryOrder, Relation, Schema, TryInsertResult, entity::prelude::*, entity::*, query::*,
 };
 use pretty_assertions::assert_eq;
 
@@ -208,11 +207,11 @@ fn anvil() -> tenant_a::item::Model {
     }
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+6/test]    a declared schema
+// [spec:pgorm:req:entity.traits.entity-name+7/test]    a declared schema
 // qualifies the generated DDL and every CRUD statement: create, insert with
 // RETURNING, a guarded no-op update, a TryInsert conflict, and delete all
 // land on tenant_a.item
-// [spec:pgorm:sem:exec.crud.update+7/test]
+// [spec:pgorm:sem:exec.crud.update+8/test]
 #[pgorm_macros::test]
 async fn schema_ddl_and_crud_round_trip() -> Result<(), Error> {
     let ctx = TestContext::new("varied_schema_crud").await;
@@ -273,10 +272,10 @@ async fn schema_ddl_and_crud_round_trip() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+6/test]    finds, filters,
+// [spec:pgorm:req:entity.traits.entity-name+7/test]    finds, filters,
 // ordering, pagination, keyset cursors and the schema-qualified enum's value
 // predicates all address tenant_a.item
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]
 // [spec:pgorm:sem:exec.cursor.keyset+8/test]
 #[pgorm_macros::test]
 async fn qualified_finds_filters_and_cursors() -> Result<(), Error> {
@@ -455,7 +454,7 @@ async fn loaders_work_across_qualified_schemas() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:entity.traits.entity-name+6/test]    the same table name in
+// [spec:pgorm:req:entity.traits.entity-name+7/test]    the same table name in
 // two schemas: both entities read side by side and return their own rows, so
 // resolution is by declared schema, never by search_path
 #[pgorm_macros::test]
@@ -484,7 +483,7 @@ async fn same_table_name_in_two_schemas() -> Result<(), Error> {
 // [spec:pgorm:sem:pipeline.select-sources+6/test]    the pipeline reads
 // qualified sources: a cross-schema join lands whole models per source, and
 // streaming decodes the qualified projection row by row
-// [spec:pgorm:sem:exec.stream.decode+1/test]
+// [spec:pgorm:sem:exec.stream.decode+2/test]
 #[pgorm_macros::test]
 async fn pipeline_and_stream_read_qualified_sources() -> Result<(), Error> {
     use pgorm::pipeline::{JoinSide, Pipeline};

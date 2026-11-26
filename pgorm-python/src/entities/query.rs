@@ -151,7 +151,7 @@ impl PyEntityQuery {
     }
 
     /// How many rows the query reads, its limit, offset and ordering aside,
-    /// by `PaginatorTrait::count`.
+    /// by `Paginate::count`.
     fn count<'py>(
         &self,
         py: Python<'py>,
@@ -168,7 +168,7 @@ impl PyEntityQuery {
         counted(py, connection, read)
     }
 
-    /// Pages of `page_size` rows, by `PaginatorTrait::paginate`.
+    /// Pages of `page_size` rows, by `Paginate::paginate`.
     fn paginate(&self, page_size: &Bound<'_, PyAny>) -> PyResult<PyEntityPaginator> {
         PyEntityPaginator::new(self.inner.pages(), page_size)
     }

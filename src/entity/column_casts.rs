@@ -4,10 +4,10 @@
 
 use std::sync::Arc;
 
-use pgorm_query::{ColumnType, Expr, ExprTrait, SimpleExpr, TypeName, Value};
+use pgorm_query::{ColumnType, Expr, Expression, SimpleExpr, TypeName, Value};
 
 use super::{compared_enum, compared_value_as, save_cast, select_cast};
-use crate::{ColumnTrait, executor::BoundaryCast};
+use crate::{Column, executor::BoundaryCast};
 
 /// The casts one column is read, written and compared under.
 trait Casts: Send + Sync {
@@ -27,7 +27,7 @@ trait Casts: Send + Sync {
 /// overrides included.
 struct Typed<C>(C);
 
-impl<C: ColumnTrait> Casts for Typed<C> {
+impl<C: Column> Casts for Typed<C> {
     fn select(&self, expr: Expr) -> SimpleExpr {
         self.0.select_as(expr)
     }
@@ -42,7 +42,7 @@ impl<C: ColumnTrait> Casts for Typed<C> {
 }
 
 /// The casts of a column of the type that declares none of its own: the
-/// functions `ColumnTrait`'s defaults call.
+/// functions `Column`'s defaults call.
 impl Casts for ColumnType {
     fn select(&self, expr: Expr) -> SimpleExpr {
         select_cast(self, expr)
@@ -60,7 +60,7 @@ impl Casts for ColumnType {
 /// How a disjoint statement writes one column: read through its
 /// `select_as`, a value written through its `save_as`, and compared as its
 /// value predicates compare it.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 #[derive(Clone)]
 pub(crate) struct ColumnCasts {
     casts: Arc<dyn Casts>,
@@ -68,7 +68,7 @@ pub(crate) struct ColumnCasts {
 }
 
 impl ColumnCasts {
-    pub(super) fn of<C: ColumnTrait>(col: C) -> Self {
+    pub(super) fn of<C: Column>(col: C) -> Self {
         Self {
             column: compared_enum(col.def().get_column_type()),
             casts: Arc::new(Typed(col)),

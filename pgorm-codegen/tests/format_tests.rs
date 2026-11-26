@@ -6,7 +6,7 @@ use common::*;
 use pgorm_codegen::WithSerde;
 use pgorm_query::{ColumnDef, ColumnType, Name, StringLen, Table};
 
-// [spec:pgorm:req:macros.derive.one-form/test]    codegen writes the one form
+// [spec:pgorm:req:macros.derive.one-form+1/test]    codegen writes the one form
 // [spec:pgorm:def:codegen.entity.compact+8/test]    the compact format emits
 // imports, Model and Relation, in order, and leaves the `Related` impl one
 // relation reaches and the behaviour with no hooks to the derives
@@ -89,7 +89,7 @@ fn compact_field_attribute_parts_assembled_in_fixed_order() {
     );
 }
 
-// [spec:pgorm:req:macros.derive.one-form/test]    codegen states a `column_type` as the
+// [spec:pgorm:req:macros.derive.one-form+1/test]    codegen states a `column_type` as the
 // bare expression the derive takes
 // [spec:pgorm:sem:codegen.entity.compact.attrs+14/test]    `column_type` is emitted
 // on every type its field's Rust type does not infer — a length, `char` of any length,

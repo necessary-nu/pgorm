@@ -4,7 +4,7 @@
 use std::sync::{Arc, OnceLock};
 
 use futures_util::{SinkExt, StreamExt};
-use pgorm::{Bytes, CopyColumn, CopyInSink, CopyOutStream, CopyTrait, Error};
+use pgorm::{Bytes, CopyColumn, CopyConnection, CopyInSink, CopyOutStream, Error};
 use tokio::sync::mpsc;
 
 use super::{CopyFrom, CopyTo};
@@ -18,10 +18,10 @@ pub(crate) enum Described {
 
 /// The columns `statement` reads or writes, in order, as pgorm describes them
 /// before a COPY starts, starting none.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(crate) async fn describe<C>(db: &mut C, statement: &Described) -> Result<Vec<CopyColumn>, Error>
 where
-    C: CopyTrait + Send,
+    C: CopyConnection + Send,
 {
     match statement {
         Described::From(statement) => statement.columns(db).await,
@@ -73,14 +73,14 @@ impl Unopened {
     }
 }
 
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(crate) async fn open_in<'a, C>(
     db: &'a mut C,
     statement: &CopyFrom,
     rows: Option<&Columns>,
 ) -> Result<CopyInSink<'a>, Unopened>
 where
-    C: CopyTrait + Send,
+    C: CopyConnection + Send,
 {
     if let Some(rows) = rows {
         let columns = statement.columns(db).await;
@@ -89,14 +89,14 @@ where
     statement.open(db).await.map_err(Unopened::Refused)
 }
 
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(crate) async fn open_out<'a, C>(
     db: &'a mut C,
     statement: &CopyTo,
     rows: Option<&Columns>,
 ) -> Result<CopyOutStream<'a>, Unopened>
 where
-    C: CopyTrait + Send,
+    C: CopyConnection + Send,
 {
     if let Some(rows) = rows {
         let columns = statement.columns(db).await;
@@ -108,7 +108,7 @@ where
 /// Write each chunk into `sink` until `Finish` completes the COPY with its
 /// row count. Every sender gone first answers `None`, having dropped the
 /// sink, which aborts the COPY.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 pub(crate) async fn drive_in(
     mut sink: CopyInSink<'_>,
     messages: &mut mpsc::Receiver<Message>,
@@ -131,7 +131,7 @@ pub(crate) async fn drive_in(
 
 /// Forward each chunk of `stream` until it ends, answering how; `None` once
 /// nobody reads, with the stream dropped part way.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 pub(crate) async fn drive_out(
     mut stream: CopyOutStream<'_>,
     pieces: &mpsc::Sender<Piece>,

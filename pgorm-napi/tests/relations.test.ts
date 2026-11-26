@@ -157,7 +157,7 @@ test("a related path joins through its junction, as find_related writes it", () 
   assert.equal(Post.graph().relatedOne(author).inspect().sql, Post.graph().joinOne(author).inspect().sql);
 });
 
-// [spec:pgorm:req:bindings.linked/test]    each hop under r{i}, walked from the far end, keyed by the start's key
+// [spec:pgorm:req:bindings.linked+1/test]    each hop under r{i}, walked from the far end, keyed by the start's key
 test("a linked chain joins every hop under an alias of its own", () => {
   const chain = Account.linked(posts, postTags, tagOf);
   assert.equal(
@@ -246,7 +246,7 @@ test("a related path finds and loads through its junction", async () => {
   assert.deepStrictEqual(required.map(([post, tag]) => [post.title, tag.label]), [["a1", "red"], ["a1", "blue"], ["b1", "blue"]]);
 });
 
-// [spec:pgorm:req:bindings.linked/test]
+// [spec:pgorm:req:bindings.linked+1/test]
 test("a linked chain reads along its hops, through one table twice", async () => {
   const chain = Account.linked(posts, postTags, tagOf);
   assert.deepStrictEqual(labels(await chain.find({ id: 1n }).orderBy(Tag.col("id").asc()).all(pool())), ["red", "blue"]);

@@ -1,0 +1,11 @@
+# Test-only code is not scanned. Its credentials are fixtures for throwaway
+# servers, which the hard-coded-cryptographic-value rule reports as findings
+# (99 once the vendored driver's tests arrived), and nothing in it ships.
+# Every library, binding and tool source stays scanned: a test that needs a
+# crate's private items stays in that crate's source and is scanned with it.
+paths-ignore:
+  - tests/**
+  - '**/tests/**'
+  - '**/benches/**'
+  - pgorm-test-support/**
+  - pgorm-guide-support/**

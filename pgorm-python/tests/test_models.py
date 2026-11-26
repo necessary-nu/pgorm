@@ -31,7 +31,7 @@ def accounts():
 
 
 class ModelConstruction(unittest.TestCase):
-    # [spec:pgorm:req:bindings.models+6/test]
+    # [spec:pgorm:req:bindings.models+7/test]
     def test_descriptor_names_and_values_are_owned(self):
         from pgorm.models.columns import MODEL_KINDS
 
@@ -70,7 +70,7 @@ class ModelConstruction(unittest.TestCase):
         self.assertEqual(write.inspect().params[-1].value, ["a"])
         self.assertEqual(write.inspect().params[0].kind, "i32")
 
-    # [spec:pgorm:req:bindings.models+6/test]
+    # [spec:pgorm:req:bindings.models+7/test]
     def test_describe_reports_each_fields_declaration(self):
         model = p.Model(
             "accounts",
@@ -166,7 +166,7 @@ class ModelConstruction(unittest.TestCase):
             with self.assertRaises(TypeError):
                 operation()
 
-    # [spec:pgorm:req:bindings.models+6/test]
+    # [spec:pgorm:req:bindings.models+7/test]
     def test_unknown_fields_and_collisions_fail_early(self):
         model = accounts()
         for operation in (
@@ -288,7 +288,7 @@ class ModelConstruction(unittest.TestCase):
             (p.col("id", table="a") == p.col("display name", table="a")).inspect().sql,
         )
 
-    # [spec:pgorm:req:bindings.column-operators+3/test]
+    # [spec:pgorm:req:bindings.column-operators+4/test]
     def test_columns_are_expressions_converting_every_value_operator(self):
         model = accounts().as_("a")
         column, plain = model.col("id"), model.table.col("id")
@@ -393,7 +393,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         await self.pool.close()
 
     # [spec:pgorm:req:bindings.model-writes+3/test]
-    # [spec:pgorm:req:bindings.model-records+1/test]
+    # [spec:pgorm:req:bindings.model-records+2/test]
     async def test_crud_returns_declared_field_records(self):
         with patch(
             "subprocess.run",
@@ -431,7 +431,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         row["tags"].append("local mutation")
         self.assertEqual(row["tags"], ["a", None])
 
-    # [spec:pgorm:req:bindings.column-operators+3/test]
+    # [spec:pgorm:req:bindings.column-operators+4/test]
     async def test_value_operators_bind_the_declared_kind(self):
         for name, mood, tags in (("A", "calm", ["a", "b"]), ("B", "busy", ["b"]), ("C", "busy", None)):
             await self.model.insert(
@@ -615,7 +615,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
             1,
         )
 
-    # [spec:pgorm:req:bindings.model-records+1/test]
+    # [spec:pgorm:req:bindings.model-records+2/test]
     async def test_declared_types_validate_decoded_columns(self):
         await self.model.insert({}).execute(self.pool)
         for columns in (
@@ -665,7 +665,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(dict(row), {"a": 1, "b": "second"})
 
-    # [spec:pgorm:req:bindings.model-records+1/test]
+    # [spec:pgorm:req:bindings.model-records+2/test]
     async def test_declared_wire_kinds_keep_exact_tags(self):
         cases = [
             ("bool", "boolean", True),
@@ -731,7 +731,7 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
                 {"moods": p.Value.array(p.TypeName("Mood", schema="wrong"), labels)}
             )
 
-    # [spec:pgorm:req:bindings.model-records+1/test]
+    # [spec:pgorm:req:bindings.model-records+2/test]
     # [spec:pgorm:req:bindings.created-ranges+5/test]
     async def test_created_range_columns_keep_their_type(self):
         await self.pool.execute(
@@ -769,8 +769,8 @@ class ModelDatabase(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             shelves.insert({"id": 4, "spans": [p.Range(1, 2)]})
 
-    # [spec:pgorm:req:bindings.models+6/test]
-    # [spec:pgorm:req:bindings.model-records+1/test]
+    # [spec:pgorm:req:bindings.models+7/test]
+    # [spec:pgorm:req:bindings.model-records+2/test]
     # [spec:pgorm:req:bindings.created-ranges+5/test]
     async def test_created_multirange_columns_read_and_write(self):
         await self.pool.execute(

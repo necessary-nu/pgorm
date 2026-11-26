@@ -11,11 +11,11 @@ use pgorm_migration::prelude::*;
 
 /// A fresh database has nothing applied; `up` installs the tracking table and
 /// runs every pending migration in order.
-// [spec:pgorm:def:migration.runner+5/test]
+// [spec:pgorm:def:migration.runner+6/test]
 // [spec:pgorm:sem:migration.up+7/test]
 // [spec:pgorm:sem:migration.name+5/test]    asserted names are file stems
 // [spec:pgorm:req:migration.ledger-upgrade+2/test]    the fresh-install half: the legacy name is never created
-// [spec:pgorm:def:macros.derive+8/test]    `MigrationName` names each migration after the file stem
+// [spec:pgorm:def:macros.derive+9/test]    `MigrationName` names each migration after the file stem
 // [spec:pgorm:req:migration.read-only+1/test]    the accessors leave a fresh database fresh
 #[tokio::test]
 async fn fresh_install_applies_all_pending() -> Result<(), Error> {
@@ -102,7 +102,7 @@ async fn repeated_up_is_idempotent() -> Result<(), Error> {
 
 /// `steps` bounds how many pending migrations are applied, and `status` reports
 /// the split without altering it.
-// [spec:pgorm:def:migration.runner+5/test]
+// [spec:pgorm:def:migration.runner+6/test]
 // [spec:pgorm:sem:migration.up+7/test]
 #[tokio::test]
 async fn stepped_up_reports_status() -> Result<(), Error> {
@@ -148,7 +148,7 @@ async fn stepped_up_reports_status() -> Result<(), Error> {
 }
 
 /// `migration_table_name` is honoured everywhere, including by `install`.
-// [spec:pgorm:def:migration.runner+5/test]
+// [spec:pgorm:def:migration.runner+6/test]
 #[tokio::test]
 async fn migration_table_name_is_overridable() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_table_name").await;
@@ -170,7 +170,7 @@ async fn migration_table_name_is_overridable() -> Result<(), Error> {
 /// The whole `up` run shares one transaction, so a failing migration rolls back
 /// every migration in the run along with the ledger rows.
 // [spec:pgorm:sem:migration.up+7/test]
-// [spec:pgorm:req:migration.up-only/test]    no rollback path other than the transaction
+// [spec:pgorm:req:migration.up-only+1/test]    no rollback path other than the transaction
 // [spec:pgorm:req:migration.commit-after/test]    a batch with no migration asking to be committed is one transaction
 #[tokio::test]
 async fn failed_migration_rolls_back_the_run() -> Result<(), Error> {
@@ -272,7 +272,7 @@ async fn concurrent_runners_queue_on_the_advisory_lock() -> Result<(), Error> {
 
 /// A migration edited after it was applied reports a different checksum than
 /// the ledger recorded, and every entry point says so.
-// [spec:pgorm:req:migration.checksum+1/test]
+// [spec:pgorm:req:migration.checksum+2/test]
 #[tokio::test]
 async fn editing_an_applied_migration_is_detected() -> Result<(), Error> {
     use common::migrator::pinned::{Checksummed, Edited, REPEATED};
@@ -314,7 +314,7 @@ async fn editing_an_applied_migration_is_detected() -> Result<(), Error> {
 
 /// A checksum that either side is missing is unverifiable, not drift: a row
 /// recorded without one, and a migration that no longer reports one, both pass.
-// [spec:pgorm:req:migration.checksum+1/test]
+// [spec:pgorm:req:migration.checksum+2/test]
 #[tokio::test]
 async fn an_unverifiable_checksum_is_not_drift() -> Result<(), Error> {
     use common::migrator::pinned::{Checksummed, Unchecked};
@@ -346,7 +346,7 @@ async fn an_unverifiable_checksum_is_not_drift() -> Result<(), Error> {
 /// adopted rather than re-run: the ledger answers to the new name, keeps every
 /// row it had, and gains the checksum column on the way through.
 // [spec:pgorm:req:migration.ledger-upgrade+2/test]    the upgrade half
-// [spec:pgorm:req:migration.checksum+1/test]    an adopted ledger is widened by the same install
+// [spec:pgorm:req:migration.checksum+2/test]    an adopted ledger is widened by the same install
 #[tokio::test]
 async fn a_legacy_ledger_is_adopted_not_rerun() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_legacy_adopt").await;
@@ -560,7 +560,7 @@ async fn a_custom_ledger_name_is_not_adopted() -> Result<(), Error> {
 
 /// A ledger deployed before the checksum column existed is widened in place,
 /// keeping the rows it already had.
-// [spec:pgorm:req:migration.checksum+1/test]
+// [spec:pgorm:req:migration.checksum+2/test]
 #[tokio::test]
 async fn install_widens_a_pre_checksum_ledger() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_checksum_widen").await;
@@ -665,7 +665,7 @@ async fn reading_status_provisions_nothing() -> Result<(), Error> {
 /// three-valued check grandfathers the row exactly as it would once the column
 /// existed — the answer does not depend on whether the widening has happened.
 // [spec:pgorm:req:migration.read-only+1/test]    no ALTER on the way to an answer
-// [spec:pgorm:req:migration.checksum+1/test]    the read path's NULL stand-in
+// [spec:pgorm:req:migration.checksum+2/test]    the read path's NULL stand-in
 #[tokio::test]
 async fn a_read_never_widens_a_pre_checksum_ledger() -> Result<(), Error> {
     use common::migrator::pinned::{Checksummed, REPEATED};
@@ -708,7 +708,7 @@ async fn a_read_never_widens_a_pre_checksum_ledger() -> Result<(), Error> {
 /// prepared.
 // [spec:pgorm:sem:migration.up+7/test]    a committed batch that applied a migration clears the
 // pool's statement caches, and a run that applied nothing does not
-// [spec:pgorm:req:conn.pool.statement-cache.clear+1/test]    the runner clears after the DDL it applied
+// [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    the runner clears after the DDL it applied
 #[tokio::test]
 async fn up_clears_the_pools_prepared_statements() -> Result<(), Error> {
     use common::migrator::domain_default::{Created, Defaulted, INSERT, prepared_insert};
@@ -849,7 +849,7 @@ fn up_notifies_pools_listening_elsewhere() -> Result<(), Error> {
 /// A ledger given a schema starts from a database holding neither: reads leave
 /// it that way, `up` creates the schema and then the ledger inside it, and a
 /// second run reads that ledger back and applies nothing.
-// [spec:pgorm:def:migration.runner+5/test]    the schema is created, then the ledger in it
+// [spec:pgorm:def:migration.runner+6/test]    the schema is created, then the ledger in it
 // [spec:pgorm:req:migration.read-only+1/test]    a read creates neither the schema nor the table
 #[tokio::test]
 async fn a_ledger_schema_is_created_from_nothing() -> Result<(), Error> {
@@ -902,7 +902,7 @@ async fn a_ledger_schema_is_created_from_nothing() -> Result<(), Error> {
 /// The role owns the schema but holds no `CREATE` on the database, which
 /// `CREATE SCHEMA IF NOT EXISTS` demands even of a schema that exists, so the
 /// run succeeds only because the catalogue is read before it.
-// [spec:pgorm:def:migration.runner+5/test]    an existing schema is not created again
+// [spec:pgorm:def:migration.runner+6/test]    an existing schema is not created again
 #[tokio::test]
 async fn an_existing_ledger_schema_is_used_as_found() -> Result<(), Error> {
     use common::migrator::ledger_schema::{LEDGER_SCHEMA, Separate};
@@ -947,7 +947,7 @@ async fn an_existing_ledger_schema_is_used_as_found() -> Result<(), Error> {
 /// and widened there alone: a public `pgorm_migrations` that has the column
 /// cannot stand in for a ledger in the schema that lacks it, and a public
 /// `seaql_migrations` is neither read nor adopted.
-// [spec:pgorm:def:migration.runner+5/test]    every statement names the qualified table
+// [spec:pgorm:def:migration.runner+6/test]    every statement names the qualified table
 // [spec:pgorm:req:migration.read-only+1/test]    located and inspected in its own schema
 // [spec:pgorm:req:migration.ledger-upgrade+2/test]    a schema opts out of adoption
 #[tokio::test]
@@ -995,7 +995,7 @@ async fn a_public_table_of_that_name_is_ignored() -> Result<(), Error> {
 
 /// A `.sql` file is named after its file stem and reports the SHA-256 digest
 /// of its text, with no database involved.
-// [spec:pgorm:def:migration.sql-file+1/test]    the name is the file stem
+// [spec:pgorm:def:migration.sql-file+2/test]    the name is the file stem
 // [spec:pgorm:req:migration.sql-file.checksum/test]    a known digest
 #[test]
 fn a_sql_file_is_named_and_digested() {
@@ -1014,7 +1014,7 @@ fn a_sql_file_is_named_and_digested() {
 /// SQL-file migrations run through the migrator beside one written in Rust,
 /// each recorded under its file stem with its digest. Editing an applied file
 /// is then reported by `status` and by `up`, which applies nothing.
-// [spec:pgorm:def:migration.sql-file+1/test]    run by the migrator, in order, beside a Rust migration
+// [spec:pgorm:def:migration.sql-file+2/test]    run by the migrator, in order, beside a Rust migration
 // [spec:pgorm:req:migration.sql-file.checksum/test]    an edited file is caught by the checksum check
 #[tokio::test]
 async fn sql_file_migrations_run_and_detect_edits() -> Result<(), Error> {
@@ -1179,7 +1179,7 @@ async fn a_failure_after_a_commit_keeps_what_committed() -> Result<(), Error> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn runners_queued_behind_a_commit_apply_nothing_twice() -> Result<(), Error> {
     use common::migrator::commit_after::Moods;
-    use pgorm_migration::pgorm::TransactionTrait;
+    use pgorm_migration::pgorm::Transact;
     use std::time::{Duration, Instant};
 
     const WAITING: &str = "SELECT count(*) FROM pg_locks l JOIN pg_database d ON d.oid = l.database \
@@ -1600,8 +1600,7 @@ fn fixed_migrations_are_const_or_static_items() {
         assert_eq!(item.commits_after(), commits_after, "{}", item.name());
     }
 
-    let listed: Vec<Box<dyn MigrationTrait>> =
-        vec![Box::new(CREATE_NOTE), Box::new(ADD_VAN.clone())];
+    let listed: Vec<Box<dyn Migration>> = vec![Box::new(CREATE_NOTE), Box::new(ADD_VAN.clone())];
     let names: Vec<&str> = listed.iter().map(|migration| migration.name()).collect();
     assert_eq!(
         names,
@@ -1678,7 +1677,7 @@ impl MigrationName for Tolerant {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for Tolerant {
+impl Migration for Tolerant {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let refused = tx
             .transaction(async |savepoint| {
@@ -1696,8 +1695,8 @@ impl MigrationTrait for Tolerant {
 /// in Rust runs through the one runner: its ledger placed where it says, the
 /// files' checksums recorded and checked, a savepoint inside a migration, and
 /// a second run applying nothing.
-// [spec:pgorm:def:migration.runtime/test]
-// [spec:pgorm:def:migration.runner+5/test]    a migration's transaction is borrowed exclusively
+// [spec:pgorm:def:migration.runtime+1/test]
+// [spec:pgorm:def:migration.runner+6/test]    a migration's transaction is borrowed exclusively
 // [spec:pgorm:req:migration.sql-file.read/test]    files read at run time run and are checksummed
 #[tokio::test]
 async fn runtime_migrations_use_the_runner() -> Result<(), Error> {
@@ -1707,7 +1706,7 @@ async fn runtime_migrations_use_the_runner() -> Result<(), Error> {
     let db = &ctx.db;
     let manifest = env!("CARGO_MANIFEST_DIR");
     let built = |directory: &str| -> Result<Migrations, Error> {
-        let mut migrations: Vec<Box<dyn MigrationTrait>> = vec![Box::new(Tolerant)];
+        let mut migrations: Vec<Box<dyn Migration>> = vec![Box::new(Tolerant)];
         for migration in SqlMigration::read_dir(format!("{manifest}/{directory}"))
             .map_err(|error| Error::Custom(error.to_string()))?
         {
@@ -1772,7 +1771,7 @@ const AHEAD_A: &str = "m20261101_000001_table_a";
 const AHEAD_B: &str = "m20261101_000002_table_b";
 
 /// The migration `name`, creating the table its name ends with.
-fn ahead_migration(name: &'static str) -> Box<dyn MigrationTrait> {
+fn ahead_migration(name: &'static str) -> Box<dyn Migration> {
     let table = name.splitn(3, '_').nth(2).unwrap_or(name);
     Box::new(SqlMigration::new(
         name,
@@ -1801,8 +1800,8 @@ impl Older {
 }
 
 #[async_trait::async_trait]
-impl MigratorTrait for Older {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Older {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![ahead_migration(AHEAD_A)]
     }
 
@@ -1826,7 +1825,7 @@ impl MigratorTrait for Older {
 /// a newer build migrated: `up` applies nothing and succeeds, every read
 /// reports the migration it knows, and each call warns of the unknown one
 /// exactly once.
-// [spec:pgorm:req:migration.unknown-applied/test]
+// [spec:pgorm:req:migration.unknown-applied+1/test]
 #[tokio::test]
 async fn an_older_build_that_warns_goes_on() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_unknown_warn").await;
@@ -1875,15 +1874,15 @@ async fn an_older_build_that_warns_goes_on() -> Result<(), Error> {
 struct OlderRefusing;
 
 #[async_trait::async_trait]
-impl MigratorTrait for OlderRefusing {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for OlderRefusing {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![ahead_migration(AHEAD_A)]
     }
 }
 
 /// The same older build, refusing as a migrator does unless it says
 /// otherwise, fails every read naming the migration it does not know.
-// [spec:pgorm:req:migration.unknown-applied/test]
+// [spec:pgorm:req:migration.unknown-applied+1/test]
 // [spec:pgorm:sem:migration.up+7/test]    a ledger row with no migration fails the read
 #[tokio::test]
 async fn an_older_build_refuses_by_default() -> Result<(), Error> {
@@ -1935,7 +1934,7 @@ async fn an_older_build_refuses_by_default() -> Result<(), Error> {
 /// An older build that warns, but holds a migration the database has not
 /// applied, refuses to apply it after migrations it does not know, naming
 /// both, whatever `steps` bounds; its reads still go on.
-// [spec:pgorm:req:migration.unknown-applied/test]
+// [spec:pgorm:req:migration.unknown-applied+1/test]
 #[tokio::test]
 async fn pending_beside_unknown_is_refused_under_warn() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_unknown_pending").await;
@@ -1978,8 +1977,8 @@ async fn pending_beside_unknown_is_refused_under_warn() -> Result<(), Error> {
 /// Warning of unknown migrations does not tolerate an edited one this
 /// migrator knows: its changed checksum still fails every read, and the
 /// refusal is the checksum's alone.
-// [spec:pgorm:req:migration.unknown-applied/test]
-// [spec:pgorm:req:migration.checksum+1/test]    a changed checksum is refused under Warn too
+// [spec:pgorm:req:migration.unknown-applied+1/test]
+// [spec:pgorm:req:migration.checksum+2/test]    a changed checksum is refused under Warn too
 #[tokio::test]
 async fn a_changed_checksum_is_refused_under_warn() -> Result<(), Error> {
     let ctx = TestContext::new("pgorm_migration_unknown_checksum").await;
@@ -1990,7 +1989,7 @@ async fn a_changed_checksum_is_refused_under_warn() -> Result<(), Error> {
     let edited = Migrations::new([Box::new(SqlMigration::from_static(
         AHEAD_A,
         "CREATE TABLE table_a (id bigint)",
-    )) as Box<dyn MigrationTrait>])
+    )) as Box<dyn Migration>])
     .with_statement_cache_channel(None)
     .with_unknown_migrations(UnknownMigrations::Warn);
     let conn = db.get().await?;

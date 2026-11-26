@@ -334,13 +334,13 @@ assert_eq!(english, [ada]);
 A `Vec<T>` field is an array column of `T`'s type, for each scalar type above
 but the network types and `Vector`. `Vec<u8>` is not an array: it is
 `bytea`. An array compares as a whole with `eq`, and the
-array operators ask about its elements: [`includes`](crate::ColumnTrait::includes)
-is `@>` (holds every element of the value), [`contained_by`](crate::ColumnTrait::contained_by)
-is `<@`, and [`overlaps`](crate::ColumnTrait::overlaps) is `&&` (shares an
+array operators ask about its elements: [`includes`](crate::Column::includes)
+is `@>` (holds every element of the value), [`contained_by`](crate::Column::contained_by)
+is `<@`, and [`overlaps`](crate::Column::overlaps) is `&&` (shares an
 element). An array of an enum is an array of the enum's type.
 
 The other direction, a scalar column against a list of values, is
-[`eq_any`](crate::ColumnTrait::eq_any), which binds the whole list as one
+[`eq_any`](crate::Column::eq_any), which binds the whole list as one
 array parameter, so a statement has the same SQL however long the list is.
 Its items are what `eq` takes, string slices among them:
 
@@ -582,8 +582,8 @@ The standard library's ranges convert into it: `a..b` is `[a,b)`, `a..=b` is
 `[a,b]`, `a..` has no upper bound. A [`Multirange<T>`](crate::pgorm_query::Multirange)
 is a set of ranges, `datemultirange` for dates. The column operators of
 [Arrays](#arrays) work on ranges too (`includes`, `contained_by`,
-`overlaps`), beside [`strictly_left_of`](crate::ColumnTrait::strictly_left_of),
-[`adjacent_to`](crate::ColumnTrait::adjacent_to) and the rest:
+`overlaps`), beside [`strictly_left_of`](crate::Column::strictly_left_of),
+[`adjacent_to`](crate::Column::adjacent_to) and the rest:
 
 ```rust
 mod season {

@@ -2,7 +2,7 @@
 
 use pgorm_test_support::{creator, elapsed_secs, scoped_name, this_run};
 
-// [spec:pgorm:req:testing.isolation/test]    a name fits 63 bytes, keeps the
+// [spec:pgorm:req:testing.isolation+1/test]    a name fits 63 bytes, keeps the
 // test's label readable and records the process that minted it
 #[test]
 fn a_scoped_name_fits_and_records_its_run() {
@@ -26,7 +26,7 @@ fn a_scoped_name_fits_and_records_its_run() {
     );
 }
 
-// [spec:pgorm:req:testing.isolation/test]    ps's elapsed time is read in each of
+// [spec:pgorm:req:testing.isolation+1/test]    ps's elapsed time is read in each of
 // its forms, and anything else is not an answer
 #[test]
 fn elapsed_time_reads_each_ps_form() {

@@ -96,7 +96,7 @@ const names = (await pool.query(query)).map((row) => row.name);
 ```
 
 Each binding's `inspect()` returns the SQL and the parameters its builder
-holds, as Rust's [`build`](crate::QueryTrait::build) does.
+holds, as Rust's [`build`](crate::Statement::build) does.
 
 ## Installing
 

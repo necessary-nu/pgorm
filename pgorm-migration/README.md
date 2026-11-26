@@ -1,7 +1,7 @@
 # pgorm-migration
 
 A minimal, up-only migration runner for pgorm. Migrations are plain Rust —
-each one implements `MigrationTrait` with an `up` that receives a connection —
+each one implements `Migration` with an `up` that receives a connection —
 and applied migrations are recorded in a tracking table. There are no down
 migrations, no rollback, and no CLI: you write forward migrations and run
 them from your own binary.
@@ -23,7 +23,7 @@ that added it commits. The migration adding it answers `commits_after()`:
 
 ```rust,ignore
 #[async_trait::async_trait]
-impl MigrationTrait for Migration {
+impl pgorm_migration::Migration for Migration {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         tx.batch_execute("ALTER TYPE mood ADD VALUE 'meh'").await
     }
@@ -47,7 +47,7 @@ migration each, every step but the last answering `true`.
 A migration can also be a `.sql` file, listed beside the Rust ones:
 
 ```rust,ignore
-fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+fn migrations(&self) -> Vec<Box<dyn Migration>> {
     vec![
         Box::new(m20260101_000001_create_post::Migration),
         Box::new(sql_migration!("src/m20260101_000002_index_post_title.sql")),
@@ -82,8 +82,8 @@ reach it:
 
 ```rust,ignore
 #[async_trait::async_trait]
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(m20220101_000001_create_table::Migration)]
     }
 
@@ -123,8 +123,8 @@ answers `UnknownMigrations::Warn` goes on instead, logging a `tracing`
 warning naming each migration it does not know:
 
 ```rust,ignore
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![Box::new(m20220101_000001_create_table::Migration)]
     }
 

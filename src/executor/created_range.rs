@@ -16,12 +16,12 @@ use jiff::{
     Timestamp,
     civil::{Date, DateTime, Time},
 };
+use pgorm_driver::types::{FromSql, Kind, Oid, Type};
 use pgorm_pool::GenericClient;
 use pgorm_query::{
     ArrayType, ColumnType, Multirange, Range, RangeSubtype, StringLen, Value, base_type,
 };
 use rust_decimal::Decimal;
-use tokio_postgres::types::{FromSql, Kind, Oid, Type};
 
 use super::{
     exact_decimal::ExactDecimal,
@@ -45,7 +45,7 @@ type Read = fn(&str, bool) -> Option<Vec<Range<Value>>>;
 
 /// Whether `ty` is a range type a schema created: a range, and none of the
 /// six built in, each of which has a `RangeType` and so a `Value::Range`.
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+11]
 pub(crate) fn is_created_range(ty: &Type) -> bool {
     matches!(ty.kind(), Kind::Range(_))
         && !matches!(
@@ -63,7 +63,7 @@ pub(crate) fn is_created_range(ty: &Type) -> bool {
 /// subtype, as [`completed_multiranges`] makes it: a multirange, and none of
 /// the six built in, each of which has a `RangeType` and so a
 /// `Value::Multirange`.
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+11]
 pub(crate) fn is_created_multirange(ty: &Type) -> bool {
     matches!(ty.kind(), Kind::Multirange(_))
         && !matches!(
@@ -88,7 +88,7 @@ pub(crate) fn is_created_multirange(ty: &Type) -> bool {
 /// cursor bindings read and write such a range through it, and so do the
 /// language bindings, which hold its value as its text form and its bounds
 /// as `Value`s of the subtype's kind.
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+11]
 #[derive(Clone, Debug)]
 pub struct CreatedRangeCodec {
     subtype: ArrayType,
@@ -254,7 +254,7 @@ impl CreatedRangeCodec {
 /// A result or COPY field of a range or multirange type a schema created, as
 /// its text form, read through its [`CreatedRangeCodec`]: the `Value::String`
 /// a `CreatedRange` newtype converts into.
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+11]
 #[derive(Debug)]
 pub struct CreatedRangeText(pub String);
 
@@ -276,7 +276,7 @@ impl<'a> FromSql<'a> for CreatedRangeText {
 /// The range `text` spells in `ty`, a range type a schema created, each bound
 /// the `Value` of the subtype's Rust type; an error for text that spells no
 /// range of that subtype.
-// [spec:pgorm:req:exec.cursor.binding-range+3]
+// [spec:pgorm:req:exec.cursor.binding-range+4]
 pub(crate) fn created_range_bounds(ty: &Type, text: &str) -> Result<Range<Value>, WireError> {
     CreatedRangeCodec::of(ty)?
         .ranges(text)
@@ -287,7 +287,7 @@ pub(crate) fn created_range_bounds(ty: &Type, text: &str) -> Result<Range<Value>
 /// The multirange `text` spells in `ty`, a multirange type a schema created,
 /// each bound the `Value` of the subtype's Rust type; an error for text that
 /// spells no multirange of that subtype.
-// [spec:pgorm:req:exec.cursor.binding-range+3]
+// [spec:pgorm:req:exec.cursor.binding-range+4]
 pub(crate) fn created_multirange_ranges(
     ty: &Type,
     text: &str,
@@ -383,7 +383,7 @@ type Completing<'a> = Pin<Box<dyn Future<Output = Result<Option<Type>, Error>> +
 /// subtype, a domain included. A domain's base and an array's member are
 /// completed as the type itself is; a type `postgres-types` knows, or one
 /// `pg_range` holds no multirange for, is as the driver described it.
-// [spec:pgorm:req:conn.copy.rows+5]
+// [spec:pgorm:req:conn.copy.rows+7]
 pub(crate) fn completed_multiranges<'a, C>(client: &'a C, ty: &'a Type) -> Completing<'a>
 where
     C: GenericClient,
@@ -415,7 +415,7 @@ where
 /// preparing a statement whose parameter is declared with it: the driver
 /// describes a statement's parameters through its own type lookup, so the
 /// subtype comes back as every other type the driver reports does.
-// [spec:pgorm:req:conn.copy.rows+5]
+// [spec:pgorm:req:conn.copy.rows+7]
 async fn multirange_subtype<C: GenericClient>(client: &C, oid: Oid) -> Result<Option<Type>, Error> {
     let row = client
         .query_opt(
@@ -453,7 +453,7 @@ mod tests {
         Ok(raw.to_vec())
     }
 
-    // [spec:pgorm:def:sql.value.created-range+9/test]    one codec, named by the subtype's
+    // [spec:pgorm:def:sql.value.created-range+11/test]    one codec, named by the subtype's
     // value kind, writes and reads the text form from `Value` bounds and reads the binary form,
     // a numeric bound exactly or not at all
     #[test]
@@ -489,7 +489,7 @@ mod tests {
         Ok(())
     }
 
-    // [spec:pgorm:def:sql.value.created-range+9/test]    one mapping between a created range
+    // [spec:pgorm:def:sql.value.created-range+11/test]    one mapping between a created range
     // column's subtype column type and its value kind: a `char(n)` subtype holds text, as the
     // `bpchar` PostgreSQL keeps it as
     #[test]

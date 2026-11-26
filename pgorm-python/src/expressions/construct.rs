@@ -6,7 +6,7 @@ use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 use super::{PyExpr, compiled::Compiled};
 use crate::{errors::ConstructionError, identifiers::Identifier, values::PyValue};
 
-// [spec:pgorm:req:bindings.delegation]
+// [spec:pgorm:req:bindings.delegation+1]
 // [spec:pgorm:req:bindings.identifiers+3]
 #[pyfunction]
 #[pyo3(signature = (name, *, table=None, schema=None))]

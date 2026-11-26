@@ -16,13 +16,13 @@ if TYPE_CHECKING:
     from ..transactions import Transaction
 
 
-# [spec:pgorm:req:bindings.migrations]
+# [spec:pgorm:req:bindings.migrations+1]
 @runtime_checkable
-class MigrationTrait(Protocol):
+class Migration(Protocol):
     """A migration written in Python: a ``name``, the migration's identity in
     the ledger, and an ``up`` the runner awaits in the batch's transaction.
     An optional ``checksum`` (a ``str`` or ``None``) is recorded and checked
-    as Rust's ``MigrationTrait::checksum`` is, and an optional
+    as Rust's ``pgorm_migration::Migration::checksum`` is, and an optional
     ``commits_after`` (``False`` unless given) commits the batch once the
     migration has run. All three are read once, as ``Migrations`` is built."""
 
@@ -53,15 +53,15 @@ class MigrationStatus(enum.Enum):
         raise ConstructionError("a migration status cannot be tested as a Python boolean")
 
 
-class Migration(NamedTuple):
-    """A migration's name and its status, as pgorm-migration's ``Migration``
+class MigrationWithStatus(NamedTuple):
+    """A migration's name and its status, as pgorm-migration's ``MigrationWithStatus``
     reports them."""
 
     name: str
     status: MigrationStatus
 
 
-async def _run_up(migration: MigrationTrait, native: _native._Transaction) -> None:
+async def _run_up(migration: Migration, native: _native._Transaction) -> None:
     """What the runner awaits for a Python migration: its ``up``, given the
     transaction the runner lends it."""
     from ..transactions import Transaction
@@ -69,7 +69,7 @@ async def _run_up(migration: MigrationTrait, native: _native._Transaction) -> No
     await migration.up(Transaction(native, None))
 
 
-# [spec:pgorm:req:bindings.migrations]
+# [spec:pgorm:req:bindings.migrations+1]
 class Migrations:
     """A migrator built at run time, pgorm-migration's ``Migrations``: the
     migrations it applies, in order, each a ``SqlMigration`` or a migration
@@ -87,7 +87,7 @@ class Migrations:
 
     def __init__(
         self,
-        migrations: Sequence[SqlMigration | MigrationTrait],
+        migrations: Sequence[SqlMigration | Migration],
         *,
         migration_table_name: str | None = None,
         migration_table_schema: str | None = None,
@@ -118,16 +118,16 @@ class Migrations:
         await self._native.install(executor)
 
     # [spec:pgorm:req:bindings.migrations.unknown-applied]    a read's warnings, which its caller logs
-    async def _read(self, executor: Pool | Connection | Transaction) -> tuple[list[Migration], list[str]]:
+    async def _read(self, executor: Pool | Connection | Transaction) -> tuple[list[MigrationWithStatus], list[str]]:
         """Every migration with its status, and the warnings the read gave."""
         found, warnings = await self._native.status(executor)
         migrations = [
-            Migration(name, MigrationStatus.Applied if applied else MigrationStatus.Pending)
+            MigrationWithStatus(name, MigrationStatus.Applied if applied else MigrationStatus.Pending)
             for name, applied in found
         ]
         return migrations, warnings
 
-    async def get_migration_with_status(self, executor: Pool | Connection | Transaction) -> list[Migration]:
+    async def get_migration_with_status(self, executor: Pool | Connection | Transaction) -> list[MigrationWithStatus]:
         """Every migration with its status, read from the ledger and nothing
         else: a database never migrated reports every migration pending, and
         gains no ledger. An edited migration whose checksum no longer matches
@@ -138,7 +138,7 @@ class Migrations:
             logging.getLogger(_LOGGER).warning("%s", warning)
         return migrations
 
-    async def get_pending_migrations(self, executor: Pool | Connection | Transaction) -> list[Migration]:
+    async def get_pending_migrations(self, executor: Pool | Connection | Transaction) -> list[MigrationWithStatus]:
         """The migrations the ledger does not record, in order."""
         return [
             migration
@@ -146,7 +146,7 @@ class Migrations:
             if migration.status is MigrationStatus.Pending
         ]
 
-    async def get_applied_migrations(self, executor: Pool | Connection | Transaction) -> list[Migration]:
+    async def get_applied_migrations(self, executor: Pool | Connection | Transaction) -> list[MigrationWithStatus]:
         """The migrations the ledger records, in order."""
         return [
             migration
@@ -176,4 +176,4 @@ class Migrations:
         return f"Migrations({self._native!r})"
 
 
-__all__ = ["Migration", "MigrationStatus", "MigrationTrait", "Migrations", "SqlMigration"]
+__all__ = ["MigrationWithStatus", "MigrationStatus", "Migration", "Migrations", "SqlMigration"]

@@ -34,7 +34,7 @@ OPERATIONS = {
         "value",
         {},
         {"step": "id", "row": "nonnegative", "column": "identifier", "type": "type"},
-        "tokio_postgres::Row::try_get",
+        "pgorm_driver::Row::try_get",
         "sequences",
     ),
     "table": op(
@@ -303,25 +303,23 @@ OPERATIONS = {
         "pgorm_query::ReturningClause",
         "models",
     ),
-    "entity": op(
-        "entity", {}, {"name": "registration"}, "pgorm::EntityTrait", "entities"
-    ),
+    "entity": op("entity", {}, {"name": "registration"}, "pgorm::Entity", "entities"),
     "entity.column": op(
         "expr",
         {"entity": "entity"},
         {"name": "identifier"},
-        "pgorm::ColumnTrait::into_expr",
+        "pgorm::Column::into_expr",
         "entities",
     ),
     "entity.predicate": op(
         "expr",
         {"entity": "entity", "value": "value"},
         {"column": "identifier", "operator": COMPARISONS},
-        "pgorm::ColumnTrait",
+        "pgorm::Column",
         "entities",
     ),
     "entity.find": op(
-        "entity_query", {"entity": "entity"}, {}, "pgorm::EntityTrait::find", "entities"
+        "entity_query", {"entity": "entity"}, {}, "pgorm::Entity::find", "entities"
     ),
     "entity.filter": op(
         "entity_query",
@@ -355,7 +353,7 @@ OPERATIONS = {
         "entity_model",
         {},
         {"step": "id", "row": "nonnegative", "source": "nonnegative?"},
-        "pgorm::ModelTrait",
+        "pgorm::Model",
         "entities",
     ),
     "entity.into_active": op(
@@ -369,7 +367,7 @@ OPERATIONS = {
         "active",
         {"model": "active", "value": "value?"},
         {"column": "identifier", "state": ("set", "reset", "not_set")},
-        "pgorm::ActiveValue;pgorm::ActiveModelTrait",
+        "pgorm::ActiveValue;pgorm::ActiveModel",
         "entities",
     ),
     "graph": op("graph", {}, {"name": "registration"}, "pgorm::SelectGraph", "graph"),
@@ -377,7 +375,7 @@ OPERATIONS = {
         "graph_query",
         {"graph": "graph"},
         {"aliases": "identifiers"},
-        "pgorm::EntityTrait::graph;pgorm::SelectGraph::join_maybe_as;pgorm::SelectGraph::join_one_as",
+        "pgorm::Entity::graph;pgorm::SelectGraph::join_maybe_as;pgorm::SelectGraph::join_one_as",
         "graph",
     ),
     "graph.column": op(
@@ -650,21 +648,21 @@ EFFECTS = {
         "rows",
         {"query": QUERY},
         {"mode": ("all", "one", "optional"), "ordered": "bool"},
-        "pgorm::ConnectionTrait::query_raw;pgorm::Selector;pgorm::SelectGraph;pgorm::pipeline::Pipeline",
+        "pgorm::Connection::query_raw;pgorm::Selector;pgorm::SelectGraph;pgorm::pipeline::Pipeline",
         "execution",
     ),
     "execute": op(
         "count",
         {"query": "insert|update|delete|raw|ddl|model_write"},
         {},
-        "pgorm::ConnectionTrait::execute_raw",
+        "pgorm::Connection::execute_raw",
         "execution",
     ),
     "active.write": op(
         "model",
         {"model": "active"},
         {"method": ("insert", "update", "delete")},
-        "pgorm::ActiveModelTrait",
+        "pgorm::ActiveModel",
         "entities",
     ),
     # The write terminals that read a written row's two versions: each row is
@@ -707,13 +705,13 @@ EFFECTS = {
         "pgorm::DatabaseConnection::transaction_with",
         "sequences",
     ),
-    "commit": op("unit", {}, {}, "pgorm::TransactionTrait::transaction", "sequences"),
-    "rollback": op("unit", {}, {}, "pgorm::TransactionTrait::transaction", "sequences"),
+    "commit": op("unit", {}, {}, "pgorm::Transact::transaction", "sequences"),
+    "rollback": op("unit", {}, {}, "pgorm::Transact::transaction", "sequences"),
     "stream": op(
         "rows",
         {"query": "select|raw|pipeline"},
         {"take": "nonnegative", "cancel": "bool", "ordered": "bool"},
-        "pgorm::ConnectionTrait::query_raw;tokio_postgres::RowStream",
+        "pgorm::Connection::query_raw;pgorm_driver::RowStream",
         "sequences",
     ),
     "inspect": op(

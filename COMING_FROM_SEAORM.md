@@ -30,6 +30,7 @@ compiled.
 - [Entities and their attributes](#entities-and-their-attributes)
 - [What the derives write](#what-the-derives-write)
 - [Derive names](#derive-names)
+- [Trait names](#trait-names)
 - [Attribute values that are Rust](#attribute-values-that-are-rust)
 - [Active models](#active-models)
 - [Insert, update and delete](#insert-update-and-delete)
@@ -54,7 +55,7 @@ compiled.
 | `DeriveEntityModel`, `DeriveRelation`, `DeriveActiveEnum`, ... | the same without `Derive`: see [Derive names](#derive-names) |
 | `DerivePrimaryKey`, `DeriveActiveModel`, `DeriveCustomColumn` | gone: `#[derive(Entity)]` writes the key and the active model |
 | `column_type = "Text"`, `belongs_to = "super::cake::Entity"`, ... | Rust written bare: see [Attribute values that are Rust](#attribute-values-that-are-rust) |
-| a hand-written `ColumnTrait::select_as` / `save_as` | `select_with = f`; `save_with = f, save_array_with = g` |
+| a hand-written `Column::select_as` / `save_as` | `select_with = f`; `save_with = f, save_array_with = g` |
 | `sea_query` | `pgorm::pgorm_query` |
 | `Database::connect(url)` | `pgorm::connect(config)` |
 | `ConnectOptions` | `connect_with_builder`, `connect_with` |
@@ -64,7 +65,7 @@ compiled.
 | `DbErr` | `Error` |
 | `SqlErr`, `err.sql_err()` | `SqlError`, `err.sql_error()` |
 | `DbBackend`, `DatabaseBackend` | gone: PostgreSQL only |
-| `Statement`, `StatementBuilder` | SQL text plus its parameters |
+| `Statement`, `StatementBuilder` | SQL text plus its parameters; pgorm's `Statement` is SeaORM's `QueryTrait` |
 | `Statement::from_sql_and_values(..)` | `(sql, values)` |
 | `execute_unprepared` | `batch_execute` |
 | `db.stream(stmt)` | `query_raw` |
@@ -129,14 +130,14 @@ and `pgorm-query`, the fork of sea-query, which pgorm re-exports as
 and crates.io does not accept git dependencies, so pgorm is not published
 there; depend on it by git or path.
 
-SeaORM's driver and runtime features are gone. pgorm runs on tokio-postgres
+SeaORM's driver and runtime features are gone. pgorm runs on pgorm-driver
 with a deadpool pool, always on tokio, so there is no `sqlx-postgres`, no
 `runtime-tokio-rustls` and no `mock`. TLS is a connector you pass in (see
 [Connecting](#connecting)), not a feature.
 
 | SeaORM feature | pgorm |
 | --- | --- |
-| `sqlx-postgres`, `sqlx-mysql`, `sqlx-sqlite` | gone: PostgreSQL through tokio-postgres |
+| `sqlx-postgres`, `sqlx-mysql`, `sqlx-sqlite` | gone: PostgreSQL through pgorm-driver |
 | `runtime-tokio-rustls` and the other `runtime-*` features | gone: pgorm always runs on tokio |
 | `with-chrono`, `with-time` | `with-jiff` (on by default) |
 | `with-bigdecimal` | gone: `rust_decimal::Decimal` is always available |
@@ -155,7 +156,7 @@ SeaORM connects with a URL and checks the connection:
 let db: DatabaseConnection = Database::connect("postgres://...").await?;
 ```
 
-pgorm takes a `tokio_postgres::Config` (re-exported as `pgorm::Config`) and
+pgorm takes a `pgorm_driver::Config` (re-exported as `pgorm::Config`) and
 builds a pool. Building a pool connects to nothing: a wrong host or password
 shows up at the first `pool.get()`. If you want to fail at startup, get one
 connection there and drop it.
@@ -189,7 +190,7 @@ fn start() -> Result<pgorm::DatabasePool, Box<dyn std::error::Error>> {
 | `max_connections(n)` | `builder.max_size(n)` |
 | `connect_timeout`, `acquire_timeout`, `idle_timeout` | deadpool's `create_timeout`, `wait_timeout`, `recycle_timeout`, which also need `builder.runtime(..)` |
 | `set_schema_search_path("s")` | `config.options("-c search_path=s")` on the `Config` |
-| TLS through an sqlx feature | `connect_with(config, tls, manager, build)` with any tokio-postgres connector, such as `tokio-postgres-rustls` |
+| TLS through an sqlx feature | `connect_with(config, tls, manager, build)` with a pgorm-driver connector, such as `pgorm-driver-rustls` |
 | `sqlx_logging(true)` | `metric::LoggingMetrics`, or `log_statement` in PostgreSQL |
 | `db.ping()` | `pool.get().await?`, which opens or reuses a connection |
 | `db.close()` | `pool.close()` |
@@ -219,7 +220,7 @@ async fn list_cakes(pool: &DatabasePool) -> Result<Vec<cake::Model>, Error> {
 }
 ```
 
-`DatabasePool` deliberately does not implement `ConnectionTrait`, so
+`DatabasePool` deliberately does not implement `Connection`, so
 `Entity::find().all(&pool)` does not compile. Running each statement on
 whatever connection the pool hands out hides how many connections a request
 uses, and it breaks any reasoning about which statements ran together. Two
@@ -241,10 +242,12 @@ async fn both(pool: &DatabasePool) -> Result<(), Error> {
 
 ## Running SQL by hand
 
-SeaORM wraps SQL in a `Statement` built for a backend. pgorm has no
-`Statement`, `StatementBuilder` or `DbBackend`: SQL is text (`&str` or
+SeaORM wraps SQL in a `Statement` built for a backend. pgorm has no such
+type, nor `StatementBuilder` or `DbBackend`: SQL is text (`&str` or
 `String`), and its parameters travel beside it, so the statement is prepared
-once per connection and the values are never pasted into the text.
+once per connection and the values are never pasted into the text. pgorm's
+`Statement` is the trait SeaORM calls `QueryTrait`, the query builders'
+`build` and `as_query`.
 
 ```text
 // SeaORM
@@ -265,9 +268,9 @@ async fn rename(db: &DatabaseConnection) -> Result<u64, Error> {
 }
 ```
 
-The methods of `ConnectionTrait` follow tokio-postgres: `execute` returns
+The methods of `Connection` follow pgorm-driver: `execute` returns
 the row count; `query_one` expects exactly one row, `query_opt` at most one,
-`query_all` any number, each as a `pgorm::Row`, tokio-postgres's row
+`query_all` any number, each as a `pgorm::Row`, pgorm-driver's row
 re-exported; `query_raw` streams the rows, where SeaORM had `stream`. `execute_unprepared` is `batch_execute`,
 which runs a whole script of `;`-separated statements and takes no
 parameters. There is no `get_database_backend` and no `support_returning`:
@@ -289,7 +292,7 @@ async fn by_name(db: &DatabaseConnection) -> Result<Vec<cake::Model>, Error> {
 
 `cake::Entity::find().from_raw_sql(sql, values)`,
 `Model::find_by_statement(sql, values)` and the `SelectorRaw` constructors
-likewise take the SQL text, a `&str` or `&String` as `ConnectionTrait`'s
+likewise take the SQL text, a `&str` or `&String` as `Connection`'s
 methods take it, and its `Values`, where SeaORM took a `Statement`. A statement built with pgorm-query
 gives the pair from `build()`; to execute one directly, wrap each value in
 `ValueHolder`:
@@ -409,7 +412,7 @@ expanded entity said in a trait method, an attribute says:
   `|left, right| ..`, as well as an expression that ignores them.
 - An entity whose table or schema name is computed at run time keeps a
   hand-written part: its own `Entity` struct holding what the name is computed
-  from, an `EntityName` impl, and the `EntityTrait` derive on the struct,
+  from, an `EntityName` impl, and the `Entity` derive on the struct,
   beside an `Entity` derive given no `table_name`. `find()` and the other
   static constructors read `Entity::default()`'s names; the `_in` forms,
   `find_in(entity)`, `Insert::one_in(entity, model)` and the rest, read the
@@ -420,7 +423,7 @@ expanded entity said in a trait method, an attribute says:
 use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::SimpleExpr;
 
-#[derive(Copy, Clone, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, Entity)]
 pub struct Entity {
     pub tenant: &'static str,
 }
@@ -620,7 +623,7 @@ gave derives SeaORM does not have.
 | Old name | pgorm |
 | --- | --- |
 | `DeriveEntityModel` | `Entity` |
-| `DeriveEntity` | `EntityTrait`, on a hand-written `Entity` whose names are computed |
+| `DeriveEntity`, and pgorm's `EntityTrait` | `Entity`, on a hand-written `Entity` whose names are computed |
 | `DeriveModel` | `Model` |
 | `DeriveColumn` | `Column` |
 | `DeriveRelation` | `Relation` |
@@ -671,6 +674,58 @@ assert_eq!(Tea::BreakfastTea.to_string(), "BreakfastTea");
 assert_eq!(Post::Table.to_string(), "post");
 assert_eq!(Post::Title.to_string(), "headline");
 ```
+
+## Trait names
+
+The traits have no `Trait` suffix. Most take the name of the item an entity
+module defines that implements them, the way `std::error::Error` is
+implemented for a crate's own `Error`; the rest take a name pgorm and std
+leave free.
+
+| SeaORM, or an earlier pgorm | pgorm |
+| --- | --- |
+| `EntityTrait` | `Entity` |
+| `ModelTrait` | `Model` |
+| `ColumnTrait` | `Column` |
+| `ActiveModelTrait` | `ActiveModel` |
+| `RelationTrait` | `Relation` |
+| `PrimaryKeyTrait` | `PrimaryKey` |
+| `PartialModelTrait` | `PartialModel`, the name of its derive |
+| `ConnectionTrait` | `Connection` |
+| `TransactionTrait` | `Transact` |
+| `StreamTrait` | gone: `Connection::query_raw` returns the stream |
+| `CopyTrait` (pgorm's) | `CopyConnection` |
+| `QueryTrait` | `Statement` |
+| `PaginatorTrait` | `Paginate` |
+| `CursorTrait` | `CursorSource` |
+| `SelectorTrait` | `DecodeRow` |
+| `LoaderTrait` | `LoadRelated` |
+| `ColumnTypeTrait` | `ColumnTypeExt`, extending `ColumnType` |
+| `ExprTrait` (sea-query's) | `Expression` |
+| `MigrationTrait` | `Migration`, from `pgorm_migration` |
+| `MigratorTrait` | `Migrator`, from `pgorm_migration` |
+| `Migration`, the runner's record of a migration and its status | `MigrationWithStatus` |
+
+In a module whose own item has a trait's name, the item wins: in an entity
+module `Entity` is the entity, and the trait is named by path. The prelude
+brings each trait a second time, unnamed, so its methods stay in scope there:
+
+```rust
+# mod cake { pub use pgorm::tests_cfg::cake::*; }
+use pgorm::entity::prelude::*;
+
+fn table_of<E: pgorm::Entity>(entity: E) -> String {
+    entity.table_name().to_owned()
+}
+
+assert_eq!(table_of(cake::Entity), "cake");
+```
+
+A derive is imported with the trait of its name, so an entity module takes
+`Entity`, `Model`, `Column` and `Relation` from the prelude's glob rather than
+by name: `use pgorm::Relation;` beside the module's own `enum Relation` names
+`Relation` twice. A migration is written the same way, `impl
+pgorm_migration::Migration for Migration`.
 
 ## Attribute values that are Rust
 
@@ -1163,7 +1218,7 @@ SeaORM's `r0`, `r1` aliases.
 - `cursor_by_other` is `cursor_by_on::<1, _>(column)`, where `1` is the slot's
   position (the root is `0`). The cursor adds every slot's primary key as a
   tiebreak, so rows that share an order value still page correctly.
-- `ModelTrait::find_related` and `find_linked`, which read one model's
+- `Model::find_related` and `find_linked`, which read one model's
   related rows, are unchanged.
 
 `limit` and `offset` on a graph count rows of the join, as they did on
@@ -1203,7 +1258,7 @@ limit; they count rows in the same way.
 
 ## Loading related rows in batches
 
-`LoaderTrait` keeps `load_one` and `load_many`.
+`LoadRelated` keeps `load_one` and `load_many`.
 `load_many_to_many(F, Via, db)` is `load_many_via(F, db)`: the junction is
 the one `Related<F>` already names, so it is not passed in.
 
@@ -1231,14 +1286,14 @@ silently turned into `None`.
 
 pgorm-query is a fork of sea-query with everything that is not PostgreSQL
 removed. It is re-exported as `pgorm::pgorm_query`, and the prelude brings
-in `Expr`, `ExprTrait`, `Func`, `Name` and `alias`.
+in `Expr`, `Expression`, `Func`, `Name` and `alias`.
 
 The operators (`eq`, `gt`, `like`, `is_in`, `cast_as`, `count`, ...) are the
-methods of one trait, `ExprTrait`, which every expression implements: `Expr`,
+methods of one trait, `Expression`, which every expression implements: `Expr`,
 `SimpleExpr`, a function call, a `CASE`. So `Func::lower(..).eq(..)` and
 `Column::Id.count().gt(2)` compile as written, where SeaORM needed
 `Expr::expr(..)` around the call. A module that imports names one by one
-names `ExprTrait` beside `Expr`; without it the compiler's help names the
+names `Expression` beside `Expr`; without it the compiler's help names the
 trait.
 
 | sea-query | pgorm-query |
@@ -1295,8 +1350,8 @@ only.
 | `async fn down(..)` | gone |
 | `manager.create_table(stmt)` | `tx.batch_execute(&stmt.to_string())` |
 | `manager.has_table(..)`, `has_column(..)` | query `information_schema` yourself |
-| `Migrator::up(&db, None)` | `Migrator.up(pool, None)` with the `DatabasePool`: `MigratorTrait`'s methods take `&self` |
-| a `MigratorTrait` type per list | also `Migrations::new(list)`, a migrator built at run time |
+| `Migrator::up(&db, None)` | `Migrator.up(pool, None)` with the `DatabasePool`: `Migrator`'s methods take `&self` |
+| a `Migrator` type per list | also `Migrations::new(list)`, a migrator built at run time |
 | `Migrator::down`, `fresh`, `refresh`, `reset` | gone |
 | `cli::run_cli(Migrator)` | a small `main` of your own; the template has one |
 | `seaql_migrations` table | `pgorm_migrations`, adopted automatically |
@@ -1314,7 +1369,7 @@ use pgorm_migration::prelude::*;
 pub struct Migration;
 
 #[async_trait::async_trait]
-impl MigrationTrait for Migration {
+impl pgorm_migration::Migration for Migration {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let table = Table::create(Post::Table)
             .if_not_exists()
@@ -1336,8 +1391,8 @@ enum Post {
 pub struct Migrator;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn pgorm_migration::Migration>> {
         vec![Box::new(Migration)]
     }
 }
@@ -1461,7 +1516,7 @@ Things with no SeaORM counterpart, worth knowing once the port compiles:
   and `exec_returning_upsert(s)` for `ON CONFLICT DO UPDATE`.
 - `pgorm::pipeline`, a composable query builder in the style of PRQL, and the
   `prql!` and `sql!` macros, both checked at compile time.
-- `COPY` in and out, as bytes or as rows of values (`CopyTrait`).
+- `COPY` in and out, as bytes or as rows of values (`CopyConnection`).
 - `LISTEN` and `NOTIFY` (`DatabasePool::listener`, `notify`).
 - `MERGE`, domains, schemas, ranges and multiranges, and PostgreSQL 18's
   virtual generated columns and temporal keys.

@@ -23,7 +23,7 @@ def baseline_report(spec):
             {
                 "id": "s0",
                 "status": "observed",
-                "native_paths": ["pgorm::ConnectionTrait::query_raw"],
+                "native_paths": ["pgorm::Connection::query_raw"],
                 "observation": {"kind": "rows", "rows": rows},
             }
         ],

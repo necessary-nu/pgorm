@@ -25,6 +25,15 @@ pub(crate) enum Param {
     Value(ValueHolder),
 }
 
+impl Param {
+    pub(crate) fn native_value(&self) -> Option<&Value> {
+        match self {
+            Self::Null => None,
+            Self::Value(holder) => Some(&holder.0),
+        }
+    }
+}
+
 /// `params`, a JavaScript array, as parameters: each a `Value`, or a plain
 /// value whose kind is inferred.
 // [spec:pgorm:req:napi.inference]

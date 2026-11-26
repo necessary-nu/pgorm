@@ -3,8 +3,8 @@
 
 use pgorm::QueryResult;
 use pgorm_bindings::entity::{DisjointCore, RowCodec};
+use pgorm_driver::Row;
 use pyo3::{prelude::*, types::PyTuple};
-use tokio_postgres::Row;
 
 use crate::{entities::PyEntityModel, errors::Raise, results::PyRecord, values::Tag};
 

@@ -20,8 +20,8 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, Deferrability, Index, Name, OnConflict, Query, Table, TableKey, Unique,
 };
-use pgorm::{ConnectionTrait, TransactionTrait, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm::{Connection, Transact, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {
@@ -79,7 +79,7 @@ async fn slots(
 }
 
 /// Moves slot 2 onto position 1, which duplicates it until slot 1 moves off.
-async fn collide<C: ConnectionTrait>(db: &C, table: &str) -> Result<u64, Error> {
+async fn collide<C: Connection>(db: &C, table: &str) -> Result<u64, Error> {
     db.execute(
         &format!("UPDATE {table} SET position = 1 WHERE id = 2"),
         &[],
@@ -95,7 +95,7 @@ async fn collide<C: ConnectionTrait>(db: &C, table: &str) -> Result<u64, Error> 
 // [spec:pgorm:req:sql.ddl.deferrability+4/test]    against a live server: an initially
 // deferred unique key is checked at COMMIT
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn a_deferred_unique_key_admits_a_transient_duplicate(
     db: &mut DatabaseConnection,
 ) -> Result<(), Error> {
@@ -187,7 +187,7 @@ async fn set_constraints_immediate_fires_the_check_early(
 /// transaction, and a duplicate id left at `COMMIT` is refused.
 // [spec:pgorm:req:sql.ddl.deferrability+4/test]    against a live server: a deferred primary key
 // behaves as a deferred unique key does
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn a_deferred_primary_key_is_checked_at_commit(
     db: &mut DatabaseConnection,
 ) -> Result<(), Error> {

@@ -65,7 +65,7 @@ pub struct PyQuantified {
     inner: Result<SimpleExpr, String>,
     /// The list of values the quantifier ranges over, when its source is one
     /// holding no expression: a registered column compares
-    /// with them through its `ColumnTrait`, each converted to its declared
+    /// with them through its `Column`, each converted to its declared
     /// kind, rather than with the array `inner` bound as inferred.
     pub(crate) listed: Option<Listed>,
 }

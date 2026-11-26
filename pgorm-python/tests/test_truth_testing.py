@@ -28,7 +28,7 @@ EXEMPT = {
     p.Record, p.Field, p.EntityModel, p.ActiveModel, p.ActiveValue, p.ActiveState,
     p.Change, p.Upserted, p.TryInsertResult, ModelRecord, PoolStatus, views.ModelView, views.ActiveView,
     # A migration's name and status, as a migrator read them from its ledger.
-    s.Migration,
+    s.MigrationWithStatus,
     # Pools, connections, transactions and the private native handles under
     # them and under the streams: live resources, not SQL, and true as any
     # open resource is. The streams themselves refuse, since a stream's truth
@@ -49,7 +49,7 @@ EXEMPT = {
     p.MetricsCollector, p.NoOpMetrics, p.LoggingMetrics, p.QueryContext, p.QueryFingerprint,
     # The protocol a migration a program writes satisfies, as a collector
     # satisfies MetricsCollector, handed to a migrator.
-    s.MigrationTrait,
+    s.Migration,
     # Registrations and declarations, and the native casts a declared column
     # holds: they name what a query reads and are true as any declared object
     # is; the queries they start refuse.

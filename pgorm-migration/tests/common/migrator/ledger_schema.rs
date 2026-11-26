@@ -9,8 +9,8 @@ pub const LEDGER_SCHEMA: &str = "Ledger";
 pub struct Separate;
 
 #[async_trait::async_trait]
-impl MigratorTrait for Separate {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl Migrator for Separate {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         default::Migrator.migrations()
     }
 

@@ -40,7 +40,7 @@
 ///     .join(" ")
 /// );
 /// ```
-// [spec:pgorm:req:sql.ast.expr.similar-to+3]
+// [spec:pgorm:req:sql.ast.expr.similar-to+4]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LikeExpr {
     pattern: Pattern,
@@ -151,7 +151,7 @@ impl LikeExpr {
     ///     r#"SELECT "image" FROM "glyph" WHERE "image" LIKE E'a\\b' ESCAPE ''"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.similar-to+3]
+    // [spec:pgorm:req:sql.ast.expr.similar-to+4]
     pub fn no_escape(self) -> Self {
         Self {
             pattern: self.pattern,
@@ -161,7 +161,7 @@ impl LikeExpr {
 
     /// The pattern as it is bound: written text as it stands, literal text
     /// with each `%`, `_` and escape character preceded by the escape.
-    // [spec:pgorm:req:sql.ast.expr.similar-to+3]
+    // [spec:pgorm:req:sql.ast.expr.similar-to+4]
     pub(crate) fn pattern(&self) -> String {
         match &self.pattern {
             Pattern::Written(pattern) => pattern.clone(),

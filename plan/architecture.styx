@@ -6,7 +6,7 @@ elements (
         name "Rust ORM and query foundation"
         kind @subsystem
         lifecycle @active
-        exposes (src/**/*.rs pgorm-query/src/**/*.rs pgorm-macros/src/**/*.rs pgorm-codegen/src/**/*.rs pgorm-pool/src/**/*.rs)
+        exposes (crates/pgorm-driver/src/**/*.rs crates/pgorm-driver-rustls/src/**/*.rs src/**/*.rs pgorm-query/src/**/*.rs pgorm-macros/src/**/*.rs pgorm-codegen/src/**/*.rs pgorm-pool/src/**/*.rs)
     }
     {
         id [arch:pgorm:python-api]

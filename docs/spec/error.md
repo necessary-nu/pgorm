@@ -6,10 +6,10 @@ it.
 
 ## Taxonomy
 
-> [spec:pgorm:def:error.model+14]
+> [spec:pgorm:def:error.model+16]
 > `Error` is the crate-wide error enum. Driver and pool failures convert in
-> via `From`: `Postgres(tokio_postgres::Error)` (the variant every
-> `ConnectionTrait` call and transaction commit produces on database failure;
+> via `From`: `Postgres(pgorm_driver::Error)` (the variant every
+> `Connection` call and transaction commit produces on database failure;
 > its `Display` includes the server `DbError` detail when present) and
 > `Pool(pgorm_pool::PoolError)` (produced by `DatabasePool::get`; pool
 > exhaustion and acquisition timeouts surface here). `Verify(VerifyError)`
@@ -27,7 +27,7 @@ it.
 > `RollbackFailed { cause: Box<Error>, rollback: Box<Error> }`, whose
 > construction site that conversion is, its `source()` the cause. A
 > transaction's `COMMIT` that its closure's caught failure had made a
-> rollback is `TransactionAborted(tokio_postgres::Error)`, constructed where
+> rollback is `TransactionAborted(pgorm_driver::Error)`, constructed where
 > pgorm ends the transaction (`conn.tx.aborted`), its `source()` the server's
 > `25P02` refusal. A `COPY` given to a statement method is `CopyStatement`,
 > constructed as that method refuses it (`conn.copy.statement`). The
@@ -123,13 +123,13 @@ it.
 
 ## Bind refusals
 
-> [spec:pgorm:sem:error.model.parameter-count]
+> [spec:pgorm:sem:error.model.parameter-count+1]
 > `ParameterCountRefusal` is a statement given another number of parameters
 > than its `$N` placeholders take, which the driver refuses once the
 > statement is prepared and before it binds a value: `expected`, how many it
 > takes, and `given`, how many it was given. Nothing but the prepare reached
 > the server, so no transaction it runs in is aborted.
-> `ParameterCountRefusal::of(&tokio_postgres::Error)` is the classifier,
+> `ParameterCountRefusal::of(&pgorm_driver::Error)` is the classifier,
 > `None` for any other failure; tokio-postgres 0.7.18 exposes no public kind
 > for it, so it reads the error's top-level text (`expected N parameters but
 > got M`), which no value shapes. `Error::parameter_count_refusal()` applies it
@@ -140,7 +140,7 @@ it.
 > argument being what cannot become what pgorm sends (`bindings.errors`). The
 > struct is `#[non_exhaustive]`.
 
-> [spec:pgorm:sem:error.model.bind-refusal]
+> [spec:pgorm:sem:error.model.bind-refusal+1]
 > `BindRefusal` is a value the driver refused to encode while building a
 > statement's bind message, before anything reached the server: `parameter`,
 > the one-based number of its `$N` placeholder, and `reason`, the codec's
@@ -148,7 +148,7 @@ it.
 > the parameter's type cannot take (`exec.cursor.binding-accepts`), such as
 > ``cannot bind a `Decimal` value to Postgres type `money` `` or
 > ``value `9223372036854775808` is out of range for Postgres type `int8` ``.
-> `BindRefusal::of(&tokio_postgres::Error)` is the classifier, `None` for any
+> `BindRefusal::of(&pgorm_driver::Error)` is the classifier, `None` for any
 > other failure: tokio-postgres 0.7.18 exposes no public kind for an encode
 > failure, so it reads the phase and the zero-based position off the error's
 > top-level text (`error serializing parameter N`), never off a cause, whose
@@ -159,13 +159,13 @@ it.
 > reports a refusal with exactly that text (`bindings.errors`). The struct is
 > `#[non_exhaustive]`.
 
-> [spec:pgorm:sem:error.model.decode-refusal]
+> [spec:pgorm:sem:error.model.decode-refusal+1]
 > `DecodeRefusal` is a result the driver could not read into what was asked
 > for: `reading`, the driver's account of what it was reading — `error
 > deserializing column N` (zero-based), ``invalid column `name` ``, `query
 > returned an unexpected number of columns`, or `query returned an
 > unexpected number of rows` — and `reason`, the decoder's refusal of the
-> value where the driver kept one. `DecodeRefusal::of(&tokio_postgres::Error)`
+> value where the driver kept one. `DecodeRefusal::of(&pgorm_driver::Error)`
 > is the classifier, `None` for any other failure, reading the phase off the
 > error's top-level text as `BindRefusal::of` does and the reason off its
 > source; `Error::decode_refusal()` applies it to `Error::Postgres` and yields

@@ -15,7 +15,7 @@ use std::fmt;
 /// [`Display`](fmt::Display) renders the fingerprint's canonical 16-character
 /// zero-padded hex form; [`value`](Self::value) is the same number as an
 /// integer, which is the cheaper key for aggregation.
-// [spec:pgorm:req:metric.fingerprint+5]
+// [spec:pgorm:req:metric.fingerprint+6]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QueryFingerprint(u64);
 
@@ -47,7 +47,7 @@ impl fmt::Display for QueryFingerprint {
 /// its text and nothing else (`conn.sql-text`) — and `None` only for the
 /// failed transaction verbs `record_query_error` reports (`"begin"`,
 /// `"commit"`, `"rollback"`), where there is no statement to name.
-// [spec:pgorm:req:metric.fingerprint+5]
+// [spec:pgorm:req:metric.fingerprint+6]
 #[derive(Clone, Copy, Debug)]
 pub struct QueryContext<'a> {
     operation: &'a str,
@@ -64,7 +64,7 @@ impl<'a> QueryContext<'a> {
     }
 
     /// The name of the operation being reported: one of the seven
-    /// `ConnectionTrait` methods, `"copy_in"` / `"copy_out"` for the start of
+    /// `Connection` methods, `"copy_in"` / `"copy_out"` for the start of
     /// a COPY, or `"begin"` / `"commit"` / `"rollback"` for a failed
     /// transaction round trip.
     pub fn operation(&self) -> &'a str {
@@ -110,7 +110,7 @@ impl fmt::Display for FingerprintSuffix {
 }
 
 /// The memo behind [`QueryContext::fingerprint`], parsing with pgsql-syntax.
-// [spec:pgorm:req:metric.fingerprint+5]    computation site and memoization
+// [spec:pgorm:req:metric.fingerprint+6]    computation site and memoization
 #[cfg(feature = "metrics-fingerprint")]
 mod memo {
     use super::QueryFingerprint;
@@ -167,7 +167,7 @@ mod memo {
 }
 
 /// The stand-in for the memo when fingerprints are not asked for.
-// [spec:pgorm:req:metric.fingerprint+5]    the feature-off answer
+// [spec:pgorm:req:metric.fingerprint+6]    the feature-off answer
 #[cfg(not(feature = "metrics-fingerprint"))]
 mod memo {
     use super::QueryFingerprint;

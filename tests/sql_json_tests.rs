@@ -16,10 +16,10 @@ use pgorm::pgorm_query::{
     ColumnType, Expr, Func, JsonExistsBehavior, JsonKind, JsonQueryBehavior, JsonValueBehavior,
     JsonValueType, Name, Order, Query, SelectStatement, SimpleExpr, Values, WindowStatement,
 };
-use pgorm::{ConnectionTrait, entity::prelude::*};
+use pgorm::{Connection, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use tokio_postgres::error::SqlState;
 
 fn refused_with(error: &Error, state: &SqlState) {
     match error {
@@ -745,7 +745,7 @@ async fn forced_plan(
 /// path bound under a custom plan.
 // [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the index evidence behind keeping the
 // operators
-// [spec:pgorm:req:sql.ast.expr.json+4/test]    the operators an index serves and SQL/JSON
+// [spec:pgorm:req:sql.ast.expr.json+5/test]    the operators an index serves and SQL/JSON
 // does not replace
 #[pgorm_macros::test]
 async fn an_index_serves_operators_not_sql_json() -> Result<(), Error> {
@@ -826,7 +826,7 @@ fn jsonb(document: Json) -> SimpleExpr {
 /// and `t` for the other; and a failed cast raises where `JSON_VALUE` follows
 /// `ON ERROR`.
 // [spec:pgorm:def:sql.ast.expr.sql-json+3/test]    the semantic differences the rule records
-// [spec:pgorm:req:sql.ast.expr.json+4/test]
+// [spec:pgorm:req:sql.ast.expr.json+5/test]
 #[pgorm_macros::test]
 async fn the_operators_and_sql_json_answer_differently() -> Result<(), Error> {
     let ctx = TestContext::new("sql_json_operator_semantics").await;

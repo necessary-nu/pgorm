@@ -4,7 +4,7 @@
 
 use neon::prelude::*;
 use pgorm::pgorm_query::{
-    BinOper, ColumnRef, Condition, Expr, ExprTrait, Func, Name, NullOrdering, Order, SimpleExpr,
+    BinOper, ColumnRef, Condition, Expr, Expression, Func, Name, NullOrdering, Order, SimpleExpr,
     SubQueryStatement,
 };
 

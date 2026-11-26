@@ -1,20 +1,19 @@
 use crate::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Insert, IntoActiveModel, Iterable,
-    ManyRows, OneRow, PrimaryKeyToColumn, PrimaryKeyTrait, QueryResult, SelectModel, SelectorRaw,
-    TryInsert, error::*,
+    ActiveModel, Column, Connection, Entity, Insert, IntoActiveModel, Iterable, ManyRows, OneRow,
+    PrimaryKey, PrimaryKeyToColumn, QueryResult, SelectModel, SelectorRaw, TryInsert, error::*,
 };
+use pgorm_driver::types::ToSql;
 use pgorm_query::{InsertStatement, Query, SqlName};
-use tokio_postgres::types::ToSql;
 
 use super::ValueHolder;
 
 /// The primary key an insert reports back, typed as the entity's declared
 /// `PrimaryKey::ValueType`.
 pub type InsertedPrimaryKey<A> =
-    <<<A as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType;
+    <<<A as ActiveModel>::Entity as Entity>::PrimaryKey as PrimaryKey>::ValueType;
 
 /// The model an insert reports back.
-type InsertedModel<A> = <<A as ActiveModelTrait>::Entity as EntityTrait>::Model;
+type InsertedModel<A> = <<A as ActiveModel>::Entity as Entity>::Model;
 
 /// The types of results for an INSERT operation
 // [spec:pgorm:sem:exec.crud.try-insert+4]
@@ -31,7 +30,7 @@ pub enum TryInsertResult<T> {
 // [spec:pgorm:sem:exec.crud.try-insert+4]
 impl<A, R> TryInsert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Whether the statement carries an `ON CONFLICT` clause, and so could have
     /// skipped the insert rather than failed it.
@@ -48,7 +47,7 @@ where
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
     pub async fn exec<C>(self, db: &C) -> Result<TryInsertResult<u64>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -79,7 +78,7 @@ where
 // [spec:pgorm:sem:exec.crud.try-insert+4]
 impl<A> TryInsert<A, OneRow>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the insert and return the inserted row's primary key.
     // [spec:pgorm:req:exec.crud.exec-vocabulary+2]
@@ -88,7 +87,7 @@ where
         db: &C,
     ) -> Result<TryInsertResult<InsertedPrimaryKey<A>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         if self.insert_struct.is_empty() {
@@ -110,7 +109,7 @@ where
     ) -> Result<TryInsertResult<InsertedModel<A>>, Error>
     where
         InsertedModel<A>: IntoActiveModel<A>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         if self.insert_struct.is_empty() {
@@ -130,7 +129,7 @@ where
 // [spec:pgorm:sem:exec.crud.try-insert+4]
 impl<A> TryInsert<A, ManyRows>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the insert and return the primary key of every row written, in
     /// the order the database wrote them.
@@ -141,7 +140,7 @@ where
         db: &C,
     ) -> Result<TryInsertResult<Vec<InsertedPrimaryKey<A>>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -163,7 +162,7 @@ where
     ) -> Result<TryInsertResult<Vec<InsertedModel<A>>>, Error>
     where
         InsertedModel<A>: IntoActiveModel<A>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -178,7 +177,7 @@ where
 
 impl<A, R> Insert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the insert and report how many rows it wrote.
     ///
@@ -200,7 +199,7 @@ where
     #[doc(alias = "exec_without_returning")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -213,7 +212,7 @@ where
 
 impl<A> Insert<A, OneRow>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the insert and return the inserted row's primary key.
     ///
@@ -226,7 +225,7 @@ where
     #[doc(alias("last_insert_id", "InsertResult"))]
     pub async fn exec_returning_pk<C>(self, db: &C) -> Result<InsertedPrimaryKey<A>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         exec_insert_returning_pks::<A, _>(self.query, db)
@@ -246,7 +245,7 @@ where
     pub async fn exec_returning_model<C>(self, db: &C) -> Result<InsertedModel<A>, Error>
     where
         InsertedModel<A>: IntoActiveModel<A>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         exec_insert_returning_models::<A, _>(self.query, db)
@@ -258,7 +257,7 @@ where
 
 impl<A> Insert<A, ManyRows>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the insert and return the primary key of every row written, in
     /// the order the database wrote them — for `INSERT ... VALUES`, the order
@@ -274,7 +273,7 @@ where
     // [spec:pgorm:req:query.build.insert.uniform-columns+4]
     pub async fn exec_returning_pks<C>(self, db: &C) -> Result<Vec<InsertedPrimaryKey<A>>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -298,7 +297,7 @@ where
     pub async fn exec_returning_models<C>(self, db: &C) -> Result<Vec<InsertedModel<A>>, Error>
     where
         InsertedModel<A>: IntoActiveModel<A>,
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         self.ensure_uniform_columns()?;
@@ -319,10 +318,10 @@ async fn exec_insert_returning_pks<A, C>(
     db: &C,
 ) -> Result<Vec<InsertedPrimaryKey<A>>, Error>
 where
-    C: ConnectionTrait,
-    A: ActiveModelTrait,
+    C: Connection,
+    A: ActiveModel,
 {
-    type PrimaryKey<A> = <<A as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey;
+    type PrimaryKey<A> = <<A as ActiveModel>::Entity as Entity>::PrimaryKey;
 
     statement.returning(Query::returning().exprs(PrimaryKey::<A>::iter().map(|c| {
         c.into_column()
@@ -330,6 +329,8 @@ where
     })));
     let (stmt, values) = statement.build();
     let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+    #[cfg(feature = "turso")]
+    let stmt = crate::database::ValueSql::new(&stmt, &values);
     let values = values
         .iter()
         .map(|x| x as _)
@@ -355,10 +356,12 @@ async fn exec_insert_without_returning<C>(
     db: &C,
 ) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let (stmt, values) = insert_statement.build();
     let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+    #[cfg(feature = "turso")]
+    let stmt = crate::database::ValueSql::new(&stmt, &values);
     let values = values
         .iter()
         .map(|x| x as _)
@@ -378,12 +381,11 @@ async fn exec_insert_returning_models<A, C>(
 ) -> Result<Vec<InsertedModel<A>>, Error>
 where
     InsertedModel<A>: IntoActiveModel<A>,
-    C: ConnectionTrait,
-    A: ActiveModelTrait,
+    C: Connection,
+    A: ActiveModel,
 {
-    let returning = Query::returning().exprs(
-        <A::Entity as EntityTrait>::Column::iter().map(|c| c.select_as(c.into_returning_expr())),
-    );
+    let returning = Query::returning()
+        .exprs(<A::Entity as Entity>::Column::iter().map(|c| c.select_as(c.into_returning_expr())));
     insert_statement.returning(returning);
     let (stmt, values) = insert_statement.build();
 

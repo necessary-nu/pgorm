@@ -387,7 +387,7 @@ export class Pipeline extends Builder {
     return pipelineOf(native.pipelineDistinct(arg(this)));
   }
 
-  // [spec:pgorm:req:bindings.pipeline-terminals]
+  // [spec:pgorm:req:bindings.pipeline-terminals+1]
   /**
    * The SQL and values a terminal sends: `all`'s, or `one`'s and
    * `optional`'s, which compile with the `take 1` Rust appends.

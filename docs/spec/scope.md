@@ -11,13 +11,13 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 
 ## Declaration
 
-> [spec:pgorm:def:scope.declare]
+> [spec:pgorm:def:scope.declare+1]
 > `#[derive(Scope)]` MUST implement `Scope` for its type, which makes the
 > type a scope. In the composite `Entity` derive a field keyed
 > `#[pgorm(scope)]` MUST declare a column scope: the field's type is the
 > scope, and a statement under a context holding a value of it is held to
 > the column equal to that value, compared under the column's casts as
-> `ColumnTrait::eq` compares it. A column's type alone MUST NOT make it a
+> `Column::eq` compares it. A column's type alone MUST NOT make it a
 > scope column. The container key `scope(T, ..)` MUST declare each type it
 > names a scope written by hand, whose `ScopeOn<Entity>` the program
 > implements (`[spec:pgorm:def:scope.written]`). A `scope` key on a field
@@ -31,7 +31,7 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 > become the condition on a row read under a given name and a pipeline's
 > filter), and `fill_scopes`, what an insert under a context does to a row
 > (`[spec:pgorm:sem:scope.insert]`). `EntityScopes` is a supertrait of
-> `EntityTrait`, so a hand-written entity implements it too, as it does
+> `Entity`, so a hand-written entity implements it too, as it does
 > `ScopedIn`.
 
 ## Contexts
@@ -178,7 +178,7 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 
 ## Raw SQL
 
-> [spec:pgorm:req:scope.raw]
+> [spec:pgorm:req:scope.raw+1]
 > Raw SQL, through `sql!`, `prql!` and the methods taking SQL text, and
 > pgorm-query's builders used directly, MUST stay outside scopes. `sql!`
 > MUST expand to its literal spanned at the invocation, as `prql!`'s
@@ -187,7 +187,7 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 > name a `use` gives them. The Rust guide's entities chapter MUST teach
 > scopes and give the clippy configuration a project bans raw SQL with: the
 > two macros under `disallowed-macros`, and under `disallowed-methods` the
-> raw-text methods `ConnectionTrait::execute`, `execute_raw`, `query_one`,
+> raw-text methods `Connection::execute`, `execute_raw`, `query_one`,
 > `query_opt`, `query_all`, `query_raw` and `batch_execute`,
 > `SelectorRaw::from_statement`, `into_tuple` and `with_columns`,
 > `Select::from_raw_sql` and `FromQueryResult::find_by_statement`, each

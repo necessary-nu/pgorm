@@ -70,7 +70,7 @@ fn interval_array_literals_render_each_element() {
     );
 }
 
-// [spec:pgorm:def:sql.value.interval+2/test]    a built statement binds the interval as one
+// [spec:pgorm:def:sql.value.interval+3/test]    a built statement binds the interval as one
 // parameter, never as text
 #[test]
 fn built_statement_binds_an_interval() {
@@ -94,7 +94,7 @@ fn built_statement_binds_an_interval() {
     );
 }
 
-// [spec:pgorm:def:sql.value.interval+2/test]    a cast operand pins its placeholder to
+// [spec:pgorm:def:sql.value.interval+3/test]    a cast operand pins its placeholder to
 // `interval`, and an array of them to `interval[]`
 #[test]
 fn interval_parameter_pins_to_interval() {

@@ -114,7 +114,7 @@ pub enum ColumnType {
     /// in full as an enum type is, and the subtype it ranges over. The name
     /// is what DDL writes and what a value is cast to; the subtype is what a
     /// value's bounds are, which no name says.
-    // [spec:pgorm:def:sql.value.created-range+9]
+    // [spec:pgorm:def:sql.value.created-range+11]
     CreatedRange {
         name: Name,
         schema: Option<Name>,
@@ -123,7 +123,7 @@ pub enum ColumnType {
     /// The multirange PostgreSQL creates beside a range type a schema
     /// created, named in full — its own name, which is not the range's — and
     /// the subtype its ranges range over.
-    // [spec:pgorm:def:sql.value.created-range+9]
+    // [spec:pgorm:def:sql.value.created-range+11]
     CreatedMultirange {
         name: Name,
         schema: Option<Name>,
@@ -248,7 +248,7 @@ impl ColumnType {
     /// [`TypeName`]'s part policy, so a runtime `String` is safe here.
     /// A type *expression* — `numeric(12, 2)` — is grammar rather than a
     /// name and belongs in
-    /// [`ExprTrait::cast_as_raw`](crate::ExprTrait::cast_as_raw).
+    /// [`Expression::cast_as_raw`](crate::Expression::cast_as_raw).
     // [spec:pgorm:req:sql.render.ident-quoting+7]
     pub fn named<T>(ty: T) -> ColumnType
     where

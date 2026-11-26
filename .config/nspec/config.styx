@@ -6,6 +6,8 @@ specs ({
             name main,
             languages (@rust @python),
             include (
+                crates/pgorm-driver/src/**/*.rs
+                crates/pgorm-driver-rustls/src/**/*.rs
                 src/**/*.rs
                 pgorm-case-style/src/**/*.rs
                 pgorm-macros/src/**/*.rs
@@ -20,6 +22,11 @@ specs ({
                 pgorm-test-support/src/**/*.rs
                 pgorm-guide-support/src/**/*.rs
                 pgorm-bindings/src/**/*.rs
+                .github/workflows/turso.yml
+                docs/turso.md
+                benches/native_baseline.rs
+                benches/native/**/*.rs
+                docs/performance/run.py
                 security/sqlmap/adapter/src/**/*.rs
                 .github/workflows/sqlmap*.yml
                 security/sqlmap/acceptance/*.md
@@ -32,6 +39,8 @@ specs ({
                 .github/workflows/generative*.yml
             ),
             test_include (
+                crates/pgorm-driver/tests/**/*.rs
+                crates/pgorm-driver-rustls/tests/**/*.rs
                 tests/**/*.rs
                 pgorm-macros/tests/**/*.rs
                 pgorm-codegen/tests/**/*.rs

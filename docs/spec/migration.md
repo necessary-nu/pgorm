@@ -7,26 +7,30 @@ holds the whole runner, `src/ledger.rs` is the ledger entity, and `src/util.rs`
 derives a migration's identity from its filename.
 
 Unlike SeaORM, there is no `SchemaManager` indirection — a migration receives
-the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
+the live `DatabaseTransaction` and drives it through `Connection` with
 `pgorm_query` builders.
 
 ## The runner and its ledger
 
-> [spec:pgorm:def:migration.runner+5]
-> A migration is a `MigrationTrait` implementor: `MigrationName + Send + Sync`
+> [spec:pgorm:def:migration.runner+6]
+> A migration is a `Migration` implementor: `MigrationName + Send + Sync`
 > plus a single `async fn up(&self, tx: &mut DatabaseTransaction<'_>)`, and an
 > optional `fn checksum(&self) -> Option<String>` defaulting to `None`. The
 > transaction is borrowed exclusively, as a transaction closure's is
 > (`conn.tx.closure`), so a migration can open a savepoint inside the batch or
 > run a COPY through it as well as run statements. A
-> migrator is a `MigratorTrait` implementor (`Send + Sync`) whose only required
-> method is `migrations(&self) -> Vec<Box<dyn MigrationTrait>>`, the ordered
+> migrator is a `Migrator` implementor (`Send + Sync`) whose only required
+> method is `migrations(&self) -> Vec<Box<dyn Migration>>`, the ordered
 > list of every migration the project owns. Every method of the trait takes
 > `&self`, so a migrator is a value: a unit struct declared for a project's
 > fixed list, called as `Migrator.up(pool, None)`, or a `Migrations` built at
-> run time (`migration.runtime`).
+> run time (`migration.runtime`). A project names its own migrator `Migrator` and
+> each migration `Migration`, shadowing the traits' names in their modules, so
+> those implement `pgorm_migration::Migrator` and `pgorm_migration::Migration` by
+> path, and the crate's prelude exports both traits unnamed (`as _`) beside their
+> names, keeping `Migrator.up(..)` and `Migration.name()` in scope there.
 >
-> `MigratorTrait` provides, on top of that list: `migration_table_name() ->
+> `Migrator` provides, on top of that list: `migration_table_name() ->
 > Name` (defaulting to the `ledger` entity's name) and `migration_table_schema()
 > -> Option<Name>` (defaulting to `None`) to place the ledger, `install(db)` to
 > create it, `adopt_legacy_ledger(db)` to take over one left under the
@@ -35,7 +39,7 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > lock, and the `get_migration_files` / `get_migration_models` /
 > `get_migration_with_status` / `get_pending_migrations` /
 > `get_applied_migrations` accessors. Every method except `up`, `lock_key` and
-> `lock` takes `&impl ConnectionTrait`, so they can be called on a pooled
+> `lock` takes `&impl Connection`, so they can be called on a pooled
 > connection or inside a caller's transaction; `up` takes an owned
 > `DatabasePool` because it acquires and manages its own connection, and `lock`
 > takes a `&DatabaseTransaction<'_>` because the lock it takes is
@@ -50,7 +54,7 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 > honoured on creation as well as on read and write. It is the only method that
 > provisions anything, and `up` is the only method that calls it — the
 > accessors read instead, per `migration.read-only`. Results are reported as
-> `Migration` values exposing `name()` and `status()`, where `MigrationStatus`
+> `MigrationWithStatus` values exposing `name()` and `status()`, where `MigrationStatus`
 > is `Pending` or `Applied` and `Display`s as those words.
 >
 > `migration_table_schema()` puts the ledger in a schema of its own. `None`
@@ -185,16 +189,16 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 
 ## A database ahead of the build
 
-> [spec:pgorm:req:migration.unknown-applied]
+> [spec:pgorm:req:migration.unknown-applied+1]
 > A migrator MAY go on past applied migrations it does not know, and MUST
 > refuse them unless it says so. An unknown migration is a version the ledger
 > records that no migration of `migrations()` answers by name: one a newer
 > build of the program applied, so the database is ahead of this build.
-> `MigratorTrait::unknown_migrations()` says what a read does about one,
+> `Migrator::unknown_migrations()` says what a read does about one,
 > answering `UnknownMigrations::Refuse` unless a migrator overrides it, and
 > `Migrations::with_unknown_migrations(setting)` sets what a migrator built
 > at run time answers (`migration.runtime`). `UnknownMigrations` is exported
-> at the crate's root and in its prelude, beside `MigratorTrait`, and derives
+> at the crate's root and in its prelude, beside `Migrator`, and derives
 > `Copy`, `Clone`, `Debug`, `PartialEq`, `Eq` and `Default`, which is
 > `Refuse`. It is exhaustive: its two variants are the two sides of one
 > choice, whether a version no migration answers fails the read that finds
@@ -236,9 +240,9 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 
 ## Forward-only by construction
 
-> [spec:pgorm:req:migration.up-only]
-> Migrations MUST be forward-only. `MigrationTrait` declares `up` and nothing
-> else, and `MigratorTrait` offers no `down`, `fresh`, `refresh`, or `reset`.
+> [spec:pgorm:req:migration.up-only+1]
+> Migrations MUST be forward-only. `Migration` declares `up` and nothing
+> else, and `Migrator` offers no `down`, `fresh`, `refresh`, or `reset`.
 > The ledger is append-only in practice: nothing in the crate deletes a
 > migration row. A mistake is corrected by writing a new migration, never by
 > rolling one back.
@@ -288,11 +292,11 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 
 ## Detecting an edited migration
 
-> [spec:pgorm:req:migration.checksum+1]
+> [spec:pgorm:req:migration.checksum+2]
 > The ledger matches on name alone, so editing a migration that has already run
 > is invisible: the name still matches, the row still says `Applied`, and a
 > database built from scratch afterwards diverges from the one built before
-> while both ledgers read identically. `MigrationTrait::checksum(&self) ->
+> while both ledgers read identically. `Migration::checksum(&self) ->
 > Option<String>` is the opt-in against that. `exec_up` stores the value in the
 > new row's `checksum` column, and `get_migration_with_status` — reached by
 > `status`, by `up`, and by the pending/applied accessors — compares the stored
@@ -342,9 +346,9 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 
 ## A migration written as a SQL file
 
-> [spec:pgorm:def:migration.sql-file+1]
+> [spec:pgorm:def:migration.sql-file+2]
 > `sql_migration!("path/m20260101_000001_name.sql")` is a migration written as a
-> `.sql` file. It expands to a `SqlMigration`, a `MigrationTrait` implementor
+> `.sql` file. It expands to a `SqlMigration`, a `Migration` implementor
 > holding the migration's name and the file's text, each borrowed for the
 > program's life or owned, which boxes into `migrations()` beside migrations
 > written in Rust. Its `name()` is the file stem of the path the macro was
@@ -475,14 +479,14 @@ the live `DatabaseTransaction` and drives it through `ConnectionTrait` with
 
 ## A migrator built at run time
 
-> [spec:pgorm:def:migration.runtime]
+> [spec:pgorm:def:migration.runtime+1]
 > `Migrations` is a migrator built as the program runs: `Migrations::new`
-> takes the migrations, `Box<dyn MigrationTrait>`s in the order they apply,
+> takes the migrations, `Box<dyn Migration>`s in the order they apply,
 > and `with_migration_table_name(name)`, `with_migration_table_schema(schema)`
 > and `with_statement_cache_channel(channel)` set what
 > `migration_table_name()`, `migration_table_schema()` and
 > `statement_cache_channel()` answer, each answering as a migrator
-> overriding nothing does unless set. It implements `MigratorTrait`, so `up`,
+> overriding nothing does unless set. It implements `Migrator`, so `up`,
 > `status`, `install` and every accessor are the one runner's
 > (`migration.runner`, `migration.up`), with every rule of this document
 > holding for it as for a migrator declared as a type: the name check, the

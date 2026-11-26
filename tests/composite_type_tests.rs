@@ -13,10 +13,10 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ColumnDef, ColumnType, Name, Table, Values, extension::Type};
-use pgorm::{ConnectionTrait, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm::{Connection, SelectGetableTuple, SelectorRaw, entity::prelude::*};
+use pgorm_driver::error::SqlState;
+use pgorm_driver::types::WrongType;
 use std::error::Error as _;
-use tokio_postgres::error::SqlState;
-use tokio_postgres::types::WrongType;
 
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {
@@ -72,7 +72,7 @@ async fn attributes(
 /// Every attribute reaches the catalogue in the order written, with its type
 /// as a column would have it — a modifier, an array, an enumeration — and its
 /// collation; the empty composite is a type too.
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]
 async fn the_attributes_are_the_ones_written(db: &DatabaseConnection) -> Result<(), Error> {
     db.batch_execute(&Type::create(n("mood")).values(["ok", "bad"]).to_string())
         .await?;
@@ -115,7 +115,7 @@ async fn the_attributes_are_the_ones_written(db: &DatabaseConnection) -> Result<
 
 /// A table column declared with the type stores a row of it, and the row's
 /// attributes read back by name.
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]
 async fn a_column_of_the_type_reads_its_attributes(db: &DatabaseConnection) -> Result<(), Error> {
     db.batch_execute(
         &Table::create(n("home"))
@@ -156,7 +156,7 @@ async fn a_column_of_the_type_reads_its_attributes(db: &DatabaseConnection) -> R
 /// What the rule says does not read a composite: a decode of the whole value
 /// into a `String` model field is refused by the driver, while its text cast
 /// reads.
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]
 async fn a_composite_value_does_not_decode(db: &DatabaseConnection) -> Result<(), Error> {
     let whole = SelectorRaw::<SelectGetableTuple<String>>::into_tuple(
         "SELECT addr FROM home WHERE id = 1",
@@ -192,7 +192,7 @@ async fn a_composite_value_does_not_decode(db: &DatabaseConnection) -> Result<()
 /// a drop is refused while a column has the type (`2BP01`) and `CASCADE`
 /// takes the column with it. The label alterations are an enumeration's, and
 /// the server refuses them here (`42809`).
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]
 // [spec:pgorm:req:sql.ddl.type-alter-drop+7/test]
 async fn drop_and_rename_reach_a_composite(db: &DatabaseConnection) -> Result<(), Error> {
     let label = db
@@ -232,7 +232,7 @@ async fn drop_and_rename_reach_a_composite(db: &DatabaseConnection) -> Result<()
 /// The server's refusals the type does not try to make: a repeated attribute
 /// (`42701`); a name a relation holds (`42P07`), a composite being a relation
 /// itself; and the name of a table, whose row type already has it (`42710`).
-// [spec:pgorm:req:sql.ddl.type-composite+2/test]
+// [spec:pgorm:req:sql.ddl.type-composite+3/test]
 async fn the_server_judges_the_names(db: &DatabaseConnection) -> Result<(), Error> {
     let repeated = db
         .batch_execute(

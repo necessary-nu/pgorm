@@ -6,13 +6,13 @@ use std::sync::Arc;
 use pgorm::pgorm_query::IntoName;
 use pgorm::{DatabaseTransaction, Name};
 
-use crate::{Error, MigrationName, MigrationTrait, MigratorTrait, UnknownMigrations, ledger};
+use crate::{Error, Migration, MigrationName, Migrator, UnknownMigrations, ledger};
 
 /// A migrator built as the program runs rather than declared as a type: the
 /// migrations it applies, in order, and where its ledger lives.
 ///
-/// It is a [`MigratorTrait`] like any other, so [`up`](MigratorTrait::up),
-/// [`status`](MigratorTrait::status) and every accessor run the one runner.
+/// It is a [`Migrator`] like any other, so [`up`](Migrator::up),
+/// [`status`](Migrator::status) and every accessor run the one runner.
 /// Its list can come from anywhere: migrations read from a directory with
 /// [`SqlMigration::read_dir`](crate::SqlMigration::read_dir), migrations
 /// written in Rust, or both.
@@ -23,7 +23,7 @@ use crate::{Error, MigrationName, MigrationTrait, MigratorTrait, UnknownMigratio
 /// let migrations = Migrations::new(
 ///     SqlMigration::read_dir("tests/sql")?
 ///         .into_iter()
-///         .map(|migration| Box::new(migration) as Box<dyn MigrationTrait>),
+///         .map(|migration| Box::new(migration) as Box<dyn Migration>),
 /// )
 /// .with_migration_table_schema(Name::runtime("ops"));
 /// let names: Vec<String> = migrations
@@ -34,10 +34,10 @@ use crate::{Error, MigrationName, MigrationTrait, MigratorTrait, UnknownMigratio
 /// assert_eq!(names, ["m20260101_000001_create_note", "m20260101_000002_seed_note"]);
 /// # Ok::<(), std::io::Error>(())
 /// ```
-// [spec:pgorm:def:migration.runtime]
+// [spec:pgorm:def:migration.runtime+1]
 #[derive(Clone)]
 pub struct Migrations {
-    migrations: Vec<Arc<dyn MigrationTrait>>,
+    migrations: Vec<Arc<dyn Migration>>,
     table_name: Name,
     table_schema: Option<Name>,
     statement_cache_channel: Option<String>,
@@ -47,9 +47,9 @@ pub struct Migrations {
 impl Migrations {
     /// A migrator applying `migrations` in the order given, its ledger
     /// placed, its channel named and an unknown migration refused as a
-    /// [`MigratorTrait`] that overrides nothing places, names and refuses
+    /// [`Migrator`] that overrides nothing places, names and refuses
     /// them.
-    pub fn new(migrations: impl IntoIterator<Item = Box<dyn MigrationTrait>>) -> Self {
+    pub fn new(migrations: impl IntoIterator<Item = Box<dyn Migration>>) -> Self {
         Self {
             migrations: migrations.into_iter().map(Arc::from).collect(),
             table_name: ledger::Entity.into_name(),
@@ -60,14 +60,14 @@ impl Migrations {
     }
 
     /// The ledger's table name, which
-    /// [`migration_table_name`](MigratorTrait::migration_table_name) answers.
+    /// [`migration_table_name`](Migrator::migration_table_name) answers.
     pub fn with_migration_table_name(mut self, name: Name) -> Self {
         self.table_name = name;
         self
     }
 
     /// The ledger's schema, which
-    /// [`migration_table_schema`](MigratorTrait::migration_table_schema)
+    /// [`migration_table_schema`](Migrator::migration_table_schema)
     /// answers.
     pub fn with_migration_table_schema(mut self, schema: Name) -> Self {
         self.table_schema = Some(schema);
@@ -75,7 +75,7 @@ impl Migrations {
     }
 
     /// The channel notified after a batch, which
-    /// [`statement_cache_channel`](MigratorTrait::statement_cache_channel)
+    /// [`statement_cache_channel`](Migrator::statement_cache_channel)
     /// answers; `None` notifies nothing.
     pub fn with_statement_cache_channel(mut self, channel: Option<String>) -> Self {
         self.statement_cache_channel = channel;
@@ -84,8 +84,8 @@ impl Migrations {
 
     /// What a read does when the ledger records a migration this migrator
     /// does not know, which
-    /// [`unknown_migrations`](MigratorTrait::unknown_migrations) answers.
-    // [spec:pgorm:req:migration.unknown-applied]
+    /// [`unknown_migrations`](Migrator::unknown_migrations) answers.
+    // [spec:pgorm:req:migration.unknown-applied+1]
     pub fn with_unknown_migrations(mut self, unknown_migrations: UnknownMigrations) -> Self {
         self.unknown_migrations = unknown_migrations;
         self
@@ -111,12 +111,12 @@ impl fmt::Debug for Migrations {
     }
 }
 
-// [spec:pgorm:def:migration.runtime]
-impl MigratorTrait for Migrations {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+// [spec:pgorm:def:migration.runtime+1]
+impl Migrator for Migrations {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         self.migrations
             .iter()
-            .map(|migration| Box::new(Shared(migration.clone())) as Box<dyn MigrationTrait>)
+            .map(|migration| Box::new(Shared(migration.clone())) as Box<dyn Migration>)
             .collect()
     }
 
@@ -139,7 +139,7 @@ impl MigratorTrait for Migrations {
 
 /// One of a [`Migrations`]' migrations, handed out each time the runner asks
 /// for the list.
-struct Shared(Arc<dyn MigrationTrait>);
+struct Shared(Arc<dyn Migration>);
 
 impl MigrationName for Shared {
     fn name(&self) -> &str {
@@ -148,7 +148,7 @@ impl MigrationName for Shared {
 }
 
 #[async_trait::async_trait]
-impl MigrationTrait for Shared {
+impl Migration for Shared {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         self.0.up(tx).await
     }

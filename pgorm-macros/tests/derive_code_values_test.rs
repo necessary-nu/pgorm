@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 
 use pgorm::entity::prelude::*;
-use pgorm::{PartialModelTrait, QueryTrait};
+use pgorm::{PartialModel, Statement};
 
 /// A generic type, which parses as a type and not as an expression.
 type Same<T> = T;
@@ -97,7 +97,7 @@ pub struct ChildView {
 // actions, key check, condition type and closure condition, all bare
 #[test]
 fn relation_keys_are_taken_as_written() {
-    use pgorm::RelationTrait;
+    use pgorm::Relation;
 
     let def = child::Relation::Parent.def();
     assert!(matches!(def.on_update, Some(ForeignKeyAction::Cascade)));

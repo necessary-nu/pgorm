@@ -15,7 +15,7 @@ use std::str::FromStr;
 
 use futures::{StreamExt, TryStreamExt};
 use pgorm::{
-    ConnectionTrait, CopyColumn, CopyTrait, DatabaseConnection, DecodeRaw, Error, TransactionTrait,
+    Connection, CopyColumn, CopyConnection, DatabaseConnection, DecodeRaw, Error, Transact,
     entity::prelude::*,
     metric::{InstrumentedPool, NoOpMetrics},
     pgorm_query::{
@@ -24,8 +24,8 @@ use pgorm::{
     },
     types::{Kind, Type},
 };
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 fn n(name: &str) -> Name {
     Name::runtime(name)
@@ -218,7 +218,7 @@ async fn rows_of<C>(
     copy: &CopyToStatement<CopyBinary>,
 ) -> Result<Vec<Vec<Value>>, Error>
 where
-    C: CopyTrait + Send,
+    C: CopyConnection + Send,
 {
     db.copy_out_rows(copy).await?.try_collect().await
 }
@@ -234,7 +234,7 @@ fn ordered_kinds() -> CopyToStatement<CopyBinary> {
     )
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    every value kind pgorm binds is written as binary rows and read back, as the server reads the same literals
+// [spec:pgorm:req:conn.copy.rows+7/test]    every value kind pgorm binds is written as binary rows and read back, as the server reads the same literals
 #[pgorm_macros::test]
 async fn copy_rows_round_trip_every_kind() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_round_trip_every_kind").await;
@@ -289,7 +289,7 @@ async fn copy_rows_round_trip_every_kind() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    a row of the wrong width or a value its column cannot take is refused, and the sink goes on
+// [spec:pgorm:req:conn.copy.rows+7/test]    a row of the wrong width or a value its column cannot take is refused, and the sink goes on
 #[pgorm_macros::test]
 async fn copy_rows_refuse_wrong_width_or_type() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_refuse_wrong_width").await;
@@ -358,7 +358,7 @@ async fn copy_rows_refuse_wrong_width_or_type() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    the columns come from the server: a list, a whole table without its generated columns, a query's result
+// [spec:pgorm:req:conn.copy.rows+7/test]    the columns come from the server: a list, a whole table without its generated columns, a query's result
 #[pgorm_macros::test]
 async fn copy_rows_columns_from_the_server() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_columns_from_server").await;
@@ -450,7 +450,7 @@ async fn answers_in_step(db: &DatabaseConnection) -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    a description the server refuses leaves the connection as it was; a type no value holds fails its row
+// [spec:pgorm:req:conn.copy.rows+7/test]    a description the server refuses leaves the connection as it was; a type no value holds fails its row
 #[pgorm_macros::test]
 async fn copy_rows_refusals_before_and_after_start() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_refusals").await;
@@ -504,7 +504,7 @@ async fn copy_rows_refusals_before_and_after_start() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    a list naming a generated column is described, since a SELECT reads one, and refused at the start, closing the connection
+// [spec:pgorm:req:conn.copy.rows+7/test]    a list naming a generated column is described, since a SELECT reads one, and refused at the start, closing the connection
 #[pgorm_macros::test]
 async fn copy_rows_naming_a_generated_column_closes() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_generated_column").await;
@@ -565,7 +565,7 @@ mod item {
     pub enum Relation {}
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    models are written and read by column name, in a transaction and through the metrics wrapper
+// [spec:pgorm:req:conn.copy.rows+7/test]    models are written and read by column name, in a transaction and through the metrics wrapper
 #[pgorm_macros::test]
 async fn copy_rows_models_in_a_transaction() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_models_transaction").await;
@@ -730,7 +730,7 @@ fn entries() -> Vec<entry::Model> {
     ]
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    models with enum and JSON fields: a schema's enum, an enum through a domain, an enum array, JSON structs
+// [spec:pgorm:req:conn.copy.rows+7/test]    models with enum and JSON fields: a schema's enum, an enum through a domain, an enum array, JSON structs
 #[pgorm_macros::test]
 async fn copy_rows_models_with_enum_and_json() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_models_enum_json").await;
@@ -848,7 +848,7 @@ fn slots(items: Option<&[&str]>) -> Value {
     )
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    a range type a schema created reads as its text form, writes back from it, and agrees with a raw query's decode
+// [spec:pgorm:req:conn.copy.rows+7/test]    a range type a schema created reads as its text form, writes back from it, and agrees with a raw query's decode
 #[pgorm_macros::test]
 async fn copy_rows_created_ranges_round_trip() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_created_ranges").await;
@@ -965,7 +965,7 @@ async fn copy_rows_created_ranges_round_trip() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    text that spells no range of the subtype is refused as its row is written, and a subtype no RangeSubtype reads has no value
+// [spec:pgorm:req:conn.copy.rows+7/test]    text that spells no range of the subtype is refused as its row is written, and a subtype no RangeSubtype reads has no value
 #[pgorm_macros::test]
 async fn copy_rows_created_range_refusals() -> Result<(), Error> {
     let ctx = TestContext::new("copy_rows_created_range_refusals").await;
@@ -1070,7 +1070,7 @@ fn ordered_multispans() -> CopyToStatement<CopyBinary> {
     )
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    a multirange type a schema created is described
+// [spec:pgorm:req:conn.copy.rows+7/test]    a multirange type a schema created is described
 // over its subtype, reads as its text form, writes back from it, and agrees with a raw
 // query's read of its text
 #[pgorm_macros::test]
@@ -1238,7 +1238,7 @@ async fn copy_rows_created_multiranges_round_trip() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:exec.cursor.binding-range+3/test]    the text a COPY reads binds as a
+// [spec:pgorm:req:exec.cursor.binding-range+4/test]    the text a COPY reads binds as a
 // parameter cast to the multirange, as the ORM writes it; a placeholder the server types as
 // the multirange arrives with no subtype, so a String bound to it is refused, never guessed
 #[pgorm_macros::test]
@@ -1278,7 +1278,7 @@ async fn created_multirange_text_binds_through_a_cast() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    text that spells no multirange of the subtype is
+// [spec:pgorm:req:conn.copy.rows+7/test]    text that spells no multirange of the subtype is
 // refused as its row is written and the sink goes on, and a multirange over a subtype no
 // RangeSubtype reads has no value
 #[pgorm_macros::test]
@@ -1345,7 +1345,7 @@ async fn copy_rows_created_multirange_refusals() -> Result<(), Error> {
 const TILLS: &str = "CREATE DOMAIN takings AS money CHECK (VALUE >= 0::money);
 CREATE TABLE till (id int4 PRIMARY KEY, cash money, floats money[], banked takings)";
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    a money column, an array of money and a domain
+// [spec:pgorm:req:conn.copy.rows+7/test]    a money column, an array of money and a domain
 // over money copy in from a Decimal or an integer of whole units, rounded half away from
 // zero to the currency's places, and copy out as the Decimal the server's numeric cast
 // gives; an amount money cannot hold is refused naming the column, and the domain's
@@ -1516,7 +1516,7 @@ async fn numerics(db: &mut DatabaseConnection, text: &str) -> Result<Vec<Vec<Val
     rows_of(db, &CopyToStatement::new(source, CopyBinary)).await
 }
 
-// [spec:pgorm:req:conn.copy.rows+5/test]    a numeric reads as the Decimal that holds it exactly,
+// [spec:pgorm:req:conn.copy.rows+7/test]    a numeric reads as the Decimal that holds it exactly,
 // its scale and an array's included, and one rust_decimal would round, NaN and the infinities
 // and an integer part past 96 bits are each refused naming the column
 #[pgorm_macros::test]

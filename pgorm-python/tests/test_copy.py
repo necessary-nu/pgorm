@@ -1,4 +1,4 @@
-"""COPY FROM STDIN and COPY TO STDOUT through pgorm's CopyTrait."""
+"""COPY FROM STDIN and COPY TO STDOUT through pgorm's pgorm::CopyConnection."""
 
 import asyncio
 import datetime as dt
@@ -31,7 +31,7 @@ async def collect(stream):
 
 
 class CopyStatements(unittest.TestCase):
-    # [spec:pgorm:req:bindings.copy/test]    the format and direction gate each option
+    # [spec:pgorm:req:bindings.copy+1/test]    the format and direction gate each option
     def test_wrong_format_or_direction_raises_construction_error(self):
         t = p.Table("t")
         refusals = [
@@ -73,7 +73,7 @@ class CopyStatements(unittest.TestCase):
                 build()
             self.assertIn(reason, str(caught.exception))
 
-    # [spec:pgorm:req:bindings.copy/test]    a write without RETURNING is refused as a COPY TO source
+    # [spec:pgorm:req:bindings.copy+1/test]    a write without RETURNING is refused as a COPY TO source
     def test_write_without_returning_is_refused(self):
         t, s = p.Table("t"), p.Table("s")
         merge = p.merge(t, s, t.col("id") == s.col("id")).when_matched(p.MergeAction.delete())
@@ -99,7 +99,7 @@ class CopyStatements(unittest.TestCase):
             with self.subTest(sql=write.inspect().sql):
                 self.assertIn("RETURNING", p.CopyTo(write, "text").inspect().sql)
 
-    # [spec:pgorm:req:bindings.copy/test]    inspection is the Rust rendering, values inline
+    # [spec:pgorm:req:bindings.copy+1/test]    inspection is the Rust rendering, values inline
     def test_inspection_renders_rust_sql_without_parameters(self):
         t = p.Table("glyph", schema="art")
         base = p.CopyFrom(t, "csv")
@@ -153,7 +153,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
         records = await (executor or self.pool).query(self.rows(table))
         return [tuple(record.values()) for record in records]
 
-    # [spec:pgorm:req:bindings.copy/test]    text and csv data both ways
+    # [spec:pgorm:req:bindings.copy+1/test]    text and csv data both ways
     async def test_text_and_csv_copy_in_and_out(self):
         text = p.CopyFrom(self.items, "text").columns("id", "name", "note", "score")
         self.assertEqual(await self.pool.copy_in(text, b"1\talpha\t\\N\t1\n2\tbeta\tb\t2\n"), 2)
@@ -179,7 +179,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             bool(stream)
 
-    # [spec:pgorm:req:bindings.copy/test]    binary out of one table is binary into another
+    # [spec:pgorm:req:bindings.copy+1/test]    binary out of one table is binary into another
     async def test_binary_round_trip_between_tables(self):
         await self.pool.copy_in(
             p.CopyFrom(self.items, "csv"),
@@ -191,7 +191,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await connection.copy_in(p.CopyFrom(self.mirror, "binary"), data), 2000)
         self.assertEqual(await self.stored(table=self.mirror), await self.stored())
 
-    # [spec:pgorm:req:bindings.copy/test]    omitted columns take their defaults
+    # [spec:pgorm:req:bindings.copy+1/test]    omitted columns take their defaults
     async def test_column_subset_takes_defaults(self):
         statement = p.CopyFrom(self.items, "text").columns("id").columns("name")
         self.assertEqual(await self.pool.copy_in(statement, b"5\tfive\n"), 1)
@@ -200,7 +200,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.pool.copy_in(where, b"6,six\n7,seven\n"), 1)
         self.assertEqual([row[0] for row in await self.stored()], [5, 7])
 
-    # [spec:pgorm:req:bindings.copy/test]    a refused row raises 23505 and aborts the transaction
+    # [spec:pgorm:req:bindings.copy+1/test]    a refused row raises 23505 and aborts the transaction
     async def test_unique_violation_aborts_transaction_until_rollback(self):
         async with self.pool.connection() as connection:
             with self.assertRaises(p.DatabaseError) as aborted:
@@ -214,7 +214,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await self.stored(connection), [])
             self.assertTrue(await connection.ping())
 
-    # [spec:pgorm:req:bindings.copy/test]    a raising source aborts and the connection stays usable
+    # [spec:pgorm:req:bindings.copy+1/test]    a raising source aborts and the connection stays usable
     # [spec:pgorm:req:bindings.argument-errors+1/test]
     async def test_raising_source_aborts_and_keeps_connection(self):
         marker = ValueError("source failed")
@@ -247,7 +247,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(pid, again)
             self.assertFalse(connection.closed)
 
-    # [spec:pgorm:req:bindings.copy/test]    a raising source inside a transaction aborts it until rollback
+    # [spec:pgorm:req:bindings.copy+1/test]    a raising source inside a transaction aborts it until rollback
     async def test_raising_source_aborts_enclosing_transaction(self):
         async def failing():
             yield b"1\tone\n"
@@ -263,7 +263,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(aborted.exception.sqlstate, "25P02")
             self.assertEqual(await self.stored(connection), [])
 
-    # [spec:pgorm:req:bindings.copy/test]    8 MB streamed lazily in, then counted out chunk by chunk
+    # [spec:pgorm:req:bindings.copy+1/test]    8 MB streamed lazily in, then counted out chunk by chunk
     async def test_large_lazy_source_streams_both_ways(self):
         rows, width = 80_000, 100
         expected = sum(len(f"{n}\t{'x' * width}\n") for n in range(rows))
@@ -295,7 +295,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(chunks, 100)
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:bindings.copy/test]    COPY TO over a query with a WHERE value, and each write's RETURNING
+    # [spec:pgorm:req:bindings.copy+1/test]    COPY TO over a query with a WHERE value, and each write's RETURNING
     async def test_copy_to_query_with_where_value(self):
         await self.pool.copy_in(p.CopyFrom(self.items, "csv").columns("id", "name"), b"1,a\n2,b\n3,c\n")
         query = (
@@ -320,7 +320,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
             p.CopyTo(p.delete(self.items).where(p.col("id") == 4), "text")
         self.assertEqual([row[0] for row in await self.stored()], [1, 2, 4, 5])
 
-    # [spec:pgorm:req:bindings.copy/test]    a Select source's refused tie limit or window is refused before COPY TO runs
+    # [spec:pgorm:req:bindings.copy+1/test]    a Select source's refused tie limit or window is refused before COPY TO runs
     async def test_copy_to_checks_select_source(self):
         await self.pool.copy_in(p.CopyFrom(self.items, "csv").columns("id", "name", "score"),
                                 b"1,a,3\n2,b,3\n3,c,4\n")
@@ -340,7 +340,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
         declared = windowed.window("w", p.Window())
         self.assertEqual(await collect(await self.pool.copy_out(p.CopyTo(declared, "csv"))), b"3\n3\n3\n")
 
-    # [spec:pgorm:req:bindings.copy/test]    a copy in progress reserves its connection or transaction
+    # [spec:pgorm:req:bindings.copy+1/test]    a copy in progress reserves its connection or transaction
     async def test_active_copy_reserves_connection_and_transaction(self):
         refused = []
         async with self.pool.connection() as connection:
@@ -375,7 +375,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(await tx.copy_in(statement, b"3\tthree\n"), 1)
             self.assertEqual(len(await connection.query(self.rows())), 3)
 
-    # [spec:pgorm:req:bindings.copy/test]    a pool copy holds its own connection until the end
+    # [spec:pgorm:req:bindings.copy+1/test]    a pool copy holds its own connection until the end
     async def test_pool_copy_owns_and_releases_its_connection(self):
         pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1, acquire_timeout=0.5)
         try:
@@ -390,7 +390,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
         finally:
             await pool.close()
 
-    # [spec:pgorm:req:bindings.copy/test]    closing COPY TO early discards its connection
+    # [spec:pgorm:req:bindings.copy+1/test]    closing COPY TO early discards its connection
     async def test_early_close_discards_connection(self):
         await self.pool.copy_in(
             p.CopyFrom(self.items, "text").columns("id", "name"),
@@ -410,7 +410,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(connection.closed)
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:bindings.copy/test]    a refused COPY FROM raises 42P01 and the pool lends a working connection
+    # [spec:pgorm:req:bindings.copy+1/test]    a refused COPY FROM raises 42P01 and the pool lends a working connection
     async def test_refused_copy_in_closes_its_connection(self):
         missing = p.Table("python_copy_missing")
         async with self.pool.connection() as connection:
@@ -436,7 +436,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
         for _ in range(3):
             self.assertEqual((await self.pool.one(p.RawSQL("SELECT 1 AS one")))["one"], 1)
 
-    # [spec:pgorm:req:bindings.copy/test]    cancelling a copy during a slow source commits nothing
+    # [spec:pgorm:req:bindings.copy+1/test]    cancelling a copy during a slow source commits nothing
     # [spec:pgorm:req:bindings.cancellation/test]
     async def test_cancelled_copy_commits_nothing(self):
         statement = p.CopyFrom(self.items, "text").columns("id", "name")
@@ -465,7 +465,7 @@ class CopyExecution(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(await asyncio.wait_for(self.pool.ping(), 2))
 
 
-    # [spec:pgorm:req:bindings.copy/test]    a copy cancelled while finishing discards its connection
+    # [spec:pgorm:req:bindings.copy+1/test]    a copy cancelled while finishing discards its connection
     # [spec:pgorm:req:python.cancellation+1/test]
     async def test_cancel_during_finish_discards_connection(self):
         await self.pool.execute(p.RawSQL(
@@ -612,11 +612,11 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
         finally:
             await self.pool.execute(p.RawSQL("DROP TABLE IF EXISTS python_round_from, python_round_to"))
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    each value kind is written as a parameter binds and read back as a result decodes
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    each value kind is written as a parameter binds and read back as a result decodes
     async def test_rows_round_trip_every_kind(self):
         operations = p.capabilities()["operations"]
         for name in ("connection.copy_in_rows", "transaction.copy_out_rows"):
-            self.assertIn("CopyTrait", operations[name]["rust_api"])
+            self.assertIn("pgorm::CopyConnection", operations[name]["rust_api"])
         self.assertEqual(await self.pool.copy_in_rows(p.CopyFrom(self.kinds, "binary"), [kind_row(1)]), 1)
         await self.pool.execute(p.RawSQL(LITERALS))
         same = await self.pool.one(p.RawSQL(
@@ -645,7 +645,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.ConstructionError):
             bool(stream)
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    a row of the wrong width or type raises a construction error that aborts the COPY
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    a row of the wrong width or type raises a construction error that aborts the COPY
     # [spec:pgorm:req:bindings.argument-errors+1/test]
     async def test_wrong_width_or_type_aborts_copy(self):
         copy = p.CopyFrom(self.rows, "binary").columns("id", "name")
@@ -680,7 +680,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
             await self.pool.copy_in_rows(copy, [[1, "again"]])
         self.assertEqual(caught.exception.sqlstate, "23505")
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    a money column, an array of money and a domain over
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    a money column, an array of money and a domain over
     # money copy in from a Decimal or an int of whole units, rounded to the currency's places, and
     # copy out as the Decimal the server's numeric cast gives
     async def test_money_rows_move_as_decimals(self):
@@ -718,7 +718,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
             await self.pool.execute(p.RawSQL("DROP TABLE IF EXISTS python_copy_tills"))
             await self.pool.execute(p.RawSQL("DROP DOMAIN IF EXISTS python_copy_takings"))
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    rows run on a connection and in a transaction, from an async generator
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    rows run on a connection and in a transaction, from an async generator
     async def test_rows_on_connection_and_transaction(self):
         copy = p.CopyFrom(self.rows, "binary").columns("id", "name")
 
@@ -745,7 +745,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
             count = await connection.one(p.RawSQL("SELECT count(*) AS n FROM python_copy_rows"))
             self.assertEqual(count["n"], 600)
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    a refused description keeps the connection; an undecodable field raises and closes the stream
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    a refused description keeps the connection; an undecodable field raises and closes the stream
     async def test_refused_description_and_undecodable_field(self):
         async with self.pool.connection() as connection:
             with self.assertRaises(p.DatabaseError) as caught:
@@ -768,7 +768,7 @@ class CopyRows(unittest.IsolatedAsyncioTestCase):
             await anext(stream)
         self.assertEqual((await self.pool.one(p.RawSQL("SELECT 3 AS n")))["n"], 3)
 
-    # [spec:pgorm:req:bindings.copy-rows+2/test]    a created multirange reads as a Multirange and writes back from a Value of its kind or from its text
+    # [spec:pgorm:req:bindings.copy-rows+3/test]    a created multirange reads as a Multirange and writes back from a Value of its kind or from its text
     # [spec:pgorm:req:bindings.created-ranges+5/test]
     async def test_created_multiranges_round_trip(self):
         for statement in MULTISPANS:

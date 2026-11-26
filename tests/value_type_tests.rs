@@ -161,7 +161,7 @@ mod parcel {
     }
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+9/test]    a form's optional newtype field
+// [spec:pgorm:sem:macros.derive.active-model+10/test]    a form's optional newtype field
 // [spec:pgorm:sem:macros.derive.value-type+7/test]    a ValueType newtype is a
 // nullable column: `None` binds as NULL, reads back as `None`, is filtered on,
 // and a form sets the column, to NULL through `Some(None)`

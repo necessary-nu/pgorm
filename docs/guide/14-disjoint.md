@@ -617,7 +617,7 @@ pub enum Payment {
 # for statement in pgorm::Schema::new().create_disjoint::<PaymentBefore>()? {
 #     db.batch_execute(&statement.to_string()).await?;
 # }
-use pgorm::{Schema, TransactionTrait};
+use pgorm::{Schema, Transact};
 
 let change = Schema::new().add_disjoint_kind::<Payment>(PaymentKind::Voucher)?;
 let steps = change.steps();
@@ -748,7 +748,7 @@ pub enum Payment {
 # #[tokio::main(flavor = "current_thread")]
 # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 use pgorm::{MigrationFile, Schema};
-use pgorm_migration::{MigrationTrait, MigratorTrait, sql_migration};
+use pgorm_migration::{Migration, Migrator as _, sql_migration};
 
 let migrations = concat!(env!("CARGO_MANIFEST_DIR"), "/docs/guide/migrations");
 let change = Schema::new().add_disjoint_kind::<Payment>(PaymentKind::Voucher)?;
@@ -766,8 +766,8 @@ for file in &files {
 
 pub struct Migrator;
 
-impl MigratorTrait for Migrator {
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>> {
+impl pgorm_migration::Migrator for Migrator {
+    fn migrations(&self) -> Vec<Box<dyn Migration>> {
         vec![
             Box::new(sql_migration!("docs/guide/migrations/m20260201_000001_create_payment.sql")),
             Box::new(sql_migration!("docs/guide/migrations/m20260301_000001_add_voucher_1.sql")),

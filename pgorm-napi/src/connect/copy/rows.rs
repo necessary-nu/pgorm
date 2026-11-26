@@ -103,7 +103,7 @@ pub(super) fn refusal(error: pgorm::Error) -> String {
 /// written against its column's type as a parameter is bound; a row of
 /// another width, or a value its column's type does not take, is refused with
 /// a `ConstructionError` naming the column.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(super) fn copy_rows_encode(mut cx: FunctionContext) -> JsResult<JsUint8Array> {
     let state = in_state(&mut cx)?;
     let Some(rows) = &state.rows else {
@@ -129,7 +129,7 @@ pub(super) fn copy_rows_encode(mut cx: FunctionContext) -> JsResult<JsUint8Array
 /// column's type as a parameter is bound. A row of another width, or a value
 /// its column's type does not take, is refused with a `ConstructionError`
 /// naming the column, and `out` is left as it was.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(super) fn encode_row<'cx>(
     cx: &mut FunctionContext<'cx>,
     codec: Codec<'cx>,
@@ -203,7 +203,7 @@ fn row_params<'cx>(
 /// ending where it may not.
 /// The decoder's next whole row, each field decoded as a result column of
 /// its type is; `None` until more data arrives, and after the trailer.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(super) fn next_decoded(decoder: &mut CopyRowDecoder) -> Result<Option<Vec<Tagged>>, Failure> {
     let Some(fields) = decoder
         .next_fields()
@@ -252,7 +252,7 @@ fn rows_from(state: &OutState, chunk: Option<&[u8]>) -> Result<Vec<Vec<Tagged>>,
 /// the connection is free again. One pull runs at a time. A field that does
 /// not decode rejects with a `DecodeError` and closes the stream, discarding
 /// its connection, which the server would go on sending to.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(super) fn copy_rows_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = out_state(&mut cx)?;
     let abort = abort_argument(&mut cx, 1)?;
@@ -350,7 +350,7 @@ pub(super) fn index(index: usize) -> u32 {
 
 /// `copyRowsColumns(stream)`: the names of the columns each row holds, in
 /// order, as the server describes them.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(super) fn copy_rows_columns(mut cx: FunctionContext) -> JsResult<JsArray> {
     let state = out_state(&mut cx)?;
     let names: Vec<String> = match &state.rows {

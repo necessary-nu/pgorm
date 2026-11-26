@@ -24,7 +24,7 @@
 //! entity's own module, and a key filled by `Func::uuidv7()` is the default a
 //! new table most often wants.
 //!
-//! `ExprTrait` is here because it is where an expression's operators are:
+//! `Expression` is here because it is where an expression's operators are:
 //! without it a function call, a cast or a column's aggregate could be
 //! built but not compared, `Column::Id.count().gt(2)` naming a method of a
 //! trait out of scope.
@@ -34,22 +34,22 @@
 //! written, with no prefix of their own: `on_delete = ForeignKeyAction::Cascade`,
 //! `deferrability = Deferrability::DeferrableInitiallyDeferred`.
 
-// [spec:pgorm:def:entity.prelude+12]
+// [spec:pgorm:def:entity.prelude+13]
 // [spec:pgorm:sem:query.build.alias+2]
 pub use crate::{
-    ActiveEnum, ActiveModelBehavior, ActiveModelTrait, ActiveValue,
+    ActiveEnum, ActiveModel, ActiveModelBehavior, ActiveValue,
     ActiveValue::{NotSet, Set, Unchanged},
-    AliasName, ColumnDef, ColumnTrait, ColumnType, ColumnTypeTrait, Condition, ConnectionTrait,
-    CreatedRange, CursorTrait, DatabaseConnection, DatabasePool, DatabaseTransaction, DecodeRaw,
-    DecodeSelect, Delete, Disjoint, EntityName, EntityTrait, Every, FromQueryResult, Insert,
-    IntoActiveModel, IntoActiveValue, Iterable, JoinType, Linked, LoaderTrait, ModelTrait,
-    NoContext, OneOf, PaginatorTrait, PrimaryKeyArity, PrimaryKeyToColumn, PrimaryKeyTrait,
-    QueryFilter, QueryOrder, QueryResult, QuerySelect, QueryTrait, Related, RelatedLink,
-    RelationDef, RelationTrait, Scope, ScopeContext, ScopeError, ScopeOn, Select, SqlName,
-    StaticName, TransactionTrait, TryInsert, TryIntoModel, Update, Value, alias,
+    AliasName, Column, ColumnDef, ColumnType, ColumnTypeExt, Condition, Connection, CreatedRange,
+    CursorSource, DatabaseConnection, DatabasePool, DatabaseTransaction, DecodeRaw, DecodeSelect,
+    Delete, Disjoint, Entity, EntityName, Every, FromQueryResult, Insert, IntoActiveModel,
+    IntoActiveValue, Iterable, JoinType, Linked, LoadRelated, Model, NoContext, OneOf, Paginate,
+    PartialModel, PrimaryKey, PrimaryKeyArity, PrimaryKeyToColumn, QueryFilter, QueryOrder,
+    QueryResult, QuerySelect, Related, RelatedLink, Relation, RelationDef, Scope, ScopeContext,
+    ScopeError, ScopeOn, Select, SqlName, Statement, StaticName, Transact, TryInsert, TryIntoModel,
+    Update, Value, alias,
     error::*,
     pgorm_query::{
-        ArrayType, ConditionType, Deferrability, Enforcement, Expr, ExprTrait, ForeignKeyAction,
+        ArrayType, ConditionType, Deferrability, Enforcement, Expr, Expression, ForeignKeyAction,
         Func, Name, StringLen,
     },
     set,
@@ -57,13 +57,25 @@ pub use crate::{
 pub use std::sync::Arc;
 
 /// The derives with no trait of their name above. The rest — `ActiveEnum`,
-/// `CreatedRange`, `Disjoint`, `EntityTrait`, `FromQueryResult`,
-/// `IntoActiveModel`, `OneOf`, `Scope`, `ScopeContext`, `SqlName` and
-/// `StaticName` — arrive with the trait they implement, one import bringing
-/// both.
-// [spec:pgorm:req:macros.derive.names+3]
+/// `Column`, `CreatedRange`, `Disjoint`, `Entity`, `FromQueryResult`,
+/// `IntoActiveModel`, `Model`, `OneOf`, `PartialModel`, `Relation`, `Scope`,
+/// `ScopeContext`, `SqlName` and `StaticName` — arrive with the trait of
+/// their name, one import bringing both.
+// [spec:pgorm:req:macros.derive.names+4]
 #[cfg(feature = "macros")]
-pub use crate::{Column, Entity, JsonValueType, Model, PartialModel, Relation, ValueType};
+pub use crate::{JsonValueType, ValueType};
+
+/// The traits again, unnamed, for the module that names an item of its own
+/// after one: an entity module's `Entity`, `Model`, `Column`, `ActiveModel`,
+/// `PrimaryKey` and `Relation`, a driver's `Statement` or `Connection`. Its
+/// own item shadows the name this glob brings, and with the name the trait's
+/// methods would leave scope; `Entity::find()` and `model.into_active()` are
+/// still the trait's through these.
+// [spec:pgorm:def:entity.prelude+13]
+pub use crate::{
+    ActiveModel as _, Column as _, Connection as _, Entity as _, Model as _, PrimaryKey as _,
+    Relation as _, Statement as _,
+};
 
 pub use async_trait;
 
@@ -87,7 +99,7 @@ pub use rust_decimal::Decimal;
 #[cfg(feature = "with-uuid")]
 pub use uuid::Uuid;
 
-// [spec:pgorm:def:exec.decode.types+3]
+// [spec:pgorm:def:exec.decode.types+4]
 pub use crate::pgorm_query::{IpNetwork, MacAddress, Vector};
 
 // [spec:pgorm:req:exec.decode.interval+1]
@@ -96,8 +108,8 @@ pub use crate::pgorm_query::Interval;
 /// The qualifier vocabulary of an interval column, so that
 /// `column_type = ColumnType::Interval(IntervalSpec::Fields(PgInterval::YearToMonth))`
 /// resolves in the module the entity is written in.
-// [spec:pgorm:def:entity.prelude+12]
+// [spec:pgorm:def:entity.prelude+13]
 pub use crate::pgorm_query::{IntervalPrecision, IntervalSpec, PgInterval};
 
-// [spec:pgorm:def:exec.decode.range+5]
+// [spec:pgorm:def:exec.decode.range+6]
 pub use crate::pgorm_query::{Multirange, Range, RangeType};

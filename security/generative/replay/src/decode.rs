@@ -10,7 +10,7 @@ use jiff::{
     civil::{Date, DateTime, Time},
 };
 use pgorm::pgorm_query::{ArrayType, Interval, Value, Vector};
-use tokio_postgres::{
+use pgorm_driver::{
     Row,
     types::{FromSql, Kind, Type},
 };

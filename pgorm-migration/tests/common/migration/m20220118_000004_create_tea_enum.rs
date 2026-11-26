@@ -4,7 +4,7 @@ use pgorm_migration::prelude::{pgorm_query::extension::Type, *};
 pub struct Migration;
 
 #[async_trait::async_trait]
-impl MigrationTrait for Migration {
+impl pgorm_migration::Migration for Migration {
     async fn up(&self, tx: &mut DatabaseTransaction<'_>) -> Result<(), Error> {
         let create = Type::create(Tea::Enum)
             .values(["EverydayTea", "BreakfastTea"])

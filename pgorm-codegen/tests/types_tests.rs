@@ -313,7 +313,7 @@ fn hostile_named_type_survives_the_compact_attribute() {
 // character
 #[test]
 fn derived_entity_names_the_hostile_type_exactly() {
-    use pgorm::entity::prelude::ColumnTrait;
+    use pgorm::entity::prelude::Column as _;
 
     assert_eq!(
         hostile_entity::Column::Odd.def().get_column_type(),
@@ -448,7 +448,7 @@ fn column_conversion_reads_an_identity() {
     }
 }
 
-// [spec:pgorm:sem:codegen.entity.pk+5/test]    a one-column serial key carries
+// [spec:pgorm:sem:codegen.entity.pk+6/test]    a one-column serial key carries
 // `primary_key` alone, and each column of a composite key of plain columns
 // `primary_key, auto_increment = false`
 #[test]
@@ -575,7 +575,7 @@ mod text_array_entity {
 // the array of the element type named, not of the one `String` infers
 #[test]
 fn derived_array_columns_keep_their_element_type() {
-    use pgorm::entity::prelude::{ColumnTrait, ColumnTypeTrait};
+    use pgorm::entity::prelude::{Column as _, ColumnTypeExt};
 
     assert_eq!(
         text_array_entity::Column::Tags.def(),

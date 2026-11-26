@@ -25,7 +25,7 @@ pub(crate) enum Lent<T> {
 /// returns runs. The frame closes once that future finishes, so a command
 /// the language sends afterwards is refused rather than run in a transaction
 /// the runner has moved on from.
-// [spec:pgorm:req:bindings.migrations]    a migration's `up` runs in the batch's transaction
+// [spec:pgorm:req:bindings.migrations+1]    a migration's `up` runs in the batch's transaction
 pub(crate) async fn lend<O, F>(
     pool: Arc<PoolState<O>>,
     tx: &mut DatabaseTransaction<'_>,

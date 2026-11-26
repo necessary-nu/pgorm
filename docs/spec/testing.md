@@ -10,7 +10,7 @@ own containers, so neither is bound by it.
 
 ## Run isolation
 
-> [spec:pgorm:req:testing.isolation]
+> [spec:pgorm:req:testing.isolation+1]
 > Any number of runs MAY share the server `DATABASE_URL` names at once: two
 > checkouts, two runs of one checkout, the Rust crates' suites and
 > pgorm-napi's. A run MUST NOT touch another's databases, roles or connections.
@@ -23,7 +23,7 @@ own containers, so neither is bound by it.
 > stamp is the Unix second at which it minted its first name, which tells the
 > creator from a later process given the same pid. The Rust crates mint these
 > names through one unpublished crate, `pgorm-test-support`, a dev-dependency
-> of pgorm and pgorm-migration that reaches the server through tokio-postgres
+> of pgorm and pgorm-migration that reaches the server through pgorm-driver
 > rather than pgorm; pgorm-napi's support module mints the same names.
 >
 > A run MUST NOT drop a database or role it did not create, so nothing drops a

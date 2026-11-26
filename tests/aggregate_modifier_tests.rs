@@ -15,7 +15,7 @@
 pub mod common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, Func, Name, Order, Query, SimpleExpr};
-use pgorm::{ConnectionTrait, entity::prelude::*};
+use pgorm::{Connection, entity::prelude::*};
 
 /// A known distribution: `size_w` 1..=10, `ascii` true on the even ones.
 const SEED: &str = "

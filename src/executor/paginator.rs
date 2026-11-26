@@ -1,9 +1,10 @@
 use crate::{
-    ConnectionTrait, EntityTrait, FromQueryResult, ScopeError, Select, SelectModel, Selector,
-    SelectorRaw, SelectorTrait, error::*,
+    Connection, DecodeRow, Entity, FromQueryResult, ScopeError, Select, SelectModel, Selector,
+    SelectorRaw, error::*,
 };
 use async_stream::stream;
 use futures::Stream;
+use pgorm_driver::types::ToSql;
 use pgorm_query::{
     Asterisk, Expr, FromItem, IntoName, SelectStatement, SqlTemplate, Value, alias,
     error::{Error as QueryError, TemplateError},
@@ -15,7 +16,6 @@ use std::{
     num::NonZeroU64,
     pin::Pin,
 };
-use tokio_postgres::types::ToSql;
 
 use super::{
     QueryResult, ValueHolder,
@@ -26,12 +26,12 @@ use super::{
 pub type PinBoxStream<'db, Item> = Pin<Box<dyn Stream<Item = Item> + 'db>>;
 
 /// Defined a structure to handle pagination of a result from a query operation on a Model
-// [spec:pgorm:def:exec.paginator+3]
+// [spec:pgorm:def:exec.paginator+4]
 #[derive(Clone, Debug)]
 pub struct Paginator<'db, C, S>
 where
-    C: ConnectionTrait,
-    S: SelectorTrait + 'db,
+    C: Connection,
+    S: DecodeRow + 'db,
 {
     pub(crate) query: SelectStatement,
     pub(crate) page: u64,
@@ -64,8 +64,8 @@ const COUNT_SUBQUERY_ALIAS: &str = "sub_query";
 /// own means. A query with no projection, one whose limit keeps ties, and an
 /// offset past `u64` are refused.
 // [spec:pgorm:sem:exec.paginator.fetch+3]
-// [spec:pgorm:sem:exec.paginator.raw+8] (one shape for a built source and a raw one)
-// [spec:pgorm:req:exec.tie-limit+1]
+// [spec:pgorm:sem:exec.paginator.raw+9] (one shape for a built source and a raw one)
+// [spec:pgorm:req:exec.tie-limit+2]
 // [spec:pgorm:req:bindings.disjoint+2]
 pub fn page_statement(
     query: &SelectStatement,
@@ -92,8 +92,8 @@ pub fn page_statement(
 /// is the count. A query with no projection, and one whose limit keeps ties,
 /// are refused.
 // [spec:pgorm:sem:exec.paginator.count]
-// [spec:pgorm:sem:exec.paginator.raw+8] (one shape for a built source and a raw one)
-// [spec:pgorm:req:exec.tie-limit+1]
+// [spec:pgorm:sem:exec.paginator.raw+9] (one shape for a built source and a raw one)
+// [spec:pgorm:req:exec.tie-limit+2]
 // [spec:pgorm:req:bindings.disjoint+2]
 pub fn count_statement(query: &SelectStatement) -> Result<SelectStatement, Error> {
     ensure_select_list(query)?;
@@ -110,8 +110,8 @@ pub fn count_statement(query: &SelectStatement) -> Result<SelectStatement, Error
 
 impl<'db, C, S> Paginator<'db, C, S>
 where
-    C: ConnectionTrait,
-    S: SelectorTrait + 'db,
+    C: Connection,
+    S: DecodeRow + 'db,
 {
     /// Fetch a specific page; page index starts from zero
     // [spec:pgorm:sem:exec.paginator.fetch+3]
@@ -119,6 +119,8 @@ where
         self.refusal()?;
         let (stmt, values) = page_statement(&self.query, self.page_size, page)?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = crate::database::ValueSql::new(&stmt, &values);
         let values = values
             .iter()
             .map(|x| x as _)
@@ -152,6 +154,8 @@ where
         self.refusal()?;
         let (stmt, values) = count_statement(&self.query)?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = crate::database::ValueSql::new(&stmt, &values);
         let values = values
             .iter()
             .map(|x| x as _)
@@ -214,7 +218,7 @@ where
     ///
     /// ```no_run
     /// # use std::num::NonZeroU64;
-    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, PaginatorTrait};
+    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, Paginate};
     /// #
     /// # const PAGE_SIZE: NonZeroU64 = NonZeroU64::new(50).unwrap();
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
@@ -243,7 +247,7 @@ where
     /// ```no_run
     /// # use std::num::NonZeroU64;
     /// # use futures::TryStreamExt;
-    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, PaginatorTrait};
+    /// # use pgorm::{entity::*, error::*, query::*, tests_cfg::cake, DatabasePool, Paginate};
     /// #
     /// # const PAGE_SIZE: NonZeroU64 = NonZeroU64::new(50).unwrap();
     /// # async fn example(pool: &DatabasePool) -> Result<(), Error> {
@@ -278,13 +282,13 @@ where
 /// through its own [`SelectorRaw::paginate`], which returns a `Result`. The
 /// distinction is the type's, not a `Result` every builder-backed caller would
 /// have to unwrap for a failure that cannot happen.
-// [spec:pgorm:def:exec.paginator+3]
-pub trait PaginatorTrait<'db, C>
+// [spec:pgorm:def:exec.paginator+4]
+pub trait Paginate<'db, C>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     /// Select operation
-    type Selector: SelectorTrait + Send + Sync + 'db;
+    type Selector: DecodeRow + Send + Sync + 'db;
 
     /// Paginate the result of a select operation.
     ///
@@ -292,7 +296,7 @@ where
     /// page count undefined — is not a value this can be called with:
     ///
     /// ```compile_fail,E0308
-    /// # use pgorm::{entity::prelude::*, tests_cfg::cake, DatabaseConnection, PaginatorTrait};
+    /// # use pgorm::{entity::prelude::*, tests_cfg::cake, DatabaseConnection, Paginate};
     /// # fn example(db: &DatabaseConnection) {
     /// cake::Entity::find().paginate(db, 0);
     /// # }
@@ -302,14 +306,14 @@ where
     ///
     /// ```
     /// # use std::num::NonZeroU64;
-    /// # use pgorm::{entity::prelude::*, tests_cfg::cake, DatabaseConnection, PaginatorTrait};
+    /// # use pgorm::{entity::prelude::*, tests_cfg::cake, DatabaseConnection, Paginate};
     /// const PAGE_SIZE: NonZeroU64 = NonZeroU64::new(50).unwrap();
     ///
     /// # fn example(db: &DatabaseConnection) {
     /// cake::Entity::find().paginate(db, PAGE_SIZE);
     /// # }
     /// ```
-    // [spec:pgorm:req:exec.paginator.page-size+2/test]
+    // [spec:pgorm:req:exec.paginator.page-size+3/test]
     fn paginate(self, db: &'db C, page_size: NonZeroU64) -> Paginator<'db, C, Self::Selector>;
 
     /// Perform a count on the paginated results
@@ -321,14 +325,14 @@ where
     }
 }
 
-impl<'db, C, S> PaginatorTrait<'db, C> for Selector<S>
+impl<'db, C, S> Paginate<'db, C> for Selector<S>
 where
-    C: ConnectionTrait,
-    S: SelectorTrait + Send + Sync + 'db,
+    C: Connection,
+    S: DecodeRow + Send + Sync + 'db,
 {
     type Selector = S;
 
-    // [spec:pgorm:req:exec.paginator.page-size+2]
+    // [spec:pgorm:req:exec.paginator.page-size+3]
     fn paginate(self, db: &'db C, page_size: NonZeroU64) -> Paginator<'db, C, S> {
         Paginator {
             query: self.query,
@@ -343,11 +347,11 @@ where
 
 impl<S> SelectorRaw<S>
 where
-    S: SelectorTrait,
+    S: DecodeRow,
 {
     /// Paginate the caller's own statement, or report why it cannot be paged.
     ///
-    /// Fallible where [`PaginatorTrait::paginate`] is not, because the
+    /// Fallible where [`Paginate::paginate`] is not, because the
     /// statement is the caller's text rather than the builder's output: it may
     /// not parse, may not be a single row-returning `SELECT`, or may not agree
     /// with the values supplied for its `$N` markers. All of that is settled
@@ -375,15 +379,15 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:req:exec.paginator.page-size+2]
-    // [spec:pgorm:sem:exec.paginator.raw+8]
+    // [spec:pgorm:req:exec.paginator.page-size+3]
+    // [spec:pgorm:sem:exec.paginator.raw+9]
     pub fn paginate<'db, C>(
         self,
         db: &'db C,
         page_size: NonZeroU64,
     ) -> Result<Paginator<'db, C, S>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
         S: Send + Sync + 'db,
     {
         Ok(Paginator {
@@ -398,12 +402,12 @@ where
 
     /// Count every row the caller's own statement returns.
     ///
-    /// The counterpart of [`PaginatorTrait::count`], fallible for the same
+    /// The counterpart of [`Paginate::count`], fallible for the same
     /// reason [`paginate`](SelectorRaw::paginate) is.
-    // [spec:pgorm:sem:exec.paginator.raw+8]
+    // [spec:pgorm:sem:exec.paginator.raw+9]
     pub async fn count<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
         S: Send + Sync,
     {
         self.paginate(db, NonZeroU64::MIN)?.num_items().await
@@ -438,7 +442,7 @@ const RAW_SUBQUERY_ALIAS: &str = "sub_statement";
 /// Both checks answer to the caller that asked for the paginator, so the
 /// refusal is returned to `paginate` rather than stored for a later reader to
 /// replay.
-// [spec:pgorm:sem:exec.paginator.raw+8]
+// [spec:pgorm:sem:exec.paginator.raw+9]
 pub fn raw_select(stmt: &str, values: Vec<Value>) -> Result<SelectStatement, Error> {
     // Both refusals are the caller's own statement being unusable, which is
     // the vocabulary their other query failures already arrive in.
@@ -459,7 +463,7 @@ pub fn raw_select(stmt: &str, values: Vec<Value>) -> Result<SelectStatement, Err
 /// A marker census failure, reported in the paginator's voice: the caller asked
 /// to page a statement, so the reason names the statement and its bind values
 /// rather than a template and its substitutions.
-// [spec:pgorm:sem:exec.paginator.raw+8]
+// [spec:pgorm:sem:exec.paginator.raw+9]
 fn marker_report(error: QueryError) -> String {
     let supplied = |count: usize| {
         if count == 1 {
@@ -493,7 +497,7 @@ fn marker_report(error: QueryError) -> String {
 ///
 /// A `WITH ... SELECT` qualifies: PostgreSQL hangs the `WITH` clause off the
 /// `SelectStmt` itself rather than making it a statement of its own.
-// [spec:pgorm:sem:exec.paginator.raw+8]
+// [spec:pgorm:sem:exec.paginator.raw+9]
 fn single_select(stmt: &str) -> Result<&str, String> {
     let parsed =
         pgsql_syntax::parse(stmt, pgsql_syntax::ParserOptions::DEFAULT).map_err(|error| {
@@ -579,10 +583,10 @@ fn parser_message(error: &pgsql_syntax::Error) -> String {
     }
 }
 
-impl<'db, C, M, E> PaginatorTrait<'db, C> for Select<E>
+impl<'db, C, M, E> Paginate<'db, C> for Select<E>
 where
-    C: ConnectionTrait,
-    E: EntityTrait<Model = M>,
+    C: Connection,
+    E: Entity<Model = M>,
     M: FromQueryResult + Sized + Send + Sync + 'db,
 {
     type Selector = SelectModel<M>;
@@ -592,7 +596,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:exec.paginator.raw+8/test]    a caller's statement reaches
+// [spec:pgorm:sem:exec.paginator.raw+9/test]    a caller's statement reaches
 // the wrapper with its non-marker text untouched, whatever token forms it is
 // made of; its markers renumber into the wrapper's own parameter space with
 // the right values behind them; and a census the supplied values cannot
@@ -718,7 +722,7 @@ mod tests {
         }
     }
 
-    // [spec:pgorm:sem:exec.paginator.raw+8/test]    the statement is taken
+    // [spec:pgorm:sem:exec.paginator.raw+9/test]    the statement is taken
     // from its first token: what leads it is not carried into the wrapper,
     // and a terminating `;` is left behind with it
     #[test]

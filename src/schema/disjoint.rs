@@ -13,7 +13,7 @@ use crate::{
     unpack_table_name,
 };
 use pgorm_query::{
-    ColumnDef, ConditionType, Deferrability, Expr, ExprTrait, ForeignKeyAction, FromItem,
+    ColumnDef, ConditionType, Deferrability, Expr, Expression, ForeignKeyAction, FromItem,
     GeneratedKind, Name, Table, TableAlterStatement, TableCreateStatement, TableForeignKey,
     TableKey, TableName, Unique,
 };

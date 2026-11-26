@@ -3,7 +3,7 @@
 
 use pgorm::entity::prelude::*;
 
-#[derive(Copy, Clone, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, Entity)]
 pub struct Entity {
     pub tenant: &'static str,
 }

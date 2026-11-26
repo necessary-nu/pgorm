@@ -10,8 +10,8 @@
 //! insert answers.
 
 use pgorm::{
-    ActiveModelTrait, ConnectionTrait, EntityTrait, Error, Insert, IntoActiveModel, NoContext,
-    ScopedIn, TryInsert, TryInsertResult, Upserted,
+    ActiveModel, Connection, Entity, Error, Insert, IntoActiveModel, NoContext, ScopedIn,
+    TryInsert, TryInsertResult, Upserted,
     pgorm_query::{IntoValueTuple, OnConflict, ValueTuple},
 };
 
@@ -118,7 +118,7 @@ fn tried<T, M, U>(
 /// `insert` as the `TryInsert` the binding's calls made of it: by
 /// `on_conflict_do_nothing`, or by `on_empty_do_nothing` and then the clause
 /// `on_conflict` gave it, the last clause given standing as it does in Rust.
-fn attempt<A: ActiveModelTrait, R>(
+fn attempt<A: ActiveModel, R>(
     insert: Insert<A, R>,
     conflict: Option<InsertConflict>,
 ) -> TryInsert<A, R> {
@@ -130,7 +130,7 @@ fn attempt<A: ActiveModelTrait, R>(
 }
 
 /// `insert`, with `conflict` as its clause if given.
-fn clause<A: ActiveModelTrait, R>(
+fn clause<A: ActiveModel, R>(
     mut insert: Insert<A, R>,
     conflict: Option<Box<OnConflict>>,
 ) -> Insert<A, R> {
@@ -156,9 +156,9 @@ pub async fn insert<E, C, M, U>(
     upsert: impl Fn(Upserted<E::Model>) -> U,
 ) -> Result<TryInsertResult<Inserted<M, U>>, Error>
 where
-    E: EntityTrait + ScopedIn<NoContext>,
+    E: Entity + ScopedIn<NoContext>,
     E::Model: IntoActiveModel<E::ActiveModel>,
-    C: ConnectionTrait,
+    C: Connection,
 {
     let rows = |written: Vec<E::Model>| Inserted::Models(written.into_iter().map(&model).collect());
     let Insertion { models, one, write } = insertion;

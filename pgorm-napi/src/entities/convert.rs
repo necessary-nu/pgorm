@@ -26,7 +26,7 @@ impl Finalize for ModelHandle {}
 /// declared kind, converted exactly or refused; a column of a type the
 /// binding has no kind for takes a `Value`, or a value whose kind is
 /// inferred.
-// [spec:pgorm:req:bindings.entity-writes+1]
+// [spec:pgorm:req:bindings.entity-writes+2]
 pub(crate) fn column_value<'cx>(
     cx: &mut Cx<'cx>,
     column: &ColumnInfo,

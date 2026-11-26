@@ -44,7 +44,7 @@ pub(crate) struct DecoderHandle(RefCell<CopyRowDecoder>);
 
 impl Finalize for DecoderHandle {}
 
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn copy_encoder_new(mut cx: FunctionContext) -> JsResult<JsBox<EncoderHandle>> {
     let columns = columns_from(&mut cx, 0)?;
     Ok(cx.boxed(EncoderHandle(CopyRowEncoder::new(columns))))
@@ -52,7 +52,7 @@ fn copy_encoder_new(mut cx: FunctionContext) -> JsResult<JsBox<EncoderHandle>> {
 
 /// `copyEncoderEncode(encoder, row)`: one row in the binary format, read and
 /// checked as a COPY of rows' sink reads and checks one.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn copy_encoder_encode(mut cx: FunctionContext) -> JsResult<JsUint8Array> {
     let encoder = cx.argument::<JsBox<EncoderHandle>>(0)?;
     let row = cx.argument::<JsValue>(1)?;
@@ -78,7 +78,7 @@ fn copy_encoder_trailer(mut cx: FunctionContext) -> JsResult<JsUint8Array> {
     JsUint8Array::from_slice(&mut cx, &out)
 }
 
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn copy_decoder_new(mut cx: FunctionContext) -> JsResult<JsBox<DecoderHandle>> {
     let columns = columns_from(&mut cx, 0)?;
     Ok(cx.boxed(DecoderHandle(RefCell::new(CopyRowDecoder::new(columns)))))
@@ -97,7 +97,7 @@ fn copy_decoder_push(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 /// COPY of rows' stream decodes it, or `null` until more data arrives and
 /// after the trailer. Data that is not the binary format, and a field that
 /// does not decode, are a `DecodeError`.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn copy_decoder_next(mut cx: FunctionContext) -> JsResult<JsValue> {
     let decoder = cx.argument::<JsBox<DecoderHandle>>(0)?;
     let next = next_decoded(&mut decoder.0.borrow_mut());
@@ -114,7 +114,7 @@ fn copy_decoder_next(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `copyDecoderFinish(decoder)`: once the data has all been pushed, refuse
 /// it with a `DecodeError` if it stopped part way through a row or before
 /// the trailer.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn copy_decoder_finish(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let decoder = cx.argument::<JsBox<DecoderHandle>>(0)?;
     let finished = decoder.0.borrow().finish();

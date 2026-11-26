@@ -10,9 +10,7 @@
 use std::{any::TypeId, fmt, sync::Arc};
 
 use pgorm::pgorm_query::{SimpleExpr, TableAlterStatement, Value};
-use pgorm::{
-    DisjointTable, EntityTrait, Error, OneOf, OneOfShape, OneOfTarget, Related, TargetVisitor,
-};
+use pgorm::{DisjointTable, Entity, Error, OneOf, OneOfShape, OneOfTarget, Related, TargetVisitor};
 use serde_json::{Value as Json, json};
 
 use super::{Registry, registration_name};
@@ -157,7 +155,7 @@ impl<O: OneOf> TargetVisitor<O> for Targets<'_> {
 }
 
 /// The name the entity `E` is registered under, or a refusal naming it.
-fn registered_name<E: EntityTrait>(registry: &Registry) -> Result<String, Failure> {
+fn registered_name<E: Entity>(registry: &Registry) -> Result<String, Failure> {
     registry
         .backend::<E>("the one-of reference over it")
         .map(|backend| backend.info().name.clone())

@@ -12,13 +12,13 @@
 //! Run the test locally:
 //! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test json_operator_tests
 
-use pgorm_query::ExprTrait;
+use pgorm_query::Expression;
 pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Error, QueryFilter, QueryOrder,
-    QuerySelect, QueryTrait, Schema, pgorm_query::Expr, set,
+    ActiveModel, Column, Connection, Entity, Error, QueryFilter, QueryOrder, QuerySelect, Schema,
+    Statement, pgorm_query::Expr, set,
 };
 use serde_json::json;
 
@@ -38,7 +38,7 @@ mod doc {
     pub enum Relation {}
 }
 
-async fn seed(db: &impl ConnectionTrait) -> Result<(), Error> {
+async fn seed(db: &impl Connection) -> Result<(), Error> {
     let create = Schema::new()
         .create_table_from_entity(doc::Entity)?
         .to_string();
@@ -63,7 +63,7 @@ async fn seed(db: &impl ConnectionTrait) -> Result<(), Error> {
     Ok(())
 }
 
-async fn ids(db: &impl ConnectionTrait, filter: pgorm::pgorm_query::SimpleExpr) -> Vec<i32> {
+async fn ids(db: &impl Connection, filter: pgorm::pgorm_query::SimpleExpr) -> Vec<i32> {
     doc::Entity::find()
         .filter(filter)
         .order_by_asc(doc::Column::Id)
@@ -75,7 +75,7 @@ async fn ids(db: &impl ConnectionTrait, filter: pgorm::pgorm_query::SimpleExpr) 
         .collect()
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+4/test]    against a live server: a path and a
+// [spec:pgorm:req:sql.ast.expr.json+5/test]    against a live server: a path and a
 // key list each travel as one `text[]` parameter and select what the operator
 // says they should, composed through an entity-level filter
 #[pgorm_macros::test]
@@ -149,7 +149,7 @@ pub async fn json_path_and_key_operators_round_trip() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+4/test]    against a live server: `?|` is false
+// [spec:pgorm:req:sql.ast.expr.json+5/test]    against a live server: `?|` is false
 // and `?&` true over an empty key list, so neither needs the constant fall-back
 // `sql.ast.expr.in` has to synthesise, and the statement text does not change
 #[pgorm_macros::test]
@@ -217,7 +217,7 @@ pub async fn empty_key_lists_carry_vacuous_truth() {
     ctx.delete().await;
 }
 
-// [spec:pgorm:req:sql.ast.expr.json+4/test]    against a live server: the `?` family
+// [spec:pgorm:req:sql.ast.expr.json+5/test]    against a live server: the `?` family
 // is defined on `jsonb` and nowhere else, so `->>`'s text result has no `?` —
 // a rejection the syntax-only oracle cannot see, because both forms parse.
 // The same statement also proves the rendered `?` survives the wire: parameters

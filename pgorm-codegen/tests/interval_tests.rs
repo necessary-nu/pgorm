@@ -6,7 +6,7 @@
 mod common;
 
 use common::*;
-use pgorm::{ColumnTrait, ColumnTypeTrait, Iterable, StaticName};
+use pgorm::{Column, ColumnTypeExt, Iterable, StaticName};
 use pgorm_codegen::parse_schema;
 use pgorm_query::{ColumnType, IntervalPrecision, IntervalSpec, PgInterval, TableCreateStatement};
 use std::sync::Arc;

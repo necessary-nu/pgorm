@@ -6,7 +6,7 @@ pub type TableName = ArrayString<U32>;
 /// A table name chosen per statement. Its columns are qualified by the
 /// default's name, so a statement over another instance reads its table
 /// under that name.
-#[derive(Copy, Clone, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, Entity)]
 pub struct Entity {
     pub table_name: TableName,
 }

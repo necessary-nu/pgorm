@@ -85,7 +85,7 @@ fn pool_listener(mut cx: FunctionContext) -> JsResult<JsPromise> {
 /// TLS options read as a pool's are, every refusal thrown before anything is
 /// sent.
 // [spec:pgorm:req:bindings.listen+3]
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 fn connect_listener(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let dsn = cx.argument::<JsValue>(0)?;
     let options = cx.argument::<JsObject>(1)?;

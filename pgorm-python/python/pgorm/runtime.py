@@ -36,6 +36,7 @@ STATEMENT_CACHE_CHANNEL: str = _native.STATEMENT_CACHE_CHANNEL
 """The channel pgorm-migration's runner notifies once a batch that applied a
 migration commits; pass it as ``statement_cache_channel`` to clear on it."""
 
+
 class PoolStatus(NamedTuple):
     """A snapshot of native pool capacity and current usage."""
 
@@ -47,12 +48,20 @@ class PoolStatus(NamedTuple):
 
 # [spec:pgorm:req:python.runtime+2]
 # [spec:pgorm:req:bindings.runtime]
-# [spec:pgorm:req:bindings.connections+3]
+# [spec:pgorm:req:bindings.connections+4]
 # [spec:pgorm:req:python.lifecycle+4]
+# [spec:pgorm:req:turso.python+1]
 class Pool(RowCopies, RawStatements):
     """A pool owned by the asyncio loop running at construction.
 
-    TLS verifies the certificate and hostname by default. Explicit
+    ``dsn`` accepts a PostgreSQL connection string or, with the experimental
+    ``turso`` build feature, a database path or ``:memory:``. Construction is
+    lazy; ``connect`` checks the first connection before returning. Native
+    paths reject TLS, network connection timeouts, Clean recycling and
+    notification cache channels. Each native pool shares one database across
+    its connections; separate ``:memory:`` pools are isolated.
+
+    For PostgreSQL, TLS verifies the certificate and hostname by default. Explicit
     ``sslmode=disable`` in the DSN or ``tls="disable"`` selects plaintext, and
     ``tls`` names the weaker modes, ``"prefer"``, ``"require"`` and
     ``"verify-ca"``, which only an explicit option selects. ``ca`` supplies
@@ -75,6 +84,9 @@ class Pool(RowCopies, RawStatements):
     place of ``recycle``'s methods. ``tag`` names the pool; without one pgorm
     names it ``default-N``.
 
+    ``connect_timeout=None`` uses PostgreSQL's ten-second connection timeout;
+    native paths accept no explicit network connection timeout.
+
     An argument of a type the pool does not take, a choice outside its names
     among them, raises ``TypeError``; a value the pool cannot use raises
     ``ConstructionError``.
@@ -88,7 +100,7 @@ class Pool(RowCopies, RawStatements):
 
     def __init__(
         self,
-        dsn: str,
+        dsn: str | Path,
         *,
         tls: TlsMode | None = None,
         ca: str | bytes | None = None,
@@ -98,7 +110,7 @@ class Pool(RowCopies, RawStatements):
         key: str | bytes | None = None,
         keyfile: str | Path | None = None,
         max_size: int = 10,
-        connect_timeout: float = 10.0,
+        connect_timeout: float | None = None,
         acquire_timeout: float = 30.0,
         wait_timeout: float | None = None,
         create_timeout: float | None = None,
@@ -113,6 +125,8 @@ class Pool(RowCopies, RawStatements):
         pre_recycle: PoolHook | None = None,
         post_recycle: PoolHook | None = None,
     ) -> None:
+        if isinstance(dsn, Path):
+            dsn = str(dsn.absolute())
         shared = _shared(dsn, recycle, recycle_sql, statement_cache_size, statement_cache_channel, connect_timeout)
         if tag is not None and not isinstance(tag, str):
             raise TypeError("tag is a str or None")
@@ -419,7 +433,7 @@ class Connection(RowCopies, RawStatements):
         return f"Connection(closed={self.closed})"
 
 
-async def connect(dsn: str, **options: Any) -> Pool:
-    """Construct a pool and validate its PostgreSQL connection before return."""
+async def connect(dsn: str | Path, **options: Any) -> Pool:
+    """Construct a pool and validate its database connection before return."""
     pool = Pool(dsn, **options)
     return await pool.__aenter__()

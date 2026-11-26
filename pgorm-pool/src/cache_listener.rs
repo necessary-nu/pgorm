@@ -14,8 +14,8 @@ use std::{
     time::Duration,
 };
 
+use pgorm_driver::{AsyncMessage, Client, Config as PgConfig, Error};
 use tokio::task::JoinHandle;
-use tokio_postgres::{AsyncMessage, Client, Config as PgConfig, Error};
 
 use crate::{Connect, RawConnection};
 

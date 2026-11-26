@@ -64,7 +64,7 @@ const calm = () => Account.find().where(Account.col("mood").eq("calm")).orderBy(
 type Pair = [EntityRecord, EntityRecord | null];
 const ids = (rows: unknown[]) => (rows as Pair[]).map(([root, note]) => [root.id, note?.id ?? null]);
 
-// [spec:pgorm:req:bindings.entity-reads+4/test]
+// [spec:pgorm:req:bindings.entity-reads+5/test]
 test("a registered query counts and pages as Rust's Paginator does", async () => {
   const query = calm();
   assert.equal(await query.count(pool()), 3);
@@ -82,7 +82,7 @@ test("a registered query counts and pages as Rust's Paginator does", async () =>
   assert.throws(() => query.paginate(0), refused(/page size is at least 1/));
 });
 
-// [spec:pgorm:req:bindings.entity-reads+4/test]
+// [spec:pgorm:req:bindings.entity-reads+5/test]
 test("a registered query's cursor orders by its columns and casts each boundary", async () => {
   const cursor = Account.find().cursor("mood", "id");
   assert.deepStrictEqual((await cursor.first(2).all(pool())).map((account) => account.id), [1, 3]);
@@ -98,7 +98,7 @@ test("a registered query's cursor orders by its columns and casts each boundary"
   assert.throws(() => Account.find().cursor("missing"), refused(/no column "missing"/));
 });
 
-// [spec:pgorm:req:bindings.entity-reads+4/test]
+// [spec:pgorm:req:bindings.entity-reads+5/test]
 test("a registered query streams its records, each decoded as it arrives", async () => {
   const read: unknown[] = [];
   for await (const account of calm().stream(pool())) read.push(account.id);
@@ -110,7 +110,7 @@ test("a registered query streams its records, each decoded as it arrives", async
   });
 });
 
-// [spec:pgorm:req:bindings.entity-reads+4/test]
+// [spec:pgorm:req:bindings.entity-reads+5/test]
 test("a registered query joins a relation its entity declares", async () => {
   const notes = Account.relation("Note");
   assert.deepStrictEqual([notes.entityName, notes.name], ["app.Account", "Note"]);
@@ -121,7 +121,7 @@ test("a registered query joins a relation its entity declares", async () => {
   assert.throws(() => Account.relation("Missing"), refused(/declares no relation Missing/));
 });
 
-// [spec:pgorm:req:bindings.entity-reads+4/test]
+// [spec:pgorm:req:bindings.entity-reads+5/test]
 test("a registered query's selection reads some of its columns as plain records", async () => {
   const names = calm().select("display name", "mood");
   assert.deepStrictEqual(names.columns, ["display name", "mood"]);
@@ -145,7 +145,7 @@ const notes = () => {
   return query.orderBy(query.col(0, "id").asc(), query.col(1, "id").asc());
 };
 
-// [spec:pgorm:req:bindings.entity-graphs+4/test]
+// [spec:pgorm:req:bindings.entity-graphs+5/test]
 test("a registered graph groups, counts and pages its rows", async () => {
   const grouped = await notes().allGrouped(pool());
   assert.deepStrictEqual(grouped.map(([root, children]) => [root.id, children.map((note) => note.id)]), [
@@ -162,14 +162,14 @@ test("a registered graph groups, counts and pages its rows", async () => {
   assert.deepStrictEqual(ids(await pages.fetchPage(pool(), 1)), [[4, null], [5, null]]);
 });
 
-// [spec:pgorm:req:bindings.entity-graphs+4/test]
+// [spec:pgorm:req:bindings.entity-graphs+5/test]
 test("a registered graph streams its rows, each decoded as it arrives", async () => {
   const read: unknown[] = [];
   for await (const row of notes().stream(pool())) read.push(row);
   assert.deepStrictEqual(ids(read), [[1, 11], [1, 12], [2, 21], [3, null], [4, null], [5, null]]);
 });
 
-// [spec:pgorm:req:bindings.entity-graphs+4/test]
+// [spec:pgorm:req:bindings.entity-graphs+5/test]
 test("a registered graph's cursor orders by a slot's columns or by several of the root's", async () => {
   const onBody = graph("app.AccountNotes").find({ aliases: ["n"] }).cursorOn(1, "body");
   assert.match(onBody.first(2).inspect().sql, /ORDER BY "n"\."body" ASC, "n"\."id" ASC, "accounts"\."id" ASC LIMIT \$1$/);

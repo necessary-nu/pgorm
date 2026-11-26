@@ -20,9 +20,8 @@ use super::{
 };
 use crate::query::alias_apart;
 use crate::{
-    ActiveModelTrait, ActiveValue, ColumnDef, ColumnTrait, Disjoint, EntityTrait, Error, Iterable,
-    KindModel, KindVisitor, PrimaryKeyToColumn, PrimaryKeyTrait, RelationDef, StaticName,
-    table_label,
+    ActiveModel, ActiveValue, Column, ColumnDef, Disjoint, Entity, Error, Iterable, KindModel,
+    KindVisitor, PrimaryKey, PrimaryKeyToColumn, RelationDef, StaticName, table_label,
 };
 
 /// One column of a [`DisjointTable`]: its name, its definition, and the casts
@@ -71,7 +70,7 @@ impl DisjointColumn {
         self
     }
 
-    fn typed<C: ColumnTrait>(col: C) -> Self {
+    fn typed<C: Column>(col: C) -> Self {
         Self {
             name: Name::new(col),
             def: col.def(),
@@ -218,7 +217,7 @@ impl DisjointTable {
 
     /// The table, a one-column key of which is drawn from the serial family
     /// as an entity's is when its key's
-    /// [`auto_increment`](crate::PrimaryKeyTrait::auto_increment) is true: a
+    /// [`auto_increment`](crate::PrimaryKey::auto_increment) is true: a
     /// base's, which [`DisjointShape::check`] refuses on a kind's table.
     #[must_use]
     // [spec:pgorm:req:bindings.schema-from-model]
@@ -273,7 +272,7 @@ impl DisjointTable {
     }
 
     /// `E`'s table, each column cast by its typed column.
-    fn typed<E: EntityTrait>() -> Self {
+    fn typed<E: Entity>() -> Self {
         let entity = E::default();
         let columns: Vec<DisjointColumn> = E::Column::iter().map(DisjointColumn::typed).collect();
         // Every key column is one of `E::Column`'s, which `columns` lists.
@@ -420,10 +419,10 @@ pub struct DisjointValues {
 
 impl DisjointValues {
     /// What `active` holds for each of its entity's columns.
-    pub fn of_active<A: ActiveModelTrait>(active: &A) -> Result<Self, Error> {
+    pub fn of_active<A: ActiveModel>(active: &A) -> Result<Self, Error> {
         Ok(Self {
             table: table_label(&A::Entity::default()),
-            values: <A::Entity as EntityTrait>::Column::iter()
+            values: <A::Entity as Entity>::Column::iter()
                 .map(|column| active.get(column))
                 .collect::<Result<_, _>>()?,
         })

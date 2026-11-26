@@ -50,7 +50,7 @@ impl PyPipeline {
 
     /// `Pipeline::all`, `one` or `one_opt`: the latter two compile with the
     /// `take 1` Rust appends, and every row decodes as a statement's does.
-    // [spec:pgorm:req:bindings.pipeline-terminals]
+    // [spec:pgorm:req:bindings.pipeline-terminals+1]
     fn read<'py>(
         &self,
         py: Python<'py>,
@@ -237,7 +237,7 @@ impl PyPipeline {
         }
     }
 
-    // [spec:pgorm:req:bindings.pipeline-terminals]
+    // [spec:pgorm:req:bindings.pipeline-terminals+1]
     #[pyo3(signature = (*, terminal="all"))]
     fn inspect(&self, terminal: &str) -> PyResult<Compiled> {
         self.compile(terminal)

@@ -8,7 +8,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## The Value container
 
-> [spec:pgorm:def:sql.value+3]
+> [spec:pgorm:def:sql.value+4]
 > `Value` is the single enum container for all SQL values. Every variant wraps
 > an `Option` of its payload; `None` encodes SQL NULL while preserving the type
 > tag. Payloads larger than one pointer are boxed so the enum stays small:
@@ -71,7 +71,7 @@ including panic semantics and quirks inherited from sea-query.
 > merely surprising results.
 >
 > The divergence is observable where a `Value` is a map key over live column
-> data — `LoaderTrait`'s `HashMap<ValueTuple, _>`
+> data — `LoadRelated`'s `HashMap<ValueTuple, _>`
 > (`[spec:pgorm:sem:query.loader.regroup]`) — because the server and the map
 > then disagree about `-0.0`: a row PostgreSQL matched on `a.k = b.k` can fail
 > to find its bucket, surfacing as the unmatched-key error rather than as a
@@ -336,7 +336,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Range types a schema creates
 
-> [spec:pgorm:def:sql.value.created-range+9]
+> [spec:pgorm:def:sql.value.created-range+11]
 > A range type a schema creates with `CREATE TYPE ... AS RANGE`
 > (`[spec:pgorm:req:sql.ddl.type-range]`) is named by that schema, so no
 > `RangeType` variant can carry it, and `Value` does not: it stays one pointer
@@ -402,7 +402,7 @@ including panic semantics and quirks inherited from sea-query.
 > A column of the type is `ColumnType::CreatedRange { name, schema, subtype }`:
 > DDL writes the name, schema-qualified and quoted where needed, and the
 > subtype is the `ColumnType` of what the bounds are, which no name says and
-> codegen reads. `ColumnTrait::save_as` on such a column is `as_range` to its
+> codegen reads. `Column::save_as` on such a column is `as_range` to its
 > type (`[spec:pgorm:sem:entity.traits.column.enum-cast]`), so an insert, an
 > update and every value predicate write the text cast to the type, and
 > `save_array_as` is `as_range` to the type's array, so a quantified
@@ -434,7 +434,7 @@ including panic semantics and quirks inherited from sea-query.
 > column: `ANY` and `ALL` read their array's elements, and PostgreSQL's
 > arrays carry no dimension in their type, so the elements of `slot[]` are
 > each a `slot` (`operator does not exist: slot[] = slot`).
-> A row decodes from the range's binary form: tokio-postgres reports a created
+> A row decodes from the range's binary form: pgorm-driver reports a created
 > range as a range over its subtype, so `Range<T>` decodes for every
 > `RangeSubtype` and refuses one over another subtype
 > (`[spec:pgorm:def:exec.decode.range]`), and the newtype decodes through it.
@@ -482,9 +482,9 @@ including panic semantics and quirks inherited from sea-query.
 > of the range bound as `floatrange[]`, one more statement shape for a value
 > the text cast already writes.
 >
-> It is read as its text, because tokio-postgres learns a type's kind from
+> It is read as its text, because pgorm-driver learns a type's kind from
 > `pg_range` joined on the *range* type, so a created multirange arrives as a
-> simple type with no subtype to read its binary form by. `ColumnTrait::select_as`
+> simple type with no subtype to read its binary form by. `Column::select_as`
 > casts a column of one to `text`, as it casts an enum column, and the
 > newtype parses the text with `Multirange<T>`'s `FromStr`, refusing text
 > that reads as no multirange of its subtype. The cast rides the read path an
@@ -509,7 +509,7 @@ including panic semantics and quirks inherited from sea-query.
 
 ## Intervals
 
-> [spec:pgorm:def:sql.value.interval+2]
+> [spec:pgorm:def:sql.value.interval+3]
 > `Interval` is PostgreSQL's `interval` as a value: the public fields
 > `months: i32`, `days: i32` and `microseconds: i64`, each with its own sign,
 > built by `Interval::new(months, days, microseconds)` or `Default`, which is
@@ -562,7 +562,7 @@ including panic semantics and quirks inherited from sea-query.
 > the ones the Python binding's snapshot writes (`[spec:pgorm:req:python.value-tags]`),
 > each value the number it is rather than the decimal text a snapshot writes
 > for every integer. A Model deriving serde over an `Interval` field —
-> `ActiveModelTrait::from_json`'s (`[spec:pgorm:req:entity.active-model.json]`),
+> `ActiveModel::from_json`'s (`[spec:pgorm:req:entity.active-model.json]`),
 > or one codegen generates (`[spec:pgorm:def:codegen.entity.serde]`) — so
 > compiles and round-trips.
 >

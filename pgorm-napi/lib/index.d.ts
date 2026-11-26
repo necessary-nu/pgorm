@@ -47,7 +47,7 @@ export * from "./metrics.d.ts";
 /** The addon's version, which is the pgorm release it is built from. */
 export declare const version: string;
 
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 /**
  * The channel pgorm-migration's runner notifies once a batch that applied a
  * migration commits: give it as {@link PoolOptions.statementCacheChannel} for
@@ -466,7 +466,7 @@ export declare class Value {
 
 // [spec:pgorm:req:napi.lifecycle+3]
 /** How a {@link Pool} connects. Durations are in milliseconds. */
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 /**
  * How a connection uses TLS, named as libpq's `sslmode` names it:
  * `"verify-full"` verifies the server's certificate chain and host name;
@@ -477,7 +477,7 @@ export declare class Value {
  */
 export type TlsMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full";
 
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 /** How a pool or a listener of its own reaches its server, and over what TLS. */
 export interface ConnectionOptions {
   /**
@@ -505,7 +505,7 @@ export interface ConnectionOptions {
  */
 export type PoolHook = (connection: HookConnection) => void | Promise<void>;
 
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 /** What one pool takes of its own: the options Rust's `PoolBuilder` closure sets, and how long acquiring waits. */
 export interface PoolShapeOptions {
   /** Connections the pool keeps at most; 10 by default. */
@@ -531,7 +531,7 @@ export interface PoolShapeOptions {
   readonly postRecycle?: PoolHook;
 }
 
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 /** What every pool built from one connection string shares. */
 export interface SharedPoolOptions extends ConnectionOptions {
   /** Prepared statements each connection caches; 0 disables the cache; 128 by default. */
@@ -686,7 +686,7 @@ export declare abstract class Queryable {
     params?: readonly Param[],
     options?: O,
   ): Promise<RowFor<O> | null>;
-  // [spec:pgorm:req:bindings.copy]
+  // [spec:pgorm:req:bindings.copy+1]
   /**
    * Run a `COPY … FROM STDIN`, writing the bytes `source` yields, and resolve
    * with the rows it wrote. The source is pulled only as the COPY takes its
@@ -706,7 +706,7 @@ export declare abstract class Queryable {
    * own.
    */
   copyOut(statement: CopyTo, options?: OperationOptions): Promise<CopyOutStream>;
-  // [spec:pgorm:req:bindings.copy-rows+2]
+  // [spec:pgorm:req:bindings.copy-rows+3]
   /**
    * Run a binary `COPY … FROM STDIN` whose rows are arrays of values, one for
    * each column the server describes for the statement, in order, and
@@ -750,7 +750,7 @@ export declare abstract class Queryable {
    * `22023`.
    */
   notify(channel: string, payload: string, options?: OperationOptions): Promise<void>;
-  // [spec:pgorm:req:bindings.batch-execute]
+  // [spec:pgorm:req:bindings.batch-execute+1]
   /**
    * Run `script`, statements separated by `;` with no parameters, as Rust's
    * `batch_execute` does: sent as it is through the simple-query protocol,
@@ -811,8 +811,12 @@ export declare class Pool extends Queryable implements AsyncDisposable {
   [Symbol.asyncDispose](): Promise<void>;
 }
 
-/** A {@link Pool} whose server has answered a ping. */
+/** A validated pool. Paths and `:memory:` select the optional embedded Turso backend. */
+// [spec:pgorm:req:turso.javascript+1]
 export declare function connect(dsn: string, options?: PoolOptions): Promise<Pool>;
+
+/** Optional native features included in the loaded addon. */
+export declare const features: readonly string[];
 
 /**
  * One connection checked out of a pool, the caller's until it closes it. One
@@ -848,7 +852,7 @@ export declare class Connection extends Queryable implements AsyncDisposable {
   ping(options?: OperationOptions): Promise<boolean>;
   /** Return the connection to its pool, ending a transaction or stream that holds it; resolves once released. */
   close(): Promise<void>;
-  // [spec:pgorm:req:bindings.connections+3]
+  // [spec:pgorm:req:bindings.connections+4]
   /**
    * Close the connection and discard it rather than return it to its pool, as
    * Rust's `DatabaseConnection::discard` does: for one whose session state the

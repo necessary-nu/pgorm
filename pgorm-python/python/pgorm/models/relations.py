@@ -301,7 +301,7 @@ class Related:
         return loaded
 
 
-# [spec:pgorm:req:bindings.linked]
+# [spec:pgorm:req:bindings.linked+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class Linked:
     """A chain of relations from one model to another, each starting where
@@ -379,7 +379,7 @@ class Linked:
     def find(self, row: Mapping[str, Any]) -> ModelQuery:
         """The rows at the far end the chain reaches from ``row``, a record of
         the model it starts at, keyed by that model's primary key, as pgorm's
-        ``ModelTrait::find_linked`` keys it: none when one of the row's key
+        ``pgorm::Model::find_linked`` keys it: none when one of the row's key
         fields is None."""
         first = self.relations[0]
         return _keyed(

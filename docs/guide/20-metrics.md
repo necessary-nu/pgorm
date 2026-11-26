@@ -99,9 +99,9 @@ choose to build, so a program that does not wrap pays nothing:
   connection and returns an
   [`InstrumentedConnection`](crate::metric::InstrumentedConnection).
 - An `InstrumentedConnection` implements
-  [`ConnectionTrait`](crate::ConnectionTrait),
-  [`TransactionTrait`](crate::TransactionTrait) and
-  [`CopyTrait`](crate::CopyTrait). It runs every call on the connection it
+  [`Connection`](crate::Connection),
+  [`Transact`](crate::Transact) and
+  [`CopyConnection`](crate::CopyConnection). It runs every call on the connection it
   wraps, times it, reports it, and returns the result unchanged.
 - Its transactions are
   [`InstrumentedTransaction`](crate::metric::InstrumentedTransaction)s, so
@@ -122,7 +122,7 @@ transaction's begin and its commit; `warn` for a failed query and a rollback;
 `error` for a failure to get a connection.
 
 Because every entity query, insert and update runs through
-`ConnectionTrait`, the ORM's work is reported like hand-written SQL:
+`Connection`, the ORM's work is reported like hand-written SQL:
 
 ```rust
 # use pgorm_guide_support::cake;
@@ -330,7 +330,7 @@ keeps anything copies it out:
 A COPY's hook times its start, as `query_raw`'s times the start of a stream.
 The row count its sink's `finish` returns, and a row the server refuses there,
 go to the caller and not to the collector. [`notify`](crate::notify) is
-`ConnectionTrait::execute` of `SELECT pg_notify($1, $2)`, and is reported as
+`Connection::execute` of `SELECT pg_notify($1, $2)`, and is reported as
 that. A [listener](crate::guide::listen_notify) is not instrumented at all: it is a
 connection of its own, not one from the pool, and what it sends and receives
 are not statements a caller wrote.

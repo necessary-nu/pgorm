@@ -399,7 +399,7 @@ asyncio.run(main())
 `Applied`, at `INFO` through the `pgorm.migration` logger, or the
 `logging.Logger` it is given. `get_migration_with_status`,
 `get_pending_migrations` and `get_applied_migrations` answer the same
-question as values: each a list of `Migration`s, a migration's `name` and
+question as values: each a list of `MigrationWithStatus`s, a migration's `name` and
 its `status`, `MigrationStatus.Pending` or `MigrationStatus.Applied`, in the
 migrator's order. Each takes a pool, a connection or a transaction and only
 reads: against a database never migrated, every migration is pending and no
@@ -439,8 +439,8 @@ async def main() -> None:
 
         status = await migrator.get_migration_with_status(pool)
         assert status == [
-            s.Migration("m20260201_000001_create_delivery", s.MigrationStatus.Applied),
-            s.Migration("m20260201_000002_create_voucher", s.MigrationStatus.Pending),
+            s.MigrationWithStatus("m20260201_000001_create_delivery", s.MigrationStatus.Applied),
+            s.MigrationWithStatus("m20260201_000002_create_voucher", s.MigrationStatus.Pending),
         ]
 
         logging.basicConfig(level=logging.INFO)

@@ -1,6 +1,6 @@
 use crate::{EntityName, IntoSimpleExpr, Iterable, SqlName, StaticName};
 use pgorm_query::{
-    ArrayElement, BinOper, Expr, ExprTrait, Func, LikeExpr, Name, SelectStatement, SimpleExpr,
+    ArrayElement, BinOper, Expr, Expression, Func, LikeExpr, Name, SelectStatement, SimpleExpr,
     Value,
 };
 use std::str::FromStr;
@@ -13,7 +13,7 @@ pub(crate) mod column_def;
 pub use column_def::*;
 
 /// Defines a Column for an Entity
-// [spec:pgorm:req:entity.traits.column-def+2]
+// [spec:pgorm:req:entity.traits.column-def+3]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColumnDef {
     pub(crate) col_type: ColumnType,
@@ -45,11 +45,11 @@ macro_rules! bind_value_oper {
         ///
         /// The operand is a value of the column's own type — a range, a
         /// multirange or an array, as the column holds — passed through
-        /// [`save_as`](ColumnTrait::save_as) as a comparison's is, so a
+        /// [`save_as`](Column::save_as) as a comparison's is, so a
         /// range a schema created is written as its text cast to the type.
         /// An element, which `@>` and `<@` also take, is not the column's
         /// type and is an expression's to compare.
-        // [spec:pgorm:def:entity.traits.column+9]
+        // [spec:pgorm:def:entity.traits.column+10]
         fn $op<V>(&self, v: V) -> SimpleExpr
         where
             V: Into<Value>,
@@ -70,11 +70,11 @@ macro_rules! bind_oper_col {
         /// is a column rather than a value, so it does not pass through
         /// `save_as`: an enum column compared against another column of the same
         /// enum type needs no cast, and a column whose domain is over an enum is
-        /// cast to the enum, either side. See [`ColumnTrait::eq_col`] for an
+        /// cast to the enum, either side. See [`Column::eq_col`] for an
         /// example.
         fn $op<C>(&self, other: C) -> SimpleExpr
         where
-            C: ColumnTrait,
+            C: Column,
         {
             let other_column = compared_column(&other, Expr::col(other.as_column_ref()));
             compared_column(self, Expr::col((self.entity_name(), *self)))
@@ -92,7 +92,7 @@ macro_rules! bind_func_no_params {
     };
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 macro_rules! bind_compared_aggregate {
     ( $func: ident ) => {
         /// See also SeaQuery's method with same name. A column whose domain is
@@ -119,7 +119,7 @@ macro_rules! bind_vec_func {
     };
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
 macro_rules! bind_subquery_func {
     ( $func: ident, $array_cmp: ident, $quantifier: ident ) => {
         /// Membership in what a subquery projects. A column whose domain is
@@ -142,8 +142,8 @@ use column_def::{created_range_type_name, holds_array, under_domains};
 
 // LINT: when the operand value does not match column type
 /// API for working with a `Column`. Mostly a wrapper of the identically named methods in [`pgorm_query::Expr`]
-// [spec:pgorm:def:entity.traits.column+9]
-pub trait ColumnTrait: StaticName + Iterable + FromStr {
+// [spec:pgorm:def:entity.traits.column+10]
+pub trait Column: StaticName + Iterable + FromStr {
     #[allow(missing_docs)]
     type EntityName: EntityName;
 
@@ -162,7 +162,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
 
     /// The key this column occupies in a JSON object, as `serde` names it.
     ///
-    /// The `with-json` conversions on `ActiveModelTrait` deserialize through the
+    /// The `with-json` conversions on `ActiveModel` deserialize through the
     /// entity's `Model`, so the keys they read are `serde`'s — the model field's
     /// name, spelled the way any `serde` rename spells it — and not the SQL
     /// column name. The `Entity` derive computes this from the field the column
@@ -182,9 +182,9 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
 
     /// Express an equality between this column and another column.
     ///
-    /// The value-taking [`eq`][ColumnTrait::eq] cannot express this: its operand
+    /// The value-taking [`eq`][Column::eq] cannot express this: its operand
     /// is bound by `Into<Value>` and is run through
-    /// [`save_as`][ColumnTrait::save_as], which is what casts an enum operand.
+    /// [`save_as`][Column::save_as], which is what casts an enum operand.
     /// The column-taking siblings are separate methods rather than a widening of
     /// `eq` so that cast is never silently dropped.
     ///
@@ -206,10 +206,10 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// enum column compared against another column of the same enum type needs
     /// no cast, and a column whose domain is over an enum is cast to the enum,
     /// either side, PostgreSQL resolving no operator for the domain.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     fn eq_col<C>(&self, other: C) -> SimpleExpr
     where
-        C: ColumnTrait,
+        C: Column,
     {
         let other_column = compared_column(&other, Expr::col(other.as_column_ref()));
         compared_column(self, Expr::col((self.entity_name(), *self)))
@@ -244,15 +244,15 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
 
     /// Express an equality between this column and an arbitrary expression.
     ///
-    /// The general form of [`eq_col`][ColumnTrait::eq_col], for comparing
+    /// The general form of [`eq_col`][Column::eq_col], for comparing
     /// against something computed rather than against a plain column. Like
     /// `eq_col`, the operand does not pass through
-    /// [`save_as`][ColumnTrait::save_as] — an expression carries whatever cast
+    /// [`save_as`][Column::save_as] — an expression carries whatever cast
     /// it was built with. A column whose domain is over an enum is cast to the
     /// enum, so the expression compares with it as the enum.
     ///
     /// ```
-    /// use pgorm::{entity::*, pgorm_query::{Expr, ExprTrait}, query::*, tests_cfg::cake};
+    /// use pgorm::{entity::*, pgorm_query::{Expr, Expression}, query::*, tests_cfg::cake};
     ///
     /// assert_eq!(
     ///     cake::Entity::find()
@@ -310,7 +310,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
         compared_column(self, Expr::col((self.entity_name(), *self))).not_between(a, b)
     }
 
-    /// `BETWEEN SYMMETRIC`: [`between`][ColumnTrait::between] with its
+    /// `BETWEEN SYMMETRIC`: [`between`][Column::between] with its
     /// bounds sorted first, so they hold in whichever order they are given.
     ///
     /// ```
@@ -324,7 +324,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."id" BETWEEN SYMMETRIC 3 AND 2"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+9]
+    // [spec:pgorm:def:entity.traits.column+10]
     fn between_symmetric<V>(&self, a: V, b: V) -> SimpleExpr
     where
         V: Into<Value>,
@@ -335,8 +335,8 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     }
 
     /// `NOT BETWEEN SYMMETRIC`, the complement of
-    /// [`between_symmetric`][ColumnTrait::between_symmetric].
-    // [spec:pgorm:def:entity.traits.column+9]
+    /// [`between_symmetric`][Column::between_symmetric].
+    // [spec:pgorm:def:entity.traits.column+10]
     fn not_between_symmetric<V>(&self, a: V, b: V) -> SimpleExpr
     where
         V: Into<Value>,
@@ -361,7 +361,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" IS DISTINCT FROM 'cheese'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+9]
+    // [spec:pgorm:def:entity.traits.column+10]
     #[allow(clippy::wrong_self_convention)]
     fn is_distinct_from<V>(&self, v: V) -> SimpleExpr
     where
@@ -372,8 +372,8 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     }
 
     /// `IS NOT DISTINCT FROM`, the null-safe equality complementing
-    /// [`is_distinct_from`][ColumnTrait::is_distinct_from].
-    // [spec:pgorm:def:entity.traits.column+9]
+    /// [`is_distinct_from`][Column::is_distinct_from].
+    // [spec:pgorm:def:entity.traits.column+10]
     #[allow(clippy::wrong_self_convention)]
     fn is_not_distinct_from<V>(&self, v: V) -> SimpleExpr
     where
@@ -422,7 +422,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// The search text is literal: a `%`, `_` or `\` in it is escaped rather
     /// than read as a pattern character. A pattern is [`like`]'s job.
     ///
-    /// [`like`]: ColumnTrait::like
+    /// [`like`]: Column::like
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::cake};
@@ -435,7 +435,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE 'cheese%'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+9]
+    // [spec:pgorm:def:entity.traits.column+10]
     fn starts_with<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -454,7 +454,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE '%cheese'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+9]
+    // [spec:pgorm:def:entity.traits.column+10]
     fn ends_with<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -473,7 +473,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."name" LIKE '%cheese%'"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+9]
+    // [spec:pgorm:def:entity.traits.column+10]
     fn contains<T>(&self, s: T) -> SimpleExpr
     where
         T: Into<String>,
@@ -501,7 +501,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     bind_vec_func!(is_not_in);
 
     /// Membership against one array parameter, the PostgreSQL-idiomatic
-    /// counterpart of [`ColumnTrait::is_in`]. See [`pgorm_query::ExprTrait::eq_any`]
+    /// counterpart of [`Column::is_in`]. See [`pgorm_query::Expression::eq_any`]
     /// for when each applies; the short of it is that `is_in` suits a short
     /// literal list and `eq_any` a list whose length varies at runtime, because
     /// `eq_any` renders the same SQL text — and so reuses the same cached
@@ -536,7 +536,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     }
 
     /// Non-membership against one array parameter, the complement of
-    /// [`ColumnTrait::eq_any`]. See [`pgorm_query::ExprTrait::ne_all`] for why the
+    /// [`Column::eq_any`]. See [`pgorm_query::Expression::ne_all`] for why the
     /// negation is spelled `<> ALL` rather than `NOT (… = ANY …)`.
     ///
     /// ```
@@ -560,8 +560,8 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
 
     /// `self <op> ANY (array)`: `op` holds between the column and some
     /// element of one array parameter, and none over an empty one. The array
-    /// is cast as [`eq_any`](ColumnTrait::eq_any)'s is, through
-    /// [`save_array_as`](ColumnTrait::save_array_as), so `money` compares
+    /// is cast as [`eq_any`](Column::eq_any)'s is, through
+    /// [`save_array_as`](Column::save_array_as), so `money` compares
     /// with a `Vec<Decimal>`. `op` is a comparison or a range operator, an
     /// operator whose other side is a value of the column's type; a pattern
     /// is no value of it, and casting one to the column's type would change
@@ -578,7 +578,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     ///     r#"SELECT "cake"."id", "cake"."name" FROM "cake" WHERE "cake"."id" > ANY(ARRAY [2,3])"#
     /// );
     /// ```
-    // [spec:pgorm:def:entity.traits.column+9]
+    // [spec:pgorm:def:entity.traits.column+10]
     fn compare_any<A>(&self, op: BinOper, array: A) -> SimpleExpr
     where
         A: Into<Value>,
@@ -587,9 +587,9 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
         compared_column(self, Expr::col((self.entity_name(), *self))).binary(op, Func::any(array))
     }
 
-    /// `self <op> ALL (array)`: [`compare_any`](ColumnTrait::compare_any)'s
+    /// `self <op> ALL (array)`: [`compare_any`](Column::compare_any)'s
     /// counterpart, holding for every element, and over an empty array.
-    // [spec:pgorm:def:entity.traits.column+9]
+    // [spec:pgorm:def:entity.traits.column+10]
     fn compare_all<A>(&self, op: BinOper, array: A) -> SimpleExpr
     where
         A: Into<Value>,
@@ -602,7 +602,7 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
         includes,
         Contains,
         "`@>`: the column contains the value, a range or an array of its type. \
-         Named apart from [`contains`](ColumnTrait::contains), the substring \
+         Named apart from [`contains`](Column::contains), the substring \
          sugar."
     );
     bind_value_oper!(
@@ -669,9 +669,9 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// simple type with no subtype to read its binary form by, so it is read
     /// as its text, which the newtype's `FromStr` parses. A `money` column is
     /// read as `numeric`.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-    // [spec:pgorm:def:sql.value.created-range+9]
-    // [spec:pgorm:req:sql.ast.cast-shape+2]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+    // [spec:pgorm:def:sql.value.created-range+11]
+    // [spec:pgorm:req:sql.ast.cast-shape+3]
     fn select_enum_as(&self, expr: Expr) -> SimpleExpr {
         select_cast(self.def().get_column_type(), expr)
     }
@@ -683,28 +683,28 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     }
 
     /// Cast an array of values into the column's array type for database
-    /// storage, the array counterpart of [`ColumnTrait::save_as`]: an enum
+    /// storage, the array counterpart of [`Column::save_as`]: an enum
     /// column takes `{enum_name}[]`, and every other column is left untouched.
     ///
     /// A column that overrides `save_as` with a cast of its own — what
     /// `#[pgorm(save_as = "…")]` generates — overrides this too, with the
     /// array spelling of the same type.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
     fn save_array_as(&self, val: Expr) -> SimpleExpr {
         self.save_enum_array_as(val)
     }
 
     /// Cast an array of values as the column's enum array type; do nothing if
     /// `self` is not an enum. The array counterpart of
-    /// [`ColumnTrait::save_enum_as`], and like it the fallback a derived
-    /// [`save_array_as`][ColumnTrait::save_array_as] override keeps for
+    /// [`Column::save_enum_as`], and like it the fallback a derived
+    /// [`save_array_as`][Column::save_array_as] override keeps for
     /// columns without a `save_as` attribute. A `money` column's array is
     /// cast to its `money[]`, and the array of a column
     /// of a range type a schema created goes through
-    /// [`ExprTrait::as_range`] to the type's array, each range written as its text.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-    // [spec:pgorm:def:sql.value.created-range+9]
-    // [spec:pgorm:req:sql.ast.cast-shape+2]
+    /// [`Expression::as_range`] to the type's array, each range written as its text.
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+    // [spec:pgorm:def:sql.value.created-range+11]
+    // [spec:pgorm:req:sql.ast.cast-shape+3]
     fn save_enum_array_as(&self, val: Expr) -> SimpleExpr {
         save_array_cast(self.def().get_column_type(), val)
     }
@@ -713,25 +713,25 @@ pub trait ColumnTrait: StaticName + Iterable + FromStr {
     /// Will also transform `Array(Vec<Json>)` into `Json(Vec<Json>)` if the column type is `Json`.
     ///
     /// A column of a range type a schema created takes its value through
-    /// [`ExprTrait::as_range`]: a range is written as its text form and cast to the
+    /// [`Expression::as_range`]: a range is written as its text form and cast to the
     /// type by name, there being no cast to it from a built-in range type. A
     /// `money` column's value is cast to its `money`.
-    // [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-    // [spec:pgorm:def:sql.value.created-range+9]
-    // [spec:pgorm:req:sql.ast.cast-shape+2]
+    // [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+    // [spec:pgorm:def:sql.value.created-range+11]
+    // [spec:pgorm:req:sql.ast.cast-shape+3]
     fn save_enum_as(&self, val: Expr) -> SimpleExpr {
         save_cast(self.def().get_column_type(), val)
     }
 }
 
-/// The read cast [`ColumnTrait::select_enum_as`] gives a column of
+/// The read cast [`Column::select_enum_as`] gives a column of
 /// `col_type`: an enum or a created multirange, or an array of either, read
 /// as `text` or `text[]`, a `money` as `numeric`, and anything else as it
 /// is. A column described only at run time, as a disjoint shape's is, is
 /// read by this alone.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-// [spec:pgorm:def:sql.value.created-range+9]
-// [spec:pgorm:req:sql.ast.cast-shape+2]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+// [spec:pgorm:def:sql.value.created-range+11]
+// [spec:pgorm:req:sql.ast.cast-shape+3]
 pub(crate) fn select_cast(col_type: &ColumnType, expr: Expr) -> SimpleExpr {
     match under_domains(col_type) {
         ColumnType::CreatedMultirange { .. } => {
@@ -756,12 +756,12 @@ pub(crate) fn select_cast(col_type: &ColumnType, expr: Expr) -> SimpleExpr {
     })
 }
 
-/// The write cast [`ColumnTrait::save_enum_as`] gives a value of a column of
+/// The write cast [`Column::save_enum_as`] gives a value of a column of
 /// `col_type`: cast to the column's enum, `money` or created range, and
 /// anything else as it is.
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17]
-// [spec:pgorm:def:sql.value.created-range+9]
-// [spec:pgorm:req:sql.ast.cast-shape+2]
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19]
+// [spec:pgorm:def:sql.value.created-range+11]
+// [spec:pgorm:req:sql.ast.cast-shape+3]
 pub(crate) fn save_cast(col_type: &ColumnType, val: Expr) -> SimpleExpr {
     if let Some(money) = money_type_name(col_type) {
         return val.cast_as_type(money);
@@ -774,7 +774,7 @@ pub(crate) fn save_cast(col_type: &ColumnType, val: Expr) -> SimpleExpr {
     }
 }
 
-/// The `text` read-cast target of [`ColumnTrait::select_enum_as`]; its array
+/// The `text` read-cast target of [`Column::select_enum_as`]; its array
 /// form is the same name under [`pgorm_query::TypeName::array`].
 struct Text;
 
@@ -786,7 +786,7 @@ impl SqlName for Text {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ColumnTrait, Condition, EntityTrait, QueryFilter, QueryTrait, tests_cfg::*};
+    use crate::{Column, Condition, Entity, QueryFilter, Statement, tests_cfg::*};
     use pgorm_query::Query;
 
     #[test]
@@ -1068,7 +1068,7 @@ mod tests {
     #[test]
     #[cfg(feature = "macros")]
     fn select_as_1() {
-        use crate::{ActiveModelTrait, ActiveValue, Update};
+        use crate::{ActiveModel, ActiveValue, Update};
 
         #[allow(clippy::enum_variant_names)]
         mod hello_with {
@@ -1121,8 +1121,8 @@ mod tests {
 
         fn assert_it<E, A>(active_model: A)
         where
-            E: EntityTrait + crate::ScopedIn<crate::NoContext>,
-            A: ActiveModelTrait<Entity = E>,
+            E: Entity + crate::ScopedIn<crate::NoContext>,
+            A: ActiveModel<Entity = E>,
         {
             assert_eq!(
                 E::find().as_query().to_string(),
@@ -1154,7 +1154,7 @@ mod tests {
     #[test]
     #[cfg(feature = "macros")]
     fn save_as_1() {
-        use crate::{ActiveModelTrait, ActiveValue, QueryFilter, QueryTrait, Update};
+        use crate::{ActiveModel, ActiveValue, QueryFilter, Statement, Update};
 
         #[allow(clippy::enum_variant_names)]
         mod hello_with {
@@ -1211,8 +1211,8 @@ mod tests {
 
         fn assert_it<E, A>(active_model: A)
         where
-            E: EntityTrait + crate::ScopedIn<crate::NoContext>,
-            A: ActiveModelTrait<Entity = E>,
+            E: Entity + crate::ScopedIn<crate::NoContext>,
+            A: ActiveModel<Entity = E>,
         {
             assert_eq!(
                 E::find().as_query().to_string(),
@@ -1264,7 +1264,7 @@ mod tests {
     fn save_as_covers_every_value_predicate() {
         use crate::pgorm_query::{BinOper, SimpleExpr};
         use crate::tests_cfg::{active_enums::Tea, lunch_set};
-        use crate::{QueryFilter, QueryTrait};
+        use crate::{QueryFilter, Statement};
 
         mod guarded {
             use crate as pgorm;
@@ -1368,7 +1368,7 @@ mod tests {
     #[test]
     #[cfg(feature = "macros")]
     fn select_as_and_value_1() {
-        use crate::{ActiveModelTrait, ActiveValue, Update};
+        use crate::{ActiveModel, ActiveValue, Update};
 
         #[allow(clippy::enum_variant_names)]
         mod hello_with {
@@ -1429,8 +1429,8 @@ mod tests {
 
         fn assert_it<E, A>(active_model: A)
         where
-            E: EntityTrait + crate::ScopedIn<crate::NoContext>,
-            A: ActiveModelTrait<Entity = E>,
+            E: Entity + crate::ScopedIn<crate::NoContext>,
+            A: ActiveModel<Entity = E>,
         {
             assert_eq!(
                 E::find().as_query().to_string(),

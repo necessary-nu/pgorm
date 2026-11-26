@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from .runtime import Connection
 
 
-# [spec:pgorm:req:bindings.copy-rows+2]
+# [spec:pgorm:req:bindings.copy-rows+3]
 class CopyRowSink:
     """A binary COPY FROM taking rows one at a time, as Rust's ``CopyRowSink``.
 
@@ -128,7 +128,7 @@ class RowCopies(ABC):
     @overload
     async def copy_in_rows(self, statement: _native.CopyFrom[Literal["binary"]], rows: CopyRows) -> int: ...
 
-    # [spec:pgorm:req:bindings.copy-rows+2]
+    # [spec:pgorm:req:bindings.copy-rows+3]
     async def copy_in_rows(
         self, statement: _native.CopyFrom[Literal["binary"]], rows: CopyRows | None = None
     ) -> int | CopyRowSink:

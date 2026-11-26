@@ -19,7 +19,7 @@ pgorm-sql-macro = { version = "0.2.0", path = "../pgorm-sql-macro" }
 # file `SqlMigration::read` reads as the program runs.
 pgorm-sql-check = { version = "0.2.0", path = "../pgorm-sql-check" }
 # The digest a SQL-file migration reports as its checksum; already in the
-# dependency graph through tokio-postgres's SCRAM support.
+# dependency graph through pgorm-driver's SCRAM support.
 sha2 = { version = "0.11.0", default-features = false }
 # pgorm-cli = { path = "../pgorm/pgorm-cli", default-features = false, optional = true }
 tracing = { version = "0.1.44", default-features = false, features = ["log"] }

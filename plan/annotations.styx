@@ -16,6 +16,12 @@ sites (
     {path .github/workflows/sqlmap.yml, spec (
         [spec:pgorm:req:security.sqlmap.ci+2]
     )}
+    {path .github/workflows/turso.yml, spec (
+        [spec:pgorm:req:turso.compatibility]
+    )}
+    {path docs/turso.md, spec (
+        [spec:pgorm:req:turso.documentation]
+    )}
     {path security/sqlmap/acceptance/2026-09-14.md, spec (
         [spec:pgorm:req:security.sqlmap.acceptance+1]
     )}
@@ -26,5 +32,8 @@ sites (
         [spec:pgorm:req:security.sqlmap.fixtures/test]
         [spec:pgorm:req:security.sqlmap.isolation/test]
         [spec:pgorm:req:security.sqlmap.observability/test]
+    )}
+    {path tests/turso_pool_tests.rs, symbol default_constructor_waits_until_first_acquisition, spec (
+        [spec:pgorm:req:turso.documentation/test]
     )}
 )

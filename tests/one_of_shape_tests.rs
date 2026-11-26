@@ -8,7 +8,7 @@
 
 use pgorm::pgorm_query::{ColumnType, Name, SelectStatement, StringLen, TableName, Value};
 use pgorm::tests_cfg::comment::Commentable;
-use pgorm::{ColumnTypeTrait, DisjointColumn, DisjointTable, Error, OneOfShape, Schema};
+use pgorm::{ColumnTypeExt, DisjointColumn, DisjointTable, Error, OneOfShape, Schema};
 use pretty_assertions::assert_eq;
 
 fn table(name: &str, columns: Vec<DisjointColumn>) -> DisjointTable {

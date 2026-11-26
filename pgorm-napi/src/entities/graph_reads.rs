@@ -1,5 +1,5 @@
 //! A registered graph's pages, keyset cursors, grouped read and stream,
-//! through pgorm's own `PaginatorTrait`, `SelectGraph::cursor_by` and
+//! through pgorm's own `Paginate`, `SelectGraph::cursor_by` and
 //! `cursor_by_on`, `all_grouped` and `SelectGraph::stream`'s decode.
 
 use std::sync::Arc;
@@ -37,7 +37,7 @@ fn query(cx: &mut FunctionContext) -> NeonResult<GraphQuery> {
 /// `graphQueryCursor(query, source, columns)`: a keyset cursor ordered by
 /// root columns, `cursor_by`, for source 0, and otherwise by columns of slot
 /// `source`, `cursor_by_on`.
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 fn query_cursor(mut cx: FunctionContext) -> JsResult<JsValue> {
     let query = query(&mut cx)?;
     let source = super::reads::whole(&mut cx, 1, "a source")?;
@@ -62,7 +62,7 @@ fn query_pages(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `graphQueryStream(query)`: `[statement, decoder]`, the statement a
 /// stream sends and the decode `SelectGraph::stream` runs on each row.
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 fn query_stream(mut cx: FunctionContext) -> JsResult<JsValue> {
     let query = query(&mut cx)?;
     let statement = cx.boxed(Node::Select(query.statement()));
@@ -103,7 +103,7 @@ impl Settled for Grouped {
 
 /// `graphQueryGroupedJob(query)`: `all_grouped`, which only a graph of one
 /// `Opt` slot has.
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 fn query_grouped_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let query = query(&mut cx)?;
     let grouped = match query.grouped() {

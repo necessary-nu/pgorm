@@ -44,20 +44,20 @@ use bytes::Buf;
 use cache_listener::CacheListener;
 use config::Tag;
 use deadpool::managed;
+use pgorm_driver::{
+    Client as PgClient, Config as PgConfig, CopyInSink, Error, Statement, ToStatement, types::Type,
+};
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::spawn;
 use tokio::task::JoinHandle;
-use tokio_postgres::{
-    Client as PgClient, Config as PgConfig, CopyInSink, Error, Statement, ToStatement, types::Type,
-};
 
 #[cfg(not(target_arch = "wasm32"))]
-use tokio_postgres::{
+use pgorm_driver::{
     Socket,
     tls::{MakeTlsConnect, TlsConnect},
 };
 
-pub use tokio_postgres;
+pub use pgorm_driver;
 
 pub use self::config::{
     ChannelBinding, Config, ConfigError, LoadBalanceHosts, ManagerConfig, RecyclingMethod, SslMode,
@@ -71,7 +71,7 @@ pub use self::transaction::{CommitError, Transaction, TransactionBuilder};
 
 pub use deadpool::managed::reexports::*;
 deadpool::managed_reexports!(
-    "tokio_postgres",
+    "pgorm_driver",
     Manager,
     managed::Object<Manager>,
     Error,
@@ -91,7 +91,10 @@ type RecycleError = managed::RecycleError<Error>;
 //     pub active_connections: Arc<AtomicUsize>,
 // }
 
-/// [`Manager`] for creating and recycling PostgreSQL connections.
+/// [`Manager`] for creating and recycling configured database connections.
+///
+/// PostgreSQL targets use the wire driver; file paths and `:memory:` use the
+/// experimental native backend when the `turso` feature is enabled.
 ///
 /// [`Manager`]: managed::Manager
 pub struct Manager {
@@ -107,9 +110,9 @@ pub struct Manager {
 
 impl Manager {
     #[cfg(not(target_arch = "wasm32"))]
-    /// Creates a new [`Manager`] using the given [`tokio_postgres::Config`] and
+    /// Creates a new [`Manager`] using the given [`pgorm_driver::Config`] and
     /// `tls` connector.
-    pub fn new<T>(pg_config: tokio_postgres::Config, tls: T) -> Self
+    pub fn new<T>(pg_config: pgorm_driver::Config, tls: T) -> Self
     where
         T: MakeTlsConnect<Socket> + Clone + Sync + Send + 'static,
         T::Stream: Sync + Send,
@@ -120,9 +123,9 @@ impl Manager {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    /// Create a new [`Manager`] using the given [`tokio_postgres::Config`], and
+    /// Create a new [`Manager`] using the given [`pgorm_driver::Config`], and
     /// `tls` connector and [`ManagerConfig`].
-    pub fn from_config<T>(pg_config: tokio_postgres::Config, tls: T, config: ManagerConfig) -> Self
+    pub fn from_config<T>(pg_config: pgorm_driver::Config, tls: T, config: ManagerConfig) -> Self
     where
         T: MakeTlsConnect<Socket> + Clone + Sync + Send + 'static,
         T::Stream: Sync + Send,
@@ -132,10 +135,10 @@ impl Manager {
         Self::from_connect(pg_config, ConfigConnectImpl { tls }, config)
     }
 
-    /// Create a new [`Manager`] using the given [`tokio_postgres::Config`], and
+    /// Create a new [`Manager`] using the given [`pgorm_driver::Config`], and
     /// `connect` impl and [`ManagerConfig`].
     pub fn from_connect(
-        pg_config: tokio_postgres::Config,
+        pg_config: pgorm_driver::Config,
         connect: impl Connect + 'static,
         config: ManagerConfig,
     ) -> Self {
@@ -164,8 +167,14 @@ impl Manager {
     /// outside the pool: it is not counted against the pool's size, gets no
     /// statement cache and is never recycled, and its I/O half is returned
     /// undriven (see [`Connect::connect_raw`]).
-    // [spec:pgorm:req:conn.listen]    a pool's listener connects as its connections do
+    ///
+    /// Native Turso factories refuse this notification connection before
+    /// opening a client.
+    // [spec:pgorm:req:conn.listen+3]    a pool's listener connects as its connections do
     pub async fn connect_raw(&self) -> Result<Unpooled, Error> {
+        if self.pg_config.is_turso() {
+            return Err(Error::turso_unsupported("native notification connections"));
+        }
         self.connect.connect_raw(&self.pg_config).await
     }
 
@@ -195,6 +204,36 @@ impl Manager {
             )
         });
     }
+
+    // [spec:pgorm:sem:turso.cleanup] a pool borrower never waits behind abandoned native work
+    #[cfg(feature = "turso")]
+    async fn recycle_turso(&self, client: &mut ClientWrapper) -> RecycleResult {
+        if !client.is_turso_clean() {
+            return Err(RecycleError::message(
+                "Native Turso connection is not clean",
+            ));
+        }
+        self.statement_caches.bring_up_to_date(client);
+        let result = match &self.config.recycling_method {
+            RecyclingMethod::Fast => return Ok(()),
+            RecyclingMethod::Verified => client.check_connection().await,
+            RecyclingMethod::Custom(sql) => client.batch_execute(sql).await,
+            RecyclingMethod::Clean => {
+                return Err(RecycleError::message(
+                    "Native Turso does not support PostgreSQL Clean recycling",
+                ));
+            }
+        };
+        if let Err(error) = result {
+            return Err(error.into());
+        }
+        if !client.is_turso_clean() {
+            return Err(RecycleError::message(
+                "Native Turso recycling left unfinished work or an open transaction",
+            ));
+        }
+        Ok(())
+    }
 }
 
 // [spec:pgorm:req:conn.pool.statement-cache.listen+1]    a dropped pool does not leak the listener
@@ -217,12 +256,22 @@ impl fmt::Debug for Manager {
     }
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+3]    create/recycle/detach
+// [spec:pgorm:sem:conn.pool.lifecycle+5]    create/recycle/detach
 impl managed::Manager for Manager {
     type Type = ClientWrapper;
     type Error = Error;
 
     async fn create(&self) -> Result<ClientWrapper, Error> {
+        if self.pg_config.is_turso() {
+            if matches!(self.config.recycling_method, RecyclingMethod::Clean) {
+                return Err(Error::turso_unsupported("PostgreSQL Clean recycling"));
+            }
+            if self.config.statement_cache_channel.is_some() {
+                return Err(Error::turso_unsupported(
+                    "notification-based statement cache invalidation",
+                ));
+            }
+        }
         // Started ahead of the connection, so that its first `LISTEN`, which
         // clears, tends to precede the first statement prepared.
         self.start_statement_cache_listener();
@@ -237,6 +286,10 @@ impl managed::Manager for Manager {
         if client.is_closed() {
             tracing::warn!(target: "deadpool.postgres", "Connection could not be recycled: Connection closed");
             return Err(RecycleError::message("Connection closed"));
+        }
+        #[cfg(feature = "turso")]
+        if client.is_turso() {
+            return self.recycle_turso(client).await;
         }
         self.statement_caches.bring_up_to_date(client);
         match self.config.recycling_method.query() {
@@ -257,26 +310,30 @@ impl managed::Manager for Manager {
     }
 }
 
-/// Describes a mechanism for establishing a connection to a PostgreSQL
-/// server via `tokio_postgres`.
+/// Describes a mechanism for establishing a database connection through
+/// `pgorm_driver`.
 pub trait Connect: Sync + Send {
-    /// Establishes a new `tokio_postgres` connection, returning
+    /// Establishes a new `pgorm_driver` connection, returning
     /// the associated `Client` and a `JoinHandle` to a tokio task
     /// for processing the connection.
-    fn connect(
-        &self,
-        pg_config: &PgConfig,
-    ) -> BoxFuture<'_, Result<(PgClient, JoinHandle<()>), Error>>;
+    fn connect<'a>(
+        &'a self,
+        pg_config: &'a PgConfig,
+    ) -> BoxFuture<'a, Result<(PgClient, JoinHandle<()>), Error>>;
 
-    /// Establishes a new `tokio_postgres` connection and returns its I/O half
+    /// Establishes a new `pgorm_driver` connection and returns its I/O half
     /// undriven, for an owner that polls it itself to see the asynchronous
     /// messages a spawned connection task discards.
-    fn connect_raw(&self, pg_config: &PgConfig) -> BoxFuture<'_, Result<Unpooled, Error>>;
+    ///
+    /// A factory without notification support returns an error before
+    /// opening a connection.
+    fn connect_raw<'a>(&'a self, pg_config: &'a PgConfig)
+    -> BoxFuture<'a, Result<Unpooled, Error>>;
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 /// Provides an implementation of [`Connect`] that establishes the connection
-/// using the `tokio_postgres` configuration itself.
+/// using the `pgorm_driver` configuration itself.
 #[derive(Debug)]
 pub struct ConfigConnectImpl<T>
 where
@@ -297,12 +354,12 @@ where
     T::TlsConnect: Sync + Send,
     <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
 {
-    fn connect(
-        &self,
-        pg_config: &PgConfig,
-    ) -> BoxFuture<'_, Result<(PgClient, JoinHandle<()>), Error>> {
+    // [spec:pgorm:req:turso.pool+1] one retained Config owns the pool's lazy native database
+    fn connect<'a>(
+        &'a self,
+        pg_config: &'a PgConfig,
+    ) -> BoxFuture<'a, Result<(PgClient, JoinHandle<()>), Error>> {
         let tls = self.tls.clone();
-        let pg_config = pg_config.clone();
         Box::pin(async move {
             let fut = pg_config.connect(tls);
             let (client, connection) = fut.await?;
@@ -315,10 +372,15 @@ where
         })
     }
 
-    fn connect_raw(&self, pg_config: &PgConfig) -> BoxFuture<'_, Result<Unpooled, Error>> {
+    fn connect_raw<'a>(
+        &'a self,
+        pg_config: &'a PgConfig,
+    ) -> BoxFuture<'a, Result<Unpooled, Error>> {
         let tls = self.tls.clone();
-        let pg_config = pg_config.clone();
         Box::pin(async move {
+            if pg_config.is_turso() {
+                return Err(Error::turso_unsupported("native notification connections"));
+            }
             let (client, connection) = pg_config.connect(tls).await?;
             Ok((client, Box::new(connection) as Box<dyn RawConnection>))
         })
@@ -327,7 +389,7 @@ where
 
 /// Structure holding a reference to all [`StatementCache`]s and providing
 /// access for clearing all caches and removing single statements from them.
-// [spec:pgorm:sem:conn.pool.statement-cache+3]    manager-level registry
+// [spec:pgorm:sem:conn.pool.statement-cache+6]    manager-level registry
 #[derive(Default, Debug)]
 pub struct StatementCaches {
     caches: Mutex<Vec<Weak<StatementCache>>>,
@@ -380,7 +442,7 @@ impl StatementCaches {
     ///
     /// Call it after DDL that changes what a cached plan depends on: PostgreSQL
     /// re-plans most such changes itself, but not a domain's default.
-    // [spec:pgorm:req:conn.pool.statement-cache.clear+1]    bump the generation
+    // [spec:pgorm:req:conn.pool.statement-cache.clear+2]    bump the generation
     pub fn clear_before_reuse(&self) {
         cache_listener::advance(&self.generation);
     }
@@ -389,7 +451,7 @@ impl StatementCaches {
     /// has been asked for since it was last cleared. Called only while the
     /// pool holds the connection idle, so no statement of its owner's can be
     /// mid-preparation.
-    // [spec:pgorm:req:conn.pool.statement-cache.clear+1]    an idle connection catches up before it is lent
+    // [spec:pgorm:req:conn.pool.statement-cache.clear+2]    an idle connection catches up before it is lent
     fn bring_up_to_date(&self, client: &mut ClientWrapper) {
         let current = self.generation.load(Ordering::Acquire);
         if client.cache_generation != current {
@@ -446,7 +508,7 @@ struct StatementCacheKey<'a> {
 /// Normally, you probably want to use the [`ClientWrapper::prepare_cached()`]
 /// and [`ClientWrapper::prepare_typed_cached()`] methods instead (or the
 /// similar ones on [`Transaction`]).
-// [spec:pgorm:sem:conn.pool.statement-cache+3]
+// [spec:pgorm:sem:conn.pool.statement-cache+6]
 pub struct StatementCache {
     map: RwLock<HashMap<StatementCacheKey<'static>, Statement>>,
     size: AtomicUsize,
@@ -497,13 +559,55 @@ impl StatementCache {
         removed
     }
 
+    /// Removes the native statement at this key only if it is invalidated.
+    ///
+    /// A concurrent caller may have replaced the invalidated handle before
+    /// its error was received. That fresh entry remains cached.
+    // [spec:pgorm:req:conn.pool.statement-cache.invalidate+6]
+    #[cfg(feature = "turso")]
+    pub fn remove_invalidated(&self, query: &str, types: &[Type]) {
+        let key = StatementCacheKey {
+            query: Cow::Borrowed(query),
+            types: Cow::Borrowed(types),
+        };
+        drop(self.discard_invalidated(&key));
+    }
+
     /// Returns a [`Statement`] from this [`StatementCache`].
     fn get(&self, query: &str, types: &[Type]) -> Option<Statement> {
         let key = StatementCacheKey {
             query: Cow::Borrowed(query),
             types: Cow::Borrowed(types),
         };
-        self.map.read().unwrap().get(&key).map(ToOwned::to_owned)
+        let statement = self.map.read().unwrap().get(&key).map(ToOwned::to_owned);
+        #[cfg(feature = "turso")]
+        if statement.as_ref().is_some_and(Statement::is_invalidated) {
+            return self.discard_invalidated(&key);
+        }
+        statement
+    }
+
+    /// A stream can discover invalidation after its creation returned. Remove
+    /// that handle on the next lookup, without replaying its operation.
+    // [spec:pgorm:req:conn.pool.statement-cache.invalidate+6]
+    #[cfg(feature = "turso")]
+    fn discard_invalidated(&self, key: &StatementCacheKey<'_>) -> Option<Statement> {
+        let key = StatementCacheKey {
+            query: Cow::Owned(key.query.as_ref().to_owned()),
+            types: Cow::Owned(key.types.as_ref().to_owned()),
+        };
+        let (evicted, current) = {
+            let mut map = self.map.write().unwrap();
+            if map.get(&key).is_some_and(Statement::is_invalidated) {
+                let evicted = map.remove(&key);
+                let _ = self.size.fetch_sub(1, Ordering::Relaxed);
+                (evicted, None)
+            } else {
+                (None, map.get(&key).cloned())
+            }
+        };
+        drop(evicted);
+        current
     }
 
     /// Inserts a [`Statement`] into this [`StatementCache`], evicting an
@@ -513,7 +617,7 @@ impl StatementCache {
     /// recently used: recency would have to be written on every lookup, turning
     /// the read lock a cache hit takes today into an exclusive one. What the
     /// bound is for is stopping unbounded growth, and any victim achieves that.
-    // [spec:pgorm:req:conn.pool.statement-cache.bound+1]    evict one to make room
+    // [spec:pgorm:req:conn.pool.statement-cache.bound+2]    evict one to make room
     fn insert(&self, query: &str, types: &[Type], stmt: Statement) {
         let Some(capacity) = self.capacity.limit() else {
             return;
@@ -543,7 +647,7 @@ impl StatementCache {
     /// Creates a new prepared [`Statement`] using this [`StatementCache`], if
     /// possible.
     ///
-    /// See [`tokio_postgres::Client::prepare()`].
+    /// See [`pgorm_driver::Client::prepare()`].
     pub async fn prepare(&self, client: &PgClient, query: &str) -> Result<Statement, Error> {
         self.prepare_typed(client, query, &[]).await
     }
@@ -552,10 +656,10 @@ impl StatementCache {
     /// explicitly using this [`StatementCache`], if possible.
     ///
     /// Under [`StatementCacheSize::Disabled`] nothing is stored or looked up,
-    /// so this is [`tokio_postgres::Client::prepare_typed()`] itself.
+    /// so this is [`pgorm_driver::Client::prepare_typed()`] itself.
     ///
-    /// See [`tokio_postgres::Client::prepare_typed()`].
-    // [spec:pgorm:req:conn.pool.statement-cache.bound+1]    Disabled prepares afresh
+    /// See [`pgorm_driver::Client::prepare_typed()`].
+    // [spec:pgorm:req:conn.pool.statement-cache.bound+2]    Disabled prepares afresh
     pub async fn prepare_typed(
         &self,
         client: &PgClient,
@@ -564,6 +668,14 @@ impl StatementCache {
     ) -> Result<Statement, Error> {
         if self.capacity.limit().is_none() {
             return client.prepare_typed(query, types).await;
+        }
+
+        // [spec:pgorm:sem:turso.cleanup] preparation follows queued rollback before using its restored context
+        #[cfg(feature = "turso")]
+        if client.has_pending_turso_restore() {
+            let stmt = client.prepare_typed(query, types).await?;
+            self.insert(query, types, stmt.clone());
+            return Ok(stmt);
         }
 
         match self.get(query, types) {
@@ -577,7 +689,7 @@ impl StatementCache {
     }
 }
 
-/// Wrapper around [`tokio_postgres::Client`] with a [`StatementCache`].
+/// Wrapper around [`pgorm_driver::Client`] with a [`StatementCache`].
 #[derive(Debug)]
 pub struct ClientWrapper {
     /// Original [`PgClient`].
@@ -597,7 +709,7 @@ pub struct ClientWrapper {
 
 impl ClientWrapper {
     /// Create a new [`ClientWrapper`] instance using the given
-    /// [`tokio_postgres::Client`] and handle to the connection task, with a
+    /// [`pgorm_driver::Client`] and handle to the connection task, with a
     /// statement cache of the default size.
     #[must_use]
     pub fn new(client: PgClient, conn_task: JoinHandle<()>) -> Self {
@@ -606,7 +718,7 @@ impl ClientWrapper {
 
     /// [`ClientWrapper::new`] with the size of the connection's
     /// [`StatementCache`] chosen explicitly, as [`ManagerConfig`] does.
-    // [spec:pgorm:req:conn.pool.statement-cache.bound+1]    per-connection capacity
+    // [spec:pgorm:req:conn.pool.statement-cache.bound+2]    per-connection capacity
     #[must_use]
     pub fn with_cache_size(
         client: PgClient,
@@ -621,13 +733,13 @@ impl ClientWrapper {
         }
     }
 
-    /// Like [`tokio_postgres::Client::prepare()`], but uses an existing
+    /// Like [`pgorm_driver::Client::prepare()`], but uses an existing
     /// [`Statement`] from the [`StatementCache`] if possible.
     pub async fn prepare_cached(&self, query: &str) -> Result<Statement, Error> {
         self.statement_cache.prepare(&self.client, query).await
     }
 
-    /// Like [`tokio_postgres::Client::prepare_typed()`], but uses an
+    /// Like [`pgorm_driver::Client::prepare_typed()`], but uses an
     /// existing [`Statement`] from the [`StatementCache`] if possible.
     pub async fn prepare_typed_cached(
         &self,
@@ -639,7 +751,7 @@ impl ClientWrapper {
             .await
     }
 
-    /// Like [`tokio_postgres::Client::transaction()`], but returns a wrapped
+    /// Like [`pgorm_driver::Client::transaction()`], but returns a wrapped
     /// [`Transaction`] with a [`StatementCache`].
     #[allow(unused_lifetimes)] // false positive
     pub async fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
@@ -651,7 +763,7 @@ impl ClientWrapper {
         })
     }
 
-    /// Like [`tokio_postgres::Client::build_transaction()`], but creates a
+    /// Like [`pgorm_driver::Client::build_transaction()`], but creates a
     /// wrapped [`Transaction`] with a [`StatementCache`].
     pub fn build_transaction(&mut self) -> TransactionBuilder<'_> {
         TransactionBuilder {
@@ -661,17 +773,22 @@ impl ClientWrapper {
         }
     }
 
-    /// Like [`tokio_postgres::Client::copy_in()`], but a COPY the server
+    /// Like [`pgorm_driver::Client::copy_in()`], but a COPY the server
     /// refuses before its data flow starts closes the connection, because
     /// tokio-postgres leaves an answer behind that the next request would read
     /// as its own. Pass a prepared [`Statement`]: preparing is a request of its
     /// own, and a statement refused there leaves the connection intact.
-    // [spec:pgorm:req:conn.copy+2]
+    /// Native Turso refuses COPY before starting work and keeps the client usable.
+    // [spec:pgorm:req:conn.copy+5]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
     {
+        #[cfg(feature = "turso")]
+        if self.client.is_turso() {
+            return self.client.copy_in(statement).await;
+        }
         copy::guarded(
             &self.conn_task.abort_handle(),
             self.client.copy_in(statement),
@@ -694,7 +811,7 @@ impl DerefMut for ClientWrapper {
     }
 }
 
-// [spec:pgorm:sem:conn.pool.lifecycle+3]    connection task abort on drop
+// [spec:pgorm:sem:conn.pool.lifecycle+5]    connection task abort on drop
 impl Drop for ClientWrapper {
     fn drop(&mut self) {
         self.conn_task.abort()

@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use pgorm::{EntityTrait, Schema};
+use pgorm::{Entity, Schema};
 use serde_json::{Value as Json, json};
 
 use crate::{
@@ -15,12 +15,12 @@ use crate::{
 
 /// The entity's table, enum, index and comment statements as SQL, or the
 /// message `Schema::create_table_from_entity` refuses its table with.
-fn generated<E: EntityTrait>() -> Json {
+fn generated<E: Entity>() -> Json {
     generated_in(E::default())
 }
 
 /// The same statements for the table `entity` names.
-fn generated_in<E: EntityTrait>(entity: E) -> Json {
+fn generated_in<E: Entity>(entity: E) -> Json {
     let schema = Schema::new();
     match schema.create_table_from_entity(entity) {
         Ok(table) => json!({

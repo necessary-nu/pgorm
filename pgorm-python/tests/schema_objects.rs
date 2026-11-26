@@ -3,7 +3,7 @@
 //! directly, must match the SQL Python builds for them.
 use pgorm::pgorm_query::{
     BinOper, Check, ColumnDef, ColumnType, Comment, ConstraintChange, ConstraintDrop,
-    Deferrability, Domain, Enforcement, Expr, ExprTrait, ForeignKeyAction,
+    Deferrability, Domain, Enforcement, Expr, Expression, ForeignKeyAction,
     ForeignKeyCreateStatement, Func, GeneratedKind, IdentityGeneration, Index, IndexColumn,
     IndexOrder, IndexType, MaterializedView, Name, NotNullConstraint, Query, Schema,
     SelectStatement, Sequence, SequenceOption, SequenceType, SimpleExpr, StringLen, Table,

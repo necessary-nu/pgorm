@@ -1,8 +1,8 @@
 use crate::{FromQueryResult, QuerySelect};
 
-/// A trait for a part of [Model](super::model::ModelTrait)
-// [spec:pgorm:def:entity.traits.from-query-result+5]
-pub trait PartialModelTrait: FromQueryResult {
+/// A trait for a part of [Model](super::model::Model)
+// [spec:pgorm:def:entity.traits.from-query-result+6]
+pub trait PartialModel: FromQueryResult {
     /// Select specific columns this partial model needs.
     ///
     /// The return type is [`QuerySelect::Projected`], not `S`: a partial

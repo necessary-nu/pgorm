@@ -130,7 +130,7 @@ class Construction(unittest.TestCase):
             'SELECT "account"."name", "account"."id" AS "id" FROM "python_projections"."account"',
         )
 
-    # [spec:pgorm:req:bindings.partial-models/test]
+    # [spec:pgorm:req:bindings.partial-models+1/test]
     def test_a_partial_model_declares_its_fields(self):
         with self.assertRaises(TypeError):
             p.PartialModel(Account, {"id": "id"})  # type: ignore[dict-item]
@@ -331,7 +331,7 @@ class LiveProjections(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(p.DecodeError):
             await labelled.into_tuple().all(self.pool)
 
-    # [spec:pgorm:req:bindings.partial-models/test]
+    # [spec:pgorm:req:bindings.partial-models+1/test]
     async def test_a_partial_model_selects_and_decodes(self):
         line = p.PartialModel(
             Account,

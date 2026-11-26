@@ -35,20 +35,20 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, Relation)]
 pub enum Relation {}
 
-// [spec:pgorm:req:bindings.entity-writes+1/test]
+// [spec:pgorm:req:bindings.entity-writes+2/test]
 #[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         Self {
             version: pgorm::set(1),
             mood: pgorm::set(Mood::Calm),
-            ..<Self as ActiveModelTrait>::default()
+            ..<Self as pgorm::ActiveModel>::default()
         }
     }
 
     async fn before_save<C>(mut self, _: &C, insert: bool) -> Result<Self, pgorm::Error>
     where
-        C: pgorm::ConnectionTrait,
+        C: pgorm::Connection,
     {
         let name = self.name.try_as_ref().cloned().unwrap_or_default();
         if name == "reject_before" {
@@ -67,7 +67,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn after_save<C>(model: Model, _: &C, _: bool) -> Result<Model, pgorm::Error>
     where
-        C: pgorm::ConnectionTrait,
+        C: pgorm::Connection,
     {
         if model.name.starts_with("reject_after") {
             return Err(pgorm::Error::Custom("after_save refused".into()));
@@ -77,7 +77,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn before_delete<C>(self, _: &C) -> Result<Self, pgorm::Error>
     where
-        C: pgorm::ConnectionTrait,
+        C: pgorm::Connection,
     {
         if self.id.try_as_ref() == Some(&99) {
             return Err(pgorm::Error::Custom("before_delete refused".into()));
@@ -87,7 +87,7 @@ impl ActiveModelBehavior for ActiveModel {
 
     async fn after_delete<C>(self, _: &C) -> Result<Self, pgorm::Error>
     where
-        C: pgorm::ConnectionTrait,
+        C: pgorm::Connection,
     {
         if self.id.try_as_ref() == Some(&98) {
             return Err(pgorm::Error::Custom("after_delete refused".into()));

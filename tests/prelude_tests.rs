@@ -22,7 +22,7 @@ async fn _connection_vocabulary(
     conn: &mut DatabaseConnection,
 ) -> Result<(), Error> {
     let _: DatabaseConnection = pool.get().await?;
-    TransactionTrait::transaction(conn, async |txn: &mut DatabaseTransaction<'_>| {
+    Transact::transaction(conn, async |txn: &mut DatabaseTransaction<'_>| {
         txn.execute("SELECT 1", &[]).await
     })
     .await
@@ -32,18 +32,18 @@ async fn _connection_vocabulary(
 
 /// The paginator and the loader are traits, so their methods are unreachable
 /// unless the prelude carries them.
-async fn _paged<C: ConnectionTrait>(db: &C) -> Result<u64, Error> {
+async fn _paged<C: Connection>(db: &C) -> Result<u64, Error> {
     cake::Entity::find()
         .paginate(db, NonZeroU64::new(10).expect("10 is not zero"))
         .num_pages()
         .await
 }
 
-// [spec:pgorm:def:entity.prelude+12/test]    a query built, an active model set, a
+// [spec:pgorm:def:entity.prelude+13/test]    a query built, an active model set, a
 // statement decoded and a column enumerated, with the prelude as the only import
 #[test]
 fn prelude_carries_what_a_query_needs() {
-    // `QuerySelect`, `QueryFilter`, `QueryOrder` and `QueryTrait`: every method
+    // `QuerySelect`, `QueryFilter`, `QueryOrder` and `Statement`: every method
     // in this chain belongs to a trait, and `as_query` to a fourth.
     let sql = cake::Entity::find()
         .select_only()
@@ -105,7 +105,7 @@ fn prelude_carries_what_a_query_needs() {
     );
 }
 
-// [spec:pgorm:def:entity.prelude+12/test]    `Func`, the vocabulary an entity's
+// [spec:pgorm:def:entity.prelude+13/test]    `Func`, the vocabulary an entity's
 // `default_expr` names a function default in, with the prelude as the only import
 #[test]
 fn prelude_carries_the_function_vocabulary() {
@@ -137,7 +137,7 @@ mod interval_columns {
     pub enum Relation {}
 }
 
-// [spec:pgorm:def:entity.prelude+12/test]    the interval vocabulary: a field's
+// [spec:pgorm:def:entity.prelude+13/test]    the interval vocabulary: a field's
 // `Interval` and the `IntervalSpec`, `PgInterval` and `IntervalPrecision` its
 // `column_type` names resolve through the glob
 #[test]

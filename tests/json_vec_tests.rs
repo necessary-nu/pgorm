@@ -75,7 +75,7 @@ pub async fn insert_json_string_vec_derive(db: &DatabaseConnection) -> Result<()
     Ok(())
 }
 
-// [spec:pgorm:def:exec.decode.json+1/test]    `Vec<T>` of a `TryGetableFromJson`
+// [spec:pgorm:def:exec.decode.json+2/test]    `Vec<T>` of a `TryGetableFromJson`
 // type decoded through `TryGetableArray` / `from_json_vec`
 pub async fn insert_json_struct_vec_derive(db: &DatabaseConnection) -> Result<(), Error> {
     let json_vec = json_vec_derive::json_struct_vec::Model {

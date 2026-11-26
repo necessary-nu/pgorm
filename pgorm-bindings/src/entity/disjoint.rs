@@ -236,7 +236,7 @@ impl DisjointCore {
 
     /// Where each enum column of every source is in a read's result, by its
     /// result name, and its kind: the read projects one as its text, as
-    /// pgorm's `ColumnTrait::select_as` reads an entity's, and a model's
+    /// pgorm's `Column::select_as` reads an entity's, and a model's
     /// field is the enum its column names.
     pub fn enum_columns(&self) -> Vec<(String, Tag)> {
         let shape = &self.shape;

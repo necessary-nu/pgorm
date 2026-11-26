@@ -24,6 +24,7 @@ name = "pgorm_napi"
 # The addon's own module. An application that registers its entities
 # disables it and exports a module of its own that calls `install`.
 default = ["standalone-module"]
+turso = ["pgorm/turso", "pgorm-bindings/turso", "pgorm-driver/turso"]
 standalone-module = []
 
 [dependencies]
@@ -31,7 +32,7 @@ standalone-module = []
 # the parser is linked into every pgorm build, and a fingerprint is parsed
 # only when a hook asks for one.
 pgorm = { version = "0.2.0", path = "..", features = ["metrics-fingerprint"] }
-# The migration runner JavaScript's migrations run through ([spec:pgorm:req:bindings.migrations]).
+# The migration runner JavaScript's migrations run through ([spec:pgorm:req:bindings.migrations+1]).
 pgorm-migration = { version = "0.2.0", path = "../pgorm-migration" }
 # What pgorm-python needs too: a pool and its TLS built from the binding's
 # options, and its hooks' statements served.
@@ -42,7 +43,7 @@ pgorm-bindings = { version = "0.2.0", path = "../pgorm-bindings" }
 pgorm-codegen = { version = "0.2.0", path = "../pgorm-codegen", default-features = false }
 neon = { version = "1.1.2", default-features = false, features = ["napi-6"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread"] }
-tokio-postgres = "0.7.18"
+pgorm-driver = { path = "../crates/pgorm-driver", version = "0.2.0" }
 # The value codecs, the same crates pgorm itself resolves, so the addon
 # converts exactly what pgorm's own `Value` holds.
 bytes = "1.12.1"

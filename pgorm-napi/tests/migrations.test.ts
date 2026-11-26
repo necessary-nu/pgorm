@@ -15,7 +15,7 @@ import {
   createType,
   DatabaseError,
   LifecycleError,
-  type MigrationTrait,
+  type Migration,
   migrationFile,
   migrations,
   Pool,
@@ -57,7 +57,7 @@ function scope(): { schema: string; ops: string } {
   return { schema, ops: `${schema}_ops` };
 }
 
-class Written implements MigrationTrait {
+class Written implements Migration {
   runs = 0;
   readonly name: string;
   readonly sql: string[];
@@ -80,7 +80,7 @@ async function scalar(sql: string): Promise<unknown> {
   return (await pool.one(sql)).value;
 }
 
-// [spec:pgorm:req:bindings.migrations/test]    a file reads as pgorm-migration reads it: name, digest, directive
+// [spec:pgorm:req:bindings.migrations+1/test]    a file reads as pgorm-migration reads it: name, digest, directive
 test("a SQL file reads as the runner reads it", () => {
   const note = SqlMigration.read(NOTE);
   assert.equal(note.name, "m20260101_000001_create_note");
@@ -103,7 +103,7 @@ test("a SQL file reads as the runner reads it", () => {
   );
 });
 
-// [spec:pgorm:req:bindings.migrations/test]    a directory reads its .sql files alone, CRLF read as LF
+// [spec:pgorm:req:bindings.migrations+1/test]    a directory reads its .sql files alone, CRLF read as LF
 test("a directory's files read with LF line endings", {
   skip: deno && "the suite runs under Deno without --allow-write, so Node holds the writing",
 }, () => {
@@ -122,7 +122,7 @@ test("a directory's files read with LF line endings", {
   }
 });
 
-// [spec:pgorm:req:bindings.migrations/test]    a migration is a SqlMigration or an object with a name and an up
+// [spec:pgorm:req:bindings.migrations+1/test]    a migration is a SqlMigration or an object with a name and an up
 test("a migrator refuses what is no migration", () => {
   // @ts-expect-error: a number is no migration
   assert.throws(() => migrations([1]), TypeError);
@@ -138,7 +138,7 @@ test("a migrator refuses what is no migration", () => {
   assert.throws(() => new SqlMigration(), TypeError);
 });
 
-// [spec:pgorm:req:bindings.migrations/test]    files and JavaScript migrations run in order, once, through the runner
+// [spec:pgorm:req:bindings.migrations+1/test]    files and JavaScript migrations run in order, once, through the runner
 test("a frozen history and JavaScript migrations replay", async () => {
   const { schema, ops } = scope();
   const mood = new TypeName("mood", { schema });
@@ -208,7 +208,7 @@ test("a frozen history and JavaScript migrations replay", async () => {
   ]);
 });
 
-// [spec:pgorm:req:bindings.migrations/test]    a migration's rejection rolls the batch back and is what up rejects with
+// [spec:pgorm:req:bindings.migrations+1/test]    a migration's rejection rolls the batch back and is what up rejects with
 test("a rejecting migration rolls the batch back", async () => {
   const { schema, ops } = scope();
   const refusal = new Error("no");
@@ -224,16 +224,16 @@ test("a rejecting migration rolls the batch back", async () => {
   assert.equal(await scalar(`SELECT count(*) AS value FROM pg_namespace WHERE nspname IN ('${schema}', '${ops}')`), 0n);
 
   const thrown = { name: "m20260101_000002_throw", up: () => { throw "plain"; } };
-  await assert.rejects(migrations([first, thrown as unknown as MigrationTrait]).up(pool), (error) => error === "plain");
+  await assert.rejects(migrations([first, thrown as unknown as Migration]).up(pool), (error) => error === "plain");
 
   await assert.rejects(migrations([first, new Written(first.name, [])]).up(pool), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.migrations/test]    up's transaction takes savepoints and statements, commitsAfter commits, and closes after
+// [spec:pgorm:req:bindings.migrations+1/test]    up's transaction takes savepoints and statements, commitsAfter commits, and closes after
 test("the lent transaction is a transaction", async () => {
   const { schema, ops } = scope();
   const held: Transaction[] = [];
-  const tolerant: MigrationTrait = {
+  const tolerant: Migration = {
     name: "m20260101_000001_tolerant",
     commitsAfter: true,
     async up(tx) {
@@ -260,7 +260,7 @@ test("the lent transaction is a transaction", async () => {
   await assert.rejects(held[0]!.execute("SELECT 1"), LifecycleError);
 });
 
-// [spec:pgorm:req:bindings.migrations/test]    the runner clears the pool's statement caches after a batch
+// [spec:pgorm:req:bindings.migrations+1/test]    the runner clears the pool's statement caches after a batch
 test("up clears the pool's statement caches", async () => {
   const { schema, ops } = scope();
   await using single = new Pool(server, { maxSize: 1 });

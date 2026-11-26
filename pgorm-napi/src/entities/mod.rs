@@ -282,7 +282,7 @@ fn entity_columns(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `entityCol(entity, column)`: the column as the entity's own
-/// `ColumnTrait` names it, an expression any builder takes.
+/// `Column` names it, an expression any builder takes.
 fn entity_col(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -316,11 +316,11 @@ fn comparison_at(cx: &mut FunctionContext, index: usize) -> NeonResult<Compariso
 }
 
 /// `entityCompare(entity, column, operator, value)`: the column compared
-/// through its `ColumnTrait` method — a comparison, `IS [NOT] DISTINCT
+/// through its `Column` method — a comparison, `IS [NOT] DISTINCT
 /// FROM` or a range operator — the value converted to the column's declared
 /// kind and written through its `save_as`.
-// [spec:pgorm:req:bindings.entity-reads+4]
-// [spec:pgorm:req:bindings.column-operators+3]
+// [spec:pgorm:req:bindings.entity-reads+5]
+// [spec:pgorm:req:bindings.column-operators+4]
 fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -334,10 +334,10 @@ fn entity_compare(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `entityQuantified(entity, column, operator, "any" | "all", values)`: the
 /// column compared with `ANY` or `ALL` of `values` through its
-/// `ColumnTrait::compare_any` / `compare_all`, the values read as one array
+/// `Column::compare_any` / `compare_all`, the values read as one array
 /// of the column's declared kind; `null` for a column of no scalar kind,
 /// whose quantifier is compared as written.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 fn entity_quantified(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -358,9 +358,9 @@ fn entity_quantified(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `entityBetween(entity, column, negated, symmetric, lower, upper)`: the
-/// column's `[NOT] BETWEEN [SYMMETRIC]` through its `ColumnTrait` method,
+/// column's `[NOT] BETWEEN [SYMMETRIC]` through its `Column` method,
 /// each bound converted as a compared value is.
-// [spec:pgorm:req:bindings.column-operators+3]
+// [spec:pgorm:req:bindings.column-operators+4]
 fn entity_between(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -399,11 +399,11 @@ fn compared_value(
 }
 
 /// `entityIn(entity, column, negated, values | select)`: the column's
-/// membership through its `ColumnTrait` method — `is_in` / `is_not_in` over
+/// membership through its `Column` method — `is_in` / `is_not_in` over
 /// values read as the column's declared kind, `in_subquery` /
 /// `not_in_subquery` over a subquery's rows — so a column whose domain is over
 /// an enum is a member as the enum, and so is what the subquery projects.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 fn entity_in(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
     let column = text!(cx, 1);
@@ -474,7 +474,7 @@ fn count_at(cx: &mut FunctionContext, index: usize) -> NeonResult<Option<u64>> {
 
 /// `entitySelectChange(select, step, argument)`: the query with one more
 /// step — `where`, `orderBy`, `limit` or `offset` — as `Select<E>` takes it.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 fn select_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let select = held!(cx, SelectHandle, 0);
     let change = step(&mut cx)?;
@@ -536,8 +536,8 @@ fn select_job(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `entityModelSet(model, column, value)`: `[values, model]` of a clone
-/// with `ModelTrait::set` applied. Nothing is written.
-// [spec:pgorm:req:bindings.entity-writes+1]
+/// with `Model::set` applied. Nothing is written.
+// [spec:pgorm:req:bindings.entity-writes+2]
 fn model_set(mut cx: FunctionContext) -> JsResult<JsValue> {
     let model = held!(cx, ModelHandle, 0);
     let column = text!(cx, 1);
@@ -610,8 +610,8 @@ fn active_get(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(pair.upcast())
 }
 
-/// `entityActiveChanged(active)`: `ActiveModelTrait::is_changed`.
-// [spec:pgorm:req:bindings.entity-active-changes]
+/// `entityActiveChanged(active)`: `ActiveModel::is_changed`.
+// [spec:pgorm:req:bindings.entity-active-changes+1]
 fn active_changed(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
     Ok(cx.boolean(active.is_changed()).upcast())
@@ -620,8 +620,8 @@ fn active_changed(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `entityActiveChange(active, step, column, value?)`: a new ActiveModel
 /// with one column `set` to a value, `setIfNotEquals` it, `notSet` or
 /// `reset`.
-// [spec:pgorm:req:bindings.entity-writes+1]
-// [spec:pgorm:req:bindings.entity-active-changes]
+// [spec:pgorm:req:bindings.entity-writes+2]
+// [spec:pgorm:req:bindings.entity-active-changes+1]
 fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
     let step = text!(cx, 1);
@@ -652,8 +652,8 @@ fn active_change(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `entityActiveJob(active, write)`: `insert`, `update` or `delete` through
-/// `ActiveModelTrait`, its `ActiveModelBehavior` hooks around it.
-// [spec:pgorm:req:bindings.entity-writes+1]
+/// `ActiveModel`, its `ActiveModelBehavior` hooks around it.
+// [spec:pgorm:req:bindings.entity-writes+2]
 fn active_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let active = held!(cx, ActiveHandle, 0);
     let write = match text!(cx, 1).as_str() {

@@ -1,8 +1,8 @@
 use crate::entity::entity_table;
 use crate::entity::{immutable_column, immutable_set, scope_condition};
 use crate::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, Error, Iterable, NoContext,
-    PrimaryKeyToColumn, QueryFilter, QueryTrait, ScopeContext, ScopeError, ScopedIn, StaticName,
+    ActiveModel, ActiveValue, Column, Entity, Error, Iterable, NoContext, PrimaryKeyToColumn,
+    QueryFilter, ScopeContext, ScopeError, ScopedIn, Statement, StaticName,
 };
 use core::marker::PhantomData;
 use pgorm_query::{Expr, IntoFromItem, IntoName, SimpleExpr, UpdateStatement};
@@ -15,7 +15,7 @@ pub struct Update;
 #[derive(Clone, Debug)]
 pub struct UpdateOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     pub(crate) query: UpdateStatement,
     pub(crate) model: A,
@@ -28,7 +28,7 @@ where
 #[derive(Clone, Debug)]
 pub struct UpdateMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     pub(crate) query: UpdateStatement,
     pub(crate) entity: PhantomData<E>,
@@ -73,8 +73,8 @@ impl Update {
     /// ```
     pub fn one<E, A>(model: A) -> Result<UpdateOne<A>, Error>
     where
-        E: EntityTrait + ScopedIn<NoContext>,
-        A: ActiveModelTrait<Entity = E>,
+        E: Entity + ScopedIn<NoContext>,
+        A: ActiveModel<Entity = E>,
     {
         Self::one_in(E::default(), model)
     }
@@ -112,8 +112,8 @@ impl Update {
     pub fn one_for<Cx, E, A>(cx: &Cx, model: A) -> Result<UpdateOne<A>, Error>
     where
         Cx: ScopeContext,
-        E: EntityTrait + ScopedIn<Cx>,
-        A: ActiveModelTrait<Entity = E>,
+        E: Entity + ScopedIn<Cx>,
+        A: ActiveModel<Entity = E>,
     {
         let mut one = Self::one_unscoped(E::default(), model)?;
         if let Some(condition) = scope_condition::<E>(cx)? {
@@ -147,8 +147,8 @@ impl Update {
     // [spec:pgorm:sem:query.build.update+5]
     pub fn one_in<E, A>(entity: E, model: A) -> Result<UpdateOne<A>, Error>
     where
-        E: EntityTrait + ScopedIn<NoContext>,
-        A: ActiveModelTrait<Entity = E>,
+        E: Entity + ScopedIn<NoContext>,
+        A: ActiveModel<Entity = E>,
     {
         Self::one_unscoped(entity, model)
     }
@@ -158,8 +158,8 @@ impl Update {
     // [spec:pgorm:sem:query.build.update+5]
     fn one_unscoped<E, A>(entity: E, model: A) -> Result<UpdateOne<A>, Error>
     where
-        E: EntityTrait,
-        A: ActiveModelTrait<Entity = E>,
+        E: Entity,
+        A: ActiveModel<Entity = E>,
     {
         let one = UpdateOne {
             query: UpdateStatement::new()
@@ -174,7 +174,7 @@ impl Update {
     /// Update many ActiveModel
     ///
     /// ```
-    /// use pgorm::{entity::*, query::*, pgorm_query::{Expr, ExprTrait}, tests_cfg::fruit};
+    /// use pgorm::{entity::*, query::*, pgorm_query::{Expr, Expression}, tests_cfg::fruit};
     ///
     /// assert_eq!(
     ///     Update::many(fruit::Entity)
@@ -188,7 +188,7 @@ impl Update {
     #[doc(alias = "update_many")]
     pub fn many<E>(entity: E) -> UpdateMany<E>
     where
-        E: EntityTrait + ScopedIn<NoContext>,
+        E: Entity + ScopedIn<NoContext>,
     {
         Self::many_unscoped(&entity)
     }
@@ -200,7 +200,7 @@ impl Update {
     pub fn many_for<Cx, E>(cx: &Cx, entity: E) -> UpdateMany<E>
     where
         Cx: ScopeContext,
-        E: EntityTrait + ScopedIn<Cx>,
+        E: Entity + ScopedIn<Cx>,
     {
         let mut many = Self::many_unscoped(&entity);
         match scope_condition::<E>(cx) {
@@ -215,7 +215,7 @@ impl Update {
 
     fn many_unscoped<E>(entity: &E) -> UpdateMany<E>
     where
-        E: EntityTrait,
+        E: Entity,
     {
         UpdateMany {
             query: UpdateStatement::new()
@@ -229,10 +229,10 @@ impl Update {
 
 impl<A> UpdateOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     fn prepare_filters(mut self) -> Result<Self, Error> {
-        for key in <A::Entity as EntityTrait>::PrimaryKey::iter() {
+        for key in <A::Entity as Entity>::PrimaryKey::iter() {
             let col = key.into_column();
             match self.model.get(col)? {
                 ActiveValue::Set(value) | ActiveValue::Unchanged(value) => {
@@ -246,8 +246,8 @@ where
 
     // [spec:pgorm:req:scope.immutable]
     fn prepare_values(mut self) -> Result<Self, Error> {
-        for col in <A::Entity as EntityTrait>::Column::iter() {
-            if <A::Entity as EntityTrait>::PrimaryKey::from_column(col).is_some() {
+        for col in <A::Entity as Entity>::Column::iter() {
+            if <A::Entity as Entity>::PrimaryKey::from_column(col).is_some() {
                 continue;
             }
             match self.model.get(col)? {
@@ -272,7 +272,7 @@ where
 
 impl<A> QueryFilter for UpdateOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     type QueryStatement = UpdateStatement;
 
@@ -283,7 +283,7 @@ where
 
 impl<E> QueryFilter for UpdateMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     type QueryStatement = UpdateStatement;
 
@@ -292,9 +292,9 @@ where
     }
 }
 
-impl<A> QueryTrait for UpdateOne<A>
+impl<A> Statement for UpdateOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     type QueryStatement = UpdateStatement;
 
@@ -311,9 +311,9 @@ where
     }
 }
 
-impl<E> QueryTrait for UpdateMany<E>
+impl<E> Statement for UpdateMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     type QueryStatement = UpdateStatement;
 
@@ -333,7 +333,7 @@ where
 // [spec:pgorm:sem:query.build.update+5]
 impl<E> UpdateMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// What every execution path asks before sending anything: a context
     /// refused for its scopes, and a `SET` of a column its definition marks
@@ -352,11 +352,11 @@ where
     ///
     /// Only `Set` columns are written: `Unchanged` and `NotSet` ones contribute
     /// nothing, and so does a column this model does not carry at all — the
-    /// `Error::Type` [`ActiveModelTrait::get`] reports for one is a statement
+    /// `Error::Type` [`ActiveModel::get`] reports for one is a statement
     /// about the model, not a value to write.
     pub fn set<A>(mut self, model: A) -> Self
     where
-        A: ActiveModelTrait<Entity = E>,
+        A: ActiveModel<Entity = E>,
     {
         for col in E::Column::iter() {
             if let Ok(ActiveValue::Set(value)) = model.get(col) {

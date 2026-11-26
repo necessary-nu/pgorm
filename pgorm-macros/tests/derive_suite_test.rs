@@ -37,12 +37,12 @@ mod cake {
 }
 
 /// An entity whose name is computed at run time, which is what exercises
-/// `EntityTrait`: its `Entity` is written by hand beside a composite derive
-/// given no `table_name`. `Model` makes it a second model.
+/// `Entity` derived on a hand-written `Entity` struct beside a composite
+/// derive given no `table_name`. `Model` makes it a second model.
 mod fruit {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     pub struct Entity {
         pub orchard: Option<&'static str>,
     }
@@ -163,12 +163,12 @@ pub enum Stock {
     Empty,
 }
 
-// [spec:pgorm:def:macros.derive+8/test]    every derive in the catalogue is reachable and wired up
-// [spec:pgorm:req:macros.derive.names+3/test]    each derive by its name through the prelude, glob-imported by both its paths and beside the crate root's glob
+// [spec:pgorm:def:macros.derive+9/test]    every derive in the catalogue is reachable and wired up
+// [spec:pgorm:req:macros.derive.names+4/test]    each derive by its name through the prelude, glob-imported by both its paths and beside the crate root's glob
 #[test]
 fn the_whole_derive_catalogue_is_exposed() {
-    // Entity-side derives: the composite, and the entity-trait derive beside
-    // it for a name computed at run time.
+    // Entity-side derives: the composite, and `Entity` on a hand-written
+    // `Entity` beside it for a name computed at run time.
     assert_eq!(cake::Entity.table_name(), "cake");
     let orchard = fruit::Entity {
         orchard: Some("orchard"),
@@ -218,7 +218,7 @@ fn the_whole_derive_catalogue_is_exposed() {
     fn assert_from_query_result<T: FromQueryResult>() {}
     assert_from_query_result::<Projection>();
     assert_from_query_result::<CakeSlice>();
-    fn assert_partial_model<T: pgorm::PartialModelTrait>() {}
+    fn assert_partial_model<T: pgorm::PartialModel>() {}
     assert_partial_model::<CakeSlice>();
     fn assert_json_marker<T: pgorm::TryGetableFromJson>() {}
     assert_json_marker::<Meta>();

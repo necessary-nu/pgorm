@@ -1,7 +1,7 @@
 use crate::entity::entity_table;
 use crate::{
-    ColumnTrait, EntityTrait, Iterable, QueryFilter, QueryOrder, QuerySelect, QueryTrait,
-    ScopeContext, ScopeError,
+    Column, Entity, Iterable, QueryFilter, QueryOrder, QuerySelect, ScopeContext, ScopeError,
+    Statement,
 };
 use core::fmt::Debug;
 use core::marker::PhantomData;
@@ -12,11 +12,11 @@ use pgorm_query::{
 };
 
 /// Defines a structure to perform select operations
-// [spec:pgorm:req:query.build+2]
+// [spec:pgorm:req:query.build+3]
 #[derive(Clone, Debug)]
 pub struct Select<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     pub(crate) query: SelectStatement,
     pub(crate) entity: PhantomData<E>,
@@ -29,15 +29,15 @@ where
 /// [`Select::select_only`] and not yet refilled.
 ///
 /// The statement still renders — `as_query`, `build` and the rest of
-/// [`QueryTrait`] are available — but nothing can execute it, because a
+/// [`Statement`] are available — but nothing can execute it, because a
 /// `SELECT` with no projection has no rows to decode. Adding any column or
 /// expression moves to [`SelectProjected<E>`], where the terminal operations
 /// live.
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 #[derive(Clone, Debug)]
 pub struct SelectCustom<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     pub(crate) query: SelectStatement,
     pub(crate) entity: PhantomData<E>,
@@ -54,11 +54,11 @@ where
 /// [`into_partial_model`](SelectProjected::into_partial_model),
 /// [`into_tuple`](SelectProjected::into_tuple) or
 /// [`into_values`](SelectProjected::into_values).
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 #[derive(Clone, Debug)]
 pub struct SelectProjected<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     pub(crate) query: SelectStatement,
     pub(crate) entity: PhantomData<E>,
@@ -68,7 +68,7 @@ where
 }
 
 /// Performs a conversion to [SimpleExpr]
-// [spec:pgorm:def:query.build.query-trait+2]
+// [spec:pgorm:def:query.build.query-trait+3]
 pub trait IntoSimpleExpr {
     /// Method to perform the conversion
     fn into_simple_expr(self) -> SimpleExpr;
@@ -78,7 +78,7 @@ macro_rules! impl_trait {
     ( $trait: ident ) => {
         impl<E> $trait for Select<E>
         where
-            E: EntityTrait,
+            E: Entity,
         {
             type QueryStatement = SelectStatement;
 
@@ -89,7 +89,7 @@ macro_rules! impl_trait {
 
         impl<E> $trait for SelectCustom<E>
         where
-            E: EntityTrait,
+            E: Entity,
         {
             type QueryStatement = SelectStatement;
 
@@ -100,7 +100,7 @@ macro_rules! impl_trait {
 
         impl<E> $trait for SelectProjected<E>
         where
-            E: EntityTrait,
+            E: Entity,
         {
             type QueryStatement = SelectStatement;
 
@@ -118,7 +118,7 @@ macro_rules! impl_query_select {
     ( $selector: ident < $( $param: ident ),+ >, $projected: ty, | $this: ident | $body: expr ) => {
         impl< $( $param ),+ > QuerySelect for $selector < $( $param ),+ >
         where
-            $( $param: EntityTrait, )+
+            $( $param: Entity, )+
         {
             type QueryStatement = SelectStatement;
             type Projected = $projected;
@@ -151,7 +151,7 @@ impl_query_select!(SelectProjected<E>, Self, |this| this);
 
 impl<C> IntoSimpleExpr for C
 where
-    C: ColumnTrait,
+    C: Column,
 {
     fn into_simple_expr(self) -> SimpleExpr {
         SimpleExpr::Column(self.as_column_ref().into_column_ref())
@@ -160,7 +160,7 @@ where
 
 /// The column-position conversion and the projection item, for each type
 /// that is an expression in its own right: the implementors of
-/// [`ExprTrait`](pgorm_query::ExprTrait), which a blanket impl cannot name beside the one for
+/// [`Expression`](pgorm_query::Expression), which a blanket impl cannot name beside the one for
 /// columns.
 macro_rules! expression_items {
     ($($ty:ty),* $(,)?) => {
@@ -210,7 +210,7 @@ expression_items!(
 /// how an aliased item joins a list, though
 /// [`column_as`](QuerySelect::column_as) chained after
 /// [`select`](Select::select) reads better.
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 pub trait SelectItem {
     /// The item as a select expression.
     fn into_select_expr(self) -> SelectExpr;
@@ -218,7 +218,7 @@ pub trait SelectItem {
 
 impl<C> SelectItem for C
 where
-    C: ColumnTrait,
+    C: Column,
 {
     fn into_select_expr(self) -> SelectExpr {
         SelectExpr::new(self.select_as(self.into_expr()))
@@ -265,7 +265,7 @@ impl SelectItem for AliasName {
 /// A list computed at run time is an iterator, which no tuple arity can cover;
 /// that stays [`select_only`](Select::select_only) plus
 /// [`columns`](QuerySelect::columns).
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 pub trait SelectList {
     /// The items, in the order written.
     fn into_select_exprs(self) -> Vec<SelectExpr>;
@@ -273,7 +273,7 @@ pub trait SelectList {
 
 impl<C> SelectList for C
 where
-    C: ColumnTrait,
+    C: Column,
 {
     fn into_select_exprs(self) -> Vec<SelectExpr> {
         vec![self.into_select_expr()]
@@ -342,16 +342,16 @@ impl_select_list_tuple!(A, B, C, D, E, F, G, H, I, J, K, L);
 
 impl<E> Select<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
-    // [spec:pgorm:sem:query.build.select-defaults+1]
+    // [spec:pgorm:sem:query.build.select-defaults+2]
     pub(crate) fn new() -> Self {
         Self::read(&E::default())
     }
 
     /// Every row of the table `entity` names, under the default select list:
-    /// what [`EntityTrait::find_in`] reads, held to no scope.
-    // [spec:pgorm:sem:query.build.select-defaults+1]
+    /// what [`Entity::find_in`] reads, held to no scope.
+    // [spec:pgorm:sem:query.build.select-defaults+2]
     pub(crate) fn read(entity: &E) -> Self {
         let mut select = Self::projected();
         select.query.from(entity_table(entity));
@@ -386,8 +386,8 @@ where
     }
 
     /// The default select list, every column under its read cast, with no
-    /// `FROM` yet: what [`EntityTrait::find_in`] adds its table to.
-    // [spec:pgorm:sem:query.build.select-defaults+1]
+    /// `FROM` yet: what [`Entity::find_in`] adds its table to.
+    // [spec:pgorm:sem:query.build.select-defaults+2]
     pub(crate) fn projected() -> Self {
         Self {
             query: SelectStatement::new(),
@@ -434,7 +434,7 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:query.build.modifiers+11]
+    // [spec:pgorm:sem:query.build.modifiers+12]
     pub fn select_only(mut self) -> SelectCustom<E> {
         self.query.clear_selects();
         SelectCustom {
@@ -493,7 +493,7 @@ where
     ///
     /// An empty list projects nothing at all, which the execution-boundary
     /// guard catches for the same reason `columns([])` does.
-    // [spec:pgorm:sem:query.build.modifiers+11]
+    // [spec:pgorm:sem:query.build.modifiers+12]
     pub fn select<L>(mut self, items: L) -> SelectProjected<E>
     where
         L: SelectList,
@@ -510,10 +510,10 @@ where
 
 impl<E> SelectCustom<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Project exactly these items. See [`Select::select`].
-    // [spec:pgorm:sem:query.build.modifiers+11]
+    // [spec:pgorm:sem:query.build.modifiers+12]
     pub fn select<L>(mut self, items: L) -> SelectProjected<E>
     where
         L: SelectList,
@@ -530,11 +530,11 @@ where
 
 impl<E> SelectProjected<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Project exactly these items, discarding the projection built so far.
     /// See [`Select::select`].
-    // [spec:pgorm:sem:query.build.modifiers+11]
+    // [spec:pgorm:sem:query.build.modifiers+12]
     pub fn select<L>(mut self, items: L) -> SelectProjected<E>
     where
         L: SelectList,
@@ -546,7 +546,7 @@ where
 
     /// Discard the projection built so far and start over from
     /// [`SelectCustom<E>`].
-    // [spec:pgorm:sem:query.build.modifiers+11]
+    // [spec:pgorm:sem:query.build.modifiers+12]
     pub fn select_only(mut self) -> SelectCustom<E> {
         self.query.clear_selects();
         SelectCustom {
@@ -559,9 +559,9 @@ where
 
 macro_rules! impl_query_trait {
     ( $selector: ident < $( $param: ident ),+ > ) => {
-        impl< $( $param ),+ > QueryTrait for $selector < $( $param ),+ >
+        impl< $( $param ),+ > Statement for $selector < $( $param ),+ >
         where
-            $( $param: EntityTrait, )+
+            $( $param: Entity, )+
         {
             type QueryStatement = SelectStatement;
             fn query(&mut self) -> &mut SelectStatement {

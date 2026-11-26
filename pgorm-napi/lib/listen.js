@@ -198,7 +198,7 @@ export class Listener {
  * string and TLS options are read as a pool's are, and `capacity` as
  * `pool.listener()`'s. Only its own close, or its iteration abandoned,
  * closes it.
- * [spec:pgorm:req:bindings.tls]
+ * [spec:pgorm:req:bindings.tls+1]
  *
  * @param {string} dsn
  * @param {import("./index.d.ts").ConnectListenerOptions} [options]

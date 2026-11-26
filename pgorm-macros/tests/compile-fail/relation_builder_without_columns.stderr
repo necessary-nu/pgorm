@@ -10,8 +10,8 @@ help: the trait `From<RelationBuilder<Entity, Entity, NoColumns>>` is not implem
   |
   | / impl<E, R> From<RelationBuilder<E, R, ColumnPairs>> for RelationDef
   | | where
-  | |     E: EntityTrait,
-  | |     R: EntityTrait,
-  | |___________________^
+  | |     E: Entity,
+  | |     R: Entity,
+  | |______________^
   = help: for that trait implementation, expected `ColumnPairs`, found `NoColumns`
   = note: required for `RelationBuilder<pgorm::tests_cfg::fruit::Entity, pgorm::tests_cfg::cake::Entity, NoColumns>` to implement `Into<pgorm::RelationDef>`

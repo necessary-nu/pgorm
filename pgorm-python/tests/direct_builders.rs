@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use pgorm::pgorm_query::{
     BinOper, Condition, CopyBinary, CopyCsv, CopyFromStatement, CopySource, CopyText,
-    CopyToStatement, Expr, ExprTrait, IntoNamedTable, JoinType, MatchedAction, MergeInsert,
+    CopyToStatement, Expr, Expression, IntoNamedTable, JoinType, MatchedAction, MergeInsert,
     MergeUpdate, Name, NullOrdering, Order, Query, ReturningRow, SimpleExpr, Value, Values,
 };
 use pgorm_python::values::PyValue;

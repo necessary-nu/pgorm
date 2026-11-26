@@ -20,7 +20,7 @@ use common::*;
 use pgorm::{ActiveEnum, Disjoint};
 use pgorm_codegen::{TableIdent, UnkindedDisjoint, WithSerde};
 use pgorm_query::{
-    ColumnDef, ColumnType, Deferrability, Expr, ExprTrait, ForeignKey, ForeignKeyAction,
+    ColumnDef, ColumnType, Deferrability, Expr, Expression, ForeignKey, ForeignKeyAction,
     GeneratedKind, Table, TableCreateStatement, TableKey,
 };
 

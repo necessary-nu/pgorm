@@ -12,7 +12,7 @@ pub(crate) use entity::table_from_entity;
 pub use migration_file::MigrationFile;
 pub use statement::DdlStatement;
 
-/// This is a helper struct to convert [`EntityTrait`](crate::EntityTrait)
+/// This is a helper struct to convert [`Entity`](crate::Entity)
 /// into different [`pgorm_query`] statements.
 #[derive(Debug)]
 pub struct Schema {}

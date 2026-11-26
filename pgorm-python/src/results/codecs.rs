@@ -3,7 +3,7 @@
 use std::error::Error;
 
 use pgorm::pgorm_query::{IpNetwork, MacAddress};
-use tokio_postgres::types::{FromSql, Kind, Type};
+use pgorm_driver::types::{FromSql, Kind, Type};
 
 type CodecError = Box<dyn Error + Send + Sync>;
 

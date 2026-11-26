@@ -3,15 +3,15 @@
 // Pools, connections and transactions. Each holds a native handle and
 // releases what it holds when closed — `close()`, `await using`, the end of a
 // callback — never by waiting for garbage collection.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 // [spec:pgorm:req:napi.lifecycle+3]
-// [spec:pgorm:req:bindings.results+2]
+// [spec:pgorm:req:bindings.results+3]
 // [spec:pgorm:req:napi.raw]
 // [spec:pgorm:req:bindings.transactions+2]
 // [spec:pgorm:req:napi.transactions+3]
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 // [spec:pgorm:req:bindings.listen+3]
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 // [spec:pgorm:req:bindings.pool-hooks]
 // [spec:pgorm:req:bindings.multi-pool]
 
@@ -157,7 +157,7 @@ export class Queryable extends CopyRunner {
    * `batch_execute` does: sent as it is through the simple-query protocol,
    * nothing prepared. It is for DDL and fixed scripts, never for values a
    * user supplied.
-   * [spec:pgorm:req:bindings.batch-execute]
+   * [spec:pgorm:req:bindings.batch-execute+1]
    *
    * @param {string} script
    * @param {{ signal?: AbortSignal }} [options]
@@ -446,12 +446,13 @@ export class Pool extends Queryable {
 }
 
 /**
- * A pool whose server has answered.
+ * A validated pool for a PostgreSQL connection string, a database path or `:memory:`.
  *
  * @param {string} dsn
  * @param {import("./index.d.ts").PoolOptions} [options]
  * @returns {Promise<Pool>}
  */
+// [spec:pgorm:req:turso.javascript+1]
 export async function connect(dsn, options = {}) {
   const pool = new Pool(dsn, options);
   try {
@@ -462,7 +463,6 @@ export async function connect(dsn, options = {}) {
   }
   return pool;
 }
-
 
 /** One connection checked out of a pool; one operation at a time. */
 export class Connection extends Queryable {

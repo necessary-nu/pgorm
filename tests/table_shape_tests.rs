@@ -5,8 +5,8 @@ pub mod common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::{
-    ColumnPairs, ColumnTypeTrait, ConnectionTrait, Error, RelationDef, Schema, TableColumn,
-    TableShape, alias,
+    ColumnPairs, ColumnTypeExt, Connection, Error, RelationDef, Schema, TableColumn, TableShape,
+    alias,
     entity::prelude::*,
     pgorm_query::{ColumnType, Expr, ForeignKeyAction, GeneratedKind, Name, RangeType, TableName},
     tests_cfg::{cake, cake_filling_price, indexes},
@@ -67,7 +67,7 @@ fn statements(shape: &TableShape) -> Result<Vec<String>, Error> {
 // [spec:pgorm:sem:schema.from-shape/test]    an entity's shape writes the entity's own statements
 #[test]
 fn an_entitys_shape_writes_its_statements() -> Result<(), Error> {
-    fn entity_statements<E: EntityTrait>(entity: E) -> Result<Vec<String>, Error> {
+    fn entity_statements<E: Entity>(entity: E) -> Result<Vec<String>, Error> {
         let schema = Schema::new();
         let mut texts = vec![schema.create_table_from_entity(entity)?.to_string()];
         texts.extend(

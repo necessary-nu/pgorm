@@ -1,12 +1,12 @@
-use crate::{ActiveModelTrait, ConnectionTrait, DeleteMany, DeleteOne, EntityTrait, error::*};
+use crate::{ActiveModel, Connection, DeleteMany, DeleteOne, Entity, error::*};
+use pgorm_driver::types::ToSql;
 use pgorm_query::DeleteStatement;
-use tokio_postgres::types::ToSql;
 
 use super::ValueHolder;
 
 impl<A> DeleteOne<A>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     /// Execute the delete and report how many rows it removed.
     // [spec:pgorm:sem:exec.crud.delete+1]
@@ -14,7 +14,7 @@ where
     #[doc(alias = "DeleteResult")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         exec_delete(self.query, db).await
     }
@@ -22,7 +22,7 @@ where
 
 impl<E> DeleteMany<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Execute the delete and report how many rows it removed.
     // [spec:pgorm:sem:exec.crud.delete+1]
@@ -30,7 +30,7 @@ where
     #[doc(alias = "DeleteResult")]
     pub async fn exec<C>(self, db: &C) -> Result<u64, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         self.refusal()?;
         exec_delete(self.query, db).await
@@ -40,10 +40,12 @@ where
 // [spec:pgorm:sem:exec.crud.delete+1]
 async fn exec_delete<C>(query: DeleteStatement, db: &C) -> Result<u64, Error>
 where
-    C: ConnectionTrait,
+    C: Connection,
 {
     let (stmt, values) = query.build();
     let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+    #[cfg(feature = "turso")]
+    let stmt = crate::database::ValueSql::new(&stmt, &values);
     let values = values
         .iter()
         .map(|x| x as _)

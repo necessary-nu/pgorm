@@ -362,7 +362,7 @@ const CHAPTER_NAMES: &[(&str, &[&str])] = &[
     ),
     ("configuration", &["connect_with", "ManagerConfig"]),
     ("metrics", &["InstrumentedPool", "MetricsCollector"]),
-    ("migrations", &["MigratorTrait", "MigrationTrait"]),
+    ("migrations", &["Migrator", "Migration"]),
     ("codegen", &["entities_from_sql"]),
     ("postgres-releases", &["PostgreSQL 19", "check_sql"]),
     ("bindings", &["Python", "JavaScript"]),
@@ -384,7 +384,7 @@ fn braced_names(source: &str, opening: &str) -> Vec<String> {
         .collect()
 }
 
-// [spec:pgorm:req:scope.raw/test]    the clippy configuration the guide gives bans both raw-SQL macros and every
+// [spec:pgorm:req:scope.raw+1/test]    the clippy configuration the guide gives bans both raw-SQL macros and every
 // method taking SQL text, each by its path from pgorm's root
 #[test]
 fn clippy_configuration_bans_every_raw_text_entry() {
@@ -403,7 +403,7 @@ fn clippy_configuration_bans_every_raw_text_entry() {
             .chars()
             .take_while(|c| c.is_alphanumeric() || *c == '_')
             .collect();
-        Some(format!("pgorm::ConnectionTrait::{method}"))
+        Some(format!("pgorm::Connection::{method}"))
     });
     let others = [
         "pgorm::sql",
@@ -459,7 +459,7 @@ fn guide_names_every_feature() {
             .collect();
         assert!(
             whole.contains(&method),
-            "the guide never names ConnectionTrait::{method}"
+            "the guide never names Connection::{method}"
         );
     }
 

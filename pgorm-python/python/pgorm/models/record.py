@@ -24,7 +24,7 @@ Row: TypeAlias = "ModelRecord | tuple[ModelRecord | None, ...] | p.Record"
 Decode: TypeAlias = "Sequence[Source] | Callable[[p.Record], Any]"
 
 
-# [spec:pgorm:req:bindings.model-records+1]
+# [spec:pgorm:req:bindings.model-records+2]
 # [spec:pgorm:req:python.records+1]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
 class ModelRecord(Mapping[str, Any]):

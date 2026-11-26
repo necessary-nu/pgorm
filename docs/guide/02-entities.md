@@ -97,7 +97,7 @@ assert_eq!(columns, ["id", "name", "flavor", "price", "gluten_free", "bakery_id"
 - `ActiveModel`, the `Model` with each field wrapped in an
   [`ActiveValue`](crate::ActiveValue): a row being written, in which each
   column is set or left out ([Writing rows](crate::guide::writing)).
-- [`ModelTrait`](crate::ModelTrait) and
+- [`Model`](crate::Model) and
   [`FromQueryResult`](trait@crate::FromQueryResult) for the `Model`, so a row
   decodes into it.
 
@@ -276,7 +276,7 @@ assert_eq!(
 # }
 ```
 
-[`find_by_id`](crate::EntityTrait::find_by_id) takes a composite key as a
+[`find_by_id`](crate::Entity::find_by_id) takes a composite key as a
 tuple, borrowing its parts: `note::Entity::find_by_id((7, 1))`, or
 `(7, "x")` against a key of `(i32, String)`.
 
@@ -440,9 +440,9 @@ trait itself. `new` builds the active model `Default::default()` starts from;
 by returning an error; `after_save` and `after_delete` run after it.
 
 The hooks run when an `ActiveModel` writes itself through
-[`insert`](crate::ActiveModelTrait::insert),
-[`update`](crate::ActiveModelTrait::update) and
-[`delete`](crate::ActiveModelTrait::delete). The statement builders of
+[`insert`](crate::ActiveModel::insert),
+[`update`](crate::ActiveModel::update) and
+[`delete`](crate::ActiveModel::delete). The statement builders of
 [Writing rows](crate::guide::writing), such as `Insert::many`, run none.
 
 ```rust
@@ -470,13 +470,13 @@ mod special {
         fn new() -> Self {
             Self {
                 note: set("Ask at the counter"),
-                ..ActiveModelTrait::default()
+                ..pgorm::ActiveModel::default()
             }
         }
 
         async fn before_save<C>(self, _db: &C, _insert: bool) -> Result<Self, Error>
         where
-            C: ConnectionTrait,
+            C: Connection,
         {
             if self.name.as_ref().is_empty() {
                 return Err(Error::Custom("a special needs a name".to_owned()));
@@ -520,7 +520,7 @@ other shapes too. Each of these derives makes one:
 | --- | --- |
 | [`PartialModel`](derive@crate::PartialModel) | a struct of some of an entity's columns and expressions, which a query projects and decodes |
 | [`FromQueryResult`](derive@crate::FromQueryResult) | a struct a row of any query decodes into, by column name |
-| [`Model`](derive@crate::Model) | a further model of an entity, some of its columns, read through `ModelTrait` |
+| [`Model`](derive@crate::Model) | a further model of an entity, some of its columns, read through `Model` |
 | [`IntoActiveModel`](derive@crate::IntoActiveModel) | a struct, such as a form, that becomes an `ActiveModel` with its fields set and the rest left out |
 | [`ValueType`](derive@crate::ValueType) | a newtype over a column value, usable as a field type |
 | [`JsonValueType`](derive@crate::JsonValueType) | a `Serialize + Deserialize` type stored in a `json` or `jsonb` column |
@@ -528,7 +528,7 @@ other shapes too. Each of these derives makes one:
 | [`Disjoint`](derive@crate::Disjoint) | an enum stored as a base table and a table per kind ([Disjoint enums](crate::guide::disjoint)) |
 | [`OneOf`](derive@crate::OneOf) | a reference to one of several entities ([One-of references](crate::guide::one_of)) |
 | [`Column`](derive@crate::Column) | a column enum for a hand-written projection |
-| [`EntityTrait`](derive@crate::EntityTrait) | an entity whose table or schema name is computed at run time |
+| [`Entity`](derive@crate::Entity), on a hand-written `Entity` | an entity whose table or schema name is computed at run time |
 | [`SqlName`](derive@crate::SqlName), [`StaticName`](derive@crate::StaticName) | names for tables and columns the [query builder](crate::guide::query_builder) uses |
 
 [Reading rows](crate::guide::reading) uses `PartialModel` and `FromQueryResult`, and
@@ -677,7 +677,7 @@ An entity's table and schema are usually fixed when it is written. When the
 schema is only known once the program runs, such as a deployment that keeps
 each region in a schema of its own, write the `Entity` struct yourself,
 holding what the name is computed from, derive
-[`EntityTrait`](derive@crate::EntityTrait) on it, and implement
+[`Entity`](derive@crate::Entity) on it, and implement
 [`EntityName`](crate::EntityName). The `Model` then derives `Entity` with no
 `table_name`.
 
@@ -693,7 +693,7 @@ use pgorm::entity::prelude::*;
 /// The schema this deployment keeps its tables in, set once at startup.
 static REGION: OnceLock<&'static str> = OnceLock::new();
 
-#[derive(Copy, Clone, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, Entity)]
 pub struct Entity {
     pub schema: &'static str,
 }
@@ -738,17 +738,17 @@ assert_eq!(
 When the name changes from one statement to the next, such as a schema per
 tenant, hand the statement the entity itself. Each constructor has a form
 ending in `_in` that takes an entity value first and names its table:
-[`find_in`](crate::EntityTrait::find_in),
-[`find_by_id_in`](crate::EntityTrait::find_by_id_in),
-[`graph_in`](crate::EntityTrait::graph_in),
-[`delete_by_id_in`](crate::EntityTrait::delete_by_id_in),
+[`find_in`](crate::Entity::find_in),
+[`find_by_id_in`](crate::Entity::find_by_id_in),
+[`graph_in`](crate::Entity::graph_in),
+[`delete_by_id_in`](crate::Entity::delete_by_id_in),
 [`Insert::one_in`](crate::Insert::one_in) and
 [`many_in`](crate::Insert::many_in),
 [`Update::one_in`](crate::Update::one_in),
 [`Delete::one_in`](crate::Delete::one_in), and an active model's
-[`insert_in`](crate::ActiveModelTrait::insert_in),
-[`update_in`](crate::ActiveModelTrait::update_in) and
-[`delete_in`](crate::ActiveModelTrait::delete_in), which run its hooks as
+[`insert_in`](crate::ActiveModel::insert_in),
+[`update_in`](crate::ActiveModel::update_in) and
+[`delete_in`](crate::ActiveModel::delete_in), which run its hooks as
 `insert` does. [`Update::many`](crate::Update::many),
 [`Delete::many`](crate::Delete::many) and
 [`Pipeline::from`](crate::pipeline::Pipeline::from) take the entity value
@@ -757,7 +757,7 @@ already:
 ```rust
 use pgorm::entity::prelude::*;
 
-#[derive(Copy, Clone, Debug, EntityTrait)]
+#[derive(Copy, Clone, Debug, Entity)]
 pub struct Entity {
     pub tenant: &'static str,
 }
@@ -952,22 +952,22 @@ holding one twice is refused by the derive.
 
 Each statement constructor has a form ending in `_for` that takes the
 context first, as the `_in` forms take an entity value first:
-[`find_for`](crate::EntityTrait::find_for),
-[`find_by_id_for`](crate::EntityTrait::find_by_id_for),
-[`graph_for`](crate::EntityTrait::graph_for),
-[`delete_by_id_for`](crate::EntityTrait::delete_by_id_for),
+[`find_for`](crate::Entity::find_for),
+[`find_by_id_for`](crate::Entity::find_by_id_for),
+[`graph_for`](crate::Entity::graph_for),
+[`delete_by_id_for`](crate::Entity::delete_by_id_for),
 [`Insert::one_for`](crate::Insert::one_for) and
 [`many_for`](crate::Insert::many_for) (and `add_for`, `add_many_for`, and
 `TryInsert`'s), [`Update::one_for`](crate::Update::one_for) and
 [`many_for`](crate::Update::many_for),
 [`Delete::one_for`](crate::Delete::one_for) and
 [`many_for`](crate::Delete::many_for), an active model's
-[`insert_for`](crate::ActiveModelTrait::insert_for),
-[`update_for`](crate::ActiveModelTrait::update_for) and
-[`delete_for`](crate::ActiveModelTrait::delete_for), a model's
-[`find_related_for`](crate::ModelTrait::find_related_for),
-[`find_linked_for`](crate::ModelTrait::find_linked_for) and
-[`delete_for`](crate::ModelTrait::delete_for), a disjoint enum's
+[`insert_for`](crate::ActiveModel::insert_for),
+[`update_for`](crate::ActiveModel::update_for) and
+[`delete_for`](crate::ActiveModel::delete_for), a model's
+[`find_related_for`](crate::Model::find_related_for),
+[`find_linked_for`](crate::Model::find_linked_for) and
+[`delete_for`](crate::Model::delete_for), a disjoint enum's
 [`find_for`](crate::Disjoint::find_for) and its writes, a one-of
 reference's [`load_for`](crate::OneOf::load_for), and
 [`Pipeline::from_for`](crate::pipeline::Pipeline::from_for). An unscoped
@@ -1273,13 +1273,13 @@ disallowed-macros = [
     { path = "pgorm::prql", reason = "raw PRQL is outside scopes; build the statement with a `_for` form" },
 ]
 disallowed-methods = [
-    { path = "pgorm::ConnectionTrait::execute", reason = "raw SQL is outside scopes" },
-    { path = "pgorm::ConnectionTrait::execute_raw", reason = "raw SQL is outside scopes" },
-    { path = "pgorm::ConnectionTrait::query_one", reason = "raw SQL is outside scopes" },
-    { path = "pgorm::ConnectionTrait::query_opt", reason = "raw SQL is outside scopes" },
-    { path = "pgorm::ConnectionTrait::query_all", reason = "raw SQL is outside scopes" },
-    { path = "pgorm::ConnectionTrait::query_raw", reason = "raw SQL is outside scopes" },
-    { path = "pgorm::ConnectionTrait::batch_execute", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::Connection::execute", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::Connection::execute_raw", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::Connection::query_one", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::Connection::query_opt", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::Connection::query_all", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::Connection::query_raw", reason = "raw SQL is outside scopes" },
+    { path = "pgorm::Connection::batch_execute", reason = "raw SQL is outside scopes" },
     { path = "pgorm::SelectorRaw::from_statement", reason = "raw SQL is outside scopes" },
     { path = "pgorm::SelectorRaw::into_tuple", reason = "raw SQL is outside scopes" },
     { path = "pgorm::SelectorRaw::with_columns", reason = "raw SQL is outside scopes" },

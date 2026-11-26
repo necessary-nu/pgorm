@@ -16,7 +16,7 @@ use crate::{
 /// One column of a binary COPY: its name, its type and, for `money`, the
 /// places its currency is written to. A described column carries whatever
 /// type the server gave it; one a program builds names a built-in type.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 #[derive(Debug, Clone)]
 #[pyclass(name = "CopyColumn", module = "pgorm", frozen, eq, from_py_object)]
 pub(crate) struct PyCopyColumn {
@@ -105,7 +105,7 @@ async fn describe_held(
 /// connection or a transaction. A description the server refuses is its
 /// database error, and leaves a connection usable and a transaction aborted
 /// as a failed statement does.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 #[pyfunction]
 #[pyo3(name = "_copy_columns")]
 pub(crate) fn copy_columns<'py>(

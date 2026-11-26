@@ -17,9 +17,9 @@ pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Expr, Func, GeneratedKind, Index, Name, Table, TableKey, extension::Type,
 };
-use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
+use pgorm::{Connection, Schema, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use tokio_postgres::error::SqlState;
 
 /// An order line whose total is kept on disk and whose discounted price is
 /// computed on read: the two kinds side by side, each from the row's own
@@ -132,9 +132,9 @@ async fn each_kind_reaches_the_catalog() -> Result<(), Error> {
 /// other column and recomputed when the row changes; a model writes them by
 /// leaving them `NotSet`, and one that supplies a value is refused, as a
 /// `GENERATED ALWAYS` identity is.
-// [spec:pgorm:sem:schema.from-entity+12/test]    an entity's generated column is
+// [spec:pgorm:sem:schema.from-entity+13/test]    an entity's generated column is
 // created as its kind, after the column it reads
-// [spec:pgorm:req:entity.traits.column-def+2/test]    a generated column is read
+// [spec:pgorm:req:entity.traits.column-def+3/test]    a generated column is read
 // and recomputed, and a value written into it is refused (428C9)
 #[pgorm_macros::test]
 async fn entity_generated_columns_compute_on_write() -> Result<(), Error> {

@@ -7,6 +7,7 @@ use axum::{
 };
 use pgorm::pgorm_query::{self as q, Expr, Func, Query, Values};
 use pgorm::{DecodeRaw, entity::prelude::*};
+use pgorm_driver::SimpleQueryMessage;
 use pgorm_sqlmap_adapter::harness::{declared_input, fields};
 use serde_json::{Value, json};
 use std::{
@@ -14,7 +15,6 @@ use std::{
     io::Write,
     sync::{Arc, Mutex},
 };
-use tokio_postgres::SimpleQueryMessage;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -36,7 +36,7 @@ mod item {
 #[derive(Clone)]
 struct App {
     db: pgorm::DatabasePool,
-    raw: Arc<tokio_postgres::Client>,
+    raw: Arc<pgorm_driver::Client>,
     serial: Arc<tokio::sync::Mutex<()>>,
     evidence: Arc<Mutex<std::fs::File>>,
     counts: Arc<Mutex<BTreeMap<String, u64>>>,
@@ -482,8 +482,8 @@ async fn route(
 // [spec:pgorm:req:security.sqlmap.isolation]
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config: tokio_postgres::Config = std::env::var("SQLMAP_FIXTURE_URL")?.parse()?;
-    let (raw, connection) = config.connect(tokio_postgres::NoTls).await?;
+    let config: pgorm_driver::Config = std::env::var("SQLMAP_FIXTURE_URL")?.parse()?;
+    let (raw, connection) = config.connect(pgorm_driver::NoTls).await?;
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("fixture connection ended: {e}");

@@ -47,7 +47,7 @@ from .._native import _model_schema as _native_model_schema
 from .._native import MigrationFile as MigrationFile, migration_file as migration_file
 from .changes import DisjointChange, DisjointGap, DisjointStep
 from .migrations import (
-    Migration as Migration, MigrationStatus as MigrationStatus, MigrationTrait as MigrationTrait,
+    MigrationWithStatus as MigrationWithStatus, MigrationStatus as MigrationStatus, Migration as Migration,
     Migrations as Migrations, SqlMigration as SqlMigration, UnknownMigrations as UnknownMigrations,
 )
 
@@ -222,7 +222,7 @@ __all__ = [
     "add_disjoint_kind", "add_disjoint_kind_recreating", "remove_disjoint_kind",
     "add_disjoint_kind_table", "remove_disjoint_kind_table", "DisjointChange", "DisjointStep",
     "DisjointGap", "MigrationFile", "migration_file", "migration_files",
-    "Migrations", "SqlMigration", "Migration", "MigrationStatus", "MigrationTrait", "UnknownMigrations",
+    "Migrations", "SqlMigration", "MigrationWithStatus", "MigrationStatus", "Migration", "UnknownMigrations",
     "CreateTable", "create_table", "PendingAlterTable", "AlterTable", "alter_table",
     "drop_table", "rename_table", "rename_column", "rename_constraint", "truncate_table",
     "comment_on_table", "comment_on_column",

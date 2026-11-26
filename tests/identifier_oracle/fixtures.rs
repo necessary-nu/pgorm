@@ -9,7 +9,7 @@
 pub mod dyn_named {
     use pgorm::entity::prelude::*;
 
-    #[derive(Copy, Clone, Default, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Default, Debug, Entity)]
     pub struct Entity {
         pub table: &'static str,
         pub schema: Option<&'static str>,
@@ -98,7 +98,7 @@ pub mod cast_named {
 
 /// An entity whose one column is of a range type a schema created, or of the
 /// multirange beside one, named at run time through its `column_type` — the
-/// cast `ColumnTrait::save_as` writes a value through.
+/// cast `Column::save_as` writes a value through.
 pub mod range_named {
     use std::cell::RefCell;
 
@@ -164,8 +164,8 @@ pub mod range_named {
 /// statement.
 pub mod disjoint_named {
     use pgorm::{
-        ColumnTypeTrait, DdlStatement, DisjointChange, DisjointColumn, DisjointShape,
-        DisjointTable, Error,
+        ColumnTypeExt, DdlStatement, DisjointChange, DisjointColumn, DisjointShape, DisjointTable,
+        Error,
         pgorm_query::{ColumnType, Name, TableName, TypeName},
     };
 
@@ -336,7 +336,7 @@ pub mod one_of_named {
         out
     }
 
-    #[derive(Copy, Clone, Debug, EntityTrait)]
+    #[derive(Copy, Clone, Debug, Entity)]
     pub struct Entity {
         pub table: &'static str,
         pub schema: Option<&'static str>,

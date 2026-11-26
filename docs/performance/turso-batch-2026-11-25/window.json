@@ -1,0 +1,874 @@
+{
+  "command": [
+    "/opt/homebrew/opt/python@3.15/bin/python3.15",
+    "docs/performance/run.py",
+    "compare",
+    "--before",
+    "/tmp/pgorm-performance-artifacts",
+    "--after",
+    "/tmp/pgorm-performance-artifacts-after",
+    "--output",
+    "/tmp/pgorm-performance-batch-results"
+  ],
+  "runner_sha256": "306a5b642ec5990d2798b705ff2b477c919c2f80d50ddcf14e62f918849c4a0e",
+  "runtime_source_fingerprint": "7eca24f3d3df8cd1387d7daa8c05f373c4e437df",
+  "runtime_head": "2f118b501d43f8417aacb20718439d8a32ecdf31",
+  "host_platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "observer_scope": "Start/end snapshots only; intervening activity is not continuously observed. CPU percentages come from ps and are not window utilization. No quiet-host guarantee.",
+  "start": {
+    "utc": "2026-11-25T16:39:35.300702+00:00",
+    "load_average_1_5_15_minutes": [
+      28.84423828125,
+      44.61279296875,
+      50.48681640625
+    ],
+    "logical_cpu_count": 18,
+    "process_snapshot_exit": 0,
+    "process_snapshot_error": null,
+    "processes": [
+      {
+        "pid": 16802,
+        "ppid": 14750,
+        "cpu_percent": 98.7,
+        "memory_percent": 0.4,
+        "elapsed": "00:18",
+        "state": "RN",
+        "executable": "integration-8c5901bcf5f20bd4"
+      },
+      {
+        "pid": 17172,
+        "ppid": 15752,
+        "cpu_percent": 98.1,
+        "memory_percent": 1.6,
+        "elapsed": "00:10",
+        "state": "R",
+        "executable": "swift-symbolgraph-extract"
+      },
+      {
+        "pid": 17336,
+        "ppid": 16802,
+        "cpu_percent": 98.1,
+        "memory_percent": 0.3,
+        "elapsed": "00:07",
+        "state": "RN",
+        "executable": "integration-8c5901bcf5f20bd4"
+      },
+      {
+        "pid": 11083,
+        "ppid": 2579,
+        "cpu_percent": 97.7,
+        "memory_percent": 0.8,
+        "elapsed": "01:59",
+        "state": "R",
+        "executable": "rustc"
+      },
+      {
+        "pid": 17484,
+        "ppid": 30970,
+        "cpu_percent": 74.3,
+        "memory_percent": 0.3,
+        "elapsed": "00:03",
+        "state": "R",
+        "executable": "presentation-30d36db47eb992ee"
+      },
+      {
+        "pid": 17225,
+        "ppid": 24617,
+        "cpu_percent": 68.1,
+        "memory_percent": 0.6,
+        "elapsed": "00:07",
+        "state": "R",
+        "executable": "website-1035a06c85c05a34"
+      },
+      {
+        "pid": 542,
+        "ppid": 1,
+        "cpu_percent": 59.5,
+        "memory_percent": 0.0,
+        "elapsed": "22-06:57:41",
+        "state": "Ss",
+        "executable": "fseventsd"
+      },
+      {
+        "pid": 609,
+        "ppid": 1,
+        "cpu_percent": 26.6,
+        "memory_percent": 0.3,
+        "elapsed": "22-06:57:41",
+        "state": "Ss",
+        "executable": "WindowServer"
+      },
+      {
+        "pid": 22656,
+        "ppid": 1,
+        "cpu_percent": 17.4,
+        "memory_percent": 0.0,
+        "elapsed": "02-22:01:49",
+        "state": "Ss",
+        "executable": "sysmond"
+      },
+      {
+        "pid": 5667,
+        "ppid": 1,
+        "cpu_percent": 16.5,
+        "memory_percent": 0.6,
+        "elapsed": "22-06:40:14",
+        "state": "R",
+        "executable": "iTerm2"
+      },
+      {
+        "pid": 566,
+        "ppid": 1,
+        "cpu_percent": 14.9,
+        "memory_percent": 0.1,
+        "elapsed": "22-06:57:41",
+        "state": "Ss",
+        "executable": "mds"
+      },
+      {
+        "pid": 96637,
+        "ppid": 1,
+        "cpu_percent": 11.5,
+        "memory_percent": 2.4,
+        "elapsed": "06-06:52:11",
+        "state": "Ss",
+        "executable": "OrbStack Helper"
+      },
+      {
+        "pid": 803,
+        "ppid": 1,
+        "cpu_percent": 10.4,
+        "memory_percent": 1.4,
+        "elapsed": "22-06:57:31",
+        "state": "Ss",
+        "executable": "mds_stores"
+      },
+      {
+        "pid": 2248,
+        "ppid": 1,
+        "cpu_percent": 9.0,
+        "memory_percent": 0.2,
+        "elapsed": "22-06:48:05",
+        "state": "S",
+        "executable": "Finder"
+      },
+      {
+        "pid": 17907,
+        "ppid": 48041,
+        "cpu_percent": 8.1,
+        "memory_percent": 0.1,
+        "elapsed": "00:01",
+        "state": "Ss",
+        "executable": "Python"
+      },
+      {
+        "pid": 20052,
+        "ppid": 7739,
+        "cpu_percent": 3.3,
+        "memory_percent": 0.1,
+        "elapsed": "01-05:30:00",
+        "state": "S+",
+        "executable": "codex"
+      },
+      {
+        "pid": 48041,
+        "ppid": 15248,
+        "cpu_percent": 3.2,
+        "memory_percent": 0.4,
+        "elapsed": "01-16:10:49",
+        "state": "Ss",
+        "executable": "codex"
+      },
+      {
+        "pid": 733,
+        "ppid": 1,
+        "cpu_percent": 2.5,
+        "memory_percent": 0.0,
+        "elapsed": "22-06:57:40",
+        "state": "Ss",
+        "executable": "coreaudiod"
+      },
+      {
+        "pid": 3127,
+        "ppid": 1933,
+        "cpu_percent": 2.2,
+        "memory_percent": 0.9,
+        "elapsed": "01:30:16",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 54146,
+        "ppid": 1,
+        "cpu_percent": 1.9,
+        "memory_percent": 0.7,
+        "elapsed": "03:29:51",
+        "state": "S",
+        "executable": "Vivaldi"
+      },
+      {
+        "pid": 50075,
+        "ppid": 1,
+        "cpu_percent": 1.6,
+        "memory_percent": 0.1,
+        "elapsed": "04:01:45",
+        "state": "Ss",
+        "executable": "AppleCentauriAlpha"
+      },
+      {
+        "pid": 43154,
+        "ppid": 42992,
+        "cpu_percent": 1.5,
+        "memory_percent": 0.7,
+        "elapsed": "05-02:49:11",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 83517,
+        "ppid": 31180,
+        "cpu_percent": 1.4,
+        "memory_percent": 1.6,
+        "elapsed": "05-07:50:48",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 54297,
+        "ppid": 54146,
+        "cpu_percent": 1.3,
+        "memory_percent": 1.5,
+        "elapsed": "03:29:50",
+        "state": "S",
+        "executable": "Vivaldi Helper (Renderer)"
+      },
+      {
+        "pid": 15296,
+        "ppid": 1,
+        "cpu_percent": 1.2,
+        "memory_percent": 0.0,
+        "elapsed": "00:27",
+        "state": "S",
+        "executable": "mdworker_shared"
+      },
+      {
+        "pid": 1801,
+        "ppid": 989,
+        "cpu_percent": 1.2,
+        "memory_percent": 0.8,
+        "elapsed": "44:24",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 72868,
+        "ppid": 71921,
+        "cpu_percent": 1.2,
+        "memory_percent": 0.8,
+        "elapsed": "03-00:03:54",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 29262,
+        "ppid": 29261,
+        "cpu_percent": 0.2,
+        "memory_percent": 0.0,
+        "elapsed": "13:01",
+        "state": "S",
+        "executable": "nplan"
+      },
+      {
+        "pid": 1411,
+        "ppid": 1,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "18:00",
+        "state": "SN",
+        "executable": "nplan"
+      },
+      {
+        "pid": 2579,
+        "ppid": 2564,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.2,
+        "elapsed": "03:31",
+        "state": "S",
+        "executable": "cargo"
+      },
+      {
+        "pid": 14750,
+        "ppid": 1411,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.1,
+        "elapsed": "00:52",
+        "state": "SN",
+        "executable": "cargo"
+      },
+      {
+        "pid": 19378,
+        "ppid": 19330,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "14:31",
+        "state": "S",
+        "executable": "nplan"
+      },
+      {
+        "pid": 24166,
+        "ppid": 24162,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "13:51",
+        "state": "S",
+        "executable": "nplan"
+      },
+      {
+        "pid": 24617,
+        "ppid": 24166,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.1,
+        "elapsed": "13:44",
+        "state": "S",
+        "executable": "cargo"
+      },
+      {
+        "pid": 30813,
+        "ppid": 93568,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.1,
+        "elapsed": "12:53",
+        "state": "S",
+        "executable": "cargo"
+      },
+      {
+        "pid": 30970,
+        "ppid": 29262,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "12:52",
+        "state": "S",
+        "executable": "cargo"
+      },
+      {
+        "pid": 51905,
+        "ppid": 20278,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.1,
+        "elapsed": "02:21:20",
+        "state": "S",
+        "executable": "nplan"
+      },
+      {
+        "pid": 93568,
+        "ppid": 93567,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "18:54",
+        "state": "S",
+        "executable": "nplan"
+      }
+    ]
+  },
+  "success": true,
+  "elapsed_seconds": 407.3396173340734,
+  "end": {
+    "utc": "2026-11-25T16:46:22.748317+00:00",
+    "load_average_1_5_15_minutes": [
+      72.095703125,
+      50.7529296875,
+      48.953125
+    ],
+    "logical_cpu_count": 18,
+    "process_snapshot_exit": 0,
+    "process_snapshot_error": null,
+    "processes": [
+      {
+        "pid": 58164,
+        "ppid": 37325,
+        "cpu_percent": 666.6,
+        "memory_percent": 3.0,
+        "elapsed": "01:43",
+        "state": "R",
+        "executable": "fixtures-20bdc3623dc450ba"
+      },
+      {
+        "pid": 76561,
+        "ppid": 58164,
+        "cpu_percent": 53.4,
+        "memory_percent": 0.6,
+        "elapsed": "00:04",
+        "state": "R",
+        "executable": "fieldbook-rust"
+      },
+      {
+        "pid": 77230,
+        "ppid": 58164,
+        "cpu_percent": 52.0,
+        "memory_percent": 0.3,
+        "elapsed": "00:02",
+        "state": "R",
+        "executable": "fieldbook-rust"
+      },
+      {
+        "pid": 75306,
+        "ppid": 32708,
+        "cpu_percent": 51.7,
+        "memory_percent": 0.6,
+        "elapsed": "00:07",
+        "state": "R",
+        "executable": "clippy-driver"
+      },
+      {
+        "pid": 77140,
+        "ppid": 58164,
+        "cpu_percent": 51.6,
+        "memory_percent": 0.4,
+        "elapsed": "00:03",
+        "state": "R",
+        "executable": "fieldbook-rust"
+      },
+      {
+        "pid": 72244,
+        "ppid": 68427,
+        "cpu_percent": 51.4,
+        "memory_percent": 1.7,
+        "elapsed": "00:44",
+        "state": "RN",
+        "executable": "swift-symbolgraph-extract"
+      },
+      {
+        "pid": 76670,
+        "ppid": 58164,
+        "cpu_percent": 51.4,
+        "memory_percent": 0.5,
+        "elapsed": "00:04",
+        "state": "R",
+        "executable": "fieldbook-rust"
+      },
+      {
+        "pid": 72467,
+        "ppid": 68429,
+        "cpu_percent": 51.3,
+        "memory_percent": 1.8,
+        "elapsed": "00:43",
+        "state": "RN",
+        "executable": "swift-symbolgraph-extract"
+      },
+      {
+        "pid": 75410,
+        "ppid": 58164,
+        "cpu_percent": 51.1,
+        "memory_percent": 0.7,
+        "elapsed": "00:06",
+        "state": "R",
+        "executable": "fieldbook-rust"
+      },
+      {
+        "pid": 75307,
+        "ppid": 32708,
+        "cpu_percent": 51.0,
+        "memory_percent": 0.6,
+        "elapsed": "00:07",
+        "state": "R",
+        "executable": "clippy-driver"
+      },
+      {
+        "pid": 73359,
+        "ppid": 69016,
+        "cpu_percent": 50.7,
+        "memory_percent": 1.6,
+        "elapsed": "00:35",
+        "state": "RN",
+        "executable": "swift-symbolgraph-extract"
+      },
+      {
+        "pid": 72247,
+        "ppid": 68426,
+        "cpu_percent": 50.5,
+        "memory_percent": 1.7,
+        "elapsed": "00:44",
+        "state": "RN",
+        "executable": "swift-symbolgraph-extract"
+      },
+      {
+        "pid": 73358,
+        "ppid": 69015,
+        "cpu_percent": 49.9,
+        "memory_percent": 1.6,
+        "elapsed": "00:35",
+        "state": "RN",
+        "executable": "swift-symbolgraph-extract"
+      },
+      {
+        "pid": 75225,
+        "ppid": 53531,
+        "cpu_percent": 48.8,
+        "memory_percent": 0.1,
+        "elapsed": "00:10",
+        "state": "R",
+        "executable": "importer-2fad9e2aa0a7b021"
+      },
+      {
+        "pid": 22656,
+        "ppid": 1,
+        "cpu_percent": 35.7,
+        "memory_percent": 0.0,
+        "elapsed": "02-22:08:36",
+        "state": "Rs",
+        "executable": "sysmond"
+      },
+      {
+        "pid": 17907,
+        "ppid": 48041,
+        "cpu_percent": 35.5,
+        "memory_percent": 0.2,
+        "elapsed": "06:48",
+        "state": "Ss",
+        "executable": "Python"
+      },
+      {
+        "pid": 72225,
+        "ppid": 68498,
+        "cpu_percent": 23.1,
+        "memory_percent": 1.8,
+        "elapsed": "00:44",
+        "state": "RN",
+        "executable": "swift-symbolgraph-extract"
+      },
+      {
+        "pid": 5667,
+        "ppid": 1,
+        "cpu_percent": 18.2,
+        "memory_percent": 0.5,
+        "elapsed": "22-06:47:01",
+        "state": "S",
+        "executable": "iTerm2"
+      },
+      {
+        "pid": 72375,
+        "ppid": 68433,
+        "cpu_percent": 16.6,
+        "memory_percent": 1.7,
+        "elapsed": "00:43",
+        "state": "RN",
+        "executable": "swift-symbolgraph-extract"
+      },
+      {
+        "pid": 609,
+        "ppid": 1,
+        "cpu_percent": 12.3,
+        "memory_percent": 0.3,
+        "elapsed": "22-07:04:28",
+        "state": "Ss",
+        "executable": "WindowServer"
+      },
+      {
+        "pid": 96637,
+        "ppid": 1,
+        "cpu_percent": 8.2,
+        "memory_percent": 2.5,
+        "elapsed": "06-06:58:58",
+        "state": "Ss",
+        "executable": "OrbStack Helper"
+      },
+      {
+        "pid": 54146,
+        "ppid": 1,
+        "cpu_percent": 7.4,
+        "memory_percent": 0.7,
+        "elapsed": "03:36:38",
+        "state": "S",
+        "executable": "Vivaldi"
+      },
+      {
+        "pid": 54158,
+        "ppid": 54146,
+        "cpu_percent": 7.1,
+        "memory_percent": 0.3,
+        "elapsed": "03:36:38",
+        "state": "S",
+        "executable": "Vivaldi Helper"
+      },
+      {
+        "pid": 13050,
+        "ppid": 1,
+        "cpu_percent": 6.0,
+        "memory_percent": 0.1,
+        "elapsed": "02-19:44:18",
+        "state": "S",
+        "executable": "Activity Monitor"
+      },
+      {
+        "pid": 54205,
+        "ppid": 54146,
+        "cpu_percent": 5.5,
+        "memory_percent": 0.5,
+        "elapsed": "03:36:38",
+        "state": "S",
+        "executable": "Vivaldi Helper (Renderer)"
+      },
+      {
+        "pid": 49736,
+        "ppid": 1,
+        "cpu_percent": 4.7,
+        "memory_percent": 0.0,
+        "elapsed": "04:09:05",
+        "state": "Rs",
+        "executable": "bluetoothd"
+      },
+      {
+        "pid": 72472,
+        "ppid": 54146,
+        "cpu_percent": 3.6,
+        "memory_percent": 0.7,
+        "elapsed": "00:42",
+        "state": "S",
+        "executable": "Vivaldi Helper (Renderer)"
+      },
+      {
+        "pid": 66707,
+        "ppid": 64018,
+        "cpu_percent": 3.5,
+        "memory_percent": 0.7,
+        "elapsed": "02:23:49",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 16270,
+        "ppid": 16261,
+        "cpu_percent": 3.2,
+        "memory_percent": 1.2,
+        "elapsed": "12-23:28:43",
+        "state": "SNs+",
+        "executable": "claude bg-spare"
+      },
+      {
+        "pid": 733,
+        "ppid": 1,
+        "cpu_percent": 3.1,
+        "memory_percent": 0.0,
+        "elapsed": "22-07:04:27",
+        "state": "Ss",
+        "executable": "coreaudiod"
+      },
+      {
+        "pid": 20052,
+        "ppid": 7739,
+        "cpu_percent": 3.0,
+        "memory_percent": 0.1,
+        "elapsed": "01-05:36:47",
+        "state": "S+",
+        "executable": "codex"
+      },
+      {
+        "pid": 11486,
+        "ppid": 1,
+        "cpu_percent": 2.7,
+        "memory_percent": 0.1,
+        "elapsed": "01-23:18:24",
+        "state": "R",
+        "executable": "duetexpertd"
+      },
+      {
+        "pid": 50075,
+        "ppid": 1,
+        "cpu_percent": 2.6,
+        "memory_percent": 0.1,
+        "elapsed": "04:08:32",
+        "state": "Ss",
+        "executable": "AppleCentauriAlpha"
+      },
+      {
+        "pid": 58801,
+        "ppid": 54146,
+        "cpu_percent": 2.4,
+        "memory_percent": 0.4,
+        "elapsed": "01:49:54",
+        "state": "R",
+        "executable": "Vivaldi Helper (Renderer)"
+      },
+      {
+        "pid": 1801,
+        "ppid": 989,
+        "cpu_percent": 1.9,
+        "memory_percent": 0.8,
+        "elapsed": "51:11",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 44167,
+        "ppid": 54146,
+        "cpu_percent": 1.8,
+        "memory_percent": 0.3,
+        "elapsed": "33:32",
+        "state": "R",
+        "executable": "Vivaldi Helper (Renderer)"
+      },
+      {
+        "pid": 54297,
+        "ppid": 54146,
+        "cpu_percent": 1.8,
+        "memory_percent": 1.7,
+        "elapsed": "03:36:37",
+        "state": "S",
+        "executable": "Vivaldi Helper (Renderer)"
+      },
+      {
+        "pid": 803,
+        "ppid": 1,
+        "cpu_percent": 1.7,
+        "memory_percent": 1.3,
+        "elapsed": "22-07:04:18",
+        "state": "Rs",
+        "executable": "mds_stores"
+      },
+      {
+        "pid": 60588,
+        "ppid": 1,
+        "cpu_percent": 1.4,
+        "memory_percent": 0.0,
+        "elapsed": "03:35:41",
+        "state": "Rs",
+        "executable": "PerfPowerServices"
+      },
+      {
+        "pid": 72868,
+        "ppid": 71921,
+        "cpu_percent": 1.4,
+        "memory_percent": 0.8,
+        "elapsed": "03-00:10:41",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 542,
+        "ppid": 1,
+        "cpu_percent": 1.3,
+        "memory_percent": 0.0,
+        "elapsed": "22-07:04:28",
+        "state": "Ss",
+        "executable": "fseventsd"
+      },
+      {
+        "pid": 41357,
+        "ppid": 1,
+        "cpu_percent": 1.2,
+        "memory_percent": 0.0,
+        "elapsed": "04-15:19:06",
+        "state": "S",
+        "executable": "spotlightknowledged.updater"
+      },
+      {
+        "pid": 8151,
+        "ppid": 11444,
+        "cpu_percent": 1.1,
+        "memory_percent": 0.7,
+        "elapsed": "07-22:37:06",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 77796,
+        "ppid": 89220,
+        "cpu_percent": 1.0,
+        "memory_percent": 0.0,
+        "elapsed": "00:00",
+        "state": "S",
+        "executable": "sleep"
+      },
+      {
+        "pid": 48422,
+        "ppid": 31643,
+        "cpu_percent": 1.0,
+        "memory_percent": 0.7,
+        "elapsed": "01:45:57",
+        "state": "S+",
+        "executable": "claude"
+      },
+      {
+        "pid": 19378,
+        "ppid": 19330,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "21:18",
+        "state": "S",
+        "executable": "nplan"
+      },
+      {
+        "pid": 25411,
+        "ppid": 1,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "05:23",
+        "state": "SN",
+        "executable": "nplan"
+      },
+      {
+        "pid": 26514,
+        "ppid": 25411,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.2,
+        "elapsed": "05:17",
+        "state": "SN",
+        "executable": "cargo"
+      },
+      {
+        "pid": 32708,
+        "ppid": 32706,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.1,
+        "elapsed": "04:40",
+        "state": "S",
+        "executable": "cargo"
+      },
+      {
+        "pid": 35457,
+        "ppid": 35456,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "04:13",
+        "state": "S",
+        "executable": "nplan"
+      },
+      {
+        "pid": 37325,
+        "ppid": 35457,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.2,
+        "elapsed": "04:06",
+        "state": "S",
+        "executable": "cargo"
+      },
+      {
+        "pid": 49844,
+        "ppid": 49843,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "elapsed": "02:29",
+        "state": "S",
+        "executable": "nplan"
+      },
+      {
+        "pid": 51905,
+        "ppid": 20278,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.1,
+        "elapsed": "02:28:07",
+        "state": "S",
+        "executable": "nplan"
+      },
+      {
+        "pid": 53531,
+        "ppid": 49844,
+        "cpu_percent": 0.0,
+        "memory_percent": 0.2,
+        "elapsed": "02:15",
+        "state": "S",
+        "executable": "cargo"
+      }
+    ]
+  }
+}

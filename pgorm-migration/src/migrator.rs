@@ -5,20 +5,20 @@ use std::pin::Pin;
 use std::time::SystemTime;
 use tracing::info;
 
-use super::{MigrationTrait, ledger};
+use super::{Migration, ledger};
 use pgorm::pgorm_query::{
     ColumnDef, Expr, IntoName, Order, Query, Schema, SelectStatement, SqlName, Table, TableName,
 };
 use pgorm::{
-    ActiveModelTrait, ConnectionTrait, DatabasePool, DatabaseTransaction, Error, FromQueryResult,
-    Insert, Iterable, Name, TransactionError, TransactionTrait, set,
+    ActiveModel, Connection, DatabasePool, DatabaseTransaction, Error, FromQueryResult, Insert,
+    Iterable, Name, Transact, TransactionError, set,
 };
 
 /// The name of the ledger's nullable digest column, as PostgreSQL stores it.
 const CHECKSUM_COLUMN: &str = "checksum";
 
 /// The table `migration_table_name()` resolves to unless a migrator overrides it.
-// [spec:pgorm:def:migration.runner+5]    the ledger's default physical name
+// [spec:pgorm:def:migration.runner+6]    the ledger's default physical name
 pub const DEFAULT_LEDGER_TABLE: &str = "pgorm_migrations";
 
 /// The name this crate inherited from SeaORM and no longer creates. A database
@@ -30,7 +30,7 @@ pub const LEGACY_LEDGER_TABLE: &str = "seaql_migrations";
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 /// Status of migration
-// [spec:pgorm:def:migration.runner+5]    reported status vocabulary
+// [spec:pgorm:def:migration.runner+6]    reported status vocabulary
 pub enum MigrationStatus {
     /// Not yet applied
     Pending,
@@ -54,21 +54,21 @@ impl Display for MigrationStatus {
 ///
 /// The two variants are the two sides of one choice, whether such a row
 /// fails the read that finds it. How a tolerated one is reported is
-/// [`warn_unknown_migrations`](MigratorTrait::warn_unknown_migrations)'s.
-// [spec:pgorm:req:migration.unknown-applied]
+/// [`warn_unknown_migrations`](Migrator::warn_unknown_migrations)'s.
+// [spec:pgorm:req:migration.unknown-applied+1]
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum UnknownMigrations {
     /// Every read that finds one fails, naming each.
     #[default]
     Refuse,
     /// Every read that finds one warns of each and carries on, except an
-    /// [`up`](MigratorTrait::up) with migrations of its own still pending,
+    /// [`up`](Migrator::up) with migrations of its own still pending,
     /// which refuses rather than apply them out of order.
     Warn,
 }
 
 impl UnknownMigrations {
-    /// The warning [`warn_unknown_migrations`](MigratorTrait::warn_unknown_migrations)
+    /// The warning [`warn_unknown_migrations`](Migrator::warn_unknown_migrations)
     /// logs for `version` unless a migrator overrides it.
     pub fn warning(version: &str) -> String {
         format!(
@@ -78,12 +78,14 @@ impl UnknownMigrations {
     }
 }
 
-pub struct Migration {
-    migration: Box<dyn MigrationTrait>,
+/// A migration and whether the ledger records it applied, as the runner's
+/// accessors report it.
+pub struct MigrationWithStatus {
+    migration: Box<dyn Migration>,
     status: MigrationStatus,
 }
 
-impl Migration {
+impl MigrationWithStatus {
     /// Get migration name from MigrationName trait implementation
     pub fn name(&self) -> &str {
         self.migration.name()
@@ -96,12 +98,12 @@ impl Migration {
 }
 
 /// Performing migrations on a database
-// [spec:pgorm:def:migration.runner+5]    runner surface
-// [spec:pgorm:req:migration.up-only]    no down/fresh/refresh/reset
+// [spec:pgorm:def:migration.runner+6]    runner surface
+// [spec:pgorm:req:migration.up-only+1]    no down/fresh/refresh/reset
 #[async_trait::async_trait]
-pub trait MigratorTrait: Send + Sync {
+pub trait Migrator: Send + Sync {
     /// Vector of migrations in time sequence
-    fn migrations(&self) -> Vec<Box<dyn MigrationTrait>>;
+    fn migrations(&self) -> Vec<Box<dyn Migration>>;
 
     /// Name of the migration table, it is `pgorm_migrations` by default
     ///
@@ -122,16 +124,16 @@ pub trait MigratorTrait: Send + Sync {
     /// read and write names the table qualified by it. Legacy-name adoption
     /// applies only to the default name with no schema, so a ledger given one
     /// is never adopted into.
-    // [spec:pgorm:def:migration.runner+5]    the ledger's schema
+    // [spec:pgorm:def:migration.runner+6]    the ledger's schema
     // [spec:pgorm:req:migration.ledger-upgrade+2]    a schema opts out of adoption
     fn migration_table_schema(&self) -> Option<Name> {
         None
     }
 
-    /// Get list of migrations wrapped in `Migration` struct, failing if two of
+    /// Get list of migrations wrapped in `MigrationWithStatus` struct, failing if two of
     /// them answer `name()` with the same string
     // [spec:pgorm:sem:migration.name+5]    duplicates are rejected here, ahead of every other step
-    fn get_migration_files(&self) -> Result<Vec<Migration>, Error> {
+    fn get_migration_files(&self) -> Result<Vec<MigrationWithStatus>, Error> {
         let migrations = self.migrations();
 
         let mut seen: HashSet<&str> = HashSet::new();
@@ -158,7 +160,7 @@ pub trait MigratorTrait: Send + Sync {
 
         Ok(migrations
             .into_iter()
-            .map(|migration| Migration {
+            .map(|migration| MigrationWithStatus {
                 migration,
                 status: MigrationStatus::Pending,
             })
@@ -192,7 +194,7 @@ pub trait MigratorTrait: Send + Sync {
     /// Take the migration advisory lock, blocking until any concurrent runner
     /// against the same ledger has committed or rolled back.
     ///
-    /// The argument is a transaction rather than any `ConnectionTrait` because
+    /// The argument is a transaction rather than any `Connection` because
     /// `pg_advisory_xact_lock` is released at end of transaction: taken in
     /// autocommit it would be surrendered before the caller's next statement,
     /// which is the shape of the bug rather than the fix.
@@ -215,7 +217,7 @@ pub trait MigratorTrait: Send + Sync {
     // [spec:pgorm:req:migration.read-only+1]    a read locates the ledger, never creates it
     async fn get_migration_models(
         &self,
-        db: &(impl ConnectionTrait),
+        db: &(impl Connection),
     ) -> Result<Vec<ledger::Model>, Error> {
         let Some(ledger) = ReadableLedger::locate(db, LedgerTable::of(self)).await? else {
             return Ok(Vec::new());
@@ -230,7 +232,7 @@ pub trait MigratorTrait: Send + Sync {
             // a bound text NULL stands in, which is the same answer every row
             // of a widened ledger would have given and the same answer the
             // three-valued checksum check grandfathers.
-            // [spec:pgorm:req:migration.checksum+1]
+            // [spec:pgorm:req:migration.checksum+2]
             stmt.column(ledger::Column::Version.into_name())
                 .column(ledger::Column::AppliedAt.into_name())
                 .expr_as(
@@ -247,13 +249,13 @@ pub trait MigratorTrait: Send + Sync {
 
     /// Get list of migrations with status
     // [spec:pgorm:sem:migration.up+7]    pending set difference + missing-file detection
-    // [spec:pgorm:req:migration.checksum+1]    recorded digests are checked on every read
+    // [spec:pgorm:req:migration.checksum+2]    recorded digests are checked on every read
     // [spec:pgorm:req:migration.read-only+1]    status is computed from a read alone
-    // [spec:pgorm:req:migration.unknown-applied]    refused or warned of as `unknown_migrations()` says
+    // [spec:pgorm:req:migration.unknown-applied+1]    refused or warned of as `unknown_migrations()` says
     async fn get_migration_with_status(
         &self,
-        db: &(impl ConnectionTrait),
-    ) -> Result<Vec<Migration>, Error> {
+        db: &(impl Connection),
+    ) -> Result<Vec<MigrationWithStatus>, Error> {
         let reading = Reading::of(self, db).await?;
         reading.refuse(self.unknown_migrations())?;
         if !reading.unknown.is_empty() {
@@ -269,8 +271,8 @@ pub trait MigratorTrait: Send + Sync {
     // [spec:pgorm:req:migration.read-only+1]
     async fn get_pending_migrations(
         &self,
-        db: &(impl ConnectionTrait),
-    ) -> Result<Vec<Migration>, Error> {
+        db: &(impl Connection),
+    ) -> Result<Vec<MigrationWithStatus>, Error> {
         Ok(self
             .get_migration_with_status(db)
             .await?
@@ -285,8 +287,8 @@ pub trait MigratorTrait: Send + Sync {
     // [spec:pgorm:req:migration.read-only+1]
     async fn get_applied_migrations(
         &self,
-        db: &(impl ConnectionTrait),
-    ) -> Result<Vec<Migration>, Error> {
+        db: &(impl Connection),
+    ) -> Result<Vec<MigrationWithStatus>, Error> {
         Ok(self
             .get_migration_with_status(db)
             .await?
@@ -307,7 +309,7 @@ pub trait MigratorTrait: Send + Sync {
     /// not touched.
     // [spec:pgorm:req:migration.ledger-upgrade+2]    detect, then rename in place
     #[doc(alias = "seaql_migrations")]
-    async fn adopt_legacy_ledger(&self, db: &(impl ConnectionTrait)) -> Result<(), Error> {
+    async fn adopt_legacy_ledger(&self, db: &(impl Connection)) -> Result<(), Error> {
         if !LedgerTable::of(self).adopts_legacy() {
             return Ok(());
         }
@@ -371,11 +373,11 @@ pub trait MigratorTrait: Send + Sync {
     /// then the table if either is absent, and widens a table that predates the
     /// checksum column. `up` calls it; no read does, so asking a question never
     /// needs the privileges to answer it by changing the schema.
-    // [spec:pgorm:def:migration.runner+5]    self-provisioning ledger under migration_table_name(), in its schema
-    // [spec:pgorm:req:migration.checksum+1]    a ledger predating the column is widened in place
+    // [spec:pgorm:def:migration.runner+6]    self-provisioning ledger under migration_table_name(), in its schema
+    // [spec:pgorm:req:migration.checksum+2]    a ledger predating the column is widened in place
     // [spec:pgorm:req:migration.ledger-upgrade+2]    adoption precedes creation, widening follows it
     // [spec:pgorm:req:migration.read-only+1]    the write path a read is split away from
-    async fn install(&self, db: &(impl ConnectionTrait)) -> Result<(), Error> {
+    async fn install(&self, db: &(impl Connection)) -> Result<(), Error> {
         // Ahead of the create, or the create would answer a legacy database
         // with an empty ledger beside the populated one.
         self.adopt_legacy_ledger(db).await?;
@@ -419,13 +421,13 @@ pub trait MigratorTrait: Send + Sync {
     /// so a readiness probe or a CI gate can call it against a connection with
     /// no DDL privileges at all.
     // [spec:pgorm:req:migration.read-only+1]
-    // [spec:pgorm:req:migration.unknown-applied]    the listing warns of each unknown migration once
-    async fn status(&self, db: &(impl ConnectionTrait)) -> Result<(), Error> {
+    // [spec:pgorm:req:migration.unknown-applied+1]    the listing warns of each unknown migration once
+    async fn status(&self, db: &(impl Connection)) -> Result<(), Error> {
         info!("Checking migration status");
 
         let reading = Reading::of(self, db).await?;
         reading.refuse(self.unknown_migrations())?;
-        for Migration { migration, status } in &reading.migrations {
+        for MigrationWithStatus { migration, status } in &reading.migrations {
             info!("Migration '{}'... {}", migration.name(), status);
         }
         if !reading.unknown.is_empty() {
@@ -455,7 +457,7 @@ pub trait MigratorTrait: Send + Sync {
     /// starts and is deployed as several replicas: during a rolling update,
     /// an older build can start against a database a newer one has already
     /// migrated, and with `Warn` it carries on rather than failing to start.
-    // [spec:pgorm:req:migration.unknown-applied]
+    // [spec:pgorm:req:migration.unknown-applied+1]
     fn unknown_migrations(&self) -> UnknownMigrations {
         UnknownMigrations::Refuse
     }
@@ -466,7 +468,7 @@ pub trait MigratorTrait: Send + Sync {
     /// [`UnknownMigrations::warning`]. A read calls it once. `up` calls it at
     /// most once, since it goes ahead past an unknown migration only when it
     /// has nothing to apply.
-    // [spec:pgorm:req:migration.unknown-applied]
+    // [spec:pgorm:req:migration.unknown-applied+1]
     fn warn_unknown_migrations(&self, versions: &[String]) {
         for version in versions {
             tracing::warn!(version = %version, "{}", UnknownMigrations::warning(version));
@@ -475,9 +477,9 @@ pub trait MigratorTrait: Send + Sync {
 
     /// Apply pending migrations, then clear the pool's cached statements if the
     /// committed batch applied any, notifying every other pool listening on
-    /// [`statement_cache_channel`](MigratorTrait::statement_cache_channel).
+    /// [`statement_cache_channel`](Migrator::statement_cache_channel).
     ///
-    /// A migration whose [`commits_after`](MigrationTrait::commits_after)
+    /// A migration whose [`commits_after`](Migration::commits_after)
     /// answers `true` is committed with its ledger row before the next one
     /// runs, and the rest run in a new transaction that takes the lock again;
     /// each commit clears and notifies as the end of a batch does.
@@ -513,7 +515,7 @@ pub trait MigratorTrait: Send + Sync {
             // such change: an insert prepared before a domain's default
             // changed keeps the old one. The connection the next transaction
             // takes is one of them.
-            // [spec:pgorm:req:conn.pool.statement-cache.clear+1]    the runner clears after a batch commits
+            // [spec:pgorm:req:conn.pool.statement-cache.clear+2]    the runner clears after a batch commits
             // [spec:pgorm:req:migration.commit-after]    and after each commit inside one
             if batch.applied > 0 {
                 db.clear_statement_caches();
@@ -526,7 +528,7 @@ pub trait MigratorTrait: Send + Sync {
     }
 }
 
-/// What one transaction of [`MigratorTrait::up`] applied, and the step bound
+/// What one transaction of [`Migrator::up`] applied, and the step bound
 /// the next one starts from, when it stopped after a migration that asked to
 /// be committed with migrations still to run.
 // [spec:pgorm:req:migration.commit-after]
@@ -536,14 +538,14 @@ struct Batch {
 }
 
 /// What one read of the ledger found, before the migrator's
-/// [`unknown_migrations`](MigratorTrait::unknown_migrations) says what an
+/// [`unknown_migrations`](Migrator::unknown_migrations) says what an
 /// unknown migration means.
 // [spec:pgorm:sem:migration.up+7]    pending set difference + missing-file detection
-// [spec:pgorm:req:migration.checksum+1]    recorded digests are checked on every read
-// [spec:pgorm:req:migration.unknown-applied]
+// [spec:pgorm:req:migration.checksum+2]    recorded digests are checked on every read
+// [spec:pgorm:req:migration.unknown-applied+1]
 struct Reading {
     /// Every migration of the migrator, in its order, with its status.
-    migrations: Vec<Migration>,
+    migrations: Vec<MigrationWithStatus>,
     /// The ledger's versions no migration answers, sorted.
     unknown: Vec<String>,
     /// A refusal for each applied migration whose checksum has changed.
@@ -551,10 +553,7 @@ struct Reading {
 }
 
 impl Reading {
-    async fn of<M: MigratorTrait + ?Sized>(
-        migrator: &M,
-        db: &impl ConnectionTrait,
-    ) -> Result<Self, Error> {
+    async fn of<M: Migrator + ?Sized>(migrator: &M, db: &impl Connection) -> Result<Self, Error> {
         let mut migrations = migrator.get_migration_files()?;
         let mut applied: HashMap<String, Option<String>> = migrator
             .get_migration_models(db)
@@ -590,7 +589,7 @@ impl Reading {
 
     /// The refusal a read with these findings ends in, if it ends in one: a
     /// changed checksum always, and an unknown migration under `Refuse`.
-    // [spec:pgorm:req:migration.unknown-applied]    a changed checksum is refused under either setting
+    // [spec:pgorm:req:migration.unknown-applied+1]    a changed checksum is refused under either setting
     fn refuse(&self, unknown_migrations: UnknownMigrations) -> Result<(), Error> {
         let missing = match unknown_migrations {
             UnknownMigrations::Refuse => self.unknown.as_slice(),
@@ -622,14 +621,14 @@ fn quoted<S: AsRef<str>>(names: impl IntoIterator<Item = S>) -> String {
 
 /// Where a migrator's ledger lives: `migration_table_name()`, qualified by
 /// `migration_table_schema()` when that is set.
-// [spec:pgorm:def:migration.runner+5]    every read and write names the qualified table
+// [spec:pgorm:def:migration.runner+6]    every read and write names the qualified table
 struct LedgerTable {
     schema: Option<Name>,
     name: Name,
 }
 
 impl LedgerTable {
-    fn of<M: MigratorTrait + ?Sized>(migrator: &M) -> Self {
+    fn of<M: Migrator + ?Sized>(migrator: &M) -> Self {
         Self {
             schema: migrator.migration_table_schema(),
             name: migrator.migration_table_name(),
@@ -667,11 +666,8 @@ impl LedgerTable {
 /// database's `CREATE` privilege before it checks whether the schema exists: a
 /// role that owns a schema made for it, without `CREATE` on the database, would
 /// be refused on every run although there is nothing to create.
-// [spec:pgorm:def:migration.runner+5]    the schema is created before the ledger
-async fn create_ledger_schema(
-    db: &impl ConnectionTrait,
-    ledger: &LedgerTable,
-) -> Result<(), Error> {
+// [spec:pgorm:def:migration.runner+6]    the schema is created before the ledger
+async fn create_ledger_schema(db: &impl Connection, ledger: &LedgerTable) -> Result<(), Error> {
     let (Some(schema), Some(schema_text)) = (&ledger.schema, ledger.schema_text()) else {
         return Ok(());
     };
@@ -697,10 +693,10 @@ async fn create_ledger_schema(
 /// widens a table that predates the column, and a read has to know whether the
 /// column can be named at all. A configured schema is named outright, so a
 /// same-named table elsewhere on `search_path` cannot answer for the ledger.
-// [spec:pgorm:req:migration.checksum+1]    the catalogue is what says the column exists
+// [spec:pgorm:req:migration.checksum+2]    the catalogue is what says the column exists
 // [spec:pgorm:req:migration.read-only+1]    the column is looked for in the ledger's own schema
 async fn has_checksum_column(
-    db: &impl ConnectionTrait,
+    db: &impl Connection,
     schema: Option<&str>,
     table: &str,
 ) -> Result<bool, Error> {
@@ -751,7 +747,7 @@ impl ReadableLedger {
     // [spec:pgorm:req:migration.read-only+1]
     // [spec:pgorm:req:migration.ledger-upgrade+2]    an unadopted ledger is read, not renamed
     async fn locate(
-        db: &impl ConnectionTrait,
+        db: &impl Connection,
         configured: LedgerTable,
     ) -> Result<Option<ReadableLedger>, Error> {
         let schema = configured.schema_text();
@@ -838,7 +834,7 @@ async fn exec_up<M>(
     mut steps: Option<u32>,
 ) -> Result<Batch, Error>
 where
-    M: MigratorTrait + ?Sized,
+    M: Migrator + ?Sized,
 {
     // A list that names the same migration twice cannot be applied coherently,
     // so it is rejected before the lock is taken and before the ledger exists —
@@ -865,12 +861,12 @@ where
 
     let reading = Reading::of(migrator, &*db).await?;
     reading.refuse(migrator.unknown_migrations())?;
-    let pending: Vec<Migration> = reading
+    let pending: Vec<MigrationWithStatus> = reading
         .migrations
         .into_iter()
         .filter(|migration| migration.status == MigrationStatus::Pending)
         .collect();
-    // [spec:pgorm:req:migration.unknown-applied]    pending beside unknown is refused, nothing pending goes ahead
+    // [spec:pgorm:req:migration.unknown-applied+1]    pending beside unknown is refused, nothing pending goes ahead
     if !reading.unknown.is_empty() {
         if !pending.is_empty() {
             return Err(Error::Custom(format!(
@@ -879,7 +875,7 @@ where
                  applying them after migrations it does not know would apply them out of order \
                  against a newer schema",
                 quoted(&reading.unknown),
-                quoted(pending.iter().map(Migration::name)),
+                quoted(pending.iter().map(MigrationWithStatus::name)),
             )));
         }
         migrator.warn_unknown_migrations(&reading.unknown);
@@ -891,7 +887,7 @@ where
     }
 
     let mut applied = 0;
-    while let Some(Migration { migration, .. }) = migrations.next() {
+    while let Some(MigrationWithStatus { migration, .. }) = migrations.next() {
         if let Some(steps) = steps.as_mut() {
             if steps == &0 {
                 break;
@@ -949,12 +945,12 @@ impl QueryTable for SelectStatement {
 
 impl<A, R> QueryTable for pgorm::Insert<A, R>
 where
-    A: ActiveModelTrait,
+    A: ActiveModel,
 {
     type Statement = pgorm::Insert<A, R>;
 
     fn table_name(mut self, table_name: TableName) -> pgorm::Insert<A, R> {
-        pgorm::QueryTrait::query(&mut self).into_table(table_name);
+        pgorm::Statement::query(&mut self).into_table(table_name);
         self
     }
 }

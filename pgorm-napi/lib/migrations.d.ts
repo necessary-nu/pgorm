@@ -7,16 +7,16 @@
 
 import type { OperationOptions, Pool, Queryable, Transaction } from "./index.d.ts";
 
-// [spec:pgorm:req:bindings.migrations]
+// [spec:pgorm:req:bindings.migrations+1]
 /**
  * A migration written in JavaScript: a `name`, the migration's identity in
  * the ledger, and an `up` the runner awaits in the batch's transaction. An
  * optional `checksum` is recorded and checked as Rust's
- * `MigrationTrait::checksum` is, and an optional `commitsAfter` commits the
+ * `pgorm_migration::Migration::checksum` is, and an optional `commitsAfter` commits the
  * batch once the migration has run. All three are read once, as the
  * migrator is built.
  */
-export interface MigrationTrait {
+export interface Migration {
   readonly name: string;
   up(tx: Transaction): Promise<void>;
   readonly checksum?: string | null;
@@ -24,7 +24,7 @@ export interface MigrationTrait {
 }
 
 /** A migration's name and whether the ledger records it applied. */
-export interface Migration {
+export interface MigrationWithStatus {
   readonly name: string;
   readonly status: "pending" | "applied";
 }
@@ -112,11 +112,11 @@ export declare class Migrations {
    * `ConstructionError`, and so is a ledger row with no migration unless
    * the migrator warns of one, writing the warning with `console.warn`.
    */
-  getMigrationWithStatus(db: Queryable, options?: OperationOptions): Promise<Migration[]>;
+  getMigrationWithStatus(db: Queryable, options?: OperationOptions): Promise<MigrationWithStatus[]>;
   /** The migrations the ledger does not record, in order. */
-  getPendingMigrations(db: Queryable, options?: OperationOptions): Promise<Migration[]>;
+  getPendingMigrations(db: Queryable, options?: OperationOptions): Promise<MigrationWithStatus[]>;
   /** The migrations the ledger records, in order. */
-  getAppliedMigrations(db: Queryable, options?: OperationOptions): Promise<Migration[]>;
+  getAppliedMigrations(db: Queryable, options?: OperationOptions): Promise<MigrationWithStatus[]>;
   /**
    * Log each migration's name and status with `logger.info`, `console`
    * unless given, and then each warning of a migration the migrator does
@@ -133,6 +133,6 @@ export declare class Migrations {
  * written in JavaScript.
  */
 export declare function migrations(
-  list: readonly (SqlMigration | MigrationTrait)[],
+  list: readonly (SqlMigration | Migration)[],
   options?: MigrationsOptions,
 ): Migrations;

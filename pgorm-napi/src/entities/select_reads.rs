@@ -1,5 +1,5 @@
 //! A registered `Select<E>`'s pages, keyset cursor, join, projection and
-//! stream, through pgorm's own `PaginatorTrait`, `Select::cursor_by`,
+//! stream, through pgorm's own `Paginate`, `Select::cursor_by`,
 //! `QuerySelect::join`, `select_only` and `Select::stream`'s decode.
 
 use neon::prelude::*;
@@ -44,7 +44,7 @@ fn entity_relation(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `entitySelectJoin(select, entity, relation, kind)`: `QuerySelect::join`
 /// of the relation `entity` declares as `relation`.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 fn select_join(mut cx: FunctionContext) -> JsResult<JsValue> {
     let select = held!(cx, SelectHandle, 0);
     let entity = held!(cx, EntityHandle, 1);
@@ -66,7 +66,7 @@ fn select_join(mut cx: FunctionContext) -> JsResult<JsValue> {
 /// `entitySelectProjected(select, columns, terminal)`: the query's
 /// `select_only` and `columns`, a `Select` statement whose rows are records
 /// of those columns, `one` and `optional` narrowed to one row.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 fn select_projected(mut cx: FunctionContext) -> JsResult<JsValue> {
     let select = held!(cx, SelectHandle, 0);
     let columns = columns_at(&mut cx, 1)?;
@@ -100,7 +100,7 @@ fn select_cursor(mut cx: FunctionContext) -> JsResult<JsValue> {
 
 /// `entitySelectStream(select)`: `[statement, decoder]`, the statement a
 /// stream sends and the decode `Select::stream` runs on each row.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 fn select_stream(mut cx: FunctionContext) -> JsResult<JsValue> {
     let select = held!(cx, SelectHandle, 0);
     let statement = cx.boxed(Node::Select(select.statement()));

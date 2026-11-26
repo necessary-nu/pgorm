@@ -1,10 +1,10 @@
+use pgorm_driver::{Statement, types::Type};
 use pgorm_pool::GenericClient;
 use pgorm_query::TypeName;
-use tokio_postgres::{Statement, types::Type};
 
 use crate::query::graph::source_read_cast;
 use crate::{
-    ColumnTrait, DatabaseConnection, DatabaseTransaction, Error, FromQueryResult, VerifyError,
+    Column, DatabaseConnection, DatabaseTransaction, Error, FromQueryResult, VerifyError,
     error::query_err,
 };
 
@@ -17,7 +17,7 @@ use crate::{
 ///
 /// A column the type reads through a cast also carries that cast, the type
 /// [`selected_as`](ExpectedColumn::selected_as) took off the entity column's
-/// own [`select_as`](crate::ColumnTrait::select_as): an enum column read as
+/// own [`select_as`](crate::Column::select_as): an enum column read as
 /// its `text`, a `money` column as `numeric`. A reader that writes the
 /// projection itself, as a pipeline's model terminals do, casts the column
 /// to it, so the decode receives what it accepts.
@@ -65,7 +65,7 @@ impl ExpectedColumn {
     ///     [("id", None), ("name", None), ("tea", Some("text".to_owned()))]
     /// );
     /// ```
-    pub fn selected_as<C: ColumnTrait>(mut self, column: &C) -> Self {
+    pub fn selected_as<C: Column>(mut self, column: &C) -> Self {
         self.read_cast = source_read_cast(column);
         self
     }

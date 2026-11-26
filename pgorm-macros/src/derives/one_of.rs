@@ -275,7 +275,7 @@ fn generated_enums(
             .collect()
     };
     let keys = variants(&|entity| quote!(pgorm::TargetKey<#entity>));
-    let models = variants(&|entity| quote!(<#entity as pgorm::EntityTrait>::Model));
+    let models = variants(&|entity| quote!(<#entity as pgorm::Entity>::Model));
     let key_doc = format!(
         " The key a [`{ident}`] reference holds: each target's key, in the variant naming it."
     );
@@ -371,7 +371,7 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
         ..
     } = target;
     let column_const = quote_spanned! {column.span()=>
-        const COLUMN: <#base as pgorm::EntityTrait>::Column = #column;
+        const COLUMN: <#base as pgorm::Entity>::Column = #column;
     };
     let value = trim_starting_raw_identifier(variant).to_snake_case();
     // Bound under the target's span and used under the column's, which a
@@ -381,7 +381,7 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
     let model = format_ident!("model");
     let read = quote_spanned! {column.span()=>
         let field: &::core::option::Option<pgorm::TargetKey<Self>> =
-            <<#base as pgorm::EntityTrait>::Model as pgorm::ColumnField<{ (#column) as usize }>>::field(#model);
+            <<#base as pgorm::Entity>::Model as pgorm::ColumnField<{ (#column) as usize }>>::field(#model);
         ::core::clone::Clone::clone(field)
     };
     quote_spanned! {entity.span()=>
@@ -393,16 +393,16 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
 
             #[allow(clippy::clone_on_copy)]
             fn read(
-                #model: &<#base as pgorm::EntityTrait>::Model,
+                #model: &<#base as pgorm::Entity>::Model,
             ) -> ::core::option::Option<pgorm::TargetKey<Self>> {
                 #read
             }
 
             fn write(
-                active: &mut <#base as pgorm::EntityTrait>::ActiveModel,
+                active: &mut <#base as pgorm::Entity>::ActiveModel,
                 key: ::core::option::Option<&pgorm::TargetKey<Self>>,
             ) -> ::core::result::Result<(), pgorm::Error> {
-                pgorm::ActiveModelTrait::set(
+                pgorm::ActiveModel::set(
                     active,
                     <Self as pgorm::OneOfTarget<#ident>>::COLUMN,
                     key.cloned().into(),
@@ -421,7 +421,7 @@ fn impl_target(ident: &Ident, container: &Container, target: &Target) -> TokenSt
                 #key_ident::#variant(key)
             }
 
-            fn model(model: <Self as pgorm::EntityTrait>::Model) -> #model_ident {
+            fn model(model: <Self as pgorm::Entity>::Model) -> #model_ident {
                 #model_ident::#variant(model)
             }
         }

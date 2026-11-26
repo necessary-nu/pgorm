@@ -11,7 +11,7 @@
 
 pub mod common;
 pub use common::{TestContext, setup::*};
-use pgorm::{ConnectionTrait, Schema, entity::prelude::*};
+use pgorm::{Connection, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;
 
 /// The entities pgorm-codegen generates from its expressions schema: the

@@ -5,7 +5,7 @@ pub mod common;
 use active_enum::Entity as ActiveEnumEntity;
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::{
-    ActiveEnum as ActiveEnumTrait,
+    ActiveEnum,
     ActiveValue::Unchanged,
     entity::prelude::*,
     entity::*,
@@ -587,7 +587,7 @@ pub async fn find_linked_active_enum(db: &DatabaseConnection) -> Result<(), Erro
 #[cfg(test)]
 mod tests {
     use super::*;
-    pub use pgorm::QueryTrait;
+    pub use pgorm::Statement;
     pub use pretty_assertions::assert_eq;
 
     #[test]
@@ -736,7 +736,7 @@ mod tests {
 // [spec:pgorm:sem:exec.cursor.keyset+8/test]    a cursor keyed on an enum
 // column pages across boundaries — the boundary value binds under the same
 // `save_as` cast every value predicate applies
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    enum set membership
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    enum set membership
 // through `is_in` returns rows against the live database
 #[pgorm_macros::test]
 async fn enum_keyed_cursor_pages_across_boundaries() -> Result<(), Error> {

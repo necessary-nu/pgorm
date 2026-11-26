@@ -98,8 +98,8 @@ fn cursor(cx: &mut FunctionContext) -> NeonResult<(Arc<Keyset>, CursorPlan)> {
 /// columns' values, or with `whole` of the order columns' or the whole key's,
 /// each converted to its column's declared kind; any other count is refused
 /// here, before pgorm's own check when the cursor composes.
-// [spec:pgorm:req:bindings.entity-reads+4]
-// [spec:pgorm:req:bindings.entity-graphs+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
+// [spec:pgorm:req:bindings.entity-graphs+5]
 fn cursor_bound(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (keyset, mut plan) = cursor(&mut cx)?;
     let before = cx.argument::<JsBoolean>(1)?.value(&mut cx);
@@ -194,7 +194,7 @@ fn pages_inspect(mut cx: FunctionContext) -> JsResult<JsValue> {
 }
 
 /// `pagesFetchJob(pages, page)`: `Paginator::fetch_page`.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 fn pages_fetch_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (pages, size) = pages(&mut cx)?;
     let page = whole(&mut cx, 1, "a page number")?;
@@ -229,7 +229,7 @@ impl crate::connect::job::Settled for Counted {
 }
 
 /// `pagesCountJob(pages)`: `Paginator::num_items_and_pages`.
-// [spec:pgorm:req:bindings.entity-reads+4]
+// [spec:pgorm:req:bindings.entity-reads+5]
 fn pages_count_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let (pages, size) = pages(&mut cx)?;
     if let Err(error) = pages.pages.statement(size, None) {

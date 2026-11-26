@@ -155,7 +155,7 @@ channel and the same payload, is folded into it:
 use std::time::Duration;
 
 use futures::StreamExt;
-use pgorm::{Error, Listener, TransactionTrait, notify};
+use pgorm::{Error, Listener, Transact, notify};
 
 let (listener, mut notifications) = pool.listener(Listener::DEFAULT_CAPACITY).await?;
 listener.listen("orders").await?;
@@ -235,7 +235,7 @@ use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use futures::StreamExt;
-use pgorm::{Error, ListenError, TransactionTrait, notify};
+use pgorm::{Error, ListenError, Transact, notify};
 
 let capacity = NonZeroUsize::new(2).expect("two is not zero");
 let (listener, mut notifications) = pool.listener(capacity).await?;
@@ -282,7 +282,7 @@ and a new listener takes over:
 use std::time::Duration;
 
 use futures::StreamExt;
-use pgorm::{ConnectionTrait, Error, Listener, notify};
+use pgorm::{Connection, Error, Listener, notify};
 
 let (listener, mut notifications) = pool.listener(Listener::DEFAULT_CAPACITY).await?;
 listener.listen("kitchen").await?;
@@ -320,7 +320,7 @@ assert_eq!(heard.payload(), "back");
 ## A listener runs no statements
 
 A `Listener` sends nothing but `LISTEN` and `UNLISTEN`, and it does not
-implement [`ConnectionTrait`](crate::ConnectionTrait). A statement on its
+implement [`Connection`](crate::Connection). A statement on its
 connection would wait behind the notifications arriving there, and a
 transaction would hold their delivery back until it ended. Read and write
 through a pooled connection, and send notifications from one with `notify`.
@@ -329,7 +329,7 @@ The [metrics](crate::guide::metrics) layer does not see a listener either; a
 is.
 
 ```rust,compile_fail,E0277
-use pgorm::{ConnectionTrait, Listener};
+use pgorm::{Connection, Listener};
 
 async fn count(listener: &Listener) {
     let _ = listener.query_one("SELECT count(*) FROM cake", &[]).await;

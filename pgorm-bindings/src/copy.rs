@@ -9,7 +9,7 @@
 use std::{collections::HashMap, sync::OnceLock};
 
 use pgorm::{
-    CopyColumn, CopyInSink, CopyOutStream, CopyTrait, Error,
+    CopyColumn, CopyConnection, CopyInSink, CopyOutStream, Error,
     pgorm_query::{
         CopyBinary, CopyCsv, CopyFromStatement, CopyText, CopyToStatement, IntoCopySource,
         TableName,
@@ -32,7 +32,7 @@ pub enum DataFormat {
 
 /// A `COPY … FROM STDIN` in one of its three formats, as a binding's
 /// builder holds it.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 #[derive(Debug, Clone)]
 pub enum CopyFrom {
     /// In the text format.
@@ -44,7 +44,7 @@ pub enum CopyFrom {
 }
 
 /// A `COPY … TO STDOUT` in one of its three formats.
-// [spec:pgorm:req:bindings.copy]
+// [spec:pgorm:req:bindings.copy+1]
 #[derive(Debug, Clone)]
 pub enum CopyTo {
     /// In the text format.
@@ -86,8 +86,11 @@ impl CopyFrom {
 
     /// The columns the COPY writes, as pgorm describes them before it
     /// starts, starting none.
-    // [spec:pgorm:req:bindings.copy-rows+2]
-    pub async fn columns<C: CopyTrait + Send>(&self, db: &mut C) -> Result<Vec<CopyColumn>, Error> {
+    // [spec:pgorm:req:bindings.copy-rows+3]
+    pub async fn columns<C: CopyConnection + Send>(
+        &self,
+        db: &mut C,
+    ) -> Result<Vec<CopyColumn>, Error> {
         match self {
             Self::Text(statement) => db.copy_in_columns(statement).await,
             Self::Csv(statement) => db.copy_in_columns(statement).await,
@@ -96,7 +99,7 @@ impl CopyFrom {
     }
 
     /// The COPY started on `db`, its sink borrowing the connection.
-    pub async fn open<'a, C: CopyTrait + Send>(
+    pub async fn open<'a, C: CopyConnection + Send>(
         &self,
         db: &'a mut C,
     ) -> Result<CopyInSink<'a>, Error> {
@@ -140,8 +143,11 @@ impl CopyTo {
 
     /// The columns the COPY reads, as pgorm describes them before it starts,
     /// starting none.
-    // [spec:pgorm:req:bindings.copy-rows+2]
-    pub async fn columns<C: CopyTrait + Send>(&self, db: &mut C) -> Result<Vec<CopyColumn>, Error> {
+    // [spec:pgorm:req:bindings.copy-rows+3]
+    pub async fn columns<C: CopyConnection + Send>(
+        &self,
+        db: &mut C,
+    ) -> Result<Vec<CopyColumn>, Error> {
         match self {
             Self::Text(statement) => db.copy_out_columns(statement).await,
             Self::Csv(statement) => db.copy_out_columns(statement).await,
@@ -150,7 +156,7 @@ impl CopyTo {
     }
 
     /// The COPY started on `db`, its stream borrowing the connection.
-    pub async fn open<'a, C: CopyTrait + Send>(
+    pub async fn open<'a, C: CopyConnection + Send>(
         &self,
         db: &'a mut C,
     ) -> Result<CopyOutStream<'a>, Error> {
@@ -193,7 +199,7 @@ pub fn builtin_type(name: &str) -> Option<Type> {
 /// itself. A `money` column needs the places its currency is written to,
 /// which a described column asks the server for; no other column takes
 /// them.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub fn copy_column(
     name: String,
     type_name: &str,

@@ -177,7 +177,7 @@ impl Settled for Finished {
 
 /// `batchExecuteJob(script)`: the script, `;`-separated statements with no
 /// parameters, run through the simple-query protocol as a job.
-// [spec:pgorm:req:bindings.batch-execute]
+// [spec:pgorm:req:bindings.batch-execute+1]
 fn batch_execute_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let argument = cx.argument::<JsValue>(0)?;
     if !argument.is_a::<JsString, _>(&mut cx) {
@@ -187,7 +187,7 @@ fn batch_execute_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let job: Job = Box::new(
         move |db: Database<'_>, secrets| -> BoxFuture<'_, Result<Output, Failure>> {
             async move {
-                pgorm::ConnectionTrait::batch_execute(&db, &script)
+                pgorm::Connection::batch_execute(&db, &script)
                     .await
                     .map_err(|error| failure(&error, secrets))?;
                 Ok(Box::new(Finished) as Output)

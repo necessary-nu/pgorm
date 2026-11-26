@@ -1,11 +1,11 @@
 //! The columns of a COPY: described by the server through pgorm's
-//! `CopyTrait::copy_in_columns` and `copy_out_columns` without starting it,
+//! `CopyConnection::copy_in_columns` and `copy_out_columns` without starting it,
 //! on a pool's connection, a connection or a transaction, or named by a
 //! program for a COPY it frames itself; and what a COPY of rows' sink and
 //! stream tell JavaScript about theirs.
 
 use neon::{prelude::*, types::Finalize};
-use pgorm::{CopyColumn, CopyTrait};
+use pgorm::{CopyColumn, CopyConnection};
 
 use super::{
     super::{
@@ -47,7 +47,7 @@ impl Finalize for ColumnHandle {}
 /// named as `pg_type` names it or as an element's name followed by `[]`, or
 /// by a `TypeName` in `pg_catalog`. Any other type, `money` without its
 /// places and places for any other type are a `ConstructionError`.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn copy_column_new(mut cx: FunctionContext) -> JsResult<JsBox<ColumnHandle>> {
     let name = cx.argument::<JsString>(0)?.value(&mut cx);
     let given = cx.argument::<JsValue>(1)?;
@@ -83,7 +83,7 @@ fn copy_column_new(mut cx: FunctionContext) -> JsResult<JsBox<ColumnHandle>> {
 /// `copyColumnParts(column)`: `[name, type, moneyPlaces]`, the type a
 /// `TypeName` qualified by the schema the server names it in, and the places
 /// `null` for any column but a `money` one.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn copy_column_parts(mut cx: FunctionContext) -> JsResult<JsArray> {
     let column = cx.argument::<JsBox<ColumnHandle>>(0)?.0.clone();
     let codec = Codec::get(&mut cx)?;
@@ -134,14 +134,14 @@ pub(super) fn columns_from(cx: &mut FunctionContext, index: usize) -> NeonResult
 /// The columns `copy` would carry, in its order, as the server describes
 /// them, running nothing. A refusal is the server's, and leaves `db` as a
 /// failed statement does.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 pub(crate) async fn described<C>(
     db: &mut C,
     copy: &CopyStatement,
     secrets: &Redactions,
 ) -> Result<Vec<CopyColumn>, Failure>
 where
-    C: CopyTrait + Send,
+    C: CopyConnection + Send,
 {
     let columns = match copy {
         CopyStatement::CopyFrom(copy) => copy.columns(db).await,
@@ -165,7 +165,7 @@ async fn described_on(
 
 /// `poolCopyColumns(pool, copy, abort)`: the description on a connection the
 /// pool lends for it alone.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn pool_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let pool = cx.argument::<JsBox<PoolHandle>>(0)?.0.clone();
     let copy = copy_at(&mut cx, 1)?;
@@ -181,7 +181,7 @@ fn pool_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
 /// `connectionCopyColumns(connection, copy, abort)`: the description on the
 /// connection, which it holds as a statement does.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn connection_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let connection = cx.argument::<JsBox<ConnectionHandle>>(0)?.0.clone();
     let copy = copy_at(&mut cx, 1)?;
@@ -202,7 +202,7 @@ fn connection_copy_columns(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
 /// `copySinkColumns(copyIn)`: the columns a COPY of rows' sink takes, as its
 /// session described them before the COPY started.
-// [spec:pgorm:req:bindings.copy-rows+2]
+// [spec:pgorm:req:bindings.copy-rows+3]
 fn copy_sink_columns(mut cx: FunctionContext) -> JsResult<JsValue> {
     let state = in_state(&mut cx)?;
     let Some(encoder) = state.rows.as_ref().and_then(|rows| rows.encoder.get()) else {
@@ -220,8 +220,8 @@ fn copy_in_closed(mut cx: FunctionContext) -> JsResult<JsBoolean> {
 
 /// `copyRowsKinds(stream)`: each column's kind as a model's declaration is
 /// keyed, for a model to hold its fields to as it reads a row.
-// [spec:pgorm:req:bindings.copy-rows+2]
-// [spec:pgorm:req:bindings.model-records+1]
+// [spec:pgorm:req:bindings.copy-rows+3]
+// [spec:pgorm:req:bindings.model-records+2]
 fn copy_rows_kinds(mut cx: FunctionContext) -> JsResult<JsArray> {
     let state = out_state(&mut cx)?;
     let columns: Vec<CopyColumn> = match &state.rows {

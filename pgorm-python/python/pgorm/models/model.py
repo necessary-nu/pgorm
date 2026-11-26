@@ -109,7 +109,7 @@ def _unique_key(key: object, declarations: Mapping[str, Column]) -> _DeclaredKey
     return _DeclaredKey(name, tuple(fields), nulls_not_distinct)
 
 
-# [spec:pgorm:req:bindings.models+6]
+# [spec:pgorm:req:bindings.models+7]
 # [spec:pgorm:req:bindings.model-unique-keys+2]
 # [spec:pgorm:req:bindings.schema-from-model]
 @dataclass(frozen=True, eq=False, slots=True, init=False)

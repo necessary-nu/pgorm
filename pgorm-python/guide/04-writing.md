@@ -498,7 +498,7 @@ Here Python differs from Rust: there is no `delete_by_id`, and a delete by
 key is `delete()` with `where(model.key(..))`, which runs no hook.
 `Model.active(record).delete(db)` deletes the row the record's key names and
 runs the model's `before_delete` and `after_delete` hooks, as Rust's
-`ActiveModelTrait::delete` does. A registered entity's model deletes itself
+`pgorm::ActiveModel::delete` does. A registered entity's model deletes itself
 too:
 `model.into_active().delete(db)` deletes its row by its key, returns the
 count, and runs the entity's `before_delete` and `after_delete` hooks.

@@ -81,7 +81,7 @@ mod tests {
         assert!(registry.entity::<account::Entity>("again.Account").is_err());
         assert!(registry.entity::<note::Entity>("").is_err());
         let unregistered = registry.graph::<note::Entity, (), _>("app.NoteOnly", |_| {
-            <note::Entity as pgorm::EntityTrait>::graph()
+            <note::Entity as pgorm::Entity>::graph()
         });
         assert!(unregistered.is_err());
         registry.entity::<note::Entity>("app.Note")?;
@@ -135,14 +135,14 @@ mod tests {
         assert!(
             registry
                 .graph::<note::Entity, (), _>("app.NoteOnly", |_| {
-                    <note::Entity as pgorm::EntityTrait>::graph()
+                    <note::Entity as pgorm::Entity>::graph()
                 })
                 .is_ok()
         );
         assert!(
             registry
                 .graph::<note::Entity, (), _>("app.NoteOnly", |_| {
-                    <note::Entity as pgorm::EntityTrait>::graph()
+                    <note::Entity as pgorm::Entity>::graph()
                 })
                 .is_err()
         );

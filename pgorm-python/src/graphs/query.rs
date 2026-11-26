@@ -119,7 +119,7 @@ impl PyEntityGraphQuery {
         })
     }
 
-    /// How many rows the graph reads, by `PaginatorTrait::count`.
+    /// How many rows the graph reads, by `Paginate::count`.
     fn count<'py>(
         &self,
         py: Python<'py>,
@@ -136,7 +136,7 @@ impl PyEntityGraphQuery {
         counted(py, connection, read)
     }
 
-    /// Pages of `page_size` rows of the join, `PaginatorTrait::paginate`.
+    /// Pages of `page_size` rows of the join, `Paginate::paginate`.
     fn paginate(&self, page_size: &Bound<'_, PyAny>) -> PyResult<PyEntityPaginator> {
         PyEntityPaginator::new(self.inner.pages(), page_size)
     }

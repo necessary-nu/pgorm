@@ -296,7 +296,7 @@ export class Related {
  * `r1` the one before, as pgorm's `find_linked` does, so a chain may pass
  * through one table more than once.
  */
-// [spec:pgorm:req:bindings.linked]
+// [spec:pgorm:req:bindings.linked+1]
 export class Linked {
   /** @type {readonly Relation[]} */
   #relations;
@@ -367,7 +367,7 @@ export class Linked {
   /**
    * The rows at the far end the chain reaches from `row`, a record of the
    * model it starts at, keyed by that model's primary key, as pgorm's
-   * `ModelTrait::find_linked` keys it: none when one of the row's key
+   * `pgorm::Model::find_linked` keys it: none when one of the row's key
    * fields is null.
    *
    * @param {unknown} row

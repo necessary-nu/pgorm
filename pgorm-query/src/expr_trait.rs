@@ -135,16 +135,16 @@ macro_rules! aggregates {
 ///
 /// The trait is exported from the crate root, so `use pgorm_query::*` brings
 /// it, as pgorm's prelude does; a module that names its imports one by one
-/// names `ExprTrait` beside `Expr`. Every method consumes its receiver and
+/// names `Expression` beside `Expr`. Every method consumes its receiver and
 /// builds a new [`SimpleExpr`]: an expression is a value under construction,
 /// never inspected, which is also why the predicates (`is_null`, `is_in`)
 /// take `self`. Taking `self` by value is what makes `eq`, `ne` and the
 /// orderings this trait's rather than `PartialEq`'s or `PartialOrd`'s, which
 /// borrow.
-// [spec:pgorm:def:sql.ast.expr+8]
-// [spec:pgorm:req:sql.ast.expr.operators+7]
+// [spec:pgorm:def:sql.ast.expr+9]
+// [spec:pgorm:req:sql.ast.expr.operators+8]
 #[allow(clippy::wrong_self_convention)]
-pub trait ExprTrait: Into<SimpleExpr> + Sized {
+pub trait Expression: Into<SimpleExpr> + Sized {
     binary_operators! {
         /// Express an equal (`=`) expression.
         ///
@@ -574,7 +574,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// ```
         is_distinct_from => IsDistinctFrom,
         /// Express an `IS NOT DISTINCT FROM` expression: the null-safe equality
-        /// complementing [`is_distinct_from`](ExprTrait::is_distinct_from).
+        /// complementing [`is_distinct_from`](Expression::is_distinct_from).
         ///
         /// # Examples
         ///
@@ -685,7 +685,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// ```
         contains => Contains,
         /// Express a postgres containment (`<@`) expression, with the operands the
-        /// other way round from [`contains`](ExprTrait::contains).
+        /// other way round from [`contains`](Expression::contains).
         ///
         /// # Examples
         ///
@@ -710,7 +710,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// One operator serves ranges, multiranges (against a range or another
         /// multirange) and arrays, so this is each of their overlap tests. A bound
         /// right operand beside a range column is typed as that range by the
-        /// server, as it is for [`contains`](ExprTrait::contains): an element is not an
+        /// server, as it is for [`contains`](Expression::contains): an element is not an
         /// operand of `&&` at all (`42883`), and the empty range overlaps nothing.
         ///
         /// # Examples
@@ -733,7 +733,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "id" FROM "character" WHERE "character" && $1"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.operators+7]
+        // [spec:pgorm:req:sql.ast.expr.operators+8]
         overlaps => Overlap,
         /// Express a postgres retrieves JSON field as JSON value (`->`).
         ///
@@ -741,7 +741,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// by text *or* an array element by integer, and the two are the same
         /// operator. Drilling more than one level means re-entering the builder —
         /// `Expr::expr(a.get_json_field("x")).get_json_field("y")` — so
-        /// [`get_json_path`](ExprTrait::get_json_path) is the paved road for a multi-step path.
+        /// [`get_json_path`](Expression::get_json_path) is the paved road for a multi-step path.
         ///
         /// # Examples
         ///
@@ -759,7 +759,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "variant" FROM "font" WHERE "variant" -> 'a'"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+4]
+        // [spec:pgorm:req:sql.ast.expr.json+5]
         get_json_field => GetJsonField,
         /// Express a postgres retrieves JSON field and casts it to an appropriate SQL type (`->>`).
         ///
@@ -782,7 +782,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "variant" FROM "font" WHERE "variant" ->> 'a'"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+4]
+        // [spec:pgorm:req:sql.ast.expr.json+5]
         cast_json_field => CastJsonField,
     }
 
@@ -889,11 +889,11 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// );
         /// assert_eq!(values.0, vec!["(A|B)%".into(), "!%%".into()]);
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.similar-to+3]
+        // [spec:pgorm:req:sql.ast.expr.similar-to+4]
         similar_to => SimilarTo,
         /// Express a `NOT SIMILAR TO` expression, the complement of
-        /// [`similar_to`](ExprTrait::similar_to).
-        // [spec:pgorm:req:sql.ast.expr.similar-to+3]
+        /// [`similar_to`](Expression::similar_to).
+        // [spec:pgorm:req:sql.ast.expr.similar-to+4]
         not_similar_to => NotSimilarTo,
     }
 
@@ -958,7 +958,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// ```
         between_symmetric => BetweenSymmetric,
         /// Express a `NOT BETWEEN SYMMETRIC` expression, the complement of
-        /// [`between_symmetric`](ExprTrait::between_symmetric).
+        /// [`between_symmetric`](Expression::between_symmetric).
         ///
         /// # Examples
         ///
@@ -985,7 +985,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// One operator walks the whole path, where `->` walks one step, so a
         /// three-deep lookup is one node instead of three nested ones. The path is
         /// a `text[]`, gathered into a single parameter the way
-        /// [`eq_any`](ExprTrait::eq_any) gathers a list: depth varies without varying the
+        /// [`eq_any`](Expression::eq_any) gathers a list: depth varies without varying the
         /// statement text.
         ///
         /// Path steps are text even when they index into a JSON array, because the
@@ -1016,11 +1016,11 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// );
         /// assert_eq!(values.0.len(), 1);
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+4]
+        // [spec:pgorm:req:sql.ast.expr.json+5]
         get_json_path(path) => GetJsonPath,
         /// Express a postgres retrieves the value at a JSON path as text (`#>>`).
         ///
-        /// [`get_json_path`](ExprTrait::get_json_path) with the `->>` ending: the same path walk, the
+        /// [`get_json_path`](Expression::get_json_path) with the `->>` ending: the same path walk, the
         /// same single `text[]` parameter, but the result is `text` rather than
         /// JSON, so it compares against Rust strings without a cast.
         ///
@@ -1040,11 +1040,11 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "id" FROM "character" WHERE ("user_data" #>> ARRAY ['a','b']) = 'x'"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+4]
+        // [spec:pgorm:req:sql.ast.expr.json+5]
         cast_json_path(path) => CastJsonPath,
         /// Express a postgres any-key existence test (`?|`).
         ///
-        /// [`has_json_key`](ExprTrait::has_json_key) over a list, in one `text[]` parameter. An empty
+        /// [`has_json_key`](Expression::has_json_key) over a list, in one `text[]` parameter. An empty
         /// list is false for every operand: no key of none can be present.
         ///
         /// # Examples
@@ -1078,14 +1078,14 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         ///     r#"SELECT "id" FROM "character" WHERE "user_data" ?| ARRAY []::text[]"#
         /// );
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+4]
+        // [spec:pgorm:req:sql.ast.expr.json+5]
         has_any_json_keys(keys) => HasAnyJsonKeys,
         /// Express a postgres all-keys existence test (`?&`).
         ///
-        /// The conjunctive counterpart of [`has_any_json_keys`](ExprTrait::has_any_json_keys), and its
+        /// The conjunctive counterpart of [`has_any_json_keys`](Expression::has_any_json_keys), and its
         /// vacuous mirror: an empty list is true for every operand, because nothing
         /// is missing from a document when nothing was asked for. The same
-        /// asymmetry [`eq_any`](ExprTrait::eq_any) and [`ne_all`](ExprTrait::ne_all) carry over the empty
+        /// asymmetry [`eq_any`](Expression::eq_any) and [`ne_all`](Expression::ne_all) carry over the empty
         /// array.
         ///
         /// # Examples
@@ -1108,7 +1108,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         /// assert_eq!(sql, r#"SELECT "id" FROM "character" WHERE "user_data" ?& $1"#);
         /// assert_eq!(values.0.len(), 1);
         /// ```
-        // [spec:pgorm:req:sql.ast.expr.json+4]
+        // [spec:pgorm:req:sql.ast.expr.json+5]
         has_all_json_keys(keys) => HasAllJsonKeys,
     }
 
@@ -1245,7 +1245,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT "character", "size_w", "size_h" FROM "character" WHERE 10 < "size_w" AND 20 > "size_h""#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.operators+7]
+    // [spec:pgorm:req:sql.ast.expr.operators+8]
     fn binary<O, T>(self, op: O, right: T) -> SimpleExpr
     where
         O: Into<BinOper>,
@@ -1463,7 +1463,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     /// Express a `IN` expression.
     ///
     /// One placeholder per element, so each list length is a distinct
-    /// statement: fine for a short literal list, and [`eq_any`](ExprTrait::eq_any) is the
+    /// statement: fine for a short literal list, and [`eq_any`](Expression::eq_any) is the
     /// PostgreSQL-idiomatic alternative when the length varies at runtime.
     ///
     /// # Examples
@@ -1509,7 +1509,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         )
     }
 
-    /// Express a `NOT IN` expression. See [`ne_all`](ExprTrait::ne_all) for the
+    /// Express a `NOT IN` expression. See [`ne_all`](Expression::ne_all) for the
     /// array-parameter alternative.
     ///
     /// # Examples
@@ -1557,7 +1557,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
 
     /// Express a `= ANY` membership test against one array parameter.
     ///
-    /// The PostgreSQL-idiomatic counterpart of [`is_in`](ExprTrait::is_in): where `IN`
+    /// The PostgreSQL-idiomatic counterpart of [`is_in`](Expression::is_in): where `IN`
     /// spends one placeholder per element — so every list length is a distinct
     /// statement, and a long list walks toward the 65535-parameter ceiling —
     /// `= ANY` spends exactly one, whatever the list length. The SQL text is
@@ -1625,7 +1625,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT "id" FROM "character" WHERE "character" = ANY(ARRAY ['A','B'])"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.eq-any+2]
+    // [spec:pgorm:req:sql.ast.expr.eq-any+3]
     fn eq_any<V, I>(self, v: I) -> SimpleExpr
     where
         V: ArrayElement,
@@ -1636,7 +1636,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
 
     /// Express a `<> ALL` non-membership test against one array parameter.
     ///
-    /// The negation of [`eq_any`](ExprTrait::eq_any), spelled the way PostgreSQL itself
+    /// The negation of [`eq_any`](Expression::eq_any), spelled the way PostgreSQL itself
     /// spells it: its parser reads `x NOT IN (…)` as the `<>` operator over the
     /// list, never as a `NOT` wrapped around `x = ANY(…)`. The two are
     /// equivalent under three-valued logic — a NULL element makes both NULL,
@@ -1670,7 +1670,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     /// );
     /// assert_eq!(values.0.len(), 1);
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.eq-any+2]
+    // [spec:pgorm:req:sql.ast.expr.eq-any+3]
     fn ne_all<V, I>(self, v: I) -> SimpleExpr
     where
         V: ArrayElement,
@@ -1858,7 +1858,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///
     /// The verbatim text rides in the [`TypeName`], so this builds the same
     /// node as every other cast.
-    // [spec:pgorm:req:sql.ast.cast-shape+2]
+    // [spec:pgorm:req:sql.ast.cast-shape+3]
     fn cast_as_raw(self, type_expr: &'static str) -> SimpleExpr {
         self.cast_as_type(TypeName::raw(type_expr))
     }
@@ -1866,7 +1866,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     /// Cast to a structured [`TypeName`] — schema qualification and array
     /// suffix included. Every cast spelling funnels here, and the node it
     /// builds is the only shape a cast has.
-    // [spec:pgorm:req:sql.ast.cast-shape+2]
+    // [spec:pgorm:req:sql.ast.cast-shape+3]
     fn cast_as_type(self, type_name: TypeName) -> SimpleExpr {
         SimpleExpr::AsEnum(Box::new(type_name), Box::new(self.into()))
     }
@@ -1905,8 +1905,8 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"INSERT INTO "character" ("character") VALUES (CAST($1::text AS booking.slot))"#
     /// );
     /// ```
-    // [spec:pgorm:def:sql.value.created-range+9]
-    // [spec:pgorm:req:sql.ast.cast-shape+2]
+    // [spec:pgorm:def:sql.value.created-range+11]
+    // [spec:pgorm:req:sql.ast.cast-shape+3]
     fn as_range(self, type_name: TypeName) -> SimpleExpr {
         let operand = match self.into() {
             SimpleExpr::Value(value) => SimpleExpr::Value(range_as_text(value)),
@@ -1925,7 +1925,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     /// PostgreSQL defines, so the bound is `Into<String>` rather than
     /// `Into<SimpleExpr>` and a numeric key fails to compile instead of failing
     /// on the server. The family is `jsonb`-only — `json` has no `?` — so a
-    /// `json` column needs a cast, which [`cast_as`](ExprTrait::cast_as) supplies.
+    /// `json` column needs a cast, which [`cast_as`](Expression::cast_as) supplies.
     ///
     /// # Examples
     ///
@@ -1946,7 +1946,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     /// let (sql, values) = query.build();
     /// assert_eq!(sql, r#"SELECT "id" FROM "character" WHERE "user_data" ? $1"#);
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.json+4]
+    // [spec:pgorm:req:sql.ast.expr.json+5]
     fn has_json_key<S>(self, key: S) -> SimpleExpr
     where
         S: Into<String>,
@@ -1982,7 +1982,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     r#"SELECT "id" FROM "character" WHERE "user_data" @? CAST($1::text AS jsonpath)"#
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.json+4]
+    // [spec:pgorm:req:sql.ast.expr.json+5]
     fn json_path_exists<P>(self, path: P) -> SimpleExpr
     where
         P: Into<String>,
@@ -2047,7 +2047,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
         .into()
     }
 
-    /// Express `IS NOT JSON`, the negation of [`is_json`](ExprTrait::is_json): like it, `NULL`
+    /// Express `IS NOT JSON`, the negation of [`is_json`](Expression::is_json): like it, `NULL`
     /// for a `NULL` operand.
     ///
     /// ```
@@ -2115,7 +2115,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
     ///     .join(" ")
     /// );
     /// ```
-    // [spec:pgorm:req:sql.ast.expr.collate+2]
+    // [spec:pgorm:req:sql.ast.expr.collate+3]
     fn collate<C>(self, collation: C) -> SimpleExpr
     where
         C: IntoCollation,
@@ -2267,7 +2267,7 @@ pub trait ExprTrait: Into<SimpleExpr> + Sized {
 /// rather than NULL when nothing overlaps. An omitted slice bound runs to
 /// that end of the array, so `Slice(None, None)` is `[:]`, the whole of that
 /// dimension.
-// [spec:pgorm:req:sql.ast.expr.subscript+2]
+// [spec:pgorm:req:sql.ast.expr.subscript+3]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Subscript {
     /// `[index]`
@@ -2280,7 +2280,7 @@ pub enum Subscript {
 /// multirange as its text form, an array of them as the array of their
 /// texts, which casts to the type's array as one text casts to the type,
 /// and anything else as it is.
-// [spec:pgorm:def:sql.value.created-range+9]
+// [spec:pgorm:def:sql.value.created-range+11]
 fn range_as_text(value: Value) -> Value {
     match value {
         Value::Range(_, range) => Value::String(range.map(|range| Box::new(range_text(&range)))),
@@ -2295,20 +2295,20 @@ fn range_as_text(value: Value) -> Value {
     }
 }
 
-impl ExprTrait for Expr {}
-impl ExprTrait for SimpleExpr {}
-impl ExprTrait for FunctionCall {}
-impl ExprTrait for CaseStatement {}
-impl ExprTrait for SimpleCaseStatement {}
-impl ExprTrait for Grouping {}
-impl ExprTrait for SqlJson {}
-impl ExprTrait for JsonExists {}
-impl ExprTrait for JsonValue {}
-impl ExprTrait for JsonQuery {}
-impl ExprTrait for JsonObject {}
-impl ExprTrait for JsonArray {}
-impl ExprTrait for JsonArrayQuery {}
-impl ExprTrait for JsonObjectAgg {}
-impl ExprTrait for JsonArrayAgg {}
-impl ExprTrait for JsonParse {}
-impl ExprTrait for JsonSerialize {}
+impl Expression for Expr {}
+impl Expression for SimpleExpr {}
+impl Expression for FunctionCall {}
+impl Expression for CaseStatement {}
+impl Expression for SimpleCaseStatement {}
+impl Expression for Grouping {}
+impl Expression for SqlJson {}
+impl Expression for JsonExists {}
+impl Expression for JsonValue {}
+impl Expression for JsonQuery {}
+impl Expression for JsonObject {}
+impl Expression for JsonArray {}
+impl Expression for JsonArrayQuery {}
+impl Expression for JsonObjectAgg {}
+impl Expression for JsonArrayAgg {}
+impl Expression for JsonParse {}
+impl Expression for JsonSerialize {}

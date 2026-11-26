@@ -9,7 +9,7 @@ bound parameter is held to.
 
 ## Cursor pagination (`exec.cursor`)
 
-> [spec:pgorm:def:exec.cursor+5]
+> [spec:pgorm:def:exec.cursor+6]
 > `Cursor<S, K>` wraps a `SelectStatement` plus the target table, an
 > `Key` of one or more order columns, an optional `Window` row
 > limit, optional `before`/`after` boundary `ValueTuple`s, a `sort_asc`
@@ -24,15 +24,15 @@ bound parameter is held to.
 > reads, `SelectGraph::cursor_by` / `cursor_by_on`
 > (`[spec:pgorm:sem:query.graph.cursor]`: order columns on the root or on a
 > positionally-named slot), each returning a cursor keyed by its argument's
-> `ValueType`. `CursorTrait` names the `SelectorTrait` used
+> `ValueType`. `CursorSource` names the `DecodeRow` used
 > to decode rows; `into_model` and `into_partial_model` re-target the
 > decoded type and carry `K` across unchanged. `Cursor` also implements
 > `QuerySelect` and `QueryOrder` for further query modification.
 >
 > `S` is unconstrained on the struct: only `Cursor::all` requires
-> `S: SelectorTrait`, because only fetching needs to decode. `SelectUndecoded`
+> `S: DecodeRow`, because only fetching needs to decode. `SelectUndecoded`
 > exploits that — it is the `S` the `select_only` typestates' `cursor_by`
-> returns (`query.build.modifiers`), and being no `SelectorTrait` it makes a
+> returns (`query.build.modifiers`), and being no `DecodeRow` it makes a
 > cursor over a caller's projection unfetchable until `into_model` or
 > `into_partial_model` names the row type.
 
@@ -157,9 +157,9 @@ bound parameter is held to.
 > cursor is totally ordered and can be resumed mid-tie through `after_with`
 > / `before_with`.
 
-> [spec:pgorm:def:exec.cursor.binding+6]
+> [spec:pgorm:def:exec.cursor.binding+7]
 > `ValueHolder` (cursor.rs) is a public newtype over `pgorm_query::Value`
-> implementing `tokio_postgres::types::ToSql`; every executor path
+> implementing `pgorm_driver::types::ToSql`; every executor path
 > (select, insert, update, delete, cursor, paginator) wraps built
 > statement values in it for parameter binding. It delegates per variant:
 > `Bool` to the primitive `bool` impl; the integer variants
@@ -310,12 +310,12 @@ bound parameter is held to.
 > placeholder to the type the value is actually written as, and the test
 > runs unignored.
 
-> [spec:pgorm:req:exec.cursor.binding-accepts+4]
+> [spec:pgorm:req:exec.cursor.binding-accepts+5]
 > A `Value` MUST NOT be written into a placeholder whose inferred Postgres
 > type its binary representation is not the wire format of.
 > `ValueHolder::to_sql` decides this per variant and raises a `ToSql` error
 > — `` cannot bind a `<Variant>` value to Postgres type `<type>` `` — which
-> tokio-postgres surfaces while encoding the bind message, so the statement
+> pgorm-driver surfaces while encoding the bind message, so the statement
 > never reaches the server. The failure arrives as an `Error::Postgres`
 > carrying no `DbError`, the same shape as any other encoding failure (see
 > `[spec:pgorm:sem:error.model.sql-class]`).
@@ -393,9 +393,9 @@ bound parameter is held to.
 > `bigint` would drop the months and the days. An array of intervals binds
 > through the `Array` arm, each element against the member type.
 
-> [spec:pgorm:req:exec.cursor.binding-range+3]
+> [spec:pgorm:req:exec.cursor.binding-range+4]
 > A `Value::Range` binds against a placeholder whose type is a range — the
-> built-in six, or a range type a schema created, which tokio-postgres
+> built-in six, or a range type a schema created, which pgorm-driver
 > reports as a range over its subtype all the same — and a
 > `Value::Multirange` against a multirange whose kind names its subtype: a
 > built-in one, or one a schema created whose kind a COPY's description
@@ -436,7 +436,7 @@ bound parameter is held to.
 > A multirange is written as a count and then each range length-prefixed in
 > a range's own encoding, against the subtype the multirange's kind names. A
 > statement's placeholder of a multirange a schema created cannot be bound in
-> binary: tokio-postgres learns a type's kind from `pg_range` joined on the
+> binary: pgorm-driver learns a type's kind from `pg_range` joined on the
 > *range* type, so the multirange arrives as a simple type with no subtype to
 > write the bounds in, and guessing one would send bytes the server could
 > read as another type. A value of one is written as its text cast to its
@@ -474,7 +474,7 @@ bound parameter is held to.
 
 ## Offset pagination (`exec.paginator`)
 
-> [spec:pgorm:def:exec.paginator+3]
+> [spec:pgorm:def:exec.paginator+4]
 > `Paginator<'db, C, S>` holds the `SelectStatement` to page over, a
 > zero-based current `page`, a `page_size`, a borrowed connection, and a
 > phantom selector. It MUST NOT hold a failure in place of that
@@ -482,7 +482,7 @@ bound parameter is held to.
 > a source could not be turned into a statement is settled before one is
 > constructed.
 > `ItemsAndPagesNumber` carries `number_of_items` and `number_of_pages`.
-> `PaginatorTrait::paginate(db, page_size)` constructs a paginator
+> `Paginate::paginate(db, page_size)` constructs a paginator
 > infallibly and is implemented for exactly the sources whose statement
 > the builder produced and which therefore cannot fail to page:
 > `Selector<S>`, `Select<E>` (via `into_model`), and `SelectGraph<E, S>`
@@ -500,14 +500,14 @@ bound parameter is held to.
 > `PinBoxStream` is the pinned boxed stream alias returned by
 > `into_stream`.
 
-> [spec:pgorm:req:exec.paginator.page-size+2]
+> [spec:pgorm:req:exec.paginator.page-size+3]
 > `page_size` is a `NonZeroU64` — in the `paginate` signature and in the
 > `Paginator` field it is stored in — so a zero page size is not a value
 > a caller can supply and not a state the paginator can hold. There is
 > no assertion to trip, no panic to catch and no `Error` to recover:
 > zero is rejected by the compiler at the call site. The page-count
 > division of `[spec:pgorm:sem:exec.paginator.count]` is therefore total
-> by construction, and `PaginatorTrait::count` names its page size of
+> by construction, and `Paginate::count` names its page size of
 > one as `NonZeroU64::MIN` rather than a literal the type would refuse.
 
 > [spec:pgorm:sem:exec.paginator.fetch+3]
@@ -548,7 +548,7 @@ bound parameter is held to.
 > stream ends at the first empty page and yields the error (then ends)
 > if any fetch fails.
 
-> [spec:pgorm:sem:exec.paginator.raw+8]
+> [spec:pgorm:sem:exec.paginator.raw+9]
 > Paginating a `SelectorRaw` MUST decide what the raw statement is by
 > parsing it with pgsql-syntax — a Rust port of the PostgreSQL server's own
 > parser, the same revision, on PostgreSQL 19.0's grammar, that the render
@@ -629,7 +629,7 @@ bound parameter is held to.
 > MUST NOT be recorded in the constructed paginator for a later reader to
 > replay. `SelectorRaw`'s `paginate` therefore returns
 > `Result<Paginator, Error>` and its `count` returns `Result<u64, Error>`,
-> which is why `SelectorRaw` does not implement `PaginatorTrait`
+> which is why `SelectorRaw` does not implement `Paginate`
 > (`[spec:pgorm:def:exec.paginator]`). The failure belongs to the caller
 > who supplied the statement, at the call that supplied it: a paginator
 > handed back to that caller has already been proven to page, so
@@ -645,12 +645,12 @@ bound parameter is held to.
 > `count_statement` take it, as a language binding's raw statement does
 > (`[spec:pgorm:req:bindings.raw-pages]`).
 
-> [spec:pgorm:def:exec.paginator.erased]
+> [spec:pgorm:def:exec.paginator.erased+1]
 > A paginator over a read a caller chooses at run time MUST be reachable
 > behind one trait object, `ErasedPages<R>`: `statement(size, page)` is the
 > page statement `exec.paginator.fetch` writes for page `page` of `size`
 > rows, or with no page the count `exec.paginator.count` writes; `fetch` is
 > `Paginator::fetch_page` and `count` `Paginator::num_items_and_pages`, each
 > running on a `DatabaseRef` (`conn.database-ref`). `PagedRead` implements it
-> over any read `PaginatorTrait` pages, its items decoded by a function the
+> over any read `Paginate` pages, its items decoded by a function the
 > caller gives into its own row type `R`.

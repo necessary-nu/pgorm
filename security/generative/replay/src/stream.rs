@@ -7,7 +7,7 @@
 //! `cancel` permit. So the drain has to be as deliberate as the binding's.
 
 use futures_util::StreamExt;
-use tokio_postgres::{Row, RowStream};
+use pgorm_driver::{Row, RowStream};
 
 use crate::Error;
 

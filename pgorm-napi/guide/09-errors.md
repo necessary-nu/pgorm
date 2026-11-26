@@ -120,7 +120,7 @@ The three statements run as one script with `batchExecute`, as Rust runs
 them with `batch_execute` ([Raw SQL](10-raw-sql.md)).
 
 Any other refusal is read off the server's SQLSTATE. Rust compares the code
-with tokio-postgres's `SqlState` constants, such as `SqlState::UNDEFINED_TABLE`,
+with pgorm-driver's `SqlState` constants, such as `SqlState::UNDEFINED_TABLE`,
 and reads the server's whole report from `as_db_error`; JavaScript's
 `DatabaseError` is that report, its `sqlstate` the five-character code:
 

@@ -1,6 +1,6 @@
 //! Decoding and terminating an N-ary relational read.
 //!
-//! [`GraphRow<E, S>`] is the [`SelectorTrait`] a [`SelectGraph<E, S>`]
+//! [`GraphRow<E, S>`] is the [`DecodeRow`] a [`SelectGraph<E, S>`]
 //! converts into, and the terminals are that conversion plus the ordinary
 //! [`Selector`] machinery. The graph adds a declaration layer, not a second
 //! execution path.
@@ -14,9 +14,9 @@ use std::num::NonZeroU64;
 use pgorm_query::{Order, Value};
 
 use crate::{
-    ConnectionTrait, EntityTrait, Error, FromQueryResult, Iterable, ModelTrait, Opt, Paginator,
-    PaginatorTrait, PinBoxSendStream, PrimaryKeyToColumn, QueryResult, SelectGraph, Selector,
-    SelectorTrait, Slot, Unsliced,
+    Connection, DecodeRow, Entity, Error, FromQueryResult, Iterable, Model, Opt, Paginate,
+    Paginator, PinBoxSendStream, PrimaryKeyToColumn, QueryResult, SelectGraph, Selector, Slot,
+    Unsliced,
 };
 
 /// The selector that decodes one graph row: the root under `s0_`, then each
@@ -31,7 +31,7 @@ use crate::{
 ///
 /// The type is nameable because the cursor and paginator signatures need it;
 /// it carries no data and is not constructed by callers.
-// [spec:pgorm:sem:query.graph.decode+1]
+// [spec:pgorm:sem:query.graph.decode+2]
 pub struct GraphRow<E, S>(PhantomData<(E, S)>);
 
 impl<E, S> fmt::Debug for GraphRow<E, S> {
@@ -54,8 +54,8 @@ impl<E, S> GraphRow<E, S> {
 }
 
 /// A slotless graph is a single-entity read: one model, no tuple.
-// [spec:pgorm:sem:query.graph.decode+1]
-impl<E: EntityTrait> SelectorTrait for GraphRow<E, ()> {
+// [spec:pgorm:sem:query.graph.decode+2]
+impl<E: Entity> DecodeRow for GraphRow<E, ()> {
     type Item = E::Model;
 
     fn from_raw_query_result(res: QueryResult) -> Result<Self::Item, Error> {
@@ -72,8 +72,8 @@ const ROOT_PREFIX: &str = "s0_";
 /// the row's error, and later sources are not examined.
 macro_rules! graph_row {
     ( $( $s:ident @ $pre:literal ),+ ) => {
-        // [spec:pgorm:sem:query.graph.decode+1]
-        impl<E: EntityTrait, $( $s: Slot ),+> SelectorTrait for GraphRow<E, ( $( $s, )+ )> {
+        // [spec:pgorm:sem:query.graph.decode+2]
+        impl<E: Entity, $( $s: Slot ),+> DecodeRow for GraphRow<E, ( $( $s, )+ )> {
             type Item = (E::Model, $( $s::Out ),+ );
 
             fn from_raw_query_result(res: QueryResult) -> Result<Self::Item, Error> {
@@ -94,19 +94,19 @@ graph_row!(S1 @ "s1_", S2 @ "s2_", S3 @ "s3_", S4 @ "s4_", S5 @ "s5_");
 graph_row!(S1 @ "s1_", S2 @ "s2_", S3 @ "s3_", S4 @ "s4_", S5 @ "s5_", S6 @ "s6_");
 
 /// What one row of a graph decodes into.
-pub type GraphItem<E, S> = <GraphRow<E, S> as SelectorTrait>::Item;
+pub type GraphItem<E, S> = <GraphRow<E, S> as DecodeRow>::Item;
 
-// [spec:pgorm:sem:query.graph.terminals+2]
-// [spec:pgorm:sem:query.graph.slice]
-impl<E: EntityTrait, S, R, Cx> SelectGraph<E, S, R, Cx>
+// [spec:pgorm:sem:query.graph.terminals+3]
+// [spec:pgorm:sem:query.graph.slice+1]
+impl<E: Entity, S, R, Cx> SelectGraph<E, S, R, Cx>
 where
-    GraphRow<E, S>: SelectorTrait,
+    GraphRow<E, S>: DecodeRow,
 {
     /// Convert into the [`Selector`] every terminal runs through.
     ///
     /// Everything past this conversion is machinery specified elsewhere; the
     /// graph duplicates none of it.
-    // [spec:pgorm:sem:query.graph.terminals+2]
+    // [spec:pgorm:sem:query.graph.terminals+3]
     pub(crate) fn into_selector(self) -> Selector<GraphRow<E, S>> {
         Selector {
             query: self.query,
@@ -133,8 +133,8 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    // [spec:pgorm:sem:query.graph.terminals+2]
-    pub async fn all<C: ConnectionTrait>(self, db: &C) -> Result<Vec<GraphItem<E, S>>, Error> {
+    // [spec:pgorm:sem:query.graph.terminals+3]
+    pub async fn all<C: Connection>(self, db: &C) -> Result<Vec<GraphItem<E, S>>, Error> {
         self.into_selector().all(db).await
     }
 
@@ -144,11 +144,8 @@ where
     /// [`Selector::one_opt`], so a graph limited to no row reads none and an
     /// offset is kept. There is no `one`: a graph row is a join product, so
     /// "exactly one" is a claim about the product rather than about the root.
-    // [spec:pgorm:sem:query.graph.terminals+2]
-    pub async fn one_opt<C: ConnectionTrait>(
-        self,
-        db: &C,
-    ) -> Result<Option<GraphItem<E, S>>, Error> {
+    // [spec:pgorm:sem:query.graph.terminals+3]
+    pub async fn one_opt<C: Connection>(self, db: &C) -> Result<Option<GraphItem<E, S>>, Error> {
         self.into_selector().one_opt(db).await
     }
 
@@ -156,8 +153,8 @@ where
     ///
     /// A row that fails to decode is yielded as one `Err` item and the stream
     /// continues, as on every other model-typed stream.
-    // [spec:pgorm:sem:query.graph.terminals+2]
-    pub async fn stream<'b, C: ConnectionTrait>(
+    // [spec:pgorm:sem:query.graph.terminals+3]
+    pub async fn stream<'b, C: Connection>(
         self,
         db: &C,
     ) -> Result<PinBoxSendStream<'b, Result<GraphItem<E, S>, Error>>, Error>
@@ -185,7 +182,7 @@ enum RootKey {
 /// Read the root's primary-key value out of a *decoded* model — the grouping
 /// is keyed on what the row said the root is, not on where the row sat.
 // [spec:pgorm:sem:query.graph.grouped+2]
-fn root_key<E: EntityTrait>(model: &E::Model) -> RootKey {
+fn root_key<E: Entity>(model: &E::Model) -> RootKey {
     let mut keys = <E::PrimaryKey as Iterable>::iter();
     match (keys.next(), keys.next()) {
         (Some(only), None) => RootKey::Unit(model.get(only.into_column())),
@@ -208,7 +205,7 @@ fn root_key<E: EntityTrait>(model: &E::Model) -> RootKey {
 /// than emitting the root twice. Children are pushed as they arrive, and a row
 /// whose slot decoded `None` contributes nothing beyond its root.
 // [spec:pgorm:sem:query.graph.grouped+2]
-fn group_rows<E: EntityTrait, F: EntityTrait>(
+fn group_rows<E: Entity, F: Entity>(
     rows: Vec<(E::Model, Option<F::Model>)>,
 ) -> Vec<(E::Model, Vec<F::Model>)> {
     let mut grouped: Vec<(E::Model, Vec<F::Model>)> = Vec::new();
@@ -235,7 +232,7 @@ fn group_rows<E: EntityTrait, F: EntityTrait>(
 /// The grouped read, which exists on exactly one shape: a graph whose slot
 /// tuple is `(Opt<F>,)`.
 // [spec:pgorm:sem:query.graph.grouped+2]
-impl<E: EntityTrait, F: EntityTrait, Cx> SelectGraph<E, (Opt<F>,), Unsliced, Cx> {
+impl<E: Entity, F: Entity, Cx> SelectGraph<E, (Opt<F>,), Unsliced, Cx> {
     /// Fetch every root once, with the slot's matching models collected
     /// beneath it.
     ///
@@ -299,7 +296,7 @@ impl<E: EntityTrait, F: EntityTrait, Cx> SelectGraph<E, (Opt<F>,), Unsliced, Cx>
         "select_with",
         "SelectTwoMany"
     ))]
-    pub async fn all_grouped<C: ConnectionTrait>(
+    pub async fn all_grouped<C: Connection>(
         self,
         db: &C,
     ) -> Result<Vec<(E::Model, Vec<F::Model>)>, Error> {
@@ -325,13 +322,13 @@ impl<E: EntityTrait, F: EntityTrait, Cx> SelectGraph<E, (Opt<F>,), Unsliced, Cx>
 ///
 /// Only an unsliced graph paginates: a page's `LIMIT` and `OFFSET` would
 /// replace a slice's, and the count strips them.
-// [spec:pgorm:sem:query.graph.terminals+2]
-// [spec:pgorm:sem:query.graph.slice]
-impl<'db, C, E, S, Cx> PaginatorTrait<'db, C> for SelectGraph<E, S, Unsliced, Cx>
+// [spec:pgorm:sem:query.graph.terminals+3]
+// [spec:pgorm:sem:query.graph.slice+1]
+impl<'db, C, E, S, Cx> Paginate<'db, C> for SelectGraph<E, S, Unsliced, Cx>
 where
-    C: ConnectionTrait,
-    E: EntityTrait,
-    GraphRow<E, S>: SelectorTrait + Send + Sync + 'db,
+    C: Connection,
+    E: Entity,
+    GraphRow<E, S>: DecodeRow + Send + Sync + 'db,
 {
     type Selector = GraphRow<E, S>;
 
@@ -347,7 +344,7 @@ where
 mod tests {
     use super::*;
     use crate::tests_cfg::{cake, cake_filling, filling, fruit};
-    use crate::{QueryOrder, QueryTrait, RelationTrait};
+    use crate::{QueryOrder, Relation, Statement};
     use pretty_assertions::assert_eq;
 
     fn cake_of(id: i32, name: &str) -> cake::Model {

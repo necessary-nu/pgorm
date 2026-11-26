@@ -5,7 +5,7 @@
 
 use pgorm::entity::prelude::*;
 use pgorm::{
-    ActiveModelTrait, ActiveValue, Error, FromQueryResult, IntoActiveModel, IntoActiveValue,
+    ActiveModel, ActiveValue, Error, FromQueryResult, IntoActiveModel, IntoActiveValue,
     TryIntoModel, Value,
 };
 use std::str::FromStr;
@@ -79,7 +79,7 @@ pub enum PlainColumn {
     LastName,
 }
 
-// [spec:pgorm:sem:macros.derive.model+7/test]    ModelTrait::get / set
+// [spec:pgorm:sem:macros.derive.model+8/test]    Model::get / set
 #[test]
 fn derive_model_get_and_set_walk_the_columns() {
     let mut model = cake::Model {
@@ -112,7 +112,7 @@ fn derive_model_get_and_set_walk_the_columns() {
     assert_eq!(model.scratch, 42);
 }
 
-// [spec:pgorm:sem:macros.derive.model+7/test]    ignored fields have no match arm
+// [spec:pgorm:sem:macros.derive.model+8/test]    ignored fields have no match arm
 #[test]
 #[should_panic(expected = "field does not exist on Model")]
 fn derive_model_get_panics_on_unmatched_column() {
@@ -124,7 +124,7 @@ fn derive_model_get_panics_on_unmatched_column() {
     let _ = model.get(cake::Column::Table);
 }
 
-// [spec:pgorm:sem:macros.derive.model+7/test]    ignored fields have no match arm
+// [spec:pgorm:sem:macros.derive.model+8/test]    ignored fields have no match arm
 #[test]
 fn derive_model_set_errs_on_unmatched_column() {
     let mut model = cake::Model {
@@ -138,7 +138,7 @@ fn derive_model_set_errs_on_unmatched_column() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.model+7/test]    the FromQueryResult half, and the entity override
+// [spec:pgorm:sem:macros.derive.model+8/test]    the FromQueryResult half, and the entity override
 #[test]
 fn derive_model_from_query_result_and_entity_override() {
     fn assert_from_query_result<T: FromQueryResult>() {}
@@ -146,7 +146,7 @@ fn derive_model_from_query_result_and_entity_override() {
     assert_from_query_result::<overrides::AltModel>();
 
     // The target entity defaults to `Entity`...
-    fn assert_entity<M: ModelTrait<Entity = E>, E: EntityTrait>() {}
+    fn assert_entity<M: Model<Entity = E>, E: Entity>() {}
     assert_entity::<cake::Model, cake::Entity>();
     // ...and `#[pgorm(entity = Ident)]` redirects it. `AltModel` lives in a
     // scope with no `Entity` at all, so this could only compile if the
@@ -160,7 +160,7 @@ fn derive_model_from_query_result_and_entity_override() {
     assert_eq!(alt.get(overrides::InnerColumn::Id), Value::Int(Some(3)));
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+9/test]    the generated struct and its conversions
+// [spec:pgorm:sem:macros.derive.active-model+10/test]    the generated struct and its conversions
 #[test]
 fn derive_active_model_struct_default_and_from_model() {
     // One `pub field: ActiveValue<T>` per *non-ignored* field: the struct
@@ -172,11 +172,11 @@ fn derive_active_model_struct_default_and_from_model() {
     assert_eq!(active.id, ActiveValue::Set(1));
 
     // `Default` delegates to `ActiveModelBehavior::new()`, which bottoms out in
-    // `ActiveModelTrait::default()` — every field `NotSet`.
+    // `ActiveModel::default()` — every field `NotSet`.
     let blank = <cake::ActiveModel as Default>::default();
     assert_eq!(blank.id, ActiveValue::NotSet);
     assert_eq!(blank.name, ActiveValue::NotSet);
-    assert_eq!(blank, <cake::ActiveModel as ActiveModelTrait>::default());
+    assert_eq!(blank, <cake::ActiveModel as ActiveModel>::default());
 
     // `From<Model>` maps every field through `ActiveValue::unchanged`, and
     // `IntoActiveModel` is implemented for `Model` in terms of it.
@@ -191,10 +191,10 @@ fn derive_active_model_struct_default_and_from_model() {
     assert_eq!(model.into_active_model(), converted);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+9/test]    ActiveModelTrait
+// [spec:pgorm:sem:macros.derive.active-model+10/test]    ActiveModel
 // accessors, including the one answer `take`, `get` and `set` share: a column
 // this ActiveModel does not carry is `Error::Type`, in those same words
-// [spec:pgorm:req:entity.active-model+4/test]    that refusal is the trait's
+// [spec:pgorm:req:entity.active-model+5/test]    that refusal is the trait's
 // rule, not the derive's convenience: an unknown column is never answered with
 // `NotSet`, which is what a column holding no value reads as
 #[test]
@@ -206,13 +206,13 @@ fn derive_active_model_trait_accessors() {
 
     // `get` clones into a wrapped value.
     assert_eq!(
-        ActiveModelTrait::get(&active, cake::Column::Id),
+        pgorm::ActiveModel::get(&active, cake::Column::Id),
         Ok(ActiveValue::Set(Value::Int(Some(1))))
     );
     // ...and an unmatched column is reported, not answered with `NotSet`: the
     // column does not exist here, which is not the same as holding no value.
     assert_eq!(
-        ActiveModelTrait::get(&active, cake::Column::Table),
+        pgorm::ActiveModel::get(&active, cake::Column::Table),
         Err(Error::Type(
             "This ActiveModel does not have this field".to_owned()
         ))
@@ -255,7 +255,7 @@ fn derive_active_model_trait_accessors() {
     assert_eq!(active.name, ActiveValue::Set("chiffon".to_owned()));
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+9/test]    set errors on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+10/test]    set errors on an unmatched column
 #[test]
 fn active_model_set_errs_on_unmatched_column() {
     let mut active = <cake::ActiveModel as Default>::default();
@@ -267,7 +267,7 @@ fn active_model_set_errs_on_unmatched_column() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+9/test]    is_not_set panics on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+10/test]    is_not_set panics on an unmatched column
 #[test]
 #[should_panic(expected = "This ActiveModel does not have this field")]
 fn active_model_is_not_set_panics_on_unmatched() {
@@ -275,7 +275,7 @@ fn active_model_is_not_set_panics_on_unmatched() {
     let _ = active.is_not_set(cake::Column::Table);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+9/test]    reset panics on an unmatched column
+// [spec:pgorm:sem:macros.derive.active-model+10/test]    reset panics on an unmatched column
 #[test]
 #[should_panic(expected = "This ActiveModel does not have this field")]
 fn active_model_reset_panics_on_unmatched_column() {
@@ -283,7 +283,7 @@ fn active_model_reset_panics_on_unmatched_column() {
     active.reset(cake::Column::Table);
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+9/test]    TryFrom<ActiveModel> / TryIntoModel
+// [spec:pgorm:sem:macros.derive.active-model+10/test]    TryFrom<ActiveModel> / TryIntoModel
 #[test]
 fn derive_active_model_try_into_model() {
     // A non-ignored field left `NotSet` fails with `AttrNotSet(field)`.
@@ -316,7 +316,7 @@ fn derive_active_model_try_into_model() {
     );
 }
 
-// [spec:pgorm:sem:macros.derive.active-model+9/test]    IntoActiveModel
+// [spec:pgorm:sem:macros.derive.active-model+10/test]    IntoActiveModel
 #[test]
 fn into_active_model_derive_fills_a_form() {
     // `IntoActiveModel` builds a partial "form" struct into the named

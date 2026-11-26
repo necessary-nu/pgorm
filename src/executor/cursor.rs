@@ -4,15 +4,15 @@ use super::select::{ensure_select_list, refuse_tie_limit};
 use crate::entity::{compared_enum, compared_value};
 use crate::query::graph::{Tiebreak, Tiebreaks, qualified_pk_tiebreaks};
 use crate::{
-    ColumnTrait, ConnectionTrait, EntityTrait, Error, FromQueryResult, IntoBoundary, IntoKey, Key,
-    KeyOf, PartialModelTrait, QueryOrder, QuerySelect, ScopeError, Select, SelectGraph,
-    SelectModel, SelectProjected, SelectorTrait, Slot, SlotAt, Slots, Unsliced, error::query_err,
+    Column, Connection, DecodeRow, Entity, Error, FromQueryResult, IntoBoundary, IntoKey, Key,
+    KeyOf, PartialModel, QueryOrder, QuerySelect, ScopeError, Select, SelectGraph, SelectModel,
+    SelectProjected, Slot, SlotAt, Slots, Unsliced, error::query_err,
 };
+use pgorm_driver::types::{IsNull, Kind, ToSql, Type, to_sql_checked};
 use pgorm_query::{
-    Condition, Expr, ExprTrait, IntoName, IntoValueTuple, Name, Order, SelectStatement, SimpleExpr,
-    TypeName, Value, ValueTuple,
+    Condition, Expr, Expression, IntoName, IntoValueTuple, Name, Order, SelectStatement,
+    SimpleExpr, TypeName, Value, ValueTuple,
 };
-use tokio_postgres::types::{IsNull, Kind, ToSql, Type, to_sql_checked};
 // use uuid::Uuid;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -41,16 +41,16 @@ impl Window {
 
 /// A cursor over a custom projection that has not named its decode target.
 ///
-/// It is not a [`SelectorTrait`], so [`Cursor::all`] does not exist until
+/// It is not a [`DecodeRow`], so [`Cursor::all`] does not exist until
 /// [`Cursor::into_model`] or [`Cursor::into_partial_model`] says what the rows
 /// are.
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 #[derive(Clone, Copy, Debug)]
 pub struct SelectUndecoded;
 
 /// One keyset column's boundary casts, captured while the typed column was
 /// still in hand: the value's, which is the column's
-/// [`save_as`](ColumnTrait::save_as), and the enum the column itself is cast
+/// [`save_as`](Column::save_as), and the enum the column itself is cast
 /// to when its domain is over one, the value then cast to the enum too. The
 /// keyset itself is type-erased to identifiers, so neither can be recovered
 /// later — `cursor_by` captures an order column's at construction, and a
@@ -90,7 +90,7 @@ impl BoundaryCast {
     /// The casts of one typed column, as every value predicate on it takes
     /// them ([`compared_value`], [`compared_enum`]).
     // [spec:pgorm:sem:exec.cursor.keyset+8]
-    pub(crate) fn of<C: ColumnTrait>(col: C) -> Self {
+    pub(crate) fn of<C: Column>(col: C) -> Self {
         Self {
             value: Arc::new(move |val| compared_value(&col, val)),
             column: compared_enum(col.def().get_column_type()),
@@ -108,7 +108,7 @@ impl BoundaryCast {
     /// The order columns' casts, matched by identifier against the typed
     /// column set they were spelled from. An identifier no column claims — an
     /// alias, a custom expression — keeps the bare binding.
-    fn capture<C: ColumnTrait>(order_columns: &Key) -> Vec<Self> {
+    fn capture<C: Column>(order_columns: &Key) -> Vec<Self> {
         order_columns
             .iter()
             .map(
@@ -122,7 +122,7 @@ impl BoundaryCast {
 }
 
 /// Cursor pagination
-// [spec:pgorm:def:exec.cursor+5]
+// [spec:pgorm:def:exec.cursor+6]
 #[derive(Debug, Clone)]
 pub struct Cursor<S, K = ValueTuple> {
     query: SelectStatement,
@@ -169,11 +169,11 @@ impl<S, K> Cursor<S, K> {
         }
     }
 
-    /// Capture the order columns' [`save_as`](ColumnTrait::save_as) casts from
+    /// Capture the order columns' [`save_as`](Column::save_as) casts from
     /// the typed column set they were spelled from, so boundary values reach
     /// SQL under the same cast every value predicate applies.
     // [spec:pgorm:sem:exec.cursor.keyset+8]
-    pub(crate) fn with_boundary_casts<C: ColumnTrait>(mut self) -> Self {
+    pub(crate) fn with_boundary_casts<C: Column>(mut self) -> Self {
         self.boundary_casts = BoundaryCast::capture::<C>(&self.order_columns);
         self
     }
@@ -404,7 +404,7 @@ impl<S, K> Cursor<S, K> {
     /// re-executed with a moved boundary or a flipped direction without the
     /// previous execution's clauses still on it.
     // [spec:pgorm:sem:exec.cursor.order+4]
-    // [spec:pgorm:req:exec.tie-limit+1]
+    // [spec:pgorm:req:exec.tie-limit+2]
     // [spec:pgorm:req:scope.refusals]
     fn compose(&mut self) -> Result<SelectStatement, Error> {
         if let Some(refused) = &self.refused {
@@ -461,10 +461,10 @@ impl<S, K> Cursor<S, K> {
     }
 
     /// Return a [`Cursor`] from `Self` that wraps a [`SelectModel`] decoding a
-    /// [`PartialModelTrait`] type
+    /// [`PartialModel`] type
     pub fn into_partial_model<M>(mut self) -> Cursor<SelectModel<M>, K>
     where
-        M: PartialModelTrait,
+        M: PartialModel,
     {
         self.query.clear_selects();
         M::select_cols(self).into_model::<M>()
@@ -494,7 +494,7 @@ impl<S, K> Cursor<S, K> {
     /// The column's boundary casts are captured here, while it is typed, as an
     /// order column's are at `cursor_by` and a graph's tiebreak's as it is
     /// installed: a boundary value binds under the column's
-    /// [`save_as`](ColumnTrait::save_as), and a column whose domain is over an
+    /// [`save_as`](Column::save_as), and a column whose domain is over an
     /// enum is compared as the enum. Each entry takes the next trailing
     /// position of the keyset, so [`Cursor::after_with`] /
     /// [`Cursor::before_with`] take its value after those of the entries
@@ -511,7 +511,7 @@ impl<S, K> Cursor<S, K> {
     // [spec:pgorm:sem:exec.cursor.keyset+8]
     pub fn add_secondary_order_by<C>(&mut self, table: impl IntoName, col: C) -> &mut Self
     where
-        C: ColumnTrait,
+        C: Column,
     {
         self.secondary_order_by.push((
             table.into_name(),
@@ -550,16 +550,18 @@ impl<S, K> Cursor<S, K> {
 
 impl<S, K> Cursor<S, K>
 where
-    S: SelectorTrait,
+    S: DecodeRow,
 {
     /// Fetch the paginated result
     // [spec:pgorm:sem:exec.cursor.order+4]
     pub async fn all<C>(&mut self, db: &C) -> Result<Vec<S::Item>, Error>
     where
-        C: ConnectionTrait,
+        C: Connection,
     {
         let (stmt, values) = self.compose()?.build();
         let values = values.into_iter().map(ValueHolder).collect::<Vec<_>>();
+        #[cfg(feature = "turso")]
+        let stmt = crate::database::ValueSql::new(&stmt, &values);
         let values = values
             .iter()
             .map(|x| x as _)
@@ -603,15 +605,15 @@ impl<S, K> QueryOrder for Cursor<S, K> {
 }
 
 /// A trait for any type that can be turn into a cursor
-// [spec:pgorm:def:exec.cursor+5]
-pub trait CursorTrait {
+// [spec:pgorm:def:exec.cursor+6]
+pub trait CursorSource {
     /// Select operation
-    type Selector: SelectorTrait + Send + Sync;
+    type Selector: DecodeRow + Send + Sync;
 }
 
-impl<E, M> CursorTrait for Select<E>
+impl<E, M> CursorSource for Select<E>
 where
-    E: EntityTrait<Model = M>,
+    E: Entity<Model = M>,
     M: FromQueryResult + Sized + Send + Sync,
 {
     type Selector = SelectModel<M>;
@@ -619,7 +621,7 @@ where
 
 impl<E, M> Select<E>
 where
-    E: EntityTrait<Model = M>,
+    E: Entity<Model = M>,
     M: FromQueryResult + Sized + Send + Sync,
 {
     /// Convert into a cursor
@@ -664,26 +666,26 @@ where
 
 /// The root entity's primary key as cursor tiebreaks, qualified with its own
 /// table: what a graph ordered on one of its slots falls back to.
-fn pk_tiebreaks<T: EntityTrait>() -> Tiebreaks {
+fn pk_tiebreaks<T: Entity>() -> Tiebreaks {
     qualified_pk_tiebreaks::<T>(&Name::new(T::default()))
 }
 
 /// A graph's rows are decoded by [`GraphRow`], so that is what its cursor
 /// selects.
 // [spec:pgorm:sem:query.graph.cursor+4]
-impl<E, S, Cx> CursorTrait for SelectGraph<E, S, Unsliced, Cx>
+impl<E, S, Cx> CursorSource for SelectGraph<E, S, Unsliced, Cx>
 where
-    E: EntityTrait,
-    GraphRow<E, S>: SelectorTrait + Send + Sync,
+    E: Entity,
+    GraphRow<E, S>: DecodeRow + Send + Sync,
 {
     type Selector = GraphRow<E, S>;
 }
 
 // [spec:pgorm:sem:query.graph.cursor+4]
-// [spec:pgorm:sem:query.graph.slice]
+// [spec:pgorm:sem:query.graph.slice+1]
 impl<E, S, Cx> SelectGraph<E, S, Unsliced, Cx>
 where
-    E: EntityTrait,
+    E: Entity,
     S: Slots,
 {
     /// Convert into a cursor ordered by columns of the root, with every
@@ -805,17 +807,17 @@ where
         tiebreaks.extend(S::tiebreaks(self.slot_qualifiers(), I));
 
         let mut cursor = Cursor::new(self.query, table, order_columns)
-            .with_boundary_casts::<<<<S as SlotAt<I>>::Slot as Slot>::Entity as EntityTrait>::Column>()
+            .with_boundary_casts::<<<<S as SlotAt<I>>::Slot as Slot>::Entity as Entity>::Column>()
             .holding(self.refused);
         cursor.set_graph_tiebreaks(tiebreaks);
         cursor
     }
 }
 
-// [spec:pgorm:sem:query.build.modifiers+11]
+// [spec:pgorm:sem:query.build.modifiers+12]
 impl<E> SelectProjected<E>
 where
-    E: EntityTrait,
+    E: Entity,
 {
     /// Convert into a cursor whose rows have no decode target yet — the
     /// projection is the caller's, not `E::Model`'s, so
@@ -843,7 +845,7 @@ pub use cursor_bind::ValueHolder;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RelationTrait;
+    use crate::Relation;
     use crate::tests_cfg::{cake, cake_filling, filling, fruit};
     use pgorm_query::alias;
     use pretty_assertions::assert_eq;

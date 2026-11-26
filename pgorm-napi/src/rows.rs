@@ -2,7 +2,7 @@
 //! object keyed by column name.
 
 use neon::prelude::*;
-use tokio_postgres::Row;
+use pgorm_driver::Row;
 
 use crate::{
     codec::Codec,
@@ -67,7 +67,7 @@ pub(crate) fn kinds<'cx>(cx: &mut Cx<'cx>, row: Option<&[Tagged]>) -> JsResult<'
 /// and each column's kind for a model to hold to its declaration.
 // [spec:pgorm:req:bindings.rows]
 // [spec:pgorm:req:napi.records]
-// [spec:pgorm:req:bindings.model-records+1]
+// [spec:pgorm:req:bindings.model-records+2]
 pub(crate) fn to_js<'cx>(
     cx: &mut Cx<'cx>,
     decoded: Decoded,

@@ -1,5 +1,18 @@
 platforms (
     {
+        platform "native-performance"
+        files (benches/native_baseline.rs benches/native/**/*.rs benches/support/**/*.rs benches/native/Cargo.toml benches/native/Cargo.lock)
+        checks {
+            format {
+                cmd "cargo fmt --manifest-path benches/native/Cargo.toml -- --check"
+                fix "cargo fmt --manifest-path benches/native/Cargo.toml"
+            }
+            clippy {
+                cmd "cargo clippy --manifest-path benches/native/Cargo.toml --locked --release --target-dir target --all-targets --all-features -- -D warnings"
+            }
+        }
+    }
+    {
         platform "generative-native"
         files (security/generative/bridge/**/*.rs security/generative/bridge/Cargo.toml security/generative/bridge/Cargo.lock)
         checks {
@@ -184,11 +197,11 @@ platforms (
                 cmd "cargo fmt --manifest-path pgorm-python/Cargo.toml --all -- --check"
                 fix "cargo fmt --manifest-path pgorm-python/Cargo.toml --all"
             }
-            check {
-                cmd "cargo check --manifest-path pgorm-python/Cargo.toml --locked --target-dir target"
-            }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-python/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
+            }
+            turso-clippy {
+                cmd "cargo clippy --manifest-path pgorm-python/Cargo.toml --locked --target-dir target --features turso --all-targets -- -D warnings"
             }
             // The unit tests embed CPython, so their binary links libpython:
             // the script picks an interpreter it can link, which a
@@ -246,11 +259,11 @@ platforms (
                 cmd "cargo fmt --manifest-path pgorm-napi/Cargo.toml --all -- --check"
                 fix "cargo fmt --manifest-path pgorm-napi/Cargo.toml --all"
             }
-            check {
-                cmd "cargo check --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target"
-            }
             clippy {
                 cmd "cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --all-targets -- -D warnings"
+            }
+            turso-clippy {
+                cmd "cargo clippy --manifest-path pgorm-napi/Cargo.toml --locked --target-dir target --features turso --all-targets -- -D warnings"
             }
             // The unit tests need no JavaScript runtime: Neon resolves its
             // Node-API symbols when a host loads the addon, and they call
@@ -295,14 +308,11 @@ platforms (
     }
     {
         platform "rust"
-        files (src/**/*.rs pgorm-case-style/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-check/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs pgorm-bindings/**/*.rs tests/**/*.rs)
+        files (benches/**/*.rs crates/**/*.rs crates/**/Cargo.toml src/**/*.rs pgorm-case-style/**/*.rs pgorm-macros/**/*.rs pgorm-codegen/**/*.rs pgorm-migration/**/*.rs pgorm-pool/**/*.rs pgorm-query/**/*.rs pgorm-sql-check/**/*.rs pgorm-sql-macro/**/*.rs pgorm-test-support/**/*.rs pgorm-guide-support/**/*.rs pgorm-bindings/**/*.rs tests/**/*.rs)
         checks {
             format {
                 cmd "cargo fmt --all -- --check"
                 fix "cargo fmt --all"
-            }
-            check {
-                cmd "cargo check --workspace"
             }
             // nextest stays out of the commit gate deliberately: it needs a
             // live Postgres and does not fit the check budget. Run it
@@ -322,7 +332,7 @@ platforms (
         // manifests are in scope because a feature edge moving is as likely a
         // cause as a source change.
         platform "rust-features"
-        files (Cargo.toml Cargo.lock src/**/*.rs pgorm-case-style/Cargo.toml pgorm-case-style/src/**/*.rs pgorm-macros/Cargo.toml pgorm-macros/src/**/*.rs pgorm-pool/Cargo.toml pgorm-pool/src/**/*.rs pgorm-query/Cargo.toml pgorm-query/src/**/*.rs pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-attr/src/**/*.rs pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive/src/**/*.rs pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-query/pgorm-query-derive-internals/src/**/*.rs pgorm-sql-check/Cargo.toml pgorm-sql-check/src/**/*.rs pgorm-sql-macro/Cargo.toml pgorm-sql-macro/src/**/*.rs)
+        files (Cargo.toml Cargo.lock crates/**/Cargo.toml crates/**/src/**/*.rs src/**/*.rs pgorm-case-style/Cargo.toml pgorm-case-style/src/**/*.rs pgorm-macros/Cargo.toml pgorm-macros/src/**/*.rs pgorm-pool/Cargo.toml pgorm-pool/src/**/*.rs pgorm-query/Cargo.toml pgorm-query/src/**/*.rs pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-attr/src/**/*.rs pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive/src/**/*.rs pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-query/pgorm-query-derive-internals/src/**/*.rs pgorm-sql-check/Cargo.toml pgorm-sql-check/src/**/*.rs pgorm-sql-macro/Cargo.toml pgorm-sql-macro/src/**/*.rs)
         checks {
             minimal {
                 cmd "cargo check -p pgorm --lib --no-default-features"
@@ -332,6 +342,51 @@ platforms (
             }
             default {
                 cmd "cargo check -p pgorm --lib"
+            }
+        }
+    }
+    {
+        platform "rust-turso"
+        files (Cargo.toml Cargo.lock crates/pgorm-driver/Cargo.toml crates/pgorm-driver/src/**/*.rs crates/pgorm-driver/tests/native*.rs crates/pgorm-driver/tests/config_paths.rs src/**/*.rs pgorm-pool/Cargo.toml pgorm-pool/src/**/*.rs pgorm-bindings/Cargo.toml pgorm-python/Cargo.toml pgorm-napi/Cargo.toml tests/turso*.rs)
+        checks {
+            minimal {
+                cmd "cargo check -p pgorm-driver --lib --no-default-features --features turso"
+            }
+            orm-minimal {
+                cmd "cargo check -p pgorm --lib --no-default-features --features turso"
+            }
+            clippy {
+                cmd "cargo clippy -p pgorm-driver --features turso --lib --tests -- -D warnings"
+            }
+            orm-clippy {
+                cmd "cargo clippy -p pgorm --features turso --lib --tests -- -D warnings"
+            }
+            lifecycle {
+                cmd "cargo test -p pgorm-driver --features turso --lib --tests"
+            }
+            features {
+                cmd "cargo test -p pgorm --test turso_feature_tests"
+            }
+            execution {
+                cmd "cargo test -p pgorm --features turso --test turso_execution_tests"
+            }
+            transactions {
+                cmd "cargo test -p pgorm --features turso --lib database::turso_transaction_tests"
+            }
+            pool {
+                cmd "cargo test -p pgorm --features turso --test turso_pool_tests"
+            }
+            capabilities {
+                cmd "cargo test -p pgorm --features turso --test turso_capability_tests"
+            }
+            config-paths-default {
+                cmd "cargo test -p pgorm-driver --test config_paths"
+            }
+            config-paths-native {
+                cmd "cargo test -p pgorm-driver --features turso --test config_paths"
+            }
+            compatibility {
+                cmd "cargo test -p pgorm --features turso --test turso_compatibility_tests"
             }
         }
     }

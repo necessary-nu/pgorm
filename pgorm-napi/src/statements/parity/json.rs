@@ -1,9 +1,10 @@
 //! The SQL/JSON family's cases, built with pgorm-query directly.
 
 use pgorm::pgorm_query::{
-    ColumnRef, ColumnType, Expr, ExprTrait, FromItem, Func, JoinType, JsonExistsBehavior, JsonKind,
-    JsonQueryBehavior, JsonTableBehavior, JsonTableColumn, JsonValueBehavior, JsonValueType,
-    NamedTable, Order, Query, SelectStatement, SimpleExpr, StringLen, TableName, Values,
+    ColumnRef, ColumnType, Expr, Expression, FromItem, Func, JoinType, JsonExistsBehavior,
+    JsonKind, JsonQueryBehavior, JsonTableBehavior, JsonTableColumn, JsonValueBehavior,
+    JsonValueType, NamedTable, Order, Query, SelectStatement, SimpleExpr, StringLen, TableName,
+    Values,
 };
 
 use super::n;

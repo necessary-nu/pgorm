@@ -1,0 +1,104 @@
+name: Rust and experimental Turso
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - '.github/workflows/turso.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: turso-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: PostgreSQL / ${{ matrix.feature }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        feature: [default, turso]
+    env:
+      CARGO_TERM_COLOR: never
+      CARGO_BUILD_JOBS: '2'
+      RUST_TEST_THREADS: '4'
+      DATABASE_URL: postgres://postgres@127.0.0.1:54329
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare Rust and native compiler tools
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup default stable
+          sudo apt-get update
+          sudo apt-get install --yes clang libclang-dev cmake pkg-config
+      - name: Install PostgreSQL 19
+        run: |
+          key=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          sudo install -d "$(dirname "$key")"
+          sudo curl --fail --silent --show-error --location --output "$key" \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          fingerprint=$(GNUPGHOME="$(mktemp -d)" gpg --show-keys --with-colons "$key" \
+            | awk -F: '$1 == "pub" { primary = 1; next } $1 == "fpr" && primary { print $10; primary = 0 }')
+          test "$fingerprint" = B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+          . /etc/os-release
+          printf '%s\n' 'Types: deb' 'URIs: https://apt.postgresql.org/pub/repos/apt' \
+            "Suites: ${VERSION_CODENAME}-pgdg" "Architectures: $(dpkg --print-architecture)" \
+            'Components: main' "Signed-By: $key" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.sources
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-19
+      - name: Start isolated PostgreSQL
+        run: |
+          /usr/lib/postgresql/19/bin/initdb -D "$RUNNER_TEMP/pgdata" \
+            -U postgres --auth=trust --encoding=UTF8 --no-locale
+          /usr/lib/postgresql/19/bin/pg_ctl -D "$RUNNER_TEMP/pgdata" \
+            -l "$RUNNER_TEMP/postgres.log" -w -t 30 \
+            -o "-c listen_addresses=127.0.0.1 -c port=54329 -c unix_socket_directories=$RUNNER_TEMP" start
+          /usr/lib/postgresql/19/bin/psql "$DATABASE_URL/postgres" -Atc 'SELECT version()'
+      - name: Fetch pinned dependencies
+        run: |
+          cargo fetch
+          cargo fetch --locked --manifest-path pgorm-python/Cargo.toml
+          cargo fetch --locked --manifest-path pgorm-napi/Cargo.toml
+      - name: Check feature isolation
+        env:
+          FEATURE: ${{ matrix.feature }}
+        run: |
+          if [ "$FEATURE" = turso ]; then
+            cargo check -p pgorm-driver --lib --no-default-features --features turso
+            cargo check -p pgorm --lib --no-default-features --features turso
+          else
+            cargo check -p pgorm-driver --lib --no-default-features
+            cargo check -p pgorm --lib --no-default-features
+            cargo check -p pgorm --lib
+          fi
+      # [spec:pgorm:req:turso.compatibility] both lanes retain the PostgreSQL suite
+      - name: Run the workspace compatibility suite
+        env:
+          FEATURE: ${{ matrix.feature }}
+        run: |
+          if [ "$FEATURE" = turso ]; then
+            cargo test --workspace --lib --tests --features pgorm/turso
+          else
+            cargo test --workspace --lib --tests
+          fi
+      - name: PostgreSQL diagnostics
+        if: failure()
+        run: cat "$RUNNER_TEMP/postgres.log"
+      - name: Stop PostgreSQL
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/pgdata/postmaster.pid" ]; then
+            /usr/lib/postgresql/19/bin/pg_ctl -D "$RUNNER_TEMP/pgdata" -w -m fast stop
+          fi

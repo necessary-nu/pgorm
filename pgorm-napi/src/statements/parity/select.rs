@@ -4,7 +4,7 @@ use std::{str::FromStr, sync::Arc};
 
 use pgorm::pgorm_query::{
     ArrayType, Asterisk, BinOper, ColumnRef, ColumnType, CommonTableExpression, Condition, Cycle,
-    Expr, ExprTrait, FromItem, Func, GroupingElement, JoinType, LikeExpr, LockBehavior, LockType,
+    Expr, Expression, FromItem, Func, GroupingElement, JoinType, LikeExpr, LockBehavior, LockType,
     NamedTable, NullOrdering, Order, Query, RecursiveWithClause, SampleMethod, Search, SearchOrder,
     SelectStatement, SimpleExpr, SubQueryStatement, Subscript, TableFunction, TableName,
     TableSample, TypeName, UnionType, Value, Values, WithClause,

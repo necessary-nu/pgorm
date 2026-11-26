@@ -1,5 +1,5 @@
 use pgorm::pgorm_query::{
-    Asterisk, CommonTableExpression, Cycle, Expr, ExprTrait, FromItem, Func, IntoNamedTable,
+    Asterisk, CommonTableExpression, Cycle, Expr, Expression, FromItem, Func, IntoNamedTable,
     MergeUpdate, Name, OnConflict, Overriding, Query, RecursiveWithClause, ReturningRow,
     SampleMethod, Search, SearchOrder, SelectStatement, TableSample, UnionType, WithClause,
 };

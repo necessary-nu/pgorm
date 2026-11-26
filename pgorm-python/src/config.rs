@@ -27,7 +27,7 @@ fn optional_seconds(value: Option<f64>, name: &str) -> PyResult<Option<Duration>
 
 /// The `tls`, `ca`, `cert` and `key` options, the files Python reads already
 /// read into PEM.
-// [spec:pgorm:req:bindings.tls]
+// [spec:pgorm:req:bindings.tls+1]
 pub(crate) fn tls(
     mode: Option<&str>,
     ca: Option<Vec<u8>>,
@@ -75,7 +75,7 @@ pub(crate) fn recycling(
 /// What one pool's shape says, as Python gave it, read into Rust as the
 /// pool is built: its size and timeouts, the order it lends in, and the
 /// runtime module's wrappers of its hooks.
-// [spec:pgorm:req:bindings.connections+3]
+// [spec:pgorm:req:bindings.connections+4]
 #[pyclass(name = "_PoolShape", module = "pgorm._native", frozen)]
 pub(crate) struct NativePoolShape(pub(crate) PoolOptions<Arc<Py<PyAny>>>);
 

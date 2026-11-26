@@ -35,7 +35,7 @@ async function ssl(pool: Pool): Promise<boolean> {
 
 const certificate = "-----BEGIN CERTIFICATE-----\nMA==\n-----END CERTIFICATE-----\n";
 
-// [spec:pgorm:req:bindings.tls/test]
+// [spec:pgorm:req:bindings.tls+1/test]
 test("a TLS option the pool would not act on as asked is refused before anything is sent", () => {
   const server = "postgres://bakery@db.example.com/bakery";
   for (
@@ -65,7 +65,7 @@ test("a TLS option the pool would not act on as asked is refused before anything
   assert.throws(() => new Pool(server, { cert: 7 }), TypeError);
 });
 
-// [spec:pgorm:req:bindings.tls/test]
+// [spec:pgorm:req:bindings.tls+1/test]
 test("verify-ca checks the chain to the given CA and not the host name", async (context) => {
   const ca = tlsCa();
   if (ca === undefined) {
@@ -84,7 +84,7 @@ test("verify-ca checks the chain to the given CA and not the host name", async (
   }
 });
 
-// [spec:pgorm:req:bindings.tls/test]
+// [spec:pgorm:req:bindings.tls+1/test]
 test("require and prefer encrypt without verifying, when the program asks", async (context) => {
   if (tlsCa() === undefined) {
     // A server without TLS: prefer falls back to plaintext, and require fails.
@@ -104,7 +104,7 @@ test("require and prefer encrypt without verifying, when the program asks", asyn
   await assert.rejects(strict.ping(), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.tls/test]
+// [spec:pgorm:req:bindings.tls+1/test]
 test("a client certificate authenticates a role the server lets in by it alone", async (context) => {
   const ca = tlsCa();
   const cert = pem("PGORM_TEST_CLIENT_CERT");
@@ -128,7 +128,7 @@ test("a client certificate authenticates a role the server lets in by it alone",
 });
 
 // [spec:pgorm:req:bindings.listen+3/test]
-// [spec:pgorm:req:bindings.tls/test]
+// [spec:pgorm:req:bindings.tls+1/test]
 test("a listener of its own connects with the TLS options a pool takes", async (context) => {
   const ca = tlsCa();
   if (ca === undefined) {

@@ -242,7 +242,7 @@ pub(crate) fn compile<'cx>(cx: &mut Cx<'cx>, node: &Node) -> NeonResult<(String,
             );
         }
         // A COPY opens a data flow no statement terminal reads or feeds.
-        // [spec:pgorm:req:bindings.copy]
+        // [spec:pgorm:req:bindings.copy+1]
         Node::Copy(copy) => {
             let what = copy.describe();
             return cx.throw_type_error(format!(

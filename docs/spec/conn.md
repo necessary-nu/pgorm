@@ -1,16 +1,26 @@
 # Connections, Pooling, and Transactions
 
 pgorm's connection layer is a thin composition over a vendored deadpool-postgres
-fork (`pgorm-pool`) and `tokio-postgres`. `src/database/` exposes the pool and
-connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
+fork (`pgorm-pool`) and a vendored tokio-postgres fork (`pgorm-driver`). `src/database/` exposes the pool and
+connection handles plus the `Connection` / `Transact` surface;
 `pgorm-pool/src/` owns connection lifecycle, recycling, and statement caching.
+
+> [spec:pgorm:req:conn.driver-source]
+> Every workspace and detached build MUST use the maintained driver at
+> `crates/pgorm-driver` and, where TLS is used, its connector at
+> `crates/pgorm-driver-rustls`, through direct path dependencies or workspace
+> inheritance of those dependencies. No manifest or committed lockfile may
+> declare or resolve the original `tokio-postgres` or `tokio-postgres-rustls`
+> packages alongside them. The forks MUST retain upstream attribution,
+> licenses, and the exact imported revision. `postgres-types` and
+> `postgres-protocol` remain shared upstream dependencies.
 
 ## Pool construction and access
 
-> [spec:pgorm:req:conn.pool+4]
-> `connect_with(config, tls, manager, build)` is the general pool constructor,
-> and the only one: every other entry point delegates to it. It takes the
-> `tokio_postgres::Config`, a TLS connector bounded exactly as
+> [spec:pgorm:req:conn.pool+7]
+> `connect_with(config, tls, manager, build)` is the general pool
+> constructor: every pool entry point delegates to it. It takes the
+> `pgorm_driver::Config`, a TLS connector bounded exactly as
 > `pgorm_pool::Manager::from_config` bounds its own (`T: MakeTlsConnect<Socket>
 > + Clone + Sync + Send + 'static`, plus `Send + Sync` on `T::Stream` and
 > `T::TlsConnect` and `Send` on the connect future), the whole `ManagerConfig`,
@@ -18,9 +28,9 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > first three, applies `build` to the resulting `PoolBuilder`, and returns
 > `Result<DatabasePool, Error>`.
 >
-> It exists because `DatabasePool` wraps a crate-private `pgorm_pool::Pool` and
-> has no other constructor, which made two things unreachable rather than merely
-> inconvenient. `Pool` is TLS-erased (its `Manager` holds the connector as an
+> `DatabasePool` wraps a crate-private `pgorm_pool::Pool`, so its entry points
+> must expose the manager settings callers need. `Pool` is TLS-erased (its
+> `Manager` holds the connector as an
 > `Arc<dyn Connect>`), so a TLS pool was
 > always buildable inside `pgorm-pool` and never assignable to a `DatabasePool`
 > — leaving every managed PostgreSQL that requires TLS unusable through pgorm.
@@ -29,16 +39,19 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `StatementCacheSize::Bounded`/`Disabled` had no reachable setter at all:
 > `ManagerConfig` is private once the `Manager` holds it, and `PoolBuilder`
 > reaches only the pool. There is deliberately no `From<pgorm_pool::Pool> for
-> DatabasePool` beside it — construction stays funnelled through one function,
-> so a `DatabasePool` always holds a pool pgorm shaped.
+> DatabasePool` beside it: construction stays funnelled through
+> `connect_with`, so a `DatabasePool` always holds a pool pgorm shaped.
+> Native targets follow `turso.pool` through the same driver Config and
+> connection factory. Both backends remain lazy; native-specific manager
+> refusals are validated before constructing the pool.
 >
 > `ManagerConfig`, `RecyclingMethod`, `StatementCacheSize` and `PoolBuilder`,
 > together with `NoTls`, `Socket`, `MakeTlsConnect` and `TlsConnect`, MUST be
 > re-exported from `pgorm`. Every one of them is named in `connect_with`'s
 > signature or its bounds, and calling it should not require depending on
-> `pgorm-pool` or `tokio-postgres` directly.
+> `pgorm-pool` or `pgorm-driver` directly.
 >
-> `connect(config: tokio_postgres::Config) -> DatabasePool` MUST delegate to
+> `connect(config: pgorm_driver::Config) -> DatabasePool` MUST delegate to
 > `connect_with` with `NoTls`, `RecyclingMethod::Fast`, no tag, the default
 > `StatementCacheSize`, and an identity builder closure — leaving the default
 > deadpool pool configuration. Its signature is infallible by design, not by
@@ -55,15 +68,15 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > rule for every fallible entry point here: `connect_with` itself, and
 > `connect_multi_with_builder` (`conn.pool.multi`), fail the same way.
 
-> [spec:pgorm:req:conn.driver-types]
+> [spec:pgorm:req:conn.driver-types+2]
 > A crate depending on pgorm alone MUST be able to name every type of the
-> crates pgorm is built on — tokio-postgres, deadpool, `bytes` and `futures` —
+> crates pgorm is built on — pgorm-driver, deadpool, `bytes` and `futures` —
 > that using pgorm makes it write. Each MUST be re-exported from pgorm's root
 > under its own name, but for the driver's error, which is `PostgresError`
 > because pgorm's own is `Error`. That is every such type pgorm's public
 > signatures take or return:
 >
-> - `Row` and `RowStream`, which the `ConnectionTrait` statement methods
+> - `Row` and `RowStream`, which the `Connection` statement methods
 >   return;
 > - `PostgresError`, which `Error::Postgres` carries and `BindRefusal::of` and
 >   `DecodeRefusal::of` take;
@@ -101,19 +114,19 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > pool receives a generated default tag of the form `default-{n}` from a
 > process-wide monotonic counter in `pgorm-pool`.
 
-> [spec:pgorm:req:conn.pool.no-conn-trait]
-> `DatabasePool` MUST NOT implement `ConnectionTrait` (nor `Deref` to the inner
+> [spec:pgorm:req:conn.pool.no-conn-trait+1]
+> `DatabasePool` MUST NOT implement `Connection` (nor `Deref` to the inner
 > pool). Executing a statement always requires explicitly acquiring a
 > `DatabaseConnection` via `DatabasePool::get()` first. This is deliberate:
 > implicitly checking out a fresh connection per statement hides pool churn and
 > breaks transactional reasoning, so the pool-as-connection pattern inherited
 > from SeaORM was removed.
 
-> [spec:pgorm:sem:conn.pool.multi+4]
+> [spec:pgorm:sem:conn.pool.multi+5]
 > `connect_multi_with(config, tls, manager, builders)` builds one pool per
 > entry of a `BTreeMap<String, F>`, `F: FnOnce(PoolBuilder) -> PoolBuilder`,
 > each through `connect_with` (`conn.pool`): each pool clones the shared
-> `tokio_postgres::Config` and the TLS connector, which is bounded as
+> `pgorm_driver::Config` and the TLS connector, which is bounded as
 > `connect_with`'s is, takes `manager`'s recycling method, statement cache
 > and statement-cache channel with its `tag` replaced by the entry's key, and
 > is shaped by the entry's builder. It is the only route to several pools
@@ -137,19 +150,19 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > returned the bare map, and `DatabaseMultiPool`, public with its accessors,
 > could not be obtained outside the crate.
 
-> [spec:pgorm:req:conn.pool.config-forwarding+1]
+> [spec:pgorm:req:conn.pool.config-forwarding+2]
 > `pgorm_pool::Config` is the deserializable connection configuration — the
 > shape `PG__HOST`, `PG__PASSWORD`, `PG__SSL_MODE` and their siblings land in.
-> Every field it declares MUST reach the `tokio_postgres::Config` that
+> Every field it declares MUST reach the `pgorm_driver::Config` that
 > `get_pg_config` builds, or else MUST NOT be declared. A field the struct
 > accepts and the connection never sees is a setting the caller wrote and the
 > database was never told about, and nothing anywhere reports the gap.
 >
-> Three fields were declared, given `From` conversions to their tokio-postgres
+> Three fields were declared, given `From` conversions to their pgorm-driver
 > counterparts, and then never applied: `target_session_attrs`,
 > `channel_binding`, and `load_balance_hosts`. The conversions were dead code,
 > and the settings were dropped in every spelling but one — a value embedded in
-> `url` survived, because `tokio_postgres::Config::from_str` parses it — so the
+> `url` survived, because `pgorm_driver::Config::from_str` parses it — so the
 > same setting was honoured or ignored depending on which way it was written.
 >
 > Two of the three lose more than configuration. `channel_binding: Require`
@@ -162,13 +175,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `ssl_mode` was already forwarded and stays so. The rule is over the whole
 > struct, not over the three that happened to be missing.
 >
-> The four enums the struct mirrors from tokio-postgres — `SslMode`,
+> The four enums the struct mirrors from pgorm-driver — `SslMode`,
 > `TargetSessionAttrs`, `ChannelBinding` and `LoadBalanceHosts` — are
-> `#[non_exhaustive]` as tokio-postgres's own are, and so is `ConfigError`,
+> `#[non_exhaustive]` as pgorm-driver's own are, and so is `ConfigError`,
 > what `get_pg_config` refuses a configuration with: each can grow
 > (`sql.surface`).
 
-> [spec:pgorm:sem:conn.pool.config-redaction]
+> [spec:pgorm:sem:conn.pool.config-redaction+1]
 > `Debug` on a pool configuration type MUST NOT reveal a credential.
 > `pgorm_pool::Config` carries two. `password` is one, and the crate's own
 > documentation tells the reader to fill it from `PG__PASSWORD`; `url` is the
@@ -177,7 +190,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `tracing::info!(?cfg)` at startup put the database password in the logs.
 >
 > The impl is therefore hand-written. `password` prints as `_` when set and
-> `None` when not — `tokio_postgres::Config`'s own redaction spelling, and the
+> `None` when not — `pgorm_driver::Config`'s own redaction spelling, and the
 > reason pgorm's `DatabasePool` Debug chain was already safe. `url` prints with
 > its `userinfo` replaced by `_`, keeping the host, port, database and options
 > after it: those are what make the value worth printing, and only the part
@@ -192,8 +205,8 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## Connection lifecycle in pgorm-pool
 
-> [spec:pgorm:sem:conn.pool.lifecycle+3]
-> `Manager::create` connects via `tokio_postgres`, spawns the connection
+> [spec:pgorm:sem:conn.pool.lifecycle+5]
+> `Manager::create` connects via `pgorm_driver`, spawns the connection
 > driver future onto a tokio task, and hands out a `ClientWrapper` owning the
 > client, the task's `JoinHandle`, and a fresh per-connection
 > `StatementCache`; the cache is registered with the manager's
@@ -207,10 +220,16 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > the cache was last cleared (`conn.pool.statement-cache.clear`), then runs
 > the recycling method's query, if any. `detach` unregisters the connection's
 > statement cache.
+>
+> Native recycling also requires completed cleanup and an idle transaction
+> state. A native client with unfinished work or an open transaction is
+> disposed rather than lent to another borrower (`turso.cleanup`). The check
+> MUST account for queued as well as active operations, and successful native
+> completion MUST publish cleanliness before notifying its caller.
 
-> [spec:pgorm:sem:conn.pool.recycle+1]
+> [spec:pgorm:sem:conn.pool.recycle+2]
 > `RecyclingMethod` selects the health check run on reuse: `Fast` (the
-> default, and what `connect` uses) performs no query — only the `is_closed()`
+> default, and what `connect` uses) performs no query — on PostgreSQL only the `is_closed()`
 > check; `Verified` executes an empty `simple_query` round trip; `Clean` runs
 > a `DISCARD ALL`-like statement sequence (`CLOSE ALL; SET SESSION
 > AUTHORIZATION DEFAULT; RESET ALL; UNLISTEN *; SELECT
@@ -219,11 +238,17 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > statements survive recycling; `Custom(sql)` runs caller-provided SQL.
 > `RecyclingMethod` is `#[non_exhaustive]`, so a further health check is not a
 > breaking change (`sql.surface`).
+>
+> Native Fast also checks the completed-cleanup and idle-state predicate
+> from `conn.pool.lifecycle`. Native Verified executes a native health
+> operation after that check; native Custom runs its SQL through native batch
+> execution. Both MUST leave the connection clean and idle. Native Clean is
+> refused because its PostgreSQL session operations are unsupported.
 
-> [spec:pgorm:sem:conn.pool.statement-cache+3]
+> [spec:pgorm:sem:conn.pool.statement-cache+6]
 > Each `ClientWrapper` carries an `Arc<StatementCache>` keyed by `(query text,
 > parameter types)`. `prepare_cached` / `prepare_typed_cached` return the
-> cached `tokio_postgres::Statement` on hit and prepare-then-insert on miss.
+> cached `pgorm_driver::Statement` on hit and prepare-then-insert on miss.
 > `Transaction`s, nested transactions, and savepoints created through the
 > wrapper share the owning client's cache. The manager-level `StatementCaches`
 > holds weak references to every live cache and supports `clear()` and
@@ -232,15 +257,22 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > each cache before its connection is next lent
 > (`conn.pool.statement-cache.clear`).
 >
+> Native context restoration can invalidate prepared handles even without
+> DDL. The native worker MUST mark affected shared handles before reporting
+> completion, so the cache replaces them before reuse. While a dropped native
+> rollback is queued, cache lookup MUST prepare the requested key after that
+> rollback in the same FIFO rather than return a handle from the old context.
+> This does not replay an executed statement or clear unrelated healthy keys.
+>
 > The cache is on the ordinary execution path, not beside it, and it is the
-> whole of that path: each of `ConnectionTrait`'s six statement methods
+> whole of that path: each of `Connection`'s six statement methods
 > resolves its SQL through the cache (`conn.pool.conn-trait`), with no
 > unresolved alternative beside it, so one text is parsed once per connection
-> rather than once per call. What still bypasses it is `tokio_postgres`'s own
+> rather than once per call. What still bypasses it is `pgorm_driver`'s own
 > statement surface — `Client::query`, `Transaction::execute` and their
 > siblings prepare an unnamed statement per call and consult nothing — which is
 > what pgorm-pool's `Client` exposes by `Deref`, what its `Transaction`
-> forwards, and what a caller reaching past `ConnectionTrait` gets.
+> forwards, and what a caller reaching past `Connection` gets.
 >
 > A cached statement outlives the call that prepared it. That is the point, and
 > three things follow from it: the cache is capacity-bounded
@@ -250,7 +282,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > was built from without invalidating it, which a pool-wide clear answers
 > (`conn.pool.statement-cache.clear`).
 
-> [spec:pgorm:req:conn.pool.statement-cache.bound+1]
+> [spec:pgorm:req:conn.pool.statement-cache.bound+2]
 > A `StatementCache` MUST be bounded. Its key space is the SQL text, and one
 > logical query spreads across many texts — an `IN` list rendered with a
 > placeholder per element is a different text at every arity, 25 of them for one
@@ -283,7 +315,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 >
 > Evicting a statement — like disabling the cache, and like recycling with SQL
 > that deallocates — drops pgorm's last handle to it only once the caller has
-> dropped the rows it produced, because a `tokio_postgres::Row` holds the
+> dropped the rows it produced, because a `pgorm_driver::Row` holds the
 > statement it was decoded against. The `Close` reaches the server when that
 > happens, not when the entry leaves the map.
 >
@@ -292,7 +324,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > through `connect_with`, the general entry point those three delegate to, which
 > takes the whole `ManagerConfig`.
 
-> [spec:pgorm:req:conn.pool.statement-cache.invalidate+4]
+> [spec:pgorm:req:conn.pool.statement-cache.invalidate+6]
 > Reusing a prepared statement admits one failure that preparing afresh does
 > not: PostgreSQL raises SQLSTATE `0A000` — *cached plan must not change result
 > type* — when a statement's plan is revalidated and the result it would now
@@ -308,7 +340,8 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > not: a statement parsed over the extended protocol is not undone by
 > `ROLLBACK`, and the cached entry keeps working.
 >
-> When a statement resolved through the cache fails with `0A000`, pgorm MUST
+> On PostgreSQL, when a statement resolved through the cache fails with
+> `0A000`, pgorm MUST
 > evict that key. Whether it then retries depends on whether a transaction is
 > open, because `0A000` is an error and an error aborts an open transaction.
 >
@@ -340,7 +373,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > statement fenced can fence it, and whoever does not is not charged for it.
 >
 > Which of the two applies is decided by the type, not by asking the server.
-> `ConnectionTrait` on `DatabaseConnection` and `&DatabaseConnection` is the
+> `Connection` on `DatabaseConnection` and `&DatabaseConnection` is the
 > retrying path, and on `DatabaseTransaction` — with `&mut DatabaseTransaction`
 > forwarding to it (`conn.pool.conn-trait`) — the evict-only one. No third case
 > hides between them: a transaction's closure borrows the connection
@@ -349,12 +382,12 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 >
 > `execute_raw` and `query_raw` never retry, transaction or no transaction. They
 > take an `IntoIterator` consumed by the first attempt, which is not `Clone` and
-> cannot be held across the retry without a `Send` bound `ConnectionTrait` does
+> cannot be held across the retry without a `Send` bound `Connection` does
 > not carry, so they evict the rejected key and return the error — which leaves
 > the next call to re-prepare, making the recovery one call later rather than
 > absent. The four methods whose parameters are a reusable `&[&(dyn ToSql +
 > Sync)]` slice are the ones that *can* retry, and outside a transaction they
-> do. Eviction itself has no exception: every statement `ConnectionTrait`
+> do. Eviction itself has no exception: every statement `Connection`
 > accepts is text (`conn.sql-text`), so every one is cache-resolved and every
 > one can be prepared again from what the caller passed.
 >
@@ -377,8 +410,18 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > which is not retried. `connect` and its two sibling shorthands recycle with
 > `Fast` (`conn.pool`), so they cannot reach it; a caller who passes such a
 > method to `connect_with` should pair it with `StatementCacheSize::Disabled`.
+>
+> Native Turso uses the driver's distinct `is_statement_invalidated()`
+> classification. A native invalidation MUST evict the exact SQL and ordered
+> parameter-type key, then return the original error without retrying. The
+> error may arrive while a returned `RowStream` is polled; in that case the
+> shared prepared handle MUST be marked invalid and removed before its next
+> cache use, without changing the public stream type. The invalidation may
+> have been detected after execution began, so it does not
+> prove absence of effects. A native SQLSTATE `0A000` alone MUST NOT trigger
+> PostgreSQL's cached-plan retry or eviction policy.
 
-> [spec:pgorm:req:conn.pool.statement-cache.clear+1]
+> [spec:pgorm:req:conn.pool.statement-cache.clear+2]
 > `DatabasePool::clear_statement_caches()` MUST drop every pooled
 > connection's cached prepared statements, so that each statement is prepared
 > again the next time a connection runs it. It is for DDL that changes what a
@@ -406,7 +449,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > The server-side statements MUST be deallocated, not only forgotten: a cached
 > entry is a live prepared statement on the server, and one the client drops
 > without closing stays there until the connection closes. Dropping a
-> `tokio_postgres::Statement`'s last handle sends its `Close`, so clearing the
+> `pgorm_driver::Statement`'s last handle sends its `Close`, so clearing the
 > map is the deallocation, deferred only for a statement a caller's `Row`
 > still holds (`conn.pool.statement-cache.bound`), and the `Close` is queued
 > ahead of the connection's next request.
@@ -510,15 +553,20 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## Statement execution surface
 
-> [spec:pgorm:def:conn.sql-text+2]
+> [spec:pgorm:def:conn.sql-text+6]
 > `SqlText` answers `fn sql_text(&self) -> &str` for a statement, and is what
-> `ConnectionTrait` means by one. It MUST be sealed against implementations
-> outside pgorm, and MUST be implemented for exactly `str` and `String` — a
-> statement is its SQL text, in whichever of the two spellings the caller holds
-> it, and there is deliberately no third form.
+> `Connection` means by one. It MUST be sealed against implementations
+> outside pgorm. Its public statement forms include `str` and `String`.
+> With the experimental `turso` feature, `ValueSql` MAY retain SQL and borrowed
+> values, directly or through a borrowed-value mapper, until native parameter
+> types are resolved under `turso.parameters`. A mapper returning no value MUST
+> refuse the untyped parameter with its position; a typed null retains its
+> value variant. The wrapper MUST expose the same SQL text, MUST NOT hold
+> a prepared handle, and MUST NOT require PostgreSQL to resolve native hints or
+> allocate their type vector.
 >
-> What the seal excludes is tokio-postgres's prepared `Statement`.
-> `ToStatement`, which bounds tokio-postgres's own statement surface, admits
+> What the seal excludes is pgorm-driver's prepared `Statement`.
+> `ToStatement`, which bounds pgorm-driver's own statement surface, admits
 > `str`, `String` and `Statement` alike; but a `Statement` names a statement
 > that exists on the single connection it was prepared against, so running one
 > on any other connection type-checks and then fails on the wire with SQLSTATE
@@ -531,22 +579,22 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > parameter types and result columns but not the text it was prepared from, so
 > it is exactly the statement pgorm can neither cache nor fingerprint.
 >
-> Because a statement is nothing but text, `sql_text` is total — no `Option`,
+> Because every statement retains its text, `sql_text` is total — no `Option`,
 > and no absent case for its readers to carry. There are two:
 > `conn.pool.conn-trait` keys the statement cache on it, and
 > `metric.fingerprint` identifies the query it reports on by it.
 >
-> The narrowing is `ConnectionTrait`'s alone. `pgorm_pool`'s `GenericClient`
-> (`conn.pool.generic-client`) and the `tokio_postgres` surface that pgorm-pool's
+> The narrowing is `Connection`'s alone. `pgorm_pool`'s `GenericClient`
+> (`conn.pool.generic-client`) and the `pgorm_driver` surface that pgorm-pool's
 > `Client` exposes by `Deref` and its `Transaction` forwards keep
 > `ToStatement`: those are
-> tokio-postgres's own contract, reached past `ConnectionTrait` with a
+> pgorm-driver's own contract, reached past `Connection` with a
 > particular connection already in hand, and there a prepared `Statement` is
 > the point rather than the hazard.
 
-> [spec:pgorm:def:conn.pool.hook-connection]
+> [spec:pgorm:def:conn.pool.hook-connection+2]
 > `HookConnection<'a>` is the connection a pool `Hook` is given, as a
-> `ConnectionTrait` (`conn.pool.conn-trait`): `HookConnection::new(client)`
+> `Connection` (`conn.pool.conn-trait`): `HookConnection::new(client)`
 > borrows the pooled client deadpool passes the hook for the hook's length.
 > Its statements resolve through that connection's statement cache, evicted
 > and retried once as a `DatabaseConnection`'s are
@@ -554,17 +602,17 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > entity's `find`, a pipeline's terminal — run in a hook, and a statement a
 > hook prepares is the one the connection's later borrowers find cached. It
 > opens no transaction and offers nothing beyond the trait. The client's
-> own tokio-postgres methods stay what a hook calls when it names none of
+> own pgorm-driver methods stay what a hook calls when it names none of
 > pgorm's: the type is a wrapper, and implementing the trait on the client
 > itself would turn the hook's `client.query_one` into pgorm's, changing the
 > error it returns. A `DatabaseRef` holds one (`conn.database-ref`), which is
 > how the bindings run a hook's statements (`bindings.pool-hooks`).
 
-> [spec:pgorm:def:conn.pool.conn-trait+10]
-> `ConnectionTrait` is the uniform statement-execution surface over
+> [spec:pgorm:def:conn.pool.conn-trait+12]
+> `Connection` is the uniform statement-execution surface over
 > connections and transactions. It defines seven async methods. Six are
-> generic over `T: ?Sized + SqlText + Sync` — the statement is SQL text and
-> nothing else (`conn.sql-text`), which is why `ToStatement` is named nowhere
+> generic over `T: ?Sized + SqlText + Sync` — the statement retains SQL text
+> (`conn.sql-text`), which is why `ToStatement` is named nowhere
 > in this trait and a `Statement` prepared on some other connection does not
 > typecheck — with parameter binding
 > (no string interpolation): `execute(stmt, params) -> u64` (affected-row
@@ -582,21 +630,26 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > inserted on a miss. There is no second route, because there is no statement
 > without text to take one. What the cache returns is prepared on, and used
 > only on, the connection the call is running on, so no prepared statement
-> crosses connections at all. A rejected cached plan is evicted under
-> `conn.pool.statement-cache.invalidate`, and retried there only outside a
-> transaction: inside one the rejection has already aborted the transaction, so
-> the original error is what the caller gets.
+> crosses connections at all. PostgreSQL retains context inference and its
+> existing empty-type cache key. Native ORM execution resolves retained value
+> hints only on the native path and uses SQL plus the ordered parameter types
+> as its key (`turso.parameters`). A rejected cached plan is handled under
+> `conn.pool.statement-cache.invalidate`: PostgreSQL retries only outside a
+> transaction; native invalidation is evicted and returned without retry.
 >
 > The seventh, `batch_execute(sql: &str) -> ()`, is neither generic nor
-> parameterized: it sends `sql` through the simple-query protocol, so the
-> string MAY hold several `;`-separated statements, and it returns no rows.
+> parameterized: on PostgreSQL it sends `sql` through the simple-query
+> protocol; on native Turso the embedded parser and execution API run the
+> script. The string MAY hold several `;`-separated statements and returns no rows.
 > It is the only method that accepts a multi-statement string — the other six
-> go through the extended protocol, where a prepared statement carries exactly
-> one command and PostgreSQL rejects a second with *cannot insert multiple
+> prepare exactly one command. PostgreSQL uses the extended protocol and
+> rejects a second with *cannot insert multiple
 > commands into a prepared statement*. Execution stops at the first statement
-> that fails. Nothing is prepared, so the statement cache
-> (`conn.pool.statement-cache`) is bypassed by construction rather than by
-> policy. It exists for DDL, migration, and fixture surfaces, where a script
+> that fails. The script bypasses the statement cache
+> (`conn.pool.statement-cache`). PostgreSQL retains its implicit script
+> transaction; native partial effects follow `turso.execution` and MUST NOT
+> be advertised as PostgreSQL script atomicity. It exists for DDL, migration,
+> and fixture surfaces, where a script
 > is the unit of work; since values can reach it only by interpolation, `sql`
 > must be built from trusted input.
 >
@@ -615,7 +668,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > exists because a transaction closure is given its handle as `&mut` — `&mut
 > DatabaseTransaction<'_>` on a connection or a transaction, `&mut
 > InstrumentedTransaction<'_, M>` on the metrics wrappers (`metric.layer.tx`)
-> — and a helper generic over `C: ConnectionTrait` taking `&C` cannot be
+> — and a helper generic over `C: Connection` taking `&C` cannot be
 > passed one without it: `&mut T` is its own type, distinct from `T`, and the
 > coercion to `&T` does not fire into an inference variable, so the call site
 > would otherwise have to reborrow as `&*txn`. It is one impl over every
@@ -623,11 +676,11 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > be left out, as the instrumented one once was. Being a distinct type is also
 > why it cannot overlap the impl for `C` itself.
 
-> [spec:pgorm:def:conn.pool.generic-client]
+> [spec:pgorm:def:conn.pool.generic-client+1]
 > `pgorm_pool::GenericClient` is the sealed trait (`Sync` + a private
 > `Sealed` supertrait) unifying `Client` — the deadpool `Object` wrapping a
 > `ClientWrapper` — and `Transaction<'_>` behind one statement surface. It
-> is a 1:1 copy of `tokio_postgres::GenericClient` as of tokio-postgres
+> is a 1:1 copy of `pgorm_driver::GenericClient` inherited from tokio-postgres
 > 0.7.7 with two deliberate changes: the `client()` accessor is removed,
 > and `prepare_cached` / `prepare_typed_cached` are added. Sealing limits
 > implementors to exactly those two types.
@@ -635,14 +688,14 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > Its methods — `execute`, `execute_raw`, `query`, `query_one`,
 > `query_opt`, `query_raw`, `prepare`, `prepare_typed`, `prepare_cached`,
 > `prepare_typed_cached`, `transaction(&mut self)`, `batch_execute` —
-> delegate directly to the corresponding `tokio_postgres::Client` /
-> `tokio_postgres::Transaction` method, except the cached prepares and
+> delegate directly to the corresponding `pgorm_driver::Client` /
+> `pgorm_driver::Transaction` method, except the cached prepares and
 > `transaction`, which route through the pool wrapper types
 > (`ClientWrapper`, pgorm-pool's `Transaction`) so both levels share the
 > per-connection `StatementCache` (`conn.pool.statement-cache`) and nested
 > transactions go through the wrapper's savepoint logic.
 
-> [spec:pgorm:def:conn.database-ref+1]
+> [spec:pgorm:def:conn.database-ref+2]
 > `DatabaseRef<'a, M>` is a borrowed executor of any kind: a
 > `&DatabaseConnection` or a `&DatabaseTransaction` (a transaction or a
 > savepoint), the metrics layer's `&InstrumentedConnection<M>` or
@@ -650,21 +703,21 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > connection a pool hook is about while it runs
 > (`conn.pool.hook-connection`); `M` is the collector, `NoOpMetrics` by
 > default, and each converts into it by `From`. It MUST
-> implement `ConnectionTrait`, every method delegating to the borrowed
+> implement `Connection`, every method delegating to the borrowed
 > executor's own, so code that picks at run time where a statement runs — a
 > language binding holding whichever handle its caller passed — reaches
 > pgorm's generic terminals through one type, and the bindings hold no
 > executor enum of their own. The erased reads of `exec.paginator.erased` and
 > `exec.cursor.erased` run on it, over the same `M`.
 
-> [spec:pgorm:req:conn.pool.savepoint-name+3]
+> [spec:pgorm:req:conn.pool.savepoint-name+4]
 > `pgorm_pool::Transaction::savepoint(name)` MUST quote `name` as a
 > PostgreSQL identifier — every `"` in it doubled, the whole wrapped in
-> `"` — before handing it to `tokio_postgres`.
+> `"` — before handing it to `pgorm_driver`.
 >
 > `SAVEPOINT` takes no parameters, so unlike every other value pgorm
 > sends (`conn.pool.conn-trait`) the name can only travel as SQL text.
-> `tokio_postgres` interpolates it into `SAVEPOINT {name}` and runs that
+> `pgorm_driver` interpolates it into `SAVEPOINT {name}` and runs that
 > through `batch_execute` — the simple query protocol, which accepts
 > several statements in one message — so an unquoted runtime name is
 > executable SQL: `x"; DROP TABLE t; --` would be a statement, not a
@@ -673,7 +726,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > covers all three.
 >
 > The quoting MUST be total, because the signature has no refusal to
-> return that pgorm can build: its error type is `tokio_postgres::Error`,
+> return that pgorm can build: its error type is `pgorm_driver::Error`,
 > which has no public constructor. Totality is available: doubling is
 > PostgreSQL's own spelling for an embedded delimiter, and the delimiter
 > is the only character a quoted identifier gives meaning to. Bounding
@@ -695,13 +748,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 >
 > Nested transactions opened through `Transaction::transaction` and
 > `GenericClient::transaction` (`conn.pool.generic-client`) are unaffected
-> — `tokio_postgres` names those itself, `sp_{depth}`, from no caller
+> — `pgorm_driver` names those itself, `sp_{depth}`, from no caller
 > input.
 >
 > The quoted method MUST be the only route to a savepoint name. pgorm-pool's
-> `Transaction` therefore does not `Deref` to `tokio_postgres::Transaction`,
+> `Transaction` therefore does not `Deref` to `pgorm_driver::Transaction`,
 > whose own `savepoint` interpolates the name unquoted: through a `Deref`,
-> `tokio_postgres::Transaction::savepoint(&mut *txn, name)` compiled and
+> `pgorm_driver::Transaction::savepoint(&mut *txn, name)` compiled and
 > skipped the quoting. The wrapper forwards the statement methods its
 > callers use instead — `execute`, `execute_raw`, `query`, `query_one`,
 > `query_opt`, `query_raw`, `batch_execute`, `copy_in` and `copy_out`, each a
@@ -711,9 +764,9 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## Transactions
 
-> [spec:pgorm:req:conn.tx+3]
+> [spec:pgorm:req:conn.tx+5]
 > A transaction MUST be opened only by running a closure inside one:
-> `TransactionTrait::transaction(f)`, and on a `DatabaseConnection` the
+> `Transact::transaction(f)`, and on a `DatabaseConnection` the
 > inherent `transaction_with(mode, f)` and `transaction_with_retry`
 > (`conn.tx.closure`, `conn.tx.retry`). No public method returns a transaction
 > handle, commits one or rolls one back. The closure is given
@@ -721,15 +774,15 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > statement can run on the connection while the transaction is open, and what
 > the closure returns ends it. On a `DatabaseConnection` the transaction is
 > `BEGIN` on the pooled client; on a `DatabaseTransaction` it is a nested
-> transaction, which `tokio_postgres` implements as a savepoint. Both
+> transaction, which `pgorm_driver` implements as a savepoint. Both
 > transaction levels share the connection's statement cache.
 >
-> `TransactionTrait` is sealed, and its handle is the receiver's kind:
+> `Transact` is sealed, and its handle is the receiver's kind:
 > `DatabaseTransaction` on a connection or a transaction, the
 > `InstrumentedTransaction` of `metric.layer.tx` on the metrics wrappers, each a
-> `TransactionTrait` itself. Opening and ending a transaction are methods of
+> `Transact` itself. Opening and ending a transaction are methods of
 > crate-private traits that take a token no other crate can construct, so even
-> code generic over `TransactionTrait`, which has those methods in reach
+> code generic over `Transact`, which has those methods in reach
 > through its bound, cannot call them. The handle type is declared on a trait
 > of its own, apart from the one that opens it: a trait that declares a
 > lifetime-generic type and returns it from `&mut self` must bound it by
@@ -774,17 +827,17 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > reason no variant offers `NOT DEFERRABLE`: it is the server default, and
 > selecting it says nothing.
 >
-> `IsolationLevel` is `tokio_postgres::IsolationLevel`, re-exported from
+> `IsolationLevel` is `pgorm_driver::IsolationLevel`, re-exported from
 > `pgorm`.
 >
 > `transaction_with` is an inherent method on `DatabaseConnection`,
-> deliberately NOT on `TransactionTrait`: the trait's other implementors open
+> deliberately NOT on `Transact`: the trait's other implementors open
 > savepoints, and `SAVEPOINT` accepts no isolation level, access mode, or
 > deferrability. Putting the configured form on the trait would require the
 > savepoint implementation to ignore or reject its argument, so it is offered
 > only where PostgreSQL honours it.
 
-> [spec:pgorm:sem:conn.tx.guard+4]
+> [spec:pgorm:sem:conn.tx.guard+6]
 > `DatabaseTransaction` wraps `Option<pgorm_pool::Transaction>` as the handle a
 > transaction closure is given, and a transaction has three ends. Two are
 > awaited and chosen by the closure (`conn.tx.closure`): `COMMIT` after `Ok`,
@@ -797,8 +850,8 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > a timeout, a cancelled task, a `select!` that took another branch — or a
 > panic unwinding through it.
 >
-> The two rollbacks are not equivalent. The closure's awaits the round trip.
-> The dropped handle's is fire-and-forget: `tokio_postgres::Transaction::drop`
+> The two rollbacks are not equivalent. The closure's awaits completion.
+> On PostgreSQL the dropped handle's is fire-and-forget: `pgorm_driver::Transaction::drop`
 > synchronously enqueues a raw `ROLLBACK` (`ROLLBACK TO <savepoint>` when
 > nested) onto the connection's unbounded request channel and discards both the
 > response stream and any send error, so the rollback's outcome is
@@ -813,9 +866,16 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > (`conn.pool.lifecycle`) — pool recycling borrows the wrapper rather than
 > replacing it — so a `ROLLBACK` queued as the handle drops is still flushed
 > after the connection returns to the pool and is handed to the next caller.
+>
+> Native drop rollback uses the same bounded FIFO as native execution. If it
+> cannot enqueue, or cleanup fails, the client becomes unusable. Native pool
+> reuse requires cleanup to have completed and the connection to be idle;
+> otherwise the client is disposed. Dropping an awaited native transaction
+> end with an unknown outcome also makes the client unusable. PostgreSQL's
+> channel ordering and reuse behavior above remain unchanged.
 
-> [spec:pgorm:sem:conn.tx.closure+6]
-> `TransactionTrait::transaction(f)` and `DatabaseConnection::transaction_with(opts,
+> [spec:pgorm:sem:conn.tx.closure+7]
+> `Transact::transaction(f)` and `DatabaseConnection::transaction_with(opts,
 > f)` run a closure inside a transaction, taking `F: AsyncFnOnce(&mut
 > Self::Transaction<'_>) -> Result<T, E>` — `&mut DatabaseTransaction<'_>` on a
 > connection or a transaction — a native `AsyncFn*` bound, not a boxed future.
@@ -843,16 +903,16 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > over every lifetime: "implementation of `AsyncFnOnce` is not general
 > enough".
 >
-> The future `TransactionTrait::transaction` returns promises no `Send`.
+> The future `Transact::transaction` returns promises no `Send`.
 > Promising it would mean bounding an async closure's future, which stable
 > Rust cannot state: the bound needs the unstable `async_fn_traits`, and a
 > helper trait with a `Send` associated future is not general enough for an
 > async closure. Without the promise the compiler sees through the future a
 > call on a concrete type returns, so that call is `Send` whenever its
-> closure's future is; code generic over `C: TransactionTrait` gets a future it
+> closure's future is; code generic over `C: Transact` gets a future it
 > does not know to be `Send`.
 >
-> The handle the closure receives is a `ConnectionTrait` implementor in its own
+> The handle the closure receives is a `Connection` implementor in its own
 > right (`conn.pool.conn-trait`), so `&txn` is what a helper generic over `&C`
 > is passed, inside a closure exactly as outside one; no `&*txn` reborrow is
 > required at the call site.
@@ -921,14 +981,14 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > `TransactionError::RollbackFailed` means: the connection's state is
 > unknown, and it is to be discarded.
 
-> [spec:pgorm:sem:conn.tx.aborted]
+> [spec:pgorm:sem:conn.tx.aborted+2]
 > A transaction whose closure returned `Ok` MUST NOT be reported as committed
 > when PostgreSQL rolled it back. A statement that fails inside a transaction
 > aborts it, and PostgreSQL refuses every later statement with SQLSTATE `25P02`
 > (`in_failed_sql_transaction`) until the transaction ends. A closure that
 > catches the failed statement's error and returns `Ok` all the same leads to a
 > `COMMIT`, which PostgreSQL answers with the `ROLLBACK` command tag and no
-> error, and tokio-postgres reads no command tag. So `pgorm_pool`'s
+> error, and pgorm-driver reads no command tag. So `pgorm_pool`'s
 > `Transaction::commit` asks first. It sends `SELECT; COMMIT` as one simple
 > query: the empty `SELECT` is refused in an aborted transaction, and its
 > refusal skips the `COMMIT` sent with it. A failure that came before the
@@ -945,6 +1005,13 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > than before, a savepoint's `RELEASE` one, and the empty `SELECT` appears in
 > the server's statement log and statistics beside them.
 >
+> Native execution checks Turso's transaction state inside the same serialized
+> operation that commits or rolls back. An aborted state yields the native
+> connection's actual refusal and an awaited rollback, including rollback to
+> a nested savepoint. The driver and pool preserve the same aborted/error
+> distinction and any rollback failure without using PostgreSQL's wire probe.
+> A healthy native commit requires no additional SQL health probe.
+>
 > pgorm reports an aborted transaction as
 > `TransactionError::Connection(Error::TransactionAborted(refusal))`: under
 > `Connection` because its `COMMIT` is what failed, holding the server's
@@ -958,7 +1025,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > a savepoint's `TransactionAborted` reaches the closure around it as itself,
 > as `conn.tx.compose` flattens `Connection`.
 
-> [spec:pgorm:sem:conn.tx.retry+3]
+> [spec:pgorm:sem:conn.tx.retry+4]
 > `DatabaseConnection::transaction_with_retry(opts, max_retries, f)` is
 > `transaction_with` plus replay: it retries the whole begin/run/commit cycle —
 > not the failing statement — while the failure is retryable, for at most `1 +
@@ -978,6 +1045,12 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > error carrying no `DbError`. Anything else returns immediately, on the first
 > attempt, with its variant intact.
 >
+> A native error whose primary SQLSTATE is retained alongside a cleanup
+> failure MUST NOT be retryable. Native commit failure may be replayed only
+> after cleanup establishes a known transaction outcome; an unknown outcome
+> makes the connection unusable (`turso.cleanup`). Retaining database
+> diagnostics is not evidence that replay is safe.
+>
 > Both failure sites are classified, because a serialization failure can surface
 > either mid-transaction (a statement raises it, reaching the helper as the
 > closure's `E`) or at `COMMIT` (reaching it as an `Error`). Classifying the
@@ -993,15 +1066,20 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 
 ## COPY
 
-> [spec:pgorm:req:conn.copy+2]
-> `CopyTrait` is COPY's data flow on a connection: `copy_in(&mut self,
+> [spec:pgorm:req:conn.copy+5]
+> `CopyConnection` is COPY's data flow on a connection: `copy_in(&mut self,
 > &CopyFromStatement<F>)` starts `COPY … FROM STDIN` and returns a
 > `CopyInSink<'_>`, and `copy_out(&mut self, &CopyToStatement<F>)` starts `COPY
 > … TO STDOUT` and returns a `CopyOutStream<'_>`, over the typed statements of
 > `sql.ast.copy`. It MUST be implemented for `DatabaseConnection` and
 > `DatabaseTransaction`, savepoints included, and for the metrics wrappers
 > (`metric.layer.copy`). A COPY's rows travel as `CopyData` messages beside the
-> statement, which no `ConnectionTrait` method sends or returns (`sql.scope`).
+> statement, which no `Connection` method sends or returns (`sql.scope`).
+>
+> Native Turso exposes the same methods but MUST refuse streaming COPY before
+> preparing or executing its SQL. That local unsupported-operation refusal
+> MUST NOT close an otherwise usable connection or abort its transaction.
+> The wire-protocol behavior below describes PostgreSQL.
 >
 > The methods take only the typed statements. Text that is not a COPY would
 > reach the driver's `copy_in` as a statement that runs to completion before
@@ -1015,7 +1093,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > unread waits behind data the caller has not yet read, so within one task
 > either never completes; a transaction committed while its COPY is open waits
 > the same way. The exclusive borrow makes each a compile error, and is why
-> `CopyTrait` is a trait of its own rather than two more `ConnectionTrait`
+> `CopyConnection` is a trait of its own rather than two more `Connection`
 > methods, which borrow shared and which `&DatabaseConnection` implements.
 >
 > `copy_out` MUST run `CopyToStatement::check_source` before anything is
@@ -1059,7 +1137,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > undefined table or column, a column list naming a generated column, an
 > option the server refuses (`sql.ast.copy`), a transaction already aborted. A
 > COPY FROM refused there MUST close its
-> connection. tokio-postgres sends `Bind`, `Execute` and `Sync` together and a
+> connection. pgorm-driver sends `Bind`, `Execute` and `Sync` together and a
 > second `Sync` when the sink ends. The server ignores the first while it is
 > in copy-in mode, so a COPY that starts is answered by one `ReadyForQuery`;
 > a COPY refused before copy-in mode answers both, and the driver hands the
@@ -1089,9 +1167,9 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > computing them as the rows go in; a COPY TO reads one only through a
 > `SELECT` source naming it, since `CopyToStatement` takes no column list.
 
-> [spec:pgorm:req:conn.copy.statement+2]
-> A `COPY` MUST run only through `CopyTrait` (`conn.copy`). The statement
-> methods of `ConnectionTrait` — `execute`, `execute_raw`, `query_one`,
+> [spec:pgorm:req:conn.copy.statement+3]
+> A `COPY` MUST run only through `CopyConnection` (`conn.copy`). The statement
+> methods of `Connection` — `execute`, `execute_raw`, `query_one`,
 > `query_opt`, `query_all`, `query_raw` and `batch_execute`, on a
 > connection, a transaction and the metrics wrappers — run what they are
 > given as a statement, and a `COPY`'s data flows beside it: the driver
@@ -1123,13 +1201,19 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > element or only nulls, a range or multirange of no named type — as its
 > column's (`bindings.copy-rows.typed`).
 
-> [spec:pgorm:req:conn.copy.rows+5]
+> [spec:pgorm:req:conn.copy.rows+7]
+> Native Turso MUST refuse the connection-backed COPY column and row helpers
+> before preparing a description or running catalog queries. These operations
+> below describe PostgreSQL. Standalone `CopyRowEncoder`, `CopyRowDecoder` and
+> `CopyColumn` codecs over caller-supplied metadata remain independent of the
+> connection backend.
+>
 > Binary COPY carries rows of pgorm `Value`s, each field in its value's
 > binary form, the form a parameter is bound in and a result column decoded
 > from. The format sends no column types — a header, then each row as its
 > field count and each field as its length, `-1` for NULL, and its type's
 > binary send form, then a trailer — so a row's columns are learned from the
-> server, which knows them exactly. `CopyTrait::copy_in_columns` and
+> server, which knows them exactly. `CopyConnection::copy_in_columns` and
 > `copy_out_columns` MUST describe a statement's columns, in order, each a
 > `CopyColumn` holding its name and its `Type`, by preparing a statement and
 > running nothing: for a COPY FROM, a `SELECT` of its column list from its
@@ -1164,7 +1248,7 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > getters (`sql.ast.copy.parts`).
 >
 > `copy_in_rows(&CopyFromStatement<CopyBinary>)` and
-> `copy_out_rows(&CopyToStatement<CopyBinary>)` are provided by `CopyTrait`
+> `copy_out_rows(&CopyToStatement<CopyBinary>)` are provided by `CopyConnection`
 > over the descriptions and `copy_in` and `copy_out`, so they take only a
 > binary statement, borrow as those do, and a COPY refused at its start
 > behaves as `conn.copy` says. `CopyRowSink::send` writes a row, one value for
@@ -1240,21 +1324,25 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 ## LISTEN and NOTIFY
 ## LISTEN and NOTIFY
 
-> [spec:pgorm:req:conn.listen]
-> A notification is delivered to the session that ran `LISTEN`, as an
+> [spec:pgorm:req:conn.listen+3]
+> On PostgreSQL, a notification is delivered to the session that ran `LISTEN`, as an
 > asynchronous message outside any statement's result, so no
-> `ConnectionTrait` method returns one (`sql.scope`), and a pooled connection
+> `Connection` method returns one (`sql.scope`), and a pooled connection
 > cannot receive one at all: pgorm-pool's task drives it and discards such
 > messages (`conn.pool.lifecycle`), and the pool lends it to another caller
 > once it is returned. A listener is therefore a connection of its own.
 > `connect_listener(config, tls, capacity)` opens one with a
-> `tokio_postgres::Config` and a TLS connector bounded as `connect_with`'s is
+> `pgorm_driver::Config` and a TLS connector bounded as `connect_with`'s is
 > (`conn.pool`), and `DatabasePool::listener(capacity)` opens one with the
 > pool's configuration and connector through `pgorm_pool::Manager::connect_raw`,
 > which connects as the pool does and hands back the connection's I/O half
 > undriven, as a `RawConnection`. That connection is not taken from the pool,
 > counts against no size, has no statement cache and is never recycled. Each
 > returns a pair, a `Listener` and its `Notifications`.
+>
+> Native Turso pools MUST reject listener construction as unsupported before
+> opening a native client or starting a notification task. The notification
+> protocol, ordering and bounds below describe PostgreSQL.
 >
 > `Listener` is the connection's `LISTEN` set: `listen(channel)`,
 > `unlisten(channel)` and `unlisten_all()`, each taking `&self` and sending
@@ -1271,14 +1359,14 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > truncated name, which nothing can send to, since `pg_notify` refuses a name
 > that long (`22023`). An empty name is the server's refusal (`42601`).
 >
-> `Listener` MUST NOT implement `ConnectionTrait`. Notifications arrive on its
+> `Listener` MUST NOT implement `Connection`. Notifications arrive on its
 > connection whenever the server sends them; a statement there would wait
 > behind them, and a transaction there would hold back their delivery until it
 > ended. The metrics layer does not instrument it (`metric.layer`): it is none
 > of the wrapped types, and what it sends is not a statement a caller wrote.
 >
 > `Notifications` implements `Stream<Item = Result<Notification, Error>>`,
-> `Notification` being tokio-postgres's — the channel, the payload and the
+> `Notification` being pgorm-driver's — the channel, the payload and the
 > sending session's process id — re-exported from `pgorm`. A task spawned when
 > the listener connects drives the connection and queues each notification as
 > it arrives, so `listen` and `unlisten` complete whether or not the stream is
@@ -1312,12 +1400,12 @@ connection handles plus the `ConnectionTrait` / `TransactionTrait` surface;
 > session's place in it at once.
 >
 > `notify(db, channel, payload)` sends a notification from any
-> `ConnectionTrait` implementor as `SELECT pg_notify($1, $2)`, both values
+> `Connection` implementor as `SELECT pg_notify($1, $2)`, both values
 > bound. `NOTIFY channel, 'payload'` takes no parameter, so its payload would
 > have to be escaped into the statement, and each payload would be a statement
 > text of its own in the bounded statement cache
 > (`conn.pool.statement-cache.bound`); through `pg_notify` there is one text,
-> prepared once per connection. Being a `ConnectionTrait` call, it runs inside
+> prepared once per connection. Being a `Connection` call, it runs inside
 > a transaction when given one, delivering at commit, and through an
 > instrumented connection or transaction it is reported as the `execute` it is
 > (`metric.layer.delegate`). The bounds are the server's: a payload of 8000

@@ -132,7 +132,7 @@ class Construction(unittest.TestCase):
             Post.graph().related_one(author).inspect().sql, Post.graph().join_one(author).inspect().sql
         )
 
-    # [spec:pgorm:req:bindings.linked/test]    each hop under r{i}, walked from the far end, keyed by the start's key
+    # [spec:pgorm:req:bindings.linked+1/test]    each hop under r{i}, walked from the far end, keyed by the start's key
     def test_linked_chain_aliases_every_hop(self):
         chain = Account.linked(posts, post_tags, tag_of)
         self.assertEqual(
@@ -300,7 +300,7 @@ class Reads(unittest.IsolatedAsyncioTestCase):
         required = await Post.graph().related_one(tags).order_by(by_post, Tag.col("id").asc()).all(self.pool)
         self.assertEqual([(post["title"], tag["label"]) for post, tag in required], [("a1", "red"), ("a1", "blue"), ("b1", "blue")])
 
-    # [spec:pgorm:req:bindings.linked/test]    a chain reads from a row, passing one table twice
+    # [spec:pgorm:req:bindings.linked+1/test]    a chain reads from a row, passing one table twice
     async def test_linked_chain_reads_along_its_hops(self):
         chain = Account.linked(posts, post_tags, tag_of)
         found = await chain.find(self.accounts[0]).order_by(Tag.col("id").asc()).all(self.pool)

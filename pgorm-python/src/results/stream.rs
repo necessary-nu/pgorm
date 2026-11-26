@@ -15,7 +15,7 @@ use crate::{
 
 /// What a stream makes of each row: a `Record`, or what a read that decodes
 /// its own rows, a disjoint one's, makes of it.
-pub(crate) type RowDecode = Arc<dyn Fn(tokio_postgres::Row) -> PyResult<Py<PyAny>> + Send + Sync>;
+pub(crate) type RowDecode = Arc<dyn Fn(pgorm_driver::Row) -> PyResult<Py<PyAny>> + Send + Sync>;
 
 // [spec:pgorm:req:bindings.streams+1]
 // [spec:pgorm:req:bindings.cancellation]
@@ -124,8 +124,14 @@ pub(crate) fn open<'py>(
         let state = match source {
             Source::Connection(connection) => {
                 let operation = Operation::begin(connection).py()?;
-                pgorm_bindings::StreamState::on_connection(operation, compiled.sql, values, &never)
-                    .await
+                pgorm_bindings::StreamState::on_connection(
+                    operation,
+                    compiled.sql,
+                    values,
+                    |value| Some(&value.0),
+                    &never,
+                )
+                .await
             }
             Source::Transaction(state) => {
                 let lock = state.lock().py()?;
@@ -134,6 +140,7 @@ pub(crate) fn open<'py>(
                     lock,
                     compiled.sql,
                     values,
+                    |value| Some(&value.0),
                     &never,
                 )
                 .await

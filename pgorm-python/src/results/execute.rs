@@ -1,10 +1,10 @@
 use crate::panics::future_into_py;
+use pgorm_driver::Row;
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
     types::{PyList, PyTuple},
 };
-use tokio_postgres::Row;
 
 use super::PyRecord;
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     transactions::work::{Output, Work},
 };
 
-// [spec:pgorm:req:bindings.results+2]
+// [spec:pgorm:req:bindings.results+3]
 pub(crate) fn execute<'py>(
     py: Python<'py>,
     target: Target,

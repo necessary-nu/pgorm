@@ -23,8 +23,8 @@ use pgorm::pgorm_query::{
     Expr, Func, Grouping, GroupingElement, Name, Order, OrderedStatement, Query, SelectStatement,
     SimpleExpr,
 };
-use pgorm::{ConnectionTrait, entity::prelude::*};
-use tokio_postgres::error::SqlState;
+use pgorm::{Connection, entity::prelude::*};
+use pgorm_driver::error::SqlState;
 
 /// Four sales: three regions once NULL counts as one, two products, and a
 /// grand total of 100.
@@ -125,7 +125,7 @@ async fn a_plain_group_by_is_the_control(db: &DatabaseConnection) -> Result<(), 
 // [spec:pgorm:def:sql.ast.select.grouping/test]    against a live server: ROLLUP groups by each
 // prefix
 // [spec:pgorm:req:sql.render.grouping+2/test]
-// [spec:pgorm:req:sql.scope+24/test]
+// [spec:pgorm:req:sql.scope+25/test]
 async fn rollup_adds_the_prefix_subtotals(db: &DatabaseConnection) -> Result<(), Error> {
     let query = grouped(|q| q.group_by_element(GroupingElement::rollup([region(), product()])));
 

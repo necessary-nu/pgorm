@@ -79,7 +79,7 @@ fn raw_select(statement: PyRef<'_, RawSQL>) -> PyResult<PySelect> {
 
 /// Run `script`, `;`-separated statements with no parameters, through the
 /// simple-query protocol, preparing nothing.
-// [spec:pgorm:req:bindings.batch-execute]
+// [spec:pgorm:req:bindings.batch-execute+1]
 #[pyfunction(name = "_batch_execute")]
 fn batch_execute<'py>(
     py: Python<'py>,

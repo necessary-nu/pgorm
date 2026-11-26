@@ -187,7 +187,7 @@ mod casts {
     pub enum Relation {}
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    on read, `select_as` /
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    on read, `select_as` /
 // `select_enum_as` casts an enum column to `text` — `text[]` when the column is
 // an `Array` of an enum — and leaves non-enum columns alone; on write,
 // `save_as` / `save_enum_as` casts the value to the enum's database type name,
@@ -275,7 +275,7 @@ fn enum_columns_are_cast_at_the_sql_boundary() {
     // an enum column on the server, so no cast is applied to either side. This
     // is why `eq` was not widened to admit a column — a widened bound would have
     // dropped the cast above without saying so.
-    // [spec:pgorm:def:entity.traits.column+9/test]    the `_col` family does not
+    // [spec:pgorm:def:entity.traits.column+10/test]    the `_col` family does not
     // route its operand through `save_as`
     assert_eq!(
         filter_sql(casts::Column::Tea.eq_col(casts::Column::Tea)),
@@ -327,7 +327,7 @@ mod bookings {
     pub enum Relation {}
 }
 
-// [spec:pgorm:req:sql.ast.cast-shape+2/test]    the entity layer's casts — the
+// [spec:pgorm:req:sql.ast.cast-shape+3/test]    the entity layer's casts — the
 // enum defaults on read and write, `ActiveEnum::as_enum`, a derived
 // `select_as` / `save_as` override, and the created-range casts:
 // `CreatedRange::into_expr`, the write cast of a created range or multirange
@@ -460,7 +460,7 @@ fn entity_layer_casts_build_the_one_cast_node() {
     );
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    the special case:
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    the special case:
 // under `with-json` + `postgres-array`, saving into a `Json` / `JsonBinary`
 // column flattens a `Value::Array` of JSON values into a single `Value::Json`
 // array value instead of applying an enum cast
@@ -488,7 +488,7 @@ fn json_column_flattens_json_array_without_cast() {
     assert_eq!(expr_sql(untouched), r#"'{"k":"v"}'"#);
 }
 
-// [spec:pgorm:sem:entity.traits.column.enum-cast+17/test]    the casts survive a
+// [spec:pgorm:sem:entity.traits.column.enum-cast+19/test]    the casts survive a
 // real round trip: values written through the enum cast read back as the
 // original variants
 #[pgorm_macros::test]

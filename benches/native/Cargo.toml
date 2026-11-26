@@ -1,0 +1,27 @@
+[package]
+name = "pgorm-native-performance"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Benchmark-only access to the pinned engine must not expand the ordinary
+# library or test dependency graph.
+[workspace]
+
+[features]
+alloc-profile = []
+
+[dependencies]
+pgorm = { path = "../..", features = ["turso"] }
+pgorm-driver = { path = "../../crates/pgorm-driver", features = ["turso"] }
+pgorm-pool = { path = "../../pgorm-pool", features = ["turso"] }
+turso_pg = { git = "https://github.com/tursodatabase/turso.git", rev = "adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa" }
+turso_core = { git = "https://github.com/tursodatabase/turso.git", rev = "adf3b41f99ebb6b1cdd1b60ae08b483bc45686fa" }
+tokio = { version = "1.53", features = ["full"] }
+futures = "0.3.34"
+serde_json = "1.0.151"
+
+[[bin]]
+name = "native-baseline"
+path = "../native_baseline.rs"

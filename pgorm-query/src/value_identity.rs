@@ -34,7 +34,7 @@ fn eq_vector(a: Option<&pgvector::Vector>, b: Option<&pgvector::Vector>) -> bool
     }
 }
 
-// [spec:pgorm:def:sql.value+3]
+// [spec:pgorm:def:sql.value+4]
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -101,7 +101,7 @@ fn hash_vector<H: std::hash::Hasher>(value: Option<&pgvector::Vector>, state: &m
     }
 }
 
-// [spec:pgorm:def:sql.value+3]
+// [spec:pgorm:def:sql.value+4]
 impl Hash for Value {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {

@@ -2,13 +2,13 @@
 
 use crate::{execution::Database, expressions::Compiled};
 use futures_util::future::BoxFuture;
-use pgorm::{ConnectionTrait, Error, ValueHolder};
+use pgorm::{Connection, Error, ValueHolder};
 use pgorm_bindings::entity::{
     Active, EntityBackend, GraphQuery, Insertion, Insertions, Model, Read as Terminal,
     Row as GraphRow, Select, Selected, VersionWrite, Versions, Write, Written,
 };
-use pgorm_migration::MigratorTrait;
-use tokio_postgres::{Row, types::ToSql};
+use pgorm_driver::{Row, types::ToSql};
+use pgorm_migration::Migrator;
 
 pub(crate) enum Work {
     Execute(Compiled),
@@ -68,13 +68,21 @@ impl Work {
         match self {
             Self::Execute(compiled) => {
                 let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
+                #[cfg(feature = "turso")]
+                let sql = pgorm::ValueSql::new(&compiled.sql, &values);
+                #[cfg(not(feature = "turso"))]
+                let sql = compiled.sql;
                 let params: Vec<_> = values.iter().map(|v| v as &(dyn ToSql + Sync)).collect();
-                db.execute(&compiled.sql, &params).await.map(Output::Count)
+                db.execute(&sql, &params).await.map(Output::Count)
             }
             Self::Fetch(compiled) => {
                 let values: Vec<_> = compiled.values.0.into_iter().map(ValueHolder).collect();
+                #[cfg(feature = "turso")]
+                let sql = pgorm::ValueSql::new(&compiled.sql, &values);
+                #[cfg(not(feature = "turso"))]
+                let sql = compiled.sql;
                 let params: Vec<_> = values.iter().map(|v| v as &(dyn ToSql + Sync)).collect();
-                db.query_all(&compiled.sql, &params).await.map(Output::Rows)
+                db.query_all(&sql, &params).await.map(Output::Rows)
             }
             Self::Entity(query, terminal) => query.run(db, terminal).await.map(Output::Models),
             Self::EntityRaw(query, compiled, terminal) => query
@@ -98,7 +106,7 @@ impl Work {
             Self::Describe(sql) => pgorm_bindings::describe(db, &sql)
                 .await
                 .map(Output::Described),
-            // [spec:pgorm:req:bindings.migrations]    the runner's own install and reads
+            // [spec:pgorm:req:bindings.migrations+1]    the runner's own install and reads
             Self::Ledger(migrations, Ledger::Install) => {
                 migrations.install(&db).await.map(|()| Output::Finished)
             }
