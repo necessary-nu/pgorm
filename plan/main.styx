@@ -17345,6 +17345,14 @@ children (
                 text "Re-read after bindings.model-reads moved to +1 (guide.python-gaps.raw-sql's merge of f0c3c867, b09065f2): its stream sentence now says a model's rows stream from a pool, a connection or a transaction, agreeing with bindings.streams+1, which already let a model's, a graph's and a disjoint read's stream take a transaction; both bindings already did. Every reference is pinned at +1."
                 after_done true
             }
+
+            {
+                at 2026-11-26T00:11:51.85057Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Re-covered at bindings.transactions +3 and napi.transactions +4 (read-only.rust, 183a559c): pgorm's TransactionMode keeps Default and ReadWrite, so pgorm_bindings::transaction::Mode carries the bindings' four modes and opens the two that may only read as a plain transaction made read-only by SET TRANSACTION, the server refusing each write (25006); both bindings' behaviour is unchanged, and a native pool still refuses a read-only mode before anything opens. Every reference is pinned at the current version."
+                after_done true
+            }
         )
     }
 
@@ -21570,6 +21578,14 @@ children (
                                 author "brendan@necessary.nu"
                                 kind @status
                                 text "Todo → Doing (nplan start)"
+                            }
+
+                            {
+                                at 2026-11-26T00:11:52.197267Z
+                                author "brendan@necessary.nu"
+                                kind @note
+                                text "Re-covered at conn.database-ref +3 (read-only.rust, 183a559c): DatabaseRef implements ConnectionMut beside Connection, each statement handed to the connection it wraps as a read once its own bound has admitted it, so the erased paginator and cursor run on it as before. Every reference is pinned at the current version."
+                                after_done true
                             }
                         )
                     }
