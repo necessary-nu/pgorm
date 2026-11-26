@@ -21958,12 +21958,20 @@ children (
                 title "OneOf::load_for is exercised against a live database: a scoped target read under its context, and refused under one that lacks its scopes"
                 kind @test
                 deps (trait-names)
+                sealed true
                 log (
                     {
                         at 2026-11-26T08:43:35.533804Z
                         author "brendan@necessary.nu"
                         kind @status
                         text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-26T09:20:42.441316Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
                     }
                 )
             }
