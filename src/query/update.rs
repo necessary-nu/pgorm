@@ -333,7 +333,7 @@ where
     /// refused for its scopes, and a `SET` of a column its definition marks
     /// immutable, whether [`set`](Self::set) or
     /// [`col_expr`](Self::col_expr) named it.
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     // [spec:pgorm:req:scope.immutable]
     pub(crate) fn refusal(&self) -> Result<(), Error> {
         if let Some(refused) = &self.refused {

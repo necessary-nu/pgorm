@@ -405,7 +405,7 @@ impl<S, K> Cursor<S, K> {
     /// previous execution's clauses still on it.
     // [spec:pgorm:sem:exec.cursor.order+4]
     // [spec:pgorm:req:exec.tie-limit+2]
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     fn compose(&mut self) -> Result<SelectStatement, Error> {
         if let Some(refused) = &self.refused {
             return Err(Error::Scope(refused.clone()));

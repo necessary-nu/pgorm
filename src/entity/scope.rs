@@ -362,14 +362,15 @@ pub trait ScopeOn<E: Entity>: Scope {
 }
 
 /// Why a statement on a scoped entity was refused before anything was sent.
-// [spec:pgorm:req:scope.refusals]
+// [spec:pgorm:req:scope.refusals+1]
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ScopeError {
     /// The statement's context does not hold a scope the table is scoped by:
     /// a table `join_for` or a graph's hop joins under a context that does
-    /// not cover it, a target `OneOf::load` reads with no context, or a
-    /// context whose `ScopeContext` does not hold what its `Provides` say.
+    /// not cover it, a target of a one-of load whose context, or lack of
+    /// one, does not hold its scopes, or a context whose `ScopeContext` does
+    /// not hold what its `Provides` say.
     #[error("`{table}` is scoped by `{scope}`, which the statement's context does not hold")]
     NotHeld {
         /// The scoped table.

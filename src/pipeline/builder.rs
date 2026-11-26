@@ -247,7 +247,7 @@ pub struct Pipeline {
     /// What a scoped source its context does not cover was refused with,
     /// carried by every pipeline embedding this one and reported by
     /// [`into_sql`](Pipeline::into_sql).
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     pub(super) refused: Option<ScopeError>,
 }
 

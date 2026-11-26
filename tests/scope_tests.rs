@@ -506,7 +506,7 @@ async fn from_and_using_read_only_scoped_rows() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:scope.refusals/test]    a join into a scoped table with no
+// [spec:pgorm:req:scope.refusals+1/test]    a join into a scoped table with no
 // context, a row naming another scope's value, a row leaving a lifted scope's
 // column unset, and a bulk update or upsert changing a scope column are each
 // refused when the statement would run, and nothing is sent

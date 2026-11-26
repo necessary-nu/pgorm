@@ -299,7 +299,7 @@ where
 {
     /// What every execution path asks before sending anything: a context
     /// refused for its scopes.
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     pub(crate) fn refusal(&self) -> Result<(), Error> {
         match &self.refused {
             Some(refused) => Err(Error::Scope(refused.clone())),
