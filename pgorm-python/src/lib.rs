@@ -30,6 +30,7 @@ mod raw;
 pub mod results;
 mod runtime;
 pub mod schema;
+mod scopes;
 pub mod statements;
 mod transactions;
 pub mod values;
@@ -88,6 +89,7 @@ pub fn install(module: &Bound<'_, PyModule>, registry: entities::Registry) -> Py
     results::register(module)?;
     raw::register(module)?;
     models::register(module)?;
+    scopes::register(module)?;
     entities::install(module, registry)?;
     disjoint::register(module)?;
     one_of::register(module)?;

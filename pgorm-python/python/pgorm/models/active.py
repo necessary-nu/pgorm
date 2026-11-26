@@ -10,9 +10,10 @@ import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, Never, TypedDict
 
 from .. import _native as p
+from ..scopes import Context, Scope, held
 
 if TYPE_CHECKING:
     from .model import Model
@@ -60,18 +61,19 @@ async def _run(hook: Callable[..., Any], *arguments: Any) -> Any:
 
 
 # [spec:pgorm:req:bindings.model-hooks+1]
+# [spec:pgorm:req:python.scopes]
 @dataclass(frozen=True, eq=False, slots=True, init=False)
-class ModelActive:
+class ModelActive[S: Scope[Any] = Any]:
     """The fields one record write sets, as a Rust ``ActiveModel`` holds them:
     ``insert``, ``update`` and ``delete`` write the record and run the model's
     hooks around the write, as ``pgorm::ActiveModel`` does. A model's statement
     builders, ``insert``, ``update`` and ``delete`` on the model itself, run
     none, as Rust's ``Insert``, ``Update`` and ``Delete`` run none."""
 
-    model: Model
+    model: Model[S]
     values: Values
 
-    def __init__(self, model: Model, values: Values) -> None:
+    def __init__(self, model: Model[S], values: Values) -> None:
         if not isinstance(values, Mapping):
             raise TypeError("an active model's values are a mapping of fields")
         for field in values:
@@ -108,37 +110,61 @@ class ModelActive:
             raise p.ConstructionError(f"a record {write} needs its key: {', '.join(missing)} is not set")
         return {field: values[field] for field in model.primary_key}
 
-    async def insert(self, db: Database) -> ModelRecord:
-        """``pgorm::ActiveModel::insert``: ``before_save(values, True)``, the
-        row inserted and read back, then ``after_save(record, True)``."""
+    async def _insert(self, cx: p._ScopeContext | None, db: Database) -> ModelRecord:
         values = await self._before("before_save", True)
-        record = await self.model.insert(values).returning().one(db)
+        record = await self.model._insert(cx, values).returning().one(db)
         return await self._saved(record, True)
 
-    async def update(self, db: Database) -> ModelRecord:
-        """``pgorm::ActiveModel::update``: ``before_save(values, False)``, the
-        row the key names updated with the other fields set and read back,
-        then ``after_save(record, False)``. A key no row has is a
-        ``DecodeError``, as Rust's ``RecordNotUpdated`` is an error."""
+    async def insert(self: ModelActive[Never], db: Database) -> ModelRecord:
+        """``pgorm::ActiveModel::insert``: ``before_save(values, True)``, the
+        row inserted and read back, then ``after_save(record, True)``."""
+        return await self._insert(None, db)
+
+    async def insert_for(self, cx: Context, db: Database) -> ModelRecord:
+        """``pgorm::ActiveModel::insert_for``: ``insert`` with the row's
+        scope columns filled from ``cx``, after ``before_save`` has had it."""
+        return await self._insert(held(cx), db)
+
+    async def _update(self, cx: p._ScopeContext | None, db: Database) -> ModelRecord:
         values = await self._before("before_save", False)
         key = self._key(values, "update")
         changes = {field: value for field, value in values.items() if field not in key}
-        rows = await self.model.update(changes).where(self.model.key(key)).returning().all(db)
+        rows = await self.model._update(cx, changes).where(self.model.key(key)).returning().all(db)
         if len(rows) != 1:
             raise p.DecodeError(f"no {self.model.table.name} row has the key {key!r} to update")
         return await self._saved(rows[0], False)
 
-    async def delete(self, db: Database) -> int:
-        """``pgorm::ActiveModel::delete``: ``before_delete(values)``, the row
-        the key names deleted, then ``after_delete(values)``; the rows
-        deleted."""
+    async def update(self: ModelActive[Never], db: Database) -> ModelRecord:
+        """``pgorm::ActiveModel::update``: ``before_save(values, False)``, the
+        row the key names updated with the other fields set and read back,
+        then ``after_save(record, False)``. A key no row has is a
+        ``DecodeError``, as Rust's ``RecordNotUpdated`` is an error."""
+        return await self._update(None, db)
+
+    async def update_for(self, cx: Context, db: Database) -> ModelRecord:
+        """``pgorm::ActiveModel::update_for``: ``update`` of the row the key
+        names where ``cx``'s scopes hold it, a row outside them no row."""
+        return await self._update(held(cx), db)
+
+    async def _delete(self, cx: p._ScopeContext | None, db: Database) -> int:
         values = await self._before("before_delete")
         key = self._key(values, "delete")
-        deleted = await self.model.delete().where(self.model.key(key)).execute(db)
+        deleted = await self.model._delete(cx).where(self.model.key(key)).execute(db)
         hook = self.model._hooks.get("after_delete")
         if hook is not None:
             await _run(hook, MappingProxyType(values))
         return deleted
+
+    async def delete(self: ModelActive[Never], db: Database) -> int:
+        """``pgorm::ActiveModel::delete``: ``before_delete(values)``, the row
+        the key names deleted, then ``after_delete(values)``; the rows
+        deleted."""
+        return await self._delete(None, db)
+
+    async def delete_for(self, cx: Context, db: Database) -> int:
+        """``pgorm::ActiveModel::delete_for``: ``delete`` where ``cx``'s
+        scopes hold the row, which counts none outside them."""
+        return await self._delete(held(cx), db)
 
     def __bool__(self) -> bool:
         raise p.ConstructionError("active models cannot be tested as Python booleans")

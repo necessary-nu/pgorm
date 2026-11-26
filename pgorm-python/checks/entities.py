@@ -283,6 +283,15 @@ def main():
             [
                 str(python),
                 "-I",
+                str(root / "pgorm-python/tests/registered_scopes.py"),
+                "-v",
+            ],
+            environment,
+        )
+        run(
+            [
+                str(python),
+                "-I",
                 str(root / "pgorm-python/tests/registered_execution.py"),
             ],
             environment,
@@ -318,6 +327,8 @@ def main():
                     "app.Parcel",
                     "app.Room",
                     "app.Sale",
+                    "app.ScopedCompany",
+                    "app.ScopedNote",
                     "app.Shipment",
                     "app.Stay",
                     "app.Temper",
@@ -334,6 +345,7 @@ def main():
                 "registered_schema": True,
                 "registered_transactions": True,
                 "registered_pools": True,
+                "registered_scopes": True,
                 "rust_execution_parity": True,
                 "execution_mismatch_rejected": True,
                 "wheel": wheel.name,

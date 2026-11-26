@@ -180,7 +180,7 @@ fn insert_job(mut cx: FunctionContext) -> JsResult<JsBox<JobHandle>> {
     let job: Job = Box::new(move |db, secrets| {
         Box::pin(async move {
             let inserted = entity
-                .insert(db, insertion)
+                .insert(db, insertion, &pgorm_bindings::scope::Scoping::default())
                 .await
                 .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Inserted(entity.info().clone(), inserted, attempt)) as Output)

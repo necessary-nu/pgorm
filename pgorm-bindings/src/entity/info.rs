@@ -6,12 +6,17 @@ use std::sync::Arc;
 
 use pgorm::pgorm_query::{ArrayType, ConditionType, Deferrability, Enforcement, FromItem, Value};
 use pgorm::{
-    Column, Entity, FromQueryResult, Iterable, PrimaryKey, PrimaryKeyToColumn, Relation,
-    RelationDef, RelationType, StaticName,
+    Column, Entity, FromQueryResult, IntoActiveModel, Iterable, NoContext, PrimaryKey,
+    PrimaryKeyToColumn, Relation, RelationDef, RelationType, ScopedIn, StaticName,
 };
 use serde_json::{Map, Value as Json};
 
-use crate::{Dialect, Failure, Tag, kind::labels};
+use super::reach::{Instance, Reach};
+use crate::{
+    Dialect, Failure, Tag,
+    kind::labels,
+    scope::{ScopeList, Scoping},
+};
 
 /// A JSON object whose keys are neutral names, spelled as `dialect` spells
 /// them.
@@ -137,20 +142,40 @@ pub struct EntityInfo {
     pub unique_keys: &'static [pgorm::UniqueKey],
     relations: Vec<(String, RelationDef)>,
     rust: [&'static str; 4],
-    /// The registered entity value whose names the registration's statements
-    /// read, kept type-erased because the metadata is shared by every adapter
-    /// of the registration whatever its Rust type.
-    entity: Arc<dyn std::any::Any + Send + Sync>,
+    /// The scopes the entity declares, by name, empty for an unscoped one.
+    pub scoped: Vec<&'static str>,
+    /// The scopes the registry knows, through which a program's context
+    /// becomes the Rust scope values its statements run under.
+    pub scopes: ScopeList,
+    /// How the registration's statements reach the entity, an
+    /// `Arc<dyn Reach<E>>`, kept type-erased because the metadata is shared
+    /// by every adapter of the registration whatever its Rust type.
+    reach: Arc<dyn std::any::Any + Send + Sync>,
 }
 
 impl EntityInfo {
     /// The metadata of `entity` registered under `name`, its table and
-    /// schema the instance's own.
+    /// schema the instance's own, its statements built by the `_in` forms.
     // [spec:pgorm:req:bindings.entities+6]
     pub fn of<E>(name: &str, entity: E) -> Result<Self, Failure>
     where
-        E: Entity + Send + Sync + 'static,
+        E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync,
+        E::ActiveModel: Send + Sync,
     {
+        Self::reached(name, Arc::new(Instance(entity)), ScopeList::default())
+    }
+
+    /// The metadata of the entity `reach` reaches, registered under `name`,
+    /// its statements' contexts read through `scopes`.
+    // [spec:pgorm:req:bindings.entities+6]
+    // [spec:pgorm:req:bindings.scopes-registered]
+    pub(crate) fn reached<E: Entity + Send + Sync + 'static>(
+        name: &str,
+        reach: Arc<dyn Reach<E>>,
+        scopes: ScopeList,
+    ) -> Result<Self, Failure> {
+        let entity = reach.entity();
         registration_name(name)?;
         let table = entity.table_name().to_owned();
         let schema = entity.schema_name().map(str::to_owned);
@@ -208,17 +233,67 @@ impl EntityInfo {
                 std::any::type_name::<E::ActiveModel>(),
                 std::any::type_name::<E::Column>(),
             ],
-            entity: Arc::new(entity),
+            scoped: E::scopes()
+                .map(|scopes| scopes.names().to_vec())
+                .unwrap_or_default(),
+            scopes,
+            reach: Arc::new(reach),
         })
     }
 
-    /// The entity value this registration's statements name their table by,
-    /// refused for a type the registration was not made for.
+    /// How this registration's statements reach its entity, refused for a
+    /// type the registration was not made for.
     // [spec:pgorm:req:bindings.entities+6]
-    pub fn entity<E: Entity>(&self) -> Result<E, pgorm::Error> {
-        self.entity.downcast_ref::<E>().copied().ok_or_else(|| {
-            pgorm::Error::Custom("the ActiveModel belongs to another registration".to_owned())
-        })
+    pub(crate) fn reach<E: Entity>(&self) -> Result<Arc<dyn Reach<E>>, pgorm::Error> {
+        self.reach
+            .downcast_ref::<Arc<dyn Reach<E>>>()
+            .cloned()
+            .ok_or_else(|| {
+                pgorm::Error::Custom("the ActiveModel belongs to another registration".to_owned())
+            })
+    }
+
+    /// Refuse a statement on the entity under `cx`, `None` for one given no
+    /// context, unless it holds each scope the entity declares; otherwise
+    /// the Rust scope values it runs under.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    pub fn scoping(
+        &self,
+        cx: Option<&crate::scope::Context<Value>>,
+        dialect: Dialect,
+    ) -> Result<Arc<Scoping>, Failure> {
+        crate::scope::check(&self.name, &self.scoped, cx, dialect)?;
+        match cx {
+            Some(cx) => Ok(Arc::new(Scoping::new(&self.scopes.get(), cx)?)),
+            None => Ok(Arc::new(Scoping::default())),
+        }
+    }
+
+    /// How a join along `def` is held to its joined table's scopes under
+    /// `cx`: under none, refused where the table is scoped, as Rust's plain
+    /// join is held refused, and otherwise joined plainly (`None`); under a
+    /// context, refused unless it holds each scope, and otherwise the Rust
+    /// scope values `join_for` runs under.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    pub fn join_scoping(
+        &self,
+        def: &RelationDef,
+        cx: Option<&crate::scope::Context<Value>>,
+        dialect: Dialect,
+    ) -> Result<Option<Arc<Scoping>>, Failure> {
+        let names = def
+            .to_scopes
+            .map(|scopes| scopes.names())
+            .unwrap_or_default();
+        let table = def.to_tbl.qualifier().to_string();
+        match cx {
+            None if names.is_empty() => Ok(None),
+            None => Err(crate::scope::unscoped_join(&table, names, dialect)),
+            Some(cx) => {
+                crate::scope::check(&table, names, Some(cx), dialect)?;
+                Ok(Some(Arc::new(Scoping::new(&self.scopes.get(), cx)?)))
+            }
+        }
     }
 
     /// The column whose SQL name is `name`, refused as one the registration

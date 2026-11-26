@@ -5,7 +5,12 @@ use pgorm::{
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use super::{builder::PyPipeline, expression::alias_name};
-use crate::{entities::PyEntity, errors::ConstructionError, statements::PyTable};
+use crate::{
+    config::DIALECT,
+    entities::PyEntity,
+    errors::{ConstructionError, Raise},
+    statements::PyTable,
+};
 use pgorm::pgorm_query::{Name, SqlName};
 
 /// The pipeline arm is boxed because it is several times the size of a named
@@ -102,6 +107,8 @@ pub(super) fn pipeline_source(value: &Bound<'_, PyAny>) -> PyResult<PySource> {
     }
     if let Ok(entity) = value.extract::<PyRef<'_, PyEntity>>() {
         let info = entity.backend.info();
+        // [spec:pgorm:req:python.scopes]    a scoped entity is a source only through from_for
+        pgorm_bindings::scope::check::<()>(&info.name, &info.scoped, None, DIALECT).py()?;
         let table = match &info.schema {
             Some(schema) => (Name::runtime(schema), Name::runtime(&info.table)).into_named_table(),
             None => Name::runtime(&info.table).into_named_table(),
@@ -120,6 +127,11 @@ pub(super) fn pipeline_source(value: &Bound<'_, PyAny>) -> PyResult<PySource> {
         .and_then(|models| models.getattr("Model"))
         && value.is_instance(&model)?
     {
+        // [spec:pgorm:req:python.scopes]    a scoped model is a source only through from_for
+        let scopes = value.getattr("_scopes")?;
+        if !scopes.is_none() {
+            scopes.call_method1("check", (value.py().None(),))?;
+        }
         let table = value.getattr("table")?;
         let table = table.extract::<PyRef<'_, PyTable>>()?;
         return Ok(table_source(&table));

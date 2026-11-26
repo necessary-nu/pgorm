@@ -21,7 +21,10 @@ use pyo3::{
     types::{PyList, PyTuple},
 };
 
-use pgorm_bindings::entity::{Active, EntityBackend, Insertion, Insertions};
+use pgorm_bindings::{
+    entity::{Active, EntityBackend, Insertion, Insertions},
+    scope::Scoping,
+};
 
 use super::{
     PyActiveModel, input,
@@ -161,10 +164,15 @@ struct Rows<C> {
     entity: Arc<dyn EntityBackend>,
     actives: Vec<Active>,
     conflict: Option<C>,
+    cx: Arc<Scoping>,
 }
 
 impl Rows<Box<OnConflict>> {
-    fn new(entity: Arc<dyn EntityBackend>, actives: &[PyRef<'_, PyActiveModel>]) -> PyResult<Self> {
+    fn new(
+        entity: Arc<dyn EntityBackend>,
+        actives: &[PyRef<'_, PyActiveModel>],
+        cx: Arc<Scoping>,
+    ) -> PyResult<Self> {
         let actives = actives
             .iter()
             .map(|active| owned(&entity, active))
@@ -174,6 +182,7 @@ impl Rows<Box<OnConflict>> {
             entity,
             actives,
             conflict: None,
+            cx,
         })
     }
 
@@ -203,6 +212,7 @@ impl Rows<Box<OnConflict>> {
                 true => Some(InsertConflict::PrimaryKey),
                 false => self.conflict.clone().map(InsertConflict::Clause),
             },
+            cx: self.cx.clone(),
         }
     }
 }
@@ -247,8 +257,9 @@ impl<C: Clone> Rows<C> {
             one,
             write,
         };
+        let cx = self.cx.clone();
         future_into_py(py, async move {
-            let work = Work::Insert(entity.clone(), Box::new(insertion));
+            let work = Work::Insert(entity.clone(), Box::new(insertion), cx);
             let Output::Inserted(inserted) = target.run(work).await? else {
                 return Err(InternalError::new_err("unexpected insert result"));
             };
@@ -367,9 +378,10 @@ impl PyEntityInsert {
     pub(super) fn new(
         entity: Arc<dyn EntityBackend>,
         active: PyRef<'_, PyActiveModel>,
+        cx: Arc<Scoping>,
     ) -> PyResult<Self> {
         Ok(Self {
-            inner: Rows::new(entity, &[active])?,
+            inner: Rows::new(entity, &[active], cx)?,
         })
     }
 }
@@ -481,9 +493,10 @@ impl PyEntityInsertMany {
     pub(super) fn new(
         entity: Arc<dyn EntityBackend>,
         actives: &[PyRef<'_, PyActiveModel>],
+        cx: Arc<Scoping>,
     ) -> PyResult<Self> {
         Ok(Self {
-            inner: Rows::new(entity, actives)?,
+            inner: Rows::new(entity, actives, cx)?,
         })
     }
 }

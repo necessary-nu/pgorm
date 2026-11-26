@@ -41,7 +41,7 @@ class RegisteredEntities(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r["name"] for r in registrations],
                          ["app.Account", "app.AcmeTenantNote", "app.Auction", "app.Booking", "app.Label",
                           "app.Listing", "app.Membership", "app.Note", "app.Old", "app.Pallet", "app.Parcel",
-                          "app.Room", "app.Sale", "app.Shipment", "app.Stay", "app.Temper", "app.TenantNote",
+                          "app.Room", "app.Sale", "app.ScopedCompany", "app.ScopedNote", "app.Shipment", "app.Stay", "app.Temper", "app.TenantNote",
                           "app.Till"])
         self.assertEqual(p.entities(), [r["name"] for r in registrations])
         info = self.account.describe()

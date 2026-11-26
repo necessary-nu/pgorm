@@ -7,7 +7,8 @@ mints placeholders to reuse within its stage, which cannot escape it.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, overload
+from functools import reduce
+from typing import TYPE_CHECKING, Any, overload
 
 from .. import _native
 from .._native import (
@@ -27,15 +28,34 @@ from .._native import (
     pipeline_source_tuples as source_tuples,
 )
 from ..models import Model
+from ..scopes import Context, held
 from ._typed import PipelineSelector as PipelineSelector, model_col
 
 if TYPE_CHECKING:
-    from .._entities import EntityColumn
+    from .._entities import Entity, EntityColumn
     from .._pipeline_expr import Operand, Name
 
 
 source = _native.pipeline_source
 from_ = Pipeline
+
+
+# [spec:pgorm:req:python.scopes]
+def from_for(cx: Context, relation: Model[Any] | Entity) -> Pipeline:
+    """Rust's ``Pipeline::from_for``: the rows ``cx``'s scopes hold of a
+    model or a registered entity, each scope it holds the value of a
+    ``filter`` stage binding the value. Another scoped table joins the
+    pipeline as a pipeline of its own, ``from_for(cx, other)``."""
+    context = held(cx)
+    if isinstance(relation, Model):
+        pipeline = Pipeline(relation.table)
+        if relation._scopes is None:
+            return pipeline
+        compared = [model_col(relation, field) == value for field, value in relation._scopes.condition(context)]
+        return pipeline if not compared else pipeline.filter(reduce(lambda a, b: a & b, compared))
+    if isinstance(relation, _native.Entity):
+        return relation._pipeline_for(cx)
+    raise TypeError("from_for reads a Model or a registered Entity")
 
 
 @overload
@@ -146,6 +166,7 @@ __all__ = [
     "source_tuples",
     "source",
     "from_",
+    "from_for",
     "literal",
     "alias",
     "col",

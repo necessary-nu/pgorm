@@ -371,7 +371,7 @@ impl IntoSource for Source {
 /// An entity alone is every row of its table, so a scoped entity is a source
 /// only through [`Pipeline::from_for`], which reads it under a context.
 // [spec:pgorm:sem:pipeline.qualify+5]
-// [spec:pgorm:req:scope.compile]
+// [spec:pgorm:req:scope.compile+1]
 impl<E: Entity + ScopedIn<NoContext>> IntoSource for E {
     fn into_source(self) -> Source {
         super::scoped::entity_source(&self)

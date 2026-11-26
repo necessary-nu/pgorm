@@ -59,7 +59,7 @@ fn select_join(mut cx: FunctionContext) -> JsResult<JsValue> {
     if let Err(failure) = entity.relation(&relation) {
         return throw(&mut cx, failure);
     }
-    let joined = select.change(Change::Join(kind, entity, relation));
+    let joined = select.change(Change::Join(kind, entity, relation, None));
     Ok(cx.boxed(SelectHandle(joined)).upcast())
 }
 

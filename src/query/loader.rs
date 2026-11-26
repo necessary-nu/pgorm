@@ -66,7 +66,7 @@ pub trait LoadRelated {
 
 /// The entity alone is its every row, read with no context, so a scoped
 /// entity is a statement its loader is given, such as `find_for(&cx)`.
-// [spec:pgorm:req:scope.compile]
+// [spec:pgorm:req:scope.compile+1]
 impl<E> EntityOrSelect<E> for E
 where
     E: Entity + ScopedIn<NoContext>,

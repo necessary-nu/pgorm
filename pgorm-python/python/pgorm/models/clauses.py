@@ -7,6 +7,7 @@ from dataclasses import Field, dataclass, replace
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from .. import _native as p
+from ..scopes import Context, held
 
 if TYPE_CHECKING:
     from .model import Model
@@ -194,16 +195,20 @@ class Clauses:
         """Join the table at the far end of ``relation``, from the query's
         model or a table it joined, without reading its columns: the first
         table of the relation's model the query reads, or the one its
-        ``from_alias`` names."""
-        from .relations import Relation, joined_on
+        ``from_alias`` names. A scoped far end is joined by ``join_for``."""
+        return self._join(None, relation, kind, alias, reverse=False)
 
-        if not isinstance(relation, Relation):
-            raise TypeError("a model query joins a Relation")
-        start = self._start(relation.from_, "starts", kind, relation.start)
-        end = relation.to
-        table, qualifier = _joined_table(end, alias)
-        on = joined_on(relation, start, qualifier)
-        return self._joined(Joined(end, table, qualifier, on, kind))
+    def join_for(
+        self,
+        cx: Context,
+        relation: Relation,
+        *,
+        kind: p.Join = p.Join.Inner,
+        alias: str | None = None,
+    ) -> Self:
+        """Rust's ``join_for``: ``join`` with the far end's scopes, as ``cx``
+        holds them, ANDed into the join's ``ON``."""
+        return self._join(held(cx), relation, kind, alias, reverse=False)
 
     def join_rev(
         self,
@@ -215,14 +220,47 @@ class Clauses:
         """Join the table ``relation`` starts at, from its far end, which the
         query's model or a table it joined is: Rust's ``join_rev``, the
         relation's condition as it stands."""
+        return self._join(None, relation, kind, alias, reverse=True)
+
+    def join_rev_for(
+        self,
+        cx: Context,
+        relation: Relation,
+        *,
+        kind: p.Join = p.Join.Inner,
+        alias: str | None = None,
+    ) -> Self:
+        """Rust's ``join_rev_for``: ``join_rev`` with the joined table's
+        scopes, as ``cx`` holds them, ANDed into the join's ``ON``."""
+        return self._join(held(cx), relation, kind, alias, reverse=True)
+
+    # [spec:pgorm:req:python.scopes]
+    def _join(
+        self,
+        cx: p._ScopeContext | None,
+        relation: Relation,
+        kind: p.Join,
+        alias: str | None,
+        *,
+        reverse: bool,
+    ) -> Self:
         from .relations import Relation, joined_on
 
         if not isinstance(relation, Relation):
             raise TypeError("a model query joins a Relation")
-        start = self._start(relation.to, "ends", kind)
-        end = relation.from_
+        if reverse:
+            start = self._start(relation.to, "ends", kind)
+            end = relation.from_
+        else:
+            start = self._start(relation.from_, "starts", kind, relation.start)
+            end = relation.to
         table, qualifier = _joined_table(end, alias)
-        on = joined_on(relation, qualifier, start)
+        on = joined_on(relation, qualifier, start) if reverse else joined_on(relation, start, qualifier)
+        if cx is None and end._scopes is not None:
+            end._scopes.join()
+        scoped = end._held(cx, qualifier)
+        if scoped is not None:
+            on = p.Condition.all(on, scoped)
         return self._joined(Joined(end, table, qualifier, on, kind))
 
     def _start(self, model: Model, end: str, kind: p.Join, named: str | None = None) -> str:

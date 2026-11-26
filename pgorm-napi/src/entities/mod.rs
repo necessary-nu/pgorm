@@ -178,7 +178,7 @@ impl EntitySource {
     /// The entity's table as a pipeline source.
     // [spec:pgorm:req:bindings.pipeline-sources+3]
     pub(crate) fn source(&self) -> pgorm::pipeline::Source {
-        self.0.source()
+        self.0.source(&pgorm_bindings::scope::Scoping::default())
     }
 }
 
@@ -448,7 +448,11 @@ pub(crate) fn pipeline_column(
 
 fn entity_find(mut cx: FunctionContext) -> JsResult<JsValue> {
     let entity = held!(cx, EntityHandle, 0);
-    Ok(cx.boxed(SelectHandle(entity.select())).upcast())
+    Ok(cx
+        .boxed(SelectHandle(
+            entity.select(&pgorm_bindings::scope::Scoping::default()),
+        ))
+        .upcast())
 }
 
 /// `entityActive(entity)`: an ActiveModel from `ActiveModelBehavior::new`,
@@ -665,7 +669,7 @@ fn active_job(mut cx: FunctionContext) -> JsResult<JsValue> {
     let job: crate::connect::job::Job = Box::new(move |db, secrets| {
         Box::pin(async move {
             let written = active
-                .run(db, write)
+                .run(db, write, &pgorm_bindings::scope::Scoping::default())
                 .await
                 .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(Wrote(written)) as Output)

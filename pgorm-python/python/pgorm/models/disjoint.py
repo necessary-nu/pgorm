@@ -49,6 +49,13 @@ def _named(fields: Mapping[str, Any], expected: Sequence[str], what: str) -> Non
 def _model(value: object, what: str) -> Model:
     if not isinstance(value, Model):
         raise TypeError(f"{what} is a Model")
+    # [spec:pgorm:req:python.scopes]    a declaration whose reads take no context is over unscoped models
+    if value.scopes:
+        raise p.ConstructionError(
+            f"{what}, {value.table.name}, is scoped by {', '.join(value.scopes)}, and a declared "
+            "disjoint enum or one-of reference reads it under no context: declare it over "
+            "unscoped models"
+        )
     if value.table.alias is not None:
         raise p.ConstructionError(
             f"{what} reads its table by its name: a disjoint read names each table bare"

@@ -29,6 +29,7 @@ mod model;
 mod panic;
 pub mod pipeline;
 mod pool;
+pub mod scope;
 mod stream;
 mod tls;
 pub mod transaction;

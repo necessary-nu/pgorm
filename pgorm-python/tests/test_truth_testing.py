@@ -64,6 +64,9 @@ EXEMPT = {
     p.Disjoint, p.DisjointEntity, disjoint_query._Disjoint,
     p.OneOf, p.OneOfEntity, one_of._OneOf, one_of._Reader, _native._OneOf,
     disjoint_views.DisjointView, disjoint_views.WritableDisjointView, disjoint_views._Decoded,
+    # Scopes and the contexts holding them, and their native forms: values a
+    # statement is built under, as a declaration is, which name no SQL.
+    p.Scope, p.Every, p.ScopeContext, _native._ScopeContext, _native._ModelScopes,
     # The private state a model query, graph, cursor or paginator holds and
     # builds its statements from: data the application never handles, held by
     # a query that refuses.

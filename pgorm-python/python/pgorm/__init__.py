@@ -186,6 +186,7 @@ from .copy import CopyOutStream, CopyRows, CopyRowStream, CopySource
 from .copy_rows import CopyRowSink
 from .listen import Listener
 from .raw import SelectorRaw, from_statement
+from .scopes import Every, Scope, ScopeContext
 
 # [spec:pgorm:req:bindings.surface+2]
 # [spec:pgorm:req:python.naming+4]
@@ -234,6 +235,9 @@ __all__ = [
     "Column",
     "ModelColumn",
     "Model",
+    "Scope",
+    "Every",
+    "ScopeContext",
     "ModelRecord",
     "ModelActive",
     "ModelQuery",

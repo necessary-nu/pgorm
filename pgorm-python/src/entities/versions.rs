@@ -9,7 +9,10 @@ use crate::panics::future_into_py;
 use pgorm::pgorm_query::Condition;
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*, types::PyList};
 
-use pgorm_bindings::entity::{Active, Assignment, EntityBackend, Model, VersionWrite, Versions};
+use pgorm_bindings::{
+    entity::{Active, Assignment, EntityBackend, Model, VersionWrite, Versions},
+    scope::Scoping,
+};
 
 use super::{PyActiveModel, PyEntityModel, input};
 use crate::{
@@ -158,11 +161,12 @@ fn run<'py>(
     entity: Arc<dyn EntityBackend>,
     write: VersionWrite,
     answer: Answer,
+    cx: Arc<Scoping>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let target = Executor::extract(py, connection)?;
     future_into_py(py, async move {
-        let Output::Versions(rows) = target.run(Work::Versions(entity, Box::new(write))).await?
-        else {
+        let work = Work::Versions(entity, Box::new(write), cx);
+        let Output::Versions(rows) = target.run(work).await? else {
             return Err(InternalError::new_err("unexpected versioned write result"));
         };
         Python::attach(|py| match answer {
@@ -202,12 +206,17 @@ pub(super) fn owned(entity: &Arc<dyn EntityBackend>, active: &PyActiveModel) -> 
 pub struct PyEntityUpdate {
     entity: Arc<dyn EntityBackend>,
     active: Active,
+    cx: Arc<Scoping>,
 }
 
 impl PyEntityUpdate {
-    pub(super) fn new(entity: Arc<dyn EntityBackend>, active: &PyActiveModel) -> PyResult<Self> {
+    pub(super) fn new(
+        entity: Arc<dyn EntityBackend>,
+        active: &PyActiveModel,
+        cx: Arc<Scoping>,
+    ) -> PyResult<Self> {
         let active = owned(&entity, active)?;
-        Ok(Self { entity, active })
+        Ok(Self { entity, active, cx })
     }
 }
 
@@ -222,7 +231,15 @@ impl PyEntityUpdate {
         connection: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let write = VersionWrite::Change(self.active.clone());
-        run(py, connection, self.entity.clone(), write, Answer::Change)
+        let cx = self.cx.clone();
+        run(
+            py,
+            connection,
+            self.entity.clone(),
+            write,
+            Answer::Change,
+            cx,
+        )
     }
 
     // [spec:pgorm:req:python.truth-testing+5]
@@ -243,15 +260,17 @@ pub struct PyEntityUpdateMany {
     assignments: Vec<(String, Assignment)>,
     filter: Condition,
     guarded: bool,
+    cx: Arc<Scoping>,
 }
 
 impl PyEntityUpdateMany {
-    pub(super) fn new(entity: Arc<dyn EntityBackend>) -> Self {
+    pub(super) fn new(entity: Arc<dyn EntityBackend>, cx: Arc<Scoping>) -> Self {
         Self {
             entity,
             assignments: Vec::new(),
             filter: Condition::all(),
             guarded: false,
+            cx,
         }
     }
 }
@@ -303,7 +322,15 @@ impl PyEntityUpdateMany {
             ));
         }
         let write = VersionWrite::Changes(self.assignments.clone(), self.filter.clone());
-        run(py, connection, self.entity.clone(), write, Answer::Changes)
+        let cx = self.cx.clone();
+        run(
+            py,
+            connection,
+            self.entity.clone(),
+            write,
+            Answer::Changes,
+            cx,
+        )
     }
 
     fn __bool__(&self) -> PyResult<bool> {

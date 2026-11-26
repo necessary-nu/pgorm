@@ -9,6 +9,7 @@ pub mod membership;
 pub mod note;
 pub mod old;
 pub mod room;
+pub mod scoped;
 pub mod shipping;
 pub mod sources;
 pub mod stay;
@@ -55,6 +56,11 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     registry.entity::<listings::auction::Entity>("app.Auction")?;
     registry.entity::<listings::sale::Entity>("app.Sale")?;
     registry.disjoint::<listings::listing::Listing>("app.Listings")?;
+    // [spec:pgorm:req:bindings.scopes-registered/test]    a scoped entity registers after its scopes, by scoped
+    registry.scope::<scoped::CompanyId>()?;
+    registry.scope::<scoped::UserId>()?;
+    registry.scoped::<scoped::company::Entity>("app.ScopedCompany")?;
+    registry.scoped::<scoped::note::Entity>("app.ScopedNote")?;
     graphs::register(&mut registry)?;
     sources::register(&mut registry)?;
     pgorm_python::install(module, registry)
@@ -123,6 +129,22 @@ mod tests {
                 .one_of::<labels::label::Labelled>("app.Others")
                 .is_err()
         );
+        // [spec:pgorm:req:bindings.scopes-registered/test]    a scoped entity before its scopes, an unscoped one by scoped, and a scope named twice are each refused
+        assert!(
+            registry
+                .scoped::<scoped::note::Entity>("app.ScopedNote")
+                .is_err()
+        );
+        registry.scope::<scoped::CompanyId>()?;
+        assert!(registry.scope::<scoped::CompanyId>().is_err());
+        assert!(
+            registry
+                .scoped::<scoped::note::Entity>("app.ScopedNote")
+                .is_err()
+        );
+        registry.scope::<scoped::UserId>()?;
+        assert!(registry.scoped::<account::Entity>("app.Scoped").is_err());
+        registry.scoped::<scoped::note::Entity>("app.ScopedNote")?;
         Python::attach(|py| {
             let module = PyModule::new(py, "pgorm._native")?;
             pgorm_python::install(&module, registry)?;
@@ -133,7 +155,7 @@ mod tests {
                     .get_item("registrations")?
                     .get_item("entities")?
                     .len()?,
-                8
+                9
             );
             assert_eq!(
                 manifest

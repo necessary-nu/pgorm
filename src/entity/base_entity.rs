@@ -127,7 +127,7 @@ pub struct UniqueKey {
 /// are compile errors for a scoped entity, naming it and its scopes.
 // [spec:pgorm:def:entity.traits+5]
 // [spec:pgorm:req:entity.traits.crud+6]
-// [spec:pgorm:req:scope.compile]
+// [spec:pgorm:req:scope.compile+1]
 pub trait Entity: EntityName + EntityScopes {
     #[allow(missing_docs)]
     type Model: Model<Entity = Self> + FromQueryResult;

@@ -4,10 +4,13 @@
 //! Python cannot add a generic instantiation, only use the ones compiled in.
 
 use pgorm::{
-    DecodeRow, Disjoint, Entity, GraphItem, GraphRow, IntoActiveModel, NoContext, OneOf, ScopedIn,
-    SelectGraph, pipeline::SourceList,
+    ActiveModelBehavior, DecodeRow, Disjoint, Entity, GraphItem, GraphRow, IntoActiveModel,
+    NoContext, OneOf, Scope, ScopedIn, SelectGraph, pgorm_query::ValueType, pipeline::SourceList,
 };
-use pgorm_bindings::entity::{GraphSlots, SourceTypes};
+use pgorm_bindings::{
+    entity::{GraphSlots, SourceTypes},
+    scope::Scoping,
+};
 use pyo3::prelude::*;
 
 use super::PyEntity;
@@ -28,7 +31,8 @@ impl Default for Registry {
 impl Registry {
     /// Register the real entity, model, columns and ActiveModel implementation.
     /// Duplicate names or duplicate Rust entity types are rejected atomically.
-    /// Its statements name `E::default()`'s table.
+    /// Its statements name `E::default()`'s table. A scoped entity is
+    /// registered by `scoped`.
     // [spec:pgorm:req:bindings.entities+6]
     pub fn entity<E>(&mut self, name: &str) -> PyResult<&mut Self>
     where
@@ -36,7 +40,37 @@ impl Registry {
         E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
         E::ActiveModel: Send + Sync + 'static,
     {
-        self.entity_in(name, E::default())
+        self.0.entity::<E>(name).py()?;
+        Ok(self)
+    }
+
+    /// Register the Rust scope `S`, so a Python value of its kind becomes
+    /// one in a context: a scoped entity's scopes are registered before it.
+    /// A scope of its name registered already is a `ConstructionError`.
+    // [spec:pgorm:req:bindings.scopes-registered]
+    pub fn scope<S>(&mut self) -> PyResult<&mut Self>
+    where
+        S: Scope + ValueType + Send + Sync,
+    {
+        self.0.scope::<S>().py()?;
+        Ok(self)
+    }
+
+    /// Register the scoped entity `E`: every statement Python builds on it
+    /// starts from a `_for` form given a context holding its scopes, and one
+    /// built without is refused, so it stays held to them. Each of its
+    /// scopes is registered first; an unscoped entity is registered by
+    /// `entity`.
+    // [spec:pgorm:req:bindings.entities+6]
+    // [spec:pgorm:req:bindings.scopes-registered]
+    pub fn scoped<E>(&mut self, name: &str) -> PyResult<&mut Self>
+    where
+        E: Entity + ScopedIn<Scoping> + Send + Sync + 'static,
+        E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
+        E::ActiveModel: ActiveModelBehavior + Send + Sync + 'static,
+    {
+        self.0.scoped::<E>(name).py()?;
+        Ok(self)
     }
 
     /// Register `entity`, an instance of an entity whose names are computed

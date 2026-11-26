@@ -1,7 +1,11 @@
 use crate::panics::future_into_py;
 use pyo3::{IntoPyObjectExt, prelude::*};
 
-use pgorm_bindings::entity::{Active, Read as Terminal, Select, Write, Written};
+use pgorm_bindings::{
+    entity::{Active, Read as Terminal, Select, Write, Written},
+    scope::Scoping,
+};
+use std::sync::Arc;
 
 use super::PyEntityModel;
 use crate::{
@@ -52,10 +56,11 @@ pub(crate) fn write<'py>(
     connection: &Bound<'_, PyAny>,
     active: Active,
     write: Write,
+    cx: Arc<Scoping>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let target = Executor::extract(py, connection)?;
     future_into_py(py, async move {
-        let Output::Written(result) = target.run(Work::Write(active, write)).await? else {
+        let Output::Written(result) = target.run(Work::Write(active, write, cx)).await? else {
             return Err(InternalError::new_err("unexpected model write result"));
         };
         Python::attach(|py| match result {

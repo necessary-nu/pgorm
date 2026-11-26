@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Self
 
 from .. import _native as p
+from ..scopes import Context
 from .queries import ModelRows, written
 from .record import Database, ModelRecord
 from .writes import ModelInsert, ModelInsertMany
@@ -73,8 +74,18 @@ class _Tried[I: (ModelInsert, ModelInsertMany)]:
     def add(self, values: Mapping[str, Any]) -> ModelTryInsertMany:
         return ModelTryInsertMany(self.insert.add(values))
 
+    def add_for(self, cx: Context, values: Mapping[str, Any]) -> ModelTryInsertMany:
+        """Rust's ``TryInsert::add_for``: a row whose scope columns ``cx``
+        fills."""
+        return ModelTryInsertMany(self.insert.add_for(cx, values))
+
     def add_many(self, rows: Sequence[Mapping[str, Any]]) -> ModelTryInsertMany:
         return ModelTryInsertMany(self.insert.add_many(rows))
+
+    def add_many_for(self, cx: Context, rows: Sequence[Mapping[str, Any]]) -> ModelTryInsertMany:
+        """Rust's ``TryInsert::add_many_for``: rows whose scope columns
+        ``cx`` fills."""
+        return ModelTryInsertMany(self.insert.add_many_for(cx, rows))
 
     async def execute(
         self, db: Database

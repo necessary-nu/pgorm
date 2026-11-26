@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import KW_ONLY, FrozenInstanceError, dataclass, field
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, Never, cast
 
 from .. import _native as p
+from ..scopes import Scope, scope_name
 from . import casts
 
 # These tags are produced by the native Record decoder without reinterpretation.
@@ -92,8 +93,13 @@ def _expression(value: object, option: str) -> p.Expr | None:
 # [spec:pgorm:req:bindings.schema-from-model]
 # [spec:pgorm:req:bindings.model-casts]
 # [spec:pgorm:req:bindings.model-conversions]
+# [spec:pgorm:req:python.scopes]
 @dataclass(frozen=True, slots=True)
-class Column:
+class Column[S: Scope[Any] = Never]:
+    """A field's column. ``S`` is the scope ``scope`` names, ``Never`` for a
+    column holding none, so a type checker sees from a model's columns
+    whether it is scoped."""
+
     kind: str | p.TypeName | p.CreatedRange | p.CreatedMultirange
     name: str | None = None
     nullable: bool = False
@@ -119,6 +125,7 @@ class Column:
     save_array_with: Callable[[p.Expr], p.Expr] | None = None
     decode: Callable[[Any], Any] | None = None
     encode: Callable[[Any], Any] | None = None
+    scope: type[S] | None = None
     _null: p.Value = field(init=False, repr=False, compare=False)
     _default: p.Value | None = field(init=False, repr=False, compare=False)
     _casts: p._ModelColumnCasts | None = field(init=False, repr=False, compare=False)
@@ -131,6 +138,7 @@ class Column:
             _flag(getattr(self, option), option)
         if self.primary_key and self.nullable:
             raise p.ConstructionError("primary-key columns cannot be nullable")
+        self._check_scope()
         if self.generated is not None:
             if type(self.generated) is not str:
                 raise TypeError('a column is generated "always" or "by_default"')
@@ -215,6 +223,23 @@ class Column:
         casted = (self.column_type, self.select_as, self.save_as) != (None, None, None)
         handle = p._model_casts(self._described("column")) if casted else None
         object.__setattr__(self, "_casts", handle)
+
+    # [spec:pgorm:req:python.scopes]
+    def _check_scope(self) -> None:
+        """Refuse a scope column that is not one value of its row's own, as
+        Rust refuses the key: one nullable, an array, or generated."""
+        if self.scope is None:
+            return
+        scope_name(self.scope)
+        if self.nullable:
+            raise p.ConstructionError("a scope column is never NULL: a row is in one value of its scope")
+        if self.array:
+            raise p.ConstructionError("a scope column holds one value of its scope, not an array")
+        generated = (self.generated, self.generated_stored, self.generated_virtual)
+        if generated != (None, None, None):
+            raise p.ConstructionError(
+                "a scope column is written by the insert under its context, never generated"
+            )
 
     def _check_ddl(self) -> None:
         """Refuse what the column's DDL options cannot say of its kind."""

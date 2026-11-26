@@ -1,24 +1,25 @@
 //! The adapters each registration monomorphizes when the application's
 //! module is built.
 
-use std::{any::Any, fmt, sync::Arc};
+use std::{fmt, sync::Arc};
 
 use futures_util::future::BoxFuture;
 use pgorm::pgorm_query::{Expr, Name, SelectStatement, SimpleExpr, Value, Values};
 use pgorm::{
-    ActiveModel, ActiveModelBehavior, ActiveValue, Change as RustChange, Column, DecodeRow, Entity,
-    Error, FromQueryResult, IntoActiveModel, Iterable, Model as _, NoContext, QueryFilter,
-    QueryOrder, QuerySelect, Relation, RelationDef, ScopedIn, SelectModel, Statement, StaticName,
-    Update, Upserted,
+    ActiveModelBehavior, Change as RustChange, Column, DecodeRow, Entity, Error, FromQueryResult,
+    IntoActiveModel, Iterable, QueryFilter, QueryOrder, QuerySelect, Relation, RelationDef,
+    SelectModel, Statement, StaticName, Upserted,
 };
 
 use super::{
-    Active, ActiveBackend, Assignment, Between, Change, Comparison, EntityBackend, EntityInfo,
-    EntitySchema, Insertion, Insertions, Members, Model, ModelBackend, PipelineColumn, Read,
-    Select, SelectBackend, VersionWrite, Versions, Write, Written,
+    Active, Assignment, Between, Change, Comparison, EntityBackend, EntityInfo, EntitySchema,
+    Insertion, Insertions, Members, Model, PipelineColumn, Read, Select, SelectBackend,
+    VersionWrite, Versions,
+    active::{ActiveAdapter, concrete, model_of},
+    reach::Reach,
     reads::{self, Decode, Keyset, Pages},
 };
-use crate::{Database, Failure};
+use crate::{Database, Failure, scope::Scoping};
 
 /// The entity's column of SQL name `name`, refused as one the registration
 /// lacks.
@@ -28,43 +29,13 @@ pub(crate) fn column<E: Entity>(info: &EntityInfo, name: &str) -> Result<E::Colu
         .ok_or_else(|| Failure::Construction(format!("{} has no column {name:?}", info.name)))
 }
 
-/// A registered entity: the entity value whose table every statement names,
-/// and what the binding knows of it.
+/// A registered entity: what the binding knows of it, and how its
+/// statements reach it.
 #[derive(Debug)]
-pub struct EntityAdapter<E> {
+pub struct EntityAdapter<E: Entity> {
     /// What the binding knows of the entity: its table, columns and key.
     pub info: Arc<EntityInfo>,
-    /// The registered entity value, whose table every statement names.
-    pub entity: E,
-}
-
-/// `value`, a model of the registration `info` describes, behind its
-/// type-erased handle.
-pub fn model_of<E>(value: E::Model, info: &Arc<EntityInfo>) -> Model
-where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    Arc::new(ModelAdapter::<E> {
-        value,
-        info: Arc::clone(info),
-    })
-}
-
-/// The compiled ActiveModel a type-erased handle holds, refused if another
-/// registration made it.
-fn concrete<E>(active: &Active) -> Result<E::ActiveModel, Error>
-where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    active
-        .as_any()
-        .downcast_ref::<ActiveAdapter<E>>()
-        .map(|adapter| adapter.value.clone())
-        .ok_or_else(|| Error::Custom("the ActiveModel belongs to another registration".to_owned()))
+    pub(crate) reach: Arc<dyn Reach<E>>,
 }
 
 /// One of `E`'s columns, resolved when the pipeline expression naming it was
@@ -78,7 +49,7 @@ impl<E: Entity> fmt::Debug for RegisteredColumn<E> {
 }
 
 // [spec:pgorm:req:bindings.pipeline-sources+3]
-impl<E: Entity + ScopedIn<NoContext> + Send + Sync> PipelineColumn for RegisteredColumn<E> {
+impl<E: Entity + Send + Sync> PipelineColumn for RegisteredColumn<E> {
     fn lower<'brand>(&self, qualifier: Name) -> pgorm::pipeline::Expr<'brand> {
         pgorm::pipeline::named_runtime(E::default(), qualifier).col(self.0)
     }
@@ -87,7 +58,7 @@ impl<E: Entity + ScopedIn<NoContext> + Send + Sync> PipelineColumn for Registere
 // [spec:pgorm:req:bindings.entities+6]
 impl<E> EntityBackend for EntityAdapter<E>
 where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -97,22 +68,26 @@ where
 
     // [spec:pgorm:req:bindings.schema-from-entity]
     fn schema(&self) -> Result<EntitySchema, Error> {
-        let schema = pgorm::Schema::new();
+        let (schema, entity) = (pgorm::Schema::new(), self.reach.entity());
         Ok(EntitySchema {
-            table: schema.create_table_from_entity(self.entity)?,
-            enums: schema.create_enum_from_entity(self.entity),
-            indexes: schema.create_index_from_entity(self.entity),
-            comments: schema.create_comments_from_entity(self.entity),
+            table: schema.create_table_from_entity(entity)?,
+            enums: schema.create_enum_from_entity(entity),
+            indexes: schema.create_index_from_entity(entity),
+            comments: schema.create_comments_from_entity(entity),
         })
     }
 
-    fn source(&self) -> pgorm::pipeline::Source {
-        pgorm::pipeline::IntoSource::into_source(self.entity)
+    fn pipeline(&self, cx: &Scoping) -> pgorm::pipeline::Pipeline {
+        self.reach.pipeline(cx)
     }
 
-    fn select(&self) -> Select {
+    fn source(&self, cx: &Scoping) -> pgorm::pipeline::Source {
+        self.reach.source(cx)
+    }
+
+    fn select(&self, cx: &Scoping) -> Select {
         Arc::new(SelectAdapter::<E> {
-            query: E::find_in(self.entity),
+            query: self.reach.find(cx),
             info: self.info.clone(),
         })
     }
@@ -223,16 +198,18 @@ where
         &'a self,
         db: Database<'a>,
         write: VersionWrite,
+        cx: &'a Scoping,
     ) -> BoxFuture<'a, Result<Vec<Versions>, Error>> {
-        Box::pin(self.write_versions(db, write))
+        Box::pin(self.write_versions(db, write, cx))
     }
 
     fn insert<'a>(
         &'a self,
         db: Database<'a>,
         insertion: Insertion,
+        cx: &'a Scoping,
     ) -> BoxFuture<'a, Result<Insertions, Error>> {
-        Box::pin(self.write_insert(db, insertion))
+        Box::pin(self.write_insert(db, insertion, cx))
     }
 
     // [spec:pgorm:req:bindings.disjoint+2]
@@ -243,7 +220,7 @@ where
 
 impl<E> EntityAdapter<E>
 where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -274,16 +251,19 @@ where
         &self,
         db: Database<'_>,
         write: VersionWrite,
+        cx: &Scoping,
     ) -> Result<Vec<Versions>, Error> {
         match write {
             VersionWrite::Change(active) => {
-                let change = Update::one_in(self.entity, concrete::<E>(&active)?)?
+                let change = self
+                    .reach
+                    .update_one(cx, concrete::<E>(&active)?)?
                     .exec_returning_change(&db)
                     .await?;
                 Ok(vec![self.change(change)])
             }
             VersionWrite::Changes(assignments, filter) => {
-                let mut update = Update::many(self.entity);
+                let mut update = self.reach.update_many(cx);
                 for (name, assignment) in assignments {
                     let column = column::<E>(&self.info, &name)
                         .map_err(|failure| Error::Custom(failure.message().to_owned()))?;
@@ -308,9 +288,11 @@ where
         &self,
         db: Database<'_>,
         insertion: Insertion,
+        cx: &Scoping,
     ) -> Result<Insertions, Error> {
-        crate::insert(
-            self.entity,
+        crate::insert::<E, _, _, _>(
+            |model| self.reach.insert_one(cx, model),
+            |models| self.reach.insert_many(cx, models),
             &db,
             insertion.try_map(concrete::<E>)?,
             |model| self.model(model),
@@ -330,7 +312,7 @@ pub(crate) struct SelectAdapter<E: Entity> {
 // [spec:pgorm:req:bindings.entity-reads+5]
 impl<E> SelectBackend for SelectAdapter<E>
 where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -348,9 +330,10 @@ where
             Change::Order(expr, order, None) => query.order_by(expr, order),
             Change::Limit(limit) => query.limit(limit),
             Change::Offset(offset) => query.offset(offset),
-            Change::Join(kind, entity, relation) => match entity.relation(&relation) {
-                Ok(def) => query.join(kind, def),
-                Err(_) => query,
+            Change::Join(kind, entity, relation, cx) => match (entity.relation(&relation), cx) {
+                (Ok(def), Some(cx)) => query.join_for(&*cx, kind, def),
+                (Ok(def), None) => query.join(kind, def),
+                (Err(_), _) => query,
             },
         };
         Arc::new(Self {
@@ -433,7 +416,7 @@ where
 
 impl<E> SelectAdapter<E>
 where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
+    E: Entity + Send + Sync + 'static,
     E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
     E::ActiveModel: Send + Sync + 'static,
 {
@@ -442,132 +425,5 @@ where
             .into_iter()
             .map(|value| model_of::<E>(value, &self.info))
             .collect()
-    }
-}
-
-#[derive(Debug)]
-struct ModelAdapter<E: Entity> {
-    value: E::Model,
-    info: Arc<EntityInfo>,
-}
-
-// [spec:pgorm:req:bindings.entity-writes+2]
-impl<E> ModelBackend for ModelAdapter<E>
-where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    fn info(&self) -> &Arc<EntityInfo> {
-        &self.info
-    }
-
-    fn get(&self, name: &str) -> Result<Value, Failure> {
-        Ok(self.value.get(column::<E>(&self.info, name)?))
-    }
-
-    fn set(&self, name: &str, value: Value) -> Result<Model, Failure> {
-        let mut model = self.value.clone();
-        model
-            .set(column::<E>(&self.info, name)?, value)
-            .map_err(|error| Failure::Construction(error.to_string()))?;
-        Ok(model_of::<E>(model, &self.info))
-    }
-
-    fn active(&self) -> Active {
-        Arc::new(ActiveAdapter::<E> {
-            value: self.value.clone().into_active_model(),
-            info: self.info.clone(),
-        })
-    }
-}
-
-#[derive(Debug)]
-struct ActiveAdapter<E: Entity> {
-    value: E::ActiveModel,
-    info: Arc<EntityInfo>,
-}
-
-impl<E> ActiveAdapter<E>
-where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    /// A copy of the ActiveModel with `change` made to its column `name`.
-    fn changed(
-        &self,
-        name: &str,
-        change: impl FnOnce(&mut E::ActiveModel, E::Column) -> Result<(), Error>,
-    ) -> Result<Active, Failure> {
-        let column = column::<E>(&self.info, name)?;
-        let mut value = self.value.clone();
-        change(&mut value, column).map_err(|error| Failure::Construction(error.to_string()))?;
-        Ok(Arc::new(Self {
-            value,
-            info: self.info.clone(),
-        }))
-    }
-}
-
-// [spec:pgorm:req:bindings.entity-writes+2]
-impl<E> ActiveBackend for ActiveAdapter<E>
-where
-    E: Entity + ScopedIn<NoContext> + Send + Sync + 'static,
-    E::Model: IntoActiveModel<E::ActiveModel> + Sync + 'static,
-    E::ActiveModel: Send + Sync + 'static,
-{
-    fn info(&self) -> &Arc<EntityInfo> {
-        &self.info
-    }
-
-    fn get(&self, name: &str) -> Result<ActiveValue<Value>, Failure> {
-        self.value
-            .get(column::<E>(&self.info, name)?)
-            .map_err(|error| Failure::Construction(error.to_string()))
-    }
-
-    fn set(&self, name: &str, value: Value) -> Result<Active, Failure> {
-        self.changed(name, |active, column| active.set(column, value))
-    }
-
-    fn not_set(&self, name: &str) -> Result<Active, Failure> {
-        self.changed(name, |active, column| {
-            active.not_set(column);
-            Ok(())
-        })
-    }
-
-    fn reset(&self, name: &str) -> Result<Active, Failure> {
-        self.changed(name, |active, column| {
-            active.reset(column);
-            Ok(())
-        })
-    }
-
-    fn set_if_not_equals(&self, name: &str, value: Value) -> Result<Active, Failure> {
-        self.changed(name, |active, column| {
-            active.set_if_not_equals(column, value)
-        })
-    }
-
-    fn is_changed(&self) -> bool {
-        self.value.is_changed()
-    }
-
-    fn run<'a>(&'a self, db: Database<'a>, write: Write) -> BoxFuture<'a, Result<Written, Error>> {
-        Box::pin(async move {
-            let (entity, active) = (self.info.entity::<E>()?, self.value.clone());
-            let model = match write {
-                Write::Insert => active.insert_in(entity, &db).await?,
-                Write::Update => active.update_in(entity, &db).await?,
-                Write::Delete => return active.delete_in(entity, &db).await.map(Written::Count),
-            };
-            Ok(Written::Model(model_of::<E>(model, &self.info)))
-        })
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }

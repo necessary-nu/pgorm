@@ -21919,6 +21919,9 @@ children (
             {
                 id scopes.python
                 title "A Python model's scoped columns hold its statements to a Scopes context, refused when the statement is built without one"
+                implements {
+                    main (bindings.scopes bindings.scopes-registered python.scopes)
+                }
                 deps (scopes.rust trait-names)
             }
 

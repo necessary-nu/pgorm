@@ -32,7 +32,7 @@ fn versions_job(
     let job: Job = Box::new(move |db, secrets| {
         Box::pin(async move {
             let versions = entity
-                .versions(db, write)
+                .versions(db, write, &pgorm_bindings::scope::Scoping::default())
                 .await
                 .map_err(|error| crate::errors::failure(&error, secrets))?;
             Ok(Box::new(VersionRows(entity.info().clone(), versions)) as Output)

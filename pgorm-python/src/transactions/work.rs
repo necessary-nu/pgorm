@@ -7,8 +7,10 @@ use pgorm_bindings::entity::{
     Active, EntityBackend, GraphQuery, Insertion, Insertions, Model, Read as Terminal,
     Row as GraphRow, Select, Selected, VersionWrite, Versions, Write, Written,
 };
+use pgorm_bindings::scope::Scoping;
 use pgorm_driver::{Row, types::ToSql};
 use pgorm_migration::Migrator;
+use std::sync::Arc;
 
 pub(crate) enum Work {
     Execute(Compiled),
@@ -16,9 +18,9 @@ pub(crate) enum Work {
     Entity(Select, Terminal),
     /// A raw statement decoded into a registration's models.
     EntityRaw(Select, Compiled, Terminal),
-    Write(Active, Write),
-    Versions(std::sync::Arc<dyn EntityBackend>, Box<VersionWrite>),
-    Insert(std::sync::Arc<dyn EntityBackend>, Box<Insertion>),
+    Write(Active, Write, Arc<Scoping>),
+    Versions(Arc<dyn EntityBackend>, Box<VersionWrite>, Arc<Scoping>),
+    Insert(Arc<dyn EntityBackend>, Box<Insertion>, Arc<Scoping>),
     Graph(GraphQuery, bool),
     /// A registered read's page, count, cursor window or grouped rows, run
     /// on whichever database the target holds.
@@ -89,13 +91,14 @@ impl Work {
                 .run_raw(db, compiled.sql, compiled.values, terminal)
                 .await
                 .map(Output::Models),
-            Self::Write(active, write) => active.run(db, write).await.map(Output::Written),
-            Self::Versions(entity, write) => {
-                entity.versions(db, *write).await.map(Output::Versions)
+            Self::Write(active, write, cx) => active.run(db, write, &cx).await.map(Output::Written),
+            Self::Versions(entity, write, cx) => {
+                entity.versions(db, *write, &cx).await.map(Output::Versions)
             }
-            Self::Insert(entity, insertion) => {
-                entity.insert(db, *insertion).await.map(Output::Inserted)
-            }
+            Self::Insert(entity, insertion, cx) => entity
+                .insert(db, *insertion, &cx)
+                .await
+                .map(Output::Inserted),
             Self::Graph(query, optional) => query.run(db, optional).await.map(Output::Graph),
             Self::Read(read) => read(db).await,
             Self::Sources(query, terminal) => query.run(db, terminal).await.map(Output::Graph),
