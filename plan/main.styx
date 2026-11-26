@@ -22924,6 +22924,14 @@ children (
                 id build-speed.tool-thrash
                 title "No two of the repository's builds sharing a target directory rebuild each other's units: the cause of each rebuild found with cargo's fingerprint log and removed"
                 deps (build-speed.debuginfo)
+                log (
+                    {
+                        at 2026-11-26T01:33:07.960662Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+                )
             }
 
             {

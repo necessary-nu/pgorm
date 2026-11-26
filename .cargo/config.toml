@@ -19,3 +19,11 @@ incremental = false
 
 [profile.dev.package."*"]
 debug = false
+
+# pyo3's build script reruns, and pyo3 and everything above it rebuilds, when
+# PYO3_PYTHON changes, or, with it unset, when PATH does. The generative
+# bridge's checks set it and pgorm-python's did not, so every `nplan check`
+# rebuilt pyo3 twice. A run that chooses its own interpreter (the checks
+# scripts, maturin) still sets it and wins; every other run agrees on this one.
+[env]
+PYO3_PYTHON = "python3.14"
