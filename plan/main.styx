@@ -22044,6 +22044,41 @@ children (
                 title "JavaScript's ReadOnlyPool refuses writes, typed so TypeScript rejects a write given one and throwing TypeError at run time"
                 deps (read-only.rust)
             }
+
+            {
+                id read-only.lock-clauses
+                title "A SELECT that locks its rows (FOR UPDATE, FOR NO KEY UPDATE, FOR SHARE, FOR KEY SHARE) runs only on a ConnectionMut: refused by the types on a read-only connection, not by the server's 25006"
+                kind @feat
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.migration-status
+                title "A migrator's status and get_* reads, which write nothing since migration-status-reads, take a Connection, so a read-only connection answers a readiness check"
+                kind @feat
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.hook-connection
+                title "A pool hook on a ReadOnlyPool is given a connection that implements Connection alone, not a HookConnection that may write"
+                kind @fix
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.binding-native-refusal
+                title "The bindings' refusal of a read-only transaction mode on a native Turso pool is tested, and with metrics on it reports a begin error as it did"
+                kind @test
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.double-downgrade
+                title "read_only() on a connection that already only reads is answered: either the same read-only view or a written diagnostic, never a bare E0599"
+                kind @fix
+                deps (read-only.rust)
+            }
         )
         log (
             {
