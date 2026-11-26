@@ -142,9 +142,10 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// its errors are this one's; a key its target table does not hold is
     /// [`OneOfShape::absent`]'s [`Error::Query`].
     ///
-    /// A target is read with no context, so a scoped target's read is refused
-    /// with [`ScopeError::NotHeld`](crate::ScopeError::NotHeld) before
-    /// anything is sent; [`load_for`](Self::load_for) reads it under one.
+    /// A target is read with no context, so an enum with a scoped target is
+    /// refused with [`ScopeError::NotHeld`](crate::ScopeError::NotHeld)
+    /// before anything is sent, whichever targets `models` reference;
+    /// [`load_for`](Self::load_for) reads it under one.
     // [spec:pgorm:def:disjoint.one-of+4]
     async fn load<C>(
         models: &[<Self::Entity as Entity>::Model],
@@ -159,7 +160,8 @@ pub trait OneOf: Sized + Send + Sync + 'static {
     /// [`load`](Self::load) under the context `cx`: each target's read is
     /// held to its table's scopes under `cx`, so a reference to a row outside
     /// them is [`OneOfShape::absent`]'s error, and a target `cx` does not hold
-    /// the scopes of is refused before anything is sent.
+    /// the scopes of is refused before anything is sent, whether a row
+    /// references it or not.
     // [spec:pgorm:def:disjoint.one-of+4]
     // [spec:pgorm:sem:scope.read]
     async fn load_for<Cx, C>(
@@ -480,7 +482,9 @@ impl<O: OneOf> TargetVisitor<O> for Write<'_, O> {
 type TargetLoad<'a, M> = Pin<Box<dyn Future<Output = Result<Vec<(usize, M)>, Error>> + Send + 'a>>;
 
 /// The reads of a load, one per target some row references, built before
-/// any is sent so that a relation refused refuses the whole load.
+/// any is sent so that a relation or a context refused refuses the whole
+/// load. Every target is checked, whether a row references it or not, so a
+/// load's refusal is its enum's and its context's, never its rows'.
 struct Load<'a, O: OneOf, C> {
     shape: &'a OneOfShape,
     models: &'a [<O::Entity as Entity>::Model],
@@ -492,6 +496,7 @@ struct Load<'a, O: OneOf, C> {
     refused: Result<(), Error>,
 }
 
+// [spec:pgorm:req:scope.refusals+1]
 impl<'a, O: OneOf, C: Connection> TargetVisitor<O> for Load<'a, O, C> {
     fn target<T: OneOfTarget<O>>(&mut self)
     where
@@ -501,6 +506,12 @@ impl<'a, O: OneOf, C: Connection> TargetVisitor<O> for Load<'a, O, C> {
         self.index += 1;
         if self.refused.is_ok() {
             self.refused = reads_column::<O, T>();
+        }
+        let mut read = Select::<T>::scoped(&T::default(), self.cx);
+        if let Some(refusal) = read.refused.take()
+            && self.refused.is_ok()
+        {
+            self.refused = Err(Error::Scope(refusal));
         }
         let wanted: Vec<(usize, Value)> = self
             .models
@@ -524,7 +535,6 @@ impl<'a, O: OneOf, C: Connection> TargetVisitor<O> for Load<'a, O, C> {
             }
         };
         let (shape, models, db) = (self.shape, self.models, self.db);
-        let read = Select::<T>::scoped(&T::default(), self.cx);
         self.loads.push(Box::pin(async move {
             let found = read.filter(condition).all(db).await?;
             let key = <T::PrimaryKey as Iterable>::iter()

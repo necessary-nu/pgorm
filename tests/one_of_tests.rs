@@ -15,6 +15,7 @@ pub use common::TestContext;
 
 use async_trait::async_trait;
 use pgorm::metric::{InstrumentedPool, MetricsCollector, QueryContext};
+use pgorm::tests_cfg::scoped::{self, CompanyAdmin, CompanyId, Member, UserId};
 use pgorm::tests_cfg::{
     comment::{self, Commentable, CommentableKey, CommentableModel},
     photo, post,
@@ -102,6 +103,45 @@ pub enum Noted {
     #[pgorm(column = note::Column::PostId)]
     Post(post::Entity),
     Loose,
+}
+
+/// A bookmark on a message, whose `UserId` scope is written by hand, or on a
+/// note, scoped by `CompanyId` and `UserId` columns.
+pub mod bookmark {
+    use pgorm::entity::prelude::*;
+    use pgorm::tests_cfg::scoped::{message, note};
+
+    #[derive(Clone, Debug, PartialEq, Entity)]
+    #[pgorm(table_name = "bookmark")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        pub message_id: Option<i64>,
+        pub note_id: Option<i64>,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {
+        #[pgorm(
+            belongs_to = message::Entity,
+            from = Column::MessageId,
+            to = message::Column::Id
+        )]
+        Message,
+        #[pgorm(belongs_to = note::Entity, from = Column::NoteId, to = note::Column::Id)]
+        Note,
+    }
+}
+
+/// What a bookmark holds, its message declared first so that a load reads
+/// `message` before `note`.
+#[derive(Clone, Copy, Debug, OneOf)]
+#[pgorm(entity = bookmark::Entity, model_attrs(derive(PartialEq, Eq)))]
+pub enum Bookmarked {
+    #[pgorm(column = bookmark::Column::MessageId)]
+    Message(scoped::message::Entity),
+    #[pgorm(column = bookmark::Column::NoteId)]
+    Note(scoped::note::Entity),
 }
 
 /// The SQL of every statement a connection sends.
@@ -511,6 +551,155 @@ async fn load_refuses_a_conditioned_relation_live() -> Result<(), Error> {
         ),
         other => panic!("expected the relation refused, got {other:?}"),
     }
+    assert_eq!(statements.take(), Vec::<String>::new());
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+/// The scoped tables `tests_cfg::scoped` declares and the bookmarks on them:
+/// notes 1 and 2 are Acme's, by users 10 and 11, and note 3 Globex's;
+/// messages 1 and 2 pass between users 10 and 11, and message 3 from 11 to
+/// 20. Bookmarks 1 to 4 hold note 1, message 2, note 2 and message 3.
+async fn bookmarks<C: ConnectionMut>(db: &C) -> Result<Vec<bookmark::Model>, Error> {
+    db.batch_execute(
+        "CREATE TABLE company (id bigint PRIMARY KEY, name text NOT NULL);
+         CREATE TABLE note (
+             id bigserial PRIMARY KEY,
+             company_id bigint NOT NULL REFERENCES company (id),
+             author_id bigint NOT NULL,
+             body text NOT NULL
+         );
+         CREATE TABLE message (
+             id bigserial PRIMARY KEY,
+             sender_id bigint NOT NULL,
+             recipient_id bigint NOT NULL,
+             body text NOT NULL
+         );
+         CREATE TABLE bookmark (
+             id integer PRIMARY KEY,
+             message_id bigint REFERENCES message (id),
+             note_id bigint REFERENCES note (id),
+             CHECK (num_nonnulls(message_id, note_id) = 1)
+         );
+         INSERT INTO company VALUES (1, 'Acme'), (2, 'Globex');
+         INSERT INTO note (company_id, author_id, body) VALUES
+             (1, 10, 'mine'), (1, 11, 'a colleague''s'), (2, 20, 'another company''s');
+         INSERT INTO message (sender_id, recipient_id, body) VALUES
+             (10, 11, 'sent'), (11, 10, 'received'), (11, 20, 'not mine');
+         INSERT INTO bookmark VALUES (1, NULL, 1), (2, 2, NULL), (3, NULL, 2), (4, 3, NULL);",
+    )
+    .await?;
+    bookmark::Entity::find()
+        .order_by_asc(bookmark::Column::Id)
+        .all(db)
+        .await
+}
+
+fn bodies(models: &[BookmarkedModel]) -> Vec<&str> {
+    models
+        .iter()
+        .map(|model| match model {
+            BookmarkedModel::Message(message) => message.body.as_str(),
+            BookmarkedModel::Note(note) => note.body.as_str(),
+        })
+        .collect()
+}
+
+// [spec:pgorm:sem:scope.read/test]    a one-of `load_for` reads each target under its table's scopes: a member's own note and message load, a reference to a colleague's note or another user's message is the load's absent-key error, and an administrator lifting `UserId` loads every row of the company and every message
+#[pgorm_macros::test]
+async fn load_for_reads_targets_under_scopes_live() -> Result<(), Error> {
+    let ctx = TestContext::new("one_of_scoped").await;
+    let statements = Statements::default();
+    let pool = InstrumentedPool::new(ctx.db.clone(), statements.clone());
+    let db = pool.get().await?;
+    let marks = bookmarks(&db).await?;
+    let member = Member {
+        company: CompanyId(1),
+        user: UserId(10),
+    };
+    statements.take();
+
+    let own = Bookmarked::load_for(&member, &marks[..2], &db).await?;
+    assert_eq!(bodies(&own), ["mine", "received"]);
+    let sent = statements.take();
+    assert_eq!(sent.len(), 2, "{sent:#?}");
+    assert!(
+        sent[0].contains(r#"FROM "message""#)
+            && sent[0].contains(r#""message"."sender_id" = $"#)
+            && sent[0].contains(r#""message"."recipient_id" = $"#),
+        "{}",
+        sent[0]
+    );
+    assert!(
+        sent[1].contains(r#"FROM "note""#)
+            && sent[1].contains(r#""note"."company_id" = $"#)
+            && sent[1].contains(r#""note"."author_id" = $"#),
+        "{}",
+        sent[1]
+    );
+
+    match Bookmarked::load_for(&member, &marks[2..3], &db).await {
+        Err(Error::Query(message)) => assert_eq!(
+            message.to_string(),
+            "the `bookmark` row whose key is (`id` = 3) references the `note` row of key 2 \
+             through `note_id`, and `note` holds no such row"
+        ),
+        other => panic!("expected a colleague's note read as absent, got {other:?}"),
+    }
+    match Bookmarked::load_for(&member, &marks[3..], &db).await {
+        Err(Error::Query(message)) => assert!(
+            message.to_string().contains("the `message` row of key 3"),
+            "{message}"
+        ),
+        other => panic!("expected another user's message read as absent, got {other:?}"),
+    }
+
+    let admin = CompanyAdmin {
+        company: CompanyId(1),
+        users: Every::new(),
+    };
+    let company = Bookmarked::load_for(&admin, &marks, &db).await?;
+    assert_eq!(
+        bodies(&company),
+        ["mine", "received", "a colleague's", "not mine"]
+    );
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:req:scope.refusals+1/test]    a one-of load whose context does not hold a target's scopes is refused with `NotHeld` before any target is read, whichever targets its rows reference, the plain `load` included
+#[pgorm_macros::test]
+async fn load_for_refuses_unheld_target_scopes_live() -> Result<(), Error> {
+    let ctx = TestContext::new("one_of_unscoped").await;
+    let statements = Statements::default();
+    let pool = InstrumentedPool::new(ctx.db.clone(), statements.clone());
+    let db = pool.get().await?;
+    let marks = bookmarks(&db).await?;
+    statements.take();
+
+    let not_held =
+        |loaded: Result<Vec<BookmarkedModel>, Error>, table: &str, scope: &str| match loaded {
+            Err(Error::Scope(ScopeError::NotHeld {
+                table: refused,
+                scope: lacking,
+            })) => assert_eq!((refused.as_str(), lacking), (table, scope)),
+            other => panic!("expected `{table}` refused for `{scope}`, got {other:?}"),
+        };
+    not_held(
+        Bookmarked::load_for(&UserId(10), &marks, &db).await,
+        "note",
+        "CompanyId",
+    );
+    not_held(
+        Bookmarked::load_for(&UserId(10), &marks[1..2], &db).await,
+        "note",
+        "CompanyId",
+    );
+    not_held(Bookmarked::load(&marks, &db).await, "message", "UserId");
     assert_eq!(statements.take(), Vec::<String>::new());
 
     drop(db);

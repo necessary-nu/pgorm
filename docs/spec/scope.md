@@ -136,6 +136,23 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 > scopes into its `WHERE`, and so MUST a disjoint update and change of kind
 > on the base row they find.
 
+> [spec:pgorm:sem:scope.from-using]
+> A table a bulk update's `FROM` or a bulk delete's `USING` adds is read as
+> a joined one is, so a scoped entity named there MUST be held to its scopes.
+> `UpdateMany::from_for(cx, entity)` and `DeleteMany::using_for(cx, entity)`,
+> bounded by `ScopedIn<Cx>`, MUST add the entity's table under its `Default`
+> name, as the `_for` statement forms read theirs, and AND `cx`'s scopes on
+> its rows, qualified by that name, into the statement's `WHERE`; a context
+> whose `ScopeContext` does not hold one is held as its refusal and reported
+> when the statement would run. For an unscoped entity they add its table
+> and nothing else. `UpdateMany::from` and `DeleteMany::using` MUST take an
+> `UnscopedFromItem`: an entity bounded by `ScopedIn<NoContext>`, so naming a
+> scoped one does not compile, the error the entity's own
+> (`[spec:pgorm:req:scope.compile]`), and pgorm-query's `FromItem`,
+> `NamedTable`, `TableName`, `Name`, `TableSample` and `AliasName`, which
+> name no entity to pgorm and are added as they are, outside scopes as
+> pgorm-query used directly is (`[spec:pgorm:req:scope.raw]`).
+
 > [spec:pgorm:req:scope.immutable]
 > A column whose definition is `immutable` (`ColumnDef::immutable`) is
 > written when its row is inserted and never changed after; every column
@@ -150,11 +167,17 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 
 ## Refusals
 
-> [spec:pgorm:req:scope.refusals]
+> [spec:pgorm:req:scope.refusals+1]
 > A statement refused for its scopes MUST fail with `Error::Scope` carrying a
 > `ScopeError`, and nothing MUST be sent: `NotHeld`, a context not holding a
-> scope a table is scoped by, which only a context implementing
-> `ScopeContext` by hand can reach once the types hold; `Conflict` and
+> scope a table is scoped by, which the types check wherever they name the
+> table and so arises where they do not: a join through a `RelationDef`, a
+> select's or a graph hop's, under a context not covering its joined table;
+> a one-of load, `OneOf::load` under no context and `load_for` under one,
+> which MUST be refused when the context does not hold the scopes of one of
+> the enum's targets, whichever targets the rows given reference, before any
+> target is read; and a context implementing `ScopeContext` by hand whose
+> `held` does not answer what its `Provides` say; `Conflict` and
 > `Unset` of an insert; `Unscoped`, a join into a scoped table with no
 > context; `Unpiped`, a pipeline over a scope written by hand; and
 > `Refused`, a hand-written scope's own words. A builder that cannot return
