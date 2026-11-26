@@ -1425,6 +1425,7 @@ assertions (
     {id codegen-schema-qualifiers, kind @complete, author "brendan@necessary.nu", at 2026-09-06T12:21:48.870962Z}
     {id codegen-unique-parts-dropped, kind @complete, author "brendan@necessary.nu", at 2026-11-04T23:26:29.172994Z}
     {id codegen.test-helpers-shared, kind @complete, author "brendan@necessary.nu", at 2026-11-05T00:40:28.8974Z}
+    {id codeql-test-code, kind @complete, author "brendan@necessary.nu", at 2026-11-26T00:30:38.591967Z}
     {id column-default-parens, kind @complete, author "brendan@necessary.nu", at 2026-10-19T08:10:00.524269Z}
     {id coming-from-seaorm, kind @complete, author "brendan@necessary.nu", at 2026-10-23T20:28:06.091883Z}
     {id composite-attribute-alteration, kind @complete, author "brendan@necessary.nu", at 2026-10-08T20:08:16.695854Z}

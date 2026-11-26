@@ -22104,6 +22104,41 @@ children (
                 title "JavaScript's ReadOnlyPool refuses writes, typed so TypeScript rejects a write given one and throwing TypeError at run time"
                 deps (read-only.rust)
             }
+
+            {
+                id read-only.lock-clauses
+                title "A SELECT that locks its rows (FOR UPDATE, FOR NO KEY UPDATE, FOR SHARE, FOR KEY SHARE) runs only on a ConnectionMut: refused by the types on a read-only connection, not by the server's 25006"
+                kind @feat
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.migration-status
+                title "A migrator's status and get_* reads, which write nothing since migration-status-reads, take a Connection, so a read-only connection answers a readiness check"
+                kind @feat
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.hook-connection
+                title "A pool hook on a ReadOnlyPool is given a connection that implements Connection alone, not a HookConnection that may write"
+                kind @fix
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.binding-native-refusal
+                title "The bindings' refusal of a read-only transaction mode on a native Turso pool is tested, and with metrics on it reports a begin error as it did"
+                kind @test
+                deps (read-only.rust)
+            }
+
+            {
+                id read-only.double-downgrade
+                title "read_only() on a connection that already only reads is answered: either the same read-only view or a written diagnostic, never a bare E0599"
+                kind @fix
+                deps (read-only.rust)
+            }
         )
         log (
             {
@@ -22939,6 +22974,36 @@ children (
                 author "brendan@necessary.nu"
                 kind @status
                 text "Todo → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id codeql-test-code
+        title "CodeQL scans what ships and not test-only code, whose credentials for throwaway servers its hard-coded-cryptographic-value rule reported 99 times once the vendored driver's tests arrived"
+        kind @ci
+        deps (driver-vendor)
+        sealed true
+        log (
+            {
+                at 2026-11-26T00:23:47.734947Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator chose \"Exclude test-only code\" over dismissing the 99 alerts or rewriting every test credential. PR #44's CodeQL reported 99 critical rust/hard-coded-cryptographic-value alerts, all false positives: test connection strings in the vendored driver's tests (89), Turso and support-crate tests, the maintenance database name \"postgres\" in pgorm-test-support/src, and pgorm-driver-rustls's in-source test module. Fix: a CodeQL config ignoring tests/, **/tests/**, **/benches/**, pgorm-test-support and pgorm-guide-support, with the rustls crate's public-API tests moved out of src into tests/ (its private channel-binding digest tests stay in src)."
+            }
+
+            {
+                at 2026-11-26T00:23:48.104762Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-26T00:30:38.591967Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
