@@ -27,10 +27,10 @@ impl Drop for StatementInner {
     fn drop(&mut self) {
         #[cfg(feature = "turso")]
         if let Some(native) = &self.native {
-            if let Some(client) = self.client.upgrade() {
-                if let Some(actor) = client.native() {
-                    actor.close_statement(native.id);
-                }
+            if let Some(client) = self.client.upgrade()
+                && let Some(actor) = client.native()
+            {
+                actor.close_statement(native.id);
             }
             return;
         }

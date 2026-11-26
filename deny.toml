@@ -14,7 +14,13 @@
 # event whether or not it also carries an advisory, so it fails rather than
 # warns.
 yanked = "deny"
-ignore = []
+ignore = [
+    # chrono is unmaintained. pgorm itself has no path to it (the prqlc fork
+    # drops it for this advisory); turso_core depends on it, and turso_core is
+    # reachable only through the optional, experimental `turso` feature.
+    # Remove this entry when Turso drops chrono or the feature leaves.
+    { id = "RUSTSEC-2026-0543", reason = "chrono reaches the tree only through turso_core, under the optional experimental turso feature" },
+]
 
 [licenses]
 # Every license below is permissive and already in the tree. `r-efi` is the
@@ -118,14 +124,17 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# Two git repositories are the dependencies not resolved from crates.io:
+# Three git repositories are the dependencies not resolved from crates.io:
 # prqlc (necessary-nu/prql, a fork of the compiler behind pgorm::pipeline and
-# `prql!`) and pgsql-syntax (necessary-nu/pgsql-rs, PostgreSQL 19's grammar in
-# native Rust, which publishes nothing). Listing each here is what makes it a
+# `prql!`), pgsql-syntax (necessary-nu/pgsql-rs, PostgreSQL 19's grammar in
+# native Rust, which publishes nothing) and Turso (tursodatabase/turso, the
+# engine behind the optional `turso` feature, pinned to one revision in
+# pgorm-driver's manifest and benches/native's). Listing each here is what makes it a
 # reviewed exception instead of an unremarked git dependency, so adding one has
 # to be a deliberate edit to this file. The second was one: the operator's
 # decision of 2026-11-23 to parse with pgsql-rs (plan node pg-query-19). The
-# root Cargo.toml says what each carries, and
-# tests/fork_pin_tests.rs holds every declaration and lockfile to one revision
-# of each.
-allow-git = ["https://github.com/necessary-nu/prql", "https://github.com/necessary-nu/pgsql-rs"]
+# third was too: the operator's direction to build experimental native Turso
+# (plan container turso), allowed here on 2026-11-25. The root Cargo.toml says
+# what prqlc and pgsql-syntax carry, and tests/fork_pin_tests.rs holds every
+# declaration and lockfile to one revision of each.
+allow-git = ["https://github.com/necessary-nu/prql", "https://github.com/necessary-nu/pgsql-rs", "https://github.com/tursodatabase/turso"]

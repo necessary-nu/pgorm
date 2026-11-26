@@ -22812,6 +22812,21 @@ children (
                     }
                 )
             }
+
+            {
+                id turso.ci-gaps
+                title "The Turso delivery passes CI: the Python sdist parses pgorm's manifest without its test files, the vendored driver resolves at the workspace's Rust 1.89 and drops its unused chrono and time support, and the supply-chain audit allows Turso's pinned git source with chrono's advisory ignored for turso_core alone"
+                kind @fix
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T23:25:01.940354Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Done (nplan complete)"
+                    }
+                )
+            }
         )
         log (
             {
@@ -22819,6 +22834,111 @@ children (
                 author "brendan@necessary.nu"
                 kind @decision
                 text "Operator approved this architecture on 2026-11-24 and requested the WBS: pgorm -> the existing vendored pgorm-driver -> Turso's native embedded API. The compatibility boundary is inside crates/pgorm-driver: preserve Client, Statement, Row, RowStream, Error and the shared postgres-types ToSql/FromSql contract for existing consumers. Open databases in-process; do not add a separate pgorm backend, another tokio-postgres fork, an embedded pgwire server, duplex transport, or a generic text-format protocol mode. Native value conversion is real implementation work, contained in the driver. The turso Cargo feature is experimental and off by default. Performance is a primary acceptance concern. Experimental support is incremental: record actual support and known mismatches for the pinned native engine; full PostgreSQL parity is not a prerequisite. Real PostgreSQL remains the conformance oracle. The former decide.turso verdict concerned an older pgwire frontend and is not evidence of current native API limitations. driver-vendor supplies the fork and is not duplicated here. Focused tests belong to each implementation item; turso.tests supplies the broader compatibility suite. New spec claims are attached to the implementing nodes by turso.spec once their rules are defined; no speculative rule IDs are claimed here."
+            }
+        )
+    }
+
+    {
+        id build-speed
+        title "Builds stop redoing work: debug builds carry no dependency debug info, tools stop overwriting each other's artifacts, the commit gate stops checking what clippy checks, and integration tests link as a few binaries"
+        kind @build
+        children (
+            {
+                id build-speed.debuginfo
+                title "Debug builds in every workspace of the repository keep line tables for its own crates and no debug info for dependencies"
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T18:21:42.97724Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T18:45:15.263922Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id build-speed.check-dedupe
+                title "nplan check runs no cargo check that a clippy of the same scope and features already covers"
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T18:45:45.87088Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T23:25:03.949446Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id build-speed.tool-thrash
+                title "No two of the repository's builds sharing a target directory rebuild each other's units: the cause of each rebuild found with cargo's fingerprint log and removed"
+                deps (build-speed.debuginfo)
+            }
+
+            {
+                id build-speed.test-binaries
+                title "Each crate's integration tests link as one test binary (plus one per required feature set) rather than one per file"
+                kind @test
+                deps (read-only.rust)
+            }
+
+            {
+                id build-speed.no-incremental
+                title "Debug builds in every workspace of the repository compile without incremental caches, which held 24 of a 29 GB target after one nplan check"
+                sealed true
+                log (
+                    {
+                        at 2026-11-25T22:44:54.546321Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "2026-11-25, operator (\"do it\"): after one nplan check on Rust 1.100, main's target was 29G, 24G of it debug/incremental. The incremental cache serves one crate's edit loop but is made per unit for every workspace member in every feature set nplan check builds, which never reuse it. The operator had deleted target/ twice that day for size. Traded: a small edit in pgorm recompiles the whole crate. Set in .cargo/config.toml so every run agrees; per-run CARGO_INCREMENTAL would churn fingerprints between runs that disagree."
+                    }
+
+                    {
+                        at 2026-11-25T23:23:01.866954Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-25T23:25:04.865718Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+        )
+    }
+
+    {
+        id rust-1-100
+        title "The compile-fail tests' expected output is Rust 1.100's, the stable CI runs and the local toolchain follows"
+        kind @test
+        sealed true
+        log (
+            {
+                at 2026-11-25T23:25:02.500195Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Todo → Done (nplan complete)"
             }
         )
     }

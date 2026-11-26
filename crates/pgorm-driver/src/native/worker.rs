@@ -82,26 +82,26 @@ impl Operation {
     }
 
     fn release(&self) {
-        if self.pending.swap(false, Ordering::AcqRel) {
-            if let Some(control) = self.owner.upgrade() {
-                control.inflight.fetch_sub(1, Ordering::Release);
-            }
+        if self.pending.swap(false, Ordering::AcqRel)
+            && let Some(control) = self.owner.upgrade()
+        {
+            control.inflight.fetch_sub(1, Ordering::Release);
         }
     }
 
     pub(super) fn begin_restore(&self) {
-        if !self.restoring.swap(true, Ordering::AcqRel) {
-            if let Some(control) = self.owner.upgrade() {
-                control.pending_restore.fetch_add(1, Ordering::AcqRel);
-            }
+        if !self.restoring.swap(true, Ordering::AcqRel)
+            && let Some(control) = self.owner.upgrade()
+        {
+            control.pending_restore.fetch_add(1, Ordering::AcqRel);
         }
     }
 
     fn finish_restore(&self) {
-        if self.restoring.swap(false, Ordering::AcqRel) {
-            if let Some(control) = self.owner.upgrade() {
-                control.pending_restore.fetch_sub(1, Ordering::Release);
-            }
+        if self.restoring.swap(false, Ordering::AcqRel)
+            && let Some(control) = self.owner.upgrade()
+        {
+            control.pending_restore.fetch_sub(1, Ordering::Release);
         }
     }
 
@@ -141,10 +141,11 @@ impl Drop for Operation {
     fn drop(&mut self) {
         // Unsubmitted work needs only release its token. Losing a started
         // operation without publishing completion is worker failure.
-        if self.pending.load(Ordering::Acquire) && self.started.load(Ordering::Acquire) {
-            if let Some(control) = self.owner.upgrade() {
-                control.quarantine();
-            }
+        if self.pending.load(Ordering::Acquire)
+            && self.started.load(Ordering::Acquire)
+            && let Some(control) = self.owner.upgrade()
+        {
+            control.quarantine();
         }
         self.release();
         self.finish_restore();
@@ -197,11 +198,11 @@ impl Control {
         // has not yet marked its first root statement active.
         let mut close = operation.is_some_and(Operation::cancel);
         let active = self.active.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(active) = active.as_ref() {
-            if operation.is_none_or(|op| op.id == active.operation.id) {
-                close |= active.operation.cancel();
-                active.connection.inner().interrupt();
-            }
+        if let Some(active) = active.as_ref()
+            && operation.is_none_or(|op| op.id == active.operation.id)
+        {
+            close |= active.operation.cancel();
+            active.connection.inner().interrupt();
         }
         drop(active);
         if close {
@@ -747,10 +748,10 @@ fn drain_interrupted(statement: &mut Statement, control: &Control) -> Result<(),
         return Ok(());
     }
     statement.interrupt();
-    if let Some(io) = statement.io_completions() {
-        if !io.finished() {
-            io.abort();
-        }
+    if let Some(io) = statement.io_completions()
+        && !io.finished()
+    {
+        io.abort();
     }
     loop {
         match statement.step() {
@@ -826,12 +827,11 @@ fn cleanup_statement(
     // Drain the frontend state machine before its synchronous core reset. A
     // cancelled outstanding completion is explicitly aborted, never waited on
     // indefinitely with no way to observe shutdown.
-    if control.cancelled(operation) {
-        if let Some(io) = statement.io_completions() {
-            if !io.finished() {
-                io.abort();
-            }
-        }
+    if control.cancelled(operation)
+        && let Some(io) = statement.io_completions()
+        && !io.finished()
+    {
+        io.abort();
     }
     loop {
         match statement.cleanup_nonblock().map_err(Error::turso)? {

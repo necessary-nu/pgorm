@@ -5,7 +5,7 @@ pub mod common;
 use active_enum::Entity as ActiveEnumEntity;
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::{
-    ActiveEnum as ActiveEnumTrait,
+    ActiveEnum,
     ActiveValue::Unchanged,
     entity::prelude::*,
     entity::*,
@@ -97,10 +97,10 @@ pub async fn insert_active_enum(db: &DatabaseConnection) -> Result<(), Error> {
     assert_eq!(
         model,
         Entity::find()
-            .filter(Expr::col(Column::Tea).binary(
-                BinOper::In,
-                Expr::tuple([ActiveEnumTrait::as_enum(&Tea::EverydayTea)])
-            ))
+            .filter(
+                Expr::col(Column::Tea)
+                    .binary(BinOper::In, Expr::tuple([Tea::EverydayTea.as_enum()]))
+            )
             .one(db)
             .await?
     );
@@ -125,10 +125,10 @@ pub async fn insert_active_enum(db: &DatabaseConnection) -> Result<(), Error> {
         model,
         Entity::find()
             .filter(Column::Tea.is_not_null())
-            .filter(Expr::col(Column::Tea).binary(
-                BinOper::NotIn,
-                Expr::tuple([ActiveEnumTrait::as_enum(&Tea::BreakfastTea)])
-            ))
+            .filter(
+                Expr::col(Column::Tea)
+                    .binary(BinOper::NotIn, Expr::tuple([Tea::BreakfastTea.as_enum()]))
+            )
             .one(db)
             .await?
     );

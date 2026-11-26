@@ -5,7 +5,6 @@ authors = [ "Billy Chan <ccw.billy.123@gmail.com>" ]
 edition = "2024"
 description = "Derive macros for pgorm"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/necessary-nu/pgorm"
 documentation = "https://docs.rs/pgorm-macros"
 repository = "https://github.com/necessary-nu/pgorm"
 categories = [ "database" ]

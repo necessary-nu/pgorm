@@ -293,11 +293,11 @@ impl Client {
             .try_collect()
             .await?;
 
-        if let Some(row) = rows.first() {
-            if row.len() != 1 {
-                return Err(Error::column_count());
-            }
-        };
+        if let Some(row) = rows.first()
+            && row.len() != 1
+        {
+            return Err(Error::column_count());
+        }
 
         rows.into_iter().map(|r| r.try_get(0)).collect()
     }
@@ -389,10 +389,10 @@ impl Client {
     {
         let row = self.query_opt(statement, params).await?;
 
-        if let Some(row) = &row {
-            if row.len() != 1 {
-                return Err(Error::column_count());
-            }
+        if let Some(row) = &row
+            && row.len() != 1
+        {
+            return Err(Error::column_count());
         }
 
         row.map(|x| x.try_get::<_, R>(0)).transpose()

@@ -1,0 +1,21 @@
+# Read by every cargo run under this directory, so it reaches the detached
+# workspaces (pgorm-python, pgorm-napi, security/*, benches/native) that a
+# [profile] in the root Cargo.toml would not.
+
+# Debug builds keep line tables for the workspace's own crates, enough for a
+# backtrace's file and line, and no debug info for dependencies. Full debug
+# info about doubles every library in target/ (on Linux it is also linked into
+# each of the hundreds of test binaries; on macOS it stays in the libraries and
+# incremental object files). Set `CARGO_PROFILE_DEV_DEBUG=true` to step through
+# code in a debugger.
+#
+# No incremental cache either. It is made per unit, for every workspace member
+# in every feature set the checks build, and none of those runs reuses it: it
+# was 24 GB of a 29 GB target after one `nplan check`. A small edit recompiles
+# its whole crate instead.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+[profile.dev.package."*"]
+debug = false
