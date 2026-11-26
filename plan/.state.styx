@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-26T10:36:35.817596Z
+last_sync_at 2026-11-26T13:01:56.194717Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -368,6 +368,7 @@ rule_versions (
     {id napi.release-builds, version 1}
     {id napi.runtime, version 1}
     {id napi.runtimes, version 2}
+    {id napi.scopes, version 0}
     {id napi.support, version 0}
     {id napi.temporal, version 1}
     {id napi.transactions, version 4}
@@ -1213,8 +1214,11 @@ derived_priorities (
     {id scope-range-types, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-sequences, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id scope-simple-case, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
+    {id scopes.diagnostic-forms, priority 3, derived_at 2026-11-26T13:01:56.194717Z}
     {id scopes.from-using, priority 2, derived_at 2026-11-24T13:53:18.633361Z}
+    {id scopes.from-using-alias, priority 3, derived_at 2026-11-26T13:01:56.194717Z}
     {id scopes.napi, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
+    {id scopes.one-of-compile, priority 3, derived_at 2026-11-26T13:01:56.194717Z}
     {id scopes.one-of-live, priority 2, derived_at 2026-11-24T13:53:18.633361Z}
     {id scopes.python, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
     {id scopes.rust, priority 0, derived_at 2026-11-24T03:02:44.138946Z}
@@ -3707,8 +3711,22 @@ impl_evidence (
         napi.scopes
     ), covered_claims (
         {impl_name javascript, rule napi.scopes}
+    ), rule_versions_seen (
+        {id napi.scopes, version 0}
     )}
-    {id scopes.python}
+    {id scopes.python, covered_rules (
+        bindings.scopes
+        bindings.scopes-registered
+        python.scopes
+    ), covered_claims (
+        {impl_name main, rule bindings.scopes}
+        {impl_name main, rule bindings.scopes-registered}
+        {impl_name python, rule python.scopes}
+    ), rule_versions_seen (
+        {id bindings.scopes, version 0}
+        {id bindings.scopes-registered, version 0}
+        {id python.scopes, version 0}
+    )}
     {id scopes.rust, covered_rules (
         scope.compile
         scope.context

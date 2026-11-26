@@ -22026,6 +22026,34 @@ children (
                 kind @fix
                 deps (scopes.from-using)
             }
+
+            {
+                id scopes.bindings-compound
+                title "Registered graphs, source tuples, disjoint and one-of enums over scoped entities, and declared disjoint and one-of models over scoped models, are held to their scopes in both bindings rather than refused"
+                kind @feat
+                deps (scopes.napi)
+            }
+
+            {
+                id scopes.bindings-written
+                title "A written scope (ScopeOn: a hand-written condition and insert hook) holds a registered entity's statements in both bindings, as column scopes do"
+                kind @feat
+                deps (scopes.napi)
+            }
+
+            {
+                id scopes.codegen-registrations
+                title "pgorm-codegen's registrations register a scoped entity with scoped::<E>() and its scopes with scope::<S>(), so a generated registration of a scoped entity compiles"
+                kind @fix
+                deps (scopes.napi)
+            }
+
+            {
+                id scopes.bindings-registry-names
+                title "A registry tells apart two scope types sharing a last path segment, and refuses a registered update that sets a scope column when it is built, not when it runs"
+                kind @fix
+                deps (scopes.napi)
+            }
         )
         log (
             {
