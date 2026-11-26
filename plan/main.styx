@@ -15014,6 +15014,14 @@ children (
                 text "Re-covered: conn.copy+1, napi.copy+2, python.copy+2 and sql.ast.copy+2 moved after this node's delivery (59b37f92, a COPY TO over a SELECT runs the tie-limit and window checks before anything is sent), every reference is pinned at the current version (nplan_spec_stale clean), and test-run-isolation's state refresh surfaced the drift."
                 after_done true
             }
+
+            {
+                at 2026-11-26T00:10:52.40572Z
+                author "brendan@necessary.nu"
+                kind @note
+                text "Re-covered at conn.copy +6 and metric.layer.copy +2 (read-only.rust, 183a559c): COPY is split as the connection traits are, CopyConnection carrying copy_out, copy_out_rows and copy_out_columns, which ReadOnlyConnection and ReadOnlyTransaction implement, and CopyConnectionMut: CopyConnection the COPY FROM side; copy_in, copy_in_rows and copy_in_columns stay CopyConnection methods bounded by Self: CopyConnectionMut, so one on a read-only connection is pgorm's written E0277. Every reference is pinned at the current version."
+                after_done true
+            }
         )
     }
 
@@ -21873,6 +21881,15 @@ children (
                         [spec:pgorm:req:scope.raw]
                     )
                 }
+                log (
+                    {
+                        at 2026-11-26T00:10:52.854436Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-covered at scope.raw +2 (read-only.rust, 183a559c): the clippy configuration the guide gives names each method taking SQL text by the trait declaring it, Connection or ConnectionMut (batch_execute's body is ConnectionMut's hidden run_batch, which the configuration leaves out), and tests/guide_tests.rs holds it to src/database/connection.rs. The scoping itself is unchanged. Every reference is pinned at the current version."
+                        after_done true
+                    }
+                )
             }
 
             {
