@@ -2,6 +2,7 @@
 members = [".", "crates/pgorm-driver", "crates/pgorm-driver-rustls", "pgorm-case-style", "pgorm-macros", "pgorm-codegen", "pgorm-migration", "pgorm-pool", "pgorm-query", "pgorm-query/pgorm-query-attr", "pgorm-query/pgorm-query-derive", "pgorm-query/pgorm-query-derive-internals", "pgorm-sql-check", "pgorm-sql-macro", "pgorm-test-support", "pgorm-guide-support", "pgorm-bindings"]
 
 [package]
+autotests = false
 name = "pgorm"
 # Native benchmarks have their own manifest and dependency graph.
 autobenches = false
@@ -23,6 +24,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 [lib]
 name = "pgorm"
 path = "src/lib.rs"
+
+# Every integration suite is a module of tests/it.rs, which links them as
+# one binary; cargo would link each file under tests/ as a binary of its own.
+[[test]]
+name = "it"
+path = "tests/it.rs"
 
 [workspace.dependencies]
 async-trait = { version = "0.1.92", default-features = false }
@@ -153,6 +160,9 @@ trybuild = "1.0.122"
 # The identifier render oracle registers the migration ledger's custom table
 # name, which only the migrator renders (tests/identifier_oracle/live_capture.rs).
 pgorm-migration = { path = "pgorm-migration" }
+# The same oracle captures tokio-postgres's statement log, which reaches it
+# through the bridge from `log` to `tracing` (tests/identifier_oracle/live_capture.rs).
+tracing-log = "0.2"
 # Run-scoped names for the databases and roles the live tests create, and the
 # sweep of crashed runs' leftovers (tests/common/setup).
 pgorm-test-support = { path = "pgorm-test-support" }

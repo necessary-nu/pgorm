@@ -2,7 +2,7 @@
 //! generated entity carries — the identity that keeps a `tenant_a.item`
 //! entity off `public.item` whatever `search_path` says.
 
-mod common;
+use crate::common;
 
 use common::*;
 

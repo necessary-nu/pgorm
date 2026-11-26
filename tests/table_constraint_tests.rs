@@ -14,7 +14,7 @@
 //! one key the builder writes and the server refuses is one naming a column
 //! twice, which no type can tell from two columns.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Deferrability, Name, RangeType, Table, TableCreateStatement, TableKey,

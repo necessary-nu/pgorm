@@ -21,9 +21,8 @@
 //! its way to a server — captured from tokio-postgres's statement log — to the
 //! same property as the rest.
 
+use crate::identifier_oracle;
 use pgorm_query::Expression;
-pub mod common;
-mod identifier_oracle;
 
 use std::collections::{BTreeMap, BTreeSet};
 

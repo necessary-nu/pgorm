@@ -6,7 +6,7 @@
 //! foreign key two or three columns wide — through each write and lookup path
 //! a composite key takes.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::OnConflict;

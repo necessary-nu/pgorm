@@ -9,7 +9,7 @@
 //! catalog the generated entities create holds the expression, and the kind
 //! of generated column, that the schema they were generated from does.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;

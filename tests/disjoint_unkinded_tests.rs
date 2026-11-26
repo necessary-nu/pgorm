@@ -11,9 +11,9 @@
 //! and its schema, which do not compile for the typed entity.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test disjoint_unkinded_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it disjoint_unkinded_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 
 use futures::StreamExt;

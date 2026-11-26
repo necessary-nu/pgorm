@@ -6,9 +6,9 @@
 //! enum of names is the PostgreSQL enum a schema created in snake_case.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test derive_boilerplate_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it derive_boilerplate_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::TestContext;
 
 use pgorm::{Connection, ConnectionMut, Error, entity::prelude::*};

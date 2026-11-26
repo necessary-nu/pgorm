@@ -12,7 +12,7 @@
 //! a hand-computed percentile for WITHIN GROUP — rather than against a number
 //! the same clause produced.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, Func, Name, Order, Query, SimpleExpr};
 use pgorm::{Connection, ConnectionMut, entity::prelude::*};

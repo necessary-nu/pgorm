@@ -8,8 +8,8 @@ use pgorm_driver::{
 };
 use std::fmt;
 
-use crate::connect;
-use crate::types::test_type;
+use crate::upstream::connect;
+use crate::upstream::types::test_type;
 
 #[tokio::test]
 async fn test_datetime_params() {

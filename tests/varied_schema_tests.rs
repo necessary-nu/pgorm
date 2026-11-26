@@ -6,11 +6,11 @@
 //! nothing here can be riding `search_path`.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo test --test varied_schema_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo test --test it -- varied_schema_tests::`
 
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 use futures::TryStreamExt;
 use pgorm::{
@@ -52,9 +52,9 @@ mod tenant_a {
         #[derive(Copy, Clone, Debug, Relation)]
         pub enum Relation {
             #[pgorm(
-                belongs_to = crate::owner::Entity,
+                belongs_to = super::super::owner::Entity,
                 from = Column::OwnerId,
-                to = crate::owner::Column::Id
+                to = super::super::owner::Column::Id
             )]
             Owner,
         }
@@ -149,7 +149,7 @@ mod owner {
 
     #[derive(Copy, Clone, Debug, Relation)]
     pub enum Relation {
-        #[pgorm(has_many = crate::tenant_a::item::Entity)]
+        #[pgorm(has_many = super::tenant_a::item::Entity)]
         Item,
     }
 }

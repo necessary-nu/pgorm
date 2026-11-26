@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
-mod crud;
+use crate::common;
+use crate::crud;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use pgorm::{

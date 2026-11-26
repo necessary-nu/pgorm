@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "pgorm-driver-rustls"
 description = "Rustls integration for pgorm-driver"
 version = "0.2.0"
@@ -14,6 +15,12 @@ aws-lc-rs = ["rustls/aws_lc_rs", "tokio-rustls/aws_lc_rs"]
 native-certs = ["dep:rustls-native-certs"]
 ring = ["rustls/ring", "tokio-rustls/ring"]
 webpki-roots = ["dep:webpki-roots"]
+
+# Every integration suite is a module of tests/it.rs, which links them as
+# one binary; cargo would link each file under tests/ as a binary of its own.
+[[test]]
+name = "it"
+path = "tests/it.rs"
 
 [dependencies]
 rustls-native-certs = { version = "0.8", default-features = false, optional = true }

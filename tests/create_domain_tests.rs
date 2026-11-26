@@ -14,7 +14,7 @@
 //! one — is created from its own definition, written, read and filtered, and a
 //! check's refusal reaches the caller as the error PostgreSQL raised.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnType, ConstraintDrop, Domain, DomainCheck, Expr, Name, Query, Schema, alias,

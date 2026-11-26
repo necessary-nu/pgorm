@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, assert_eq_unparsed};
+use crate::postgres::oracle::{assert_eq, assert_eq_unparsed};
 
 // [spec:pgorm:def:sql.token+1/test]    the cursor is the tokenizer's own: it
 // advances only by iteration, and iteration ends rather than indexing past the

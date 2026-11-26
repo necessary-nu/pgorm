@@ -7,11 +7,11 @@
 //! backslash under the default escape, a chosen one, and none, where the
 //! three disagree.
 
-use pgorm_query::Expression;
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, LikeExpr, Name, Query, SimpleExpr};
 use pgorm::{Connection, ConnectionMut, Error, SelectGetableTuple, Selector};
+use pgorm_query::Expression;
 
 fn text(value: &str) -> SimpleExpr {
     Expr::val(value).cast_as(Name::runtime("text"))

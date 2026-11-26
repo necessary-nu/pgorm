@@ -12,7 +12,7 @@
 //! stays data, that every reader honours the read cast, and what the server
 //! refuses.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnType, Expr, Name, Query, SimpleExpr, TypeName, Value, Values,

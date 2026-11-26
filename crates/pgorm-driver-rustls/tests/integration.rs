@@ -4,7 +4,7 @@ use pgorm_driver::Config;
 use pgorm_driver::config::{ChannelBinding, SslMode};
 use pgorm_driver_rustls::MakeRustlsConnect;
 
-mod support;
+use crate::support;
 
 use support::certstore::CertStore;
 use support::docker::PostgresContainer;

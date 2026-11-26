@@ -12,16 +12,16 @@
 //! each kind's row to its base row.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test codegen_disjoint_unkinded_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it codegen_disjoint_unkinded_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::entity::prelude::*;
 use pgorm::{Connection, ConnectionMut, Disjoint, check_disjoint};
 use pretty_assertions::assert_eq;
 
-mod codegen_disjoint_unkinded;
+use crate::codegen_disjoint_unkinded;
 
 use codegen_disjoint_unkinded::account::{Account, AccountKind};
 use codegen_disjoint_unkinded::shop::{Shop, ShopKind};

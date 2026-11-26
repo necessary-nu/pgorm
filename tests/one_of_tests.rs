@@ -8,9 +8,9 @@
 //! column, refused before anything is sent.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test one_of_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it one_of_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::TestContext;
 
 use async_trait::async_trait;

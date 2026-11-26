@@ -7,7 +7,7 @@
 //! the builders *produce*, and the produced text is the observable.
 //!
 //! Run the test locally:
-//! cargo test --test query_build_tests
+//! cargo test --test it -- query_build_tests::
 
 use pgorm::alias;
 use pgorm::pgorm_query::{

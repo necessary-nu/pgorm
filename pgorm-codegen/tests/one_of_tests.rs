@@ -11,7 +11,7 @@
 //! the workspace root (`tests/codegen_one_of_tests.rs`), whose module tree
 //! they are.
 
-mod common;
+use crate::common;
 
 use common::runtime_name as n;
 use common::*;

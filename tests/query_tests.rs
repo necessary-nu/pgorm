@@ -1,13 +1,13 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use pgorm::entity::*;
 pub use pgorm::{Connection, ConnectionMut, Error, QueryFilter, QueryOrder, QuerySelect, set};
 
 // Run the test locally:
-// DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test query_tests
+// DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test it -- query_tests::
 // [spec:pgorm:sem:exec.crud.select+4/test]    `one` fails with RecordNotFound on
 // zero rows where `one_opt` reports `None` — pgorm's deliberate difference
 #[pgorm_macros::test]

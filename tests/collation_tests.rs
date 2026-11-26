@@ -15,7 +15,7 @@
 //! has, ICU's root locale preferred, and the nondeterministic case runs only
 //! where ICU does.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, Expr, Func, Name, Order, OrderedStatement, Query, SimpleExpr, Table,

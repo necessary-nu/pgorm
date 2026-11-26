@@ -2,7 +2,7 @@
 //! `EntityWriter::generate` return, which files come out, and how
 //! `EntityWriterContext` normalizes its options.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm_codegen::{EntityWriterContext, Error, TableIdent, UnkindedDisjoint, WithSerde};

@@ -12,7 +12,7 @@
 //! compares what a statement returns with the rows the tables hold before
 //! and after it, so a clause that rendered and was then ignored still fails.
 
-pub mod common;
+use crate::common;
 use ReturningRow::{New, Old};
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{

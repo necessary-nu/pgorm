@@ -1,14 +1,14 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
-mod crud;
+use crate::common;
+use crate::crud;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use crud::*;
 use pgorm::DatabaseConnection;
 
 // Run the test locally:
-// DATABASE_URL="postgres://postgres:postgres@localhost" cargo test --test crud_tests
+// DATABASE_URL="postgres://postgres:postgres@localhost" cargo test --test it -- crud_tests::
 #[pgorm_macros::test]
 async fn main() {
     let ctx = TestContext::new("bakery_chain_schema_crud_tests").await;

@@ -3,7 +3,7 @@
 //! compiled here as well as compared, so the serde derives it emits are
 //! derives those field types satisfy.
 
-mod common;
+use crate::common;
 
 use std::ops::Bound::{Excluded, Included, Unbounded};
 

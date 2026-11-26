@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "pgorm-query-attr"
 version = "0.2.0"
 authors = ["Pedro Henrique <hello@exst.fun>"]
@@ -13,6 +14,12 @@ rust-version = "1.89"
 
 [lib]
 proc-macro = true
+
+# Every integration suite is a module of tests/it.rs, which links them as
+# one binary; cargo would link each file under tests/ as a binary of its own.
+[[test]]
+name = "it"
+path = "tests/it.rs"
 
 [dependencies]
 syn = { version = "3", default-features = false }

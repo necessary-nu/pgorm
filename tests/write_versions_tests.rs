@@ -8,7 +8,7 @@
 //! before and after the statement, so a version decoded from the other one,
 //! or from a relation that took the `old` keyword, fails.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, OnConflict};
 use pgorm::{Change, Connection, ConnectionMut, Schema, Upserted, entity::prelude::*};

@@ -1,8 +1,8 @@
 //! Generated active enums and identifier hygiene (Rust keyword escaping,
 //! snake_case field names, preserved DB column names).
 
-mod common;
-mod variant_names;
+use crate::common;
+use crate::variant_names;
 
 use common::*;
 use pgorm::{ActiveEnum, Iterable};

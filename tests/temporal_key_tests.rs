@@ -11,7 +11,7 @@
 //! refusal beside the row the same key admits, so a clause that rendered and
 //! was then ignored still fails.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Deferrability, Enforcement, Expr, ForeignKey, ForeignKeyAction,

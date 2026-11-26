@@ -12,7 +12,7 @@
 //! values a statement returns with the row the table held before and after
 //! it, so a version that rendered as the other one still fails.
 
-pub mod common;
+use crate::common;
 use ReturningRow::{New, Old};
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{

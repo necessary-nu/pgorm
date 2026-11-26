@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 use active_enum::Entity as ActiveEnumEntity;
 pub use common::{TestContext, features::*, setup::*};

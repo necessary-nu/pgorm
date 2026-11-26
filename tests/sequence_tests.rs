@@ -11,7 +11,7 @@
 //! type leaves to the server — a zero step, crossed bounds, a bound outside the
 //! counting type — are refused there, each with the same `22023`.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, Sequence, SequenceOption, SequenceType};
 use pgorm::{Connection, ConnectionMut, entity::prelude::*};

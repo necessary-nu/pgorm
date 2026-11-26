@@ -10,9 +10,9 @@
 //! decoded rows.
 //!
 //! Run the test locally:
-//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test pipeline_live_tests
+//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test it -- pipeline_live_tests::
 
-pub mod common;
+use crate::common;
 
 use common::bakery_chain::{customer::Column as C, order::Column as O};
 pub use common::{TestContext, bakery_chain::*, setup::*};

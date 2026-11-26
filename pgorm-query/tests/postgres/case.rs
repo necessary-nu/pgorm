@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 
 /// The one `CaseExpr` in `sql`, as the parser read it.
 fn case_expr(sql: &str) -> serde_json::Value {

@@ -1,6 +1,6 @@
 use uuid_08::Uuid;
 
-use crate::types::test_type;
+use crate::upstream::types::test_type;
 
 #[tokio::test]
 async fn test_uuid_params() {

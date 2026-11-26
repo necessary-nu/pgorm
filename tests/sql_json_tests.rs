@@ -10,7 +10,7 @@
 //! rest on — that a GIN or expression index serves the operators and not the
 //! SQL/JSON functions.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnType, Expr, Func, JsonExistsBehavior, JsonKind, JsonQueryBehavior, JsonValueBehavior,

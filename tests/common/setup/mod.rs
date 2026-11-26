@@ -1,9 +1,9 @@
 use pgorm::{
-    Column, ColumnType, Connection, ConnectionMut, DatabasePool, Entity, Error, Iterable, Schema,
+    Column, ColumnType, ConnectionMut, DatabasePool, Entity, Error, Iterable, Schema,
     TransactionError,
 };
 use pgorm_query::{
-    Name, QueryBuilder, TableCreateStatement,
+    Name, TableCreateStatement,
     extension::{Type, TypeCreateStatement},
 };
 use pretty_assertions::assert_eq;

@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 pub use jiff::{Timestamp, tz::Offset};
@@ -11,7 +11,7 @@ pub use rust_decimal::prelude::*;
 pub use uuid::Uuid;
 
 // Run the test locally:
-// DATABASE_URL="postgres://postgres:postgres@localhost" cargo test --test relational_tests
+// DATABASE_URL="postgres://postgres:postgres@localhost" cargo test --test it -- relational_tests::
 #[pgorm_macros::test]
 pub async fn left_join() {
     let ctx = TestContext::new("test_left_join").await;

@@ -1,7 +1,7 @@
 //! `WithSerde`: parsing, the import + derive fragment it contributes, and the
 //! two field-level skip flags.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm_codegen::{Error, WithSerde};

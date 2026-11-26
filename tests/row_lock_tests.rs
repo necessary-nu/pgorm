@@ -10,8 +10,7 @@
 //! lock is observed from a second connection, whose `NOWAIT` read of the
 //! locked rows fails while the first holds them.
 
-use pgorm_query::Expression;
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Asterisk, CommonTableExpression, Expr, FromItem, Func, IntoFromItem, IntoNamedTable, LockType,
@@ -21,6 +20,7 @@ use pgorm::{
     Connection, ConnectionMut, DatabaseConnection, Error, SelectGetableTuple, Selector, Transact,
 };
 use pgorm_driver::error::SqlState;
+use pgorm_query::Expression;
 
 const SEED: &str = "
     CREATE TABLE stock (id int PRIMARY KEY, qty int NOT NULL);

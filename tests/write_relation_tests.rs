@@ -10,7 +10,7 @@
 //! leaves behind, because a clause that silently degenerated into a cross
 //! product would still report a plausible count.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::entity::prelude::*;
 use pgorm::{DatabaseConnection, entity::*, query::*};

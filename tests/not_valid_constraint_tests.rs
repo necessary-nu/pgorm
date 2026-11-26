@@ -10,7 +10,7 @@
 //! `VALIDATE CONSTRAINT` checks the rest; and a `NO INHERIT` `CHECK` is not
 //! copied to a table that inherits, where a plain one is.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Check, ColumnDef, Enforcement, Expr, Name, Table, TableForeignKey, TableKey,

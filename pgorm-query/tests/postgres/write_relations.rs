@@ -2,7 +2,7 @@
 //! DELETE's `USING`.
 
 use super::*;
-use crate::oracle::assert_eq;
+use crate::postgres::oracle::assert_eq;
 
 // [spec:pgorm:req:sql.ast.update+5/test]      the FROM relation list
 // [spec:pgorm:req:sql.render.update-delete+3/test]

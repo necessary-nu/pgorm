@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 use pgsql_syntax::protobuf::ConstrType;
 
 /// `glyph`, its three columns, and whatever keys `keyed` declares on it.

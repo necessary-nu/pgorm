@@ -12,7 +12,7 @@
 //! statement and the state it should leave, so a clause that rendered and
 //! was then ignored still fails.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     CommonTableExpression, Expr, FromItem, Func, IntoNamedTable, IntoValueTuple, MatchedAction,

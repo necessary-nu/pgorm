@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use super::*;
-use crate::oracle::assert_eq;
+use crate::postgres::oracle::assert_eq;
 
 // [spec:pgorm:def:sql.value+4/test]    every variant wraps an Option; None keeps the type tag
 #[test]

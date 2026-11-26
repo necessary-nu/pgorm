@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 use common::{TestContext, bakery_chain::*, setup::*};
 use jiff::{Timestamp, tz::Offset};
@@ -9,7 +9,7 @@ use rust_decimal::prelude::*;
 use uuid::Uuid;
 
 // Run the test locally:
-// DATABASE_URL="postgres://postgres:postgres@localhost" cargo test --test sequential_op_tests
+// DATABASE_URL="postgres://postgres:postgres@localhost" cargo test --test it -- sequential_op_tests::
 #[pgorm_macros::test]
 pub async fn test_multiple_operations() {
     let ctx = TestContext::new("multiple_sequential_operations").await;

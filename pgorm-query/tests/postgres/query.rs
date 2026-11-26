@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, assert_query_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, assert_query_eq, parsed_nodes};
 
 // [spec:pgorm:req:sql.ast+5/test]
 // [spec:pgorm:def:sql.ast.select+6/test]

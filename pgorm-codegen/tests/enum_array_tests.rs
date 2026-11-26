@@ -3,7 +3,7 @@
 //! entity the writer generates for them — each field a `Vec` of the enum's
 //! `ActiveEnum`.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm::{Column, ColumnTypeExt, Iterable, StaticName};

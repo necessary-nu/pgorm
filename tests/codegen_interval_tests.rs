@@ -11,7 +11,7 @@
 //! qualifier leaves out dropped, the precision it names rounded to — and read
 //! back as the server stored it.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;

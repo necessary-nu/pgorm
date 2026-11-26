@@ -1,7 +1,7 @@
 #[cfg(feature = "with-geo-types-0_7")]
 use geo_types_07::{Coord, LineString, Point, Rect};
 
-use crate::types::test_type;
+use crate::upstream::types::test_type;
 
 #[tokio::test]
 async fn test_point_params() {

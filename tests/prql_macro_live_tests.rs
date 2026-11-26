@@ -13,10 +13,10 @@
 //! back.
 //!
 //! Run the test locally:
-//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test prql_macro_live_tests
+//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test it -- prql_macro_live_tests::
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 pub use common::TestContext;
 use pgorm::{

@@ -1,4 +1,4 @@
-use crate::connect;
+use crate::upstream::connect;
 use futures_util::TryStreamExt;
 use pgorm_driver::binary_copy::{BinaryCopyInWriter, BinaryCopyOutStream};
 use pgorm_driver::types::Type;

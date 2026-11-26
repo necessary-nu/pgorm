@@ -13,7 +13,7 @@
 //! clear its `LISTEN` makes lands after the server already shows the
 //! `LISTEN`, and would throw a statement prepared in between away.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, setup::*};
 

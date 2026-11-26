@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, setup::create_table_without_asserts};
 pub use pgorm::{
@@ -8,7 +8,7 @@ pub use pgorm::{
     query::*, set, tests_cfg::*,
 };
 
-// DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432 cargo test --test basic
+// DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432 cargo test --test it -- basic::
 #[pgorm_macros::test]
 async fn main() -> Result<(), Error> {
     let ctx = TestContext::new("basic_tests").await;

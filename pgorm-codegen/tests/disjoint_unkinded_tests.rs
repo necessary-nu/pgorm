@@ -9,7 +9,7 @@
 //! against a live server, at the workspace root
 //! (`tests/codegen_disjoint_unkinded_tests.rs`), whose module tree they are.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm_codegen::{TableIdent, UnkindedDisjoint, WithSerde};

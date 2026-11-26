@@ -6,9 +6,9 @@
 //! list cannot be written.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test disjoint_declare_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it disjoint_declare_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::TestContext;
 
 use pgorm::tests_cfg::vehicle::{self, Vehicle, VehicleKind};

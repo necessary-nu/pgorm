@@ -13,9 +13,10 @@ Native Turso execution is not part of this import.
 The original MIT and Apache-2.0 licenses and PostgreSQL documentation notice
 are included in this directory.
 
-The upstream integration suite is retained as the `upstream` test target,
-behind `upstream-tests`, because it needs a dedicated PostgreSQL authentication
-fixture on port 5433. Its setup files are in `tests/upstream/`. Run it with
-`cargo test -p pgorm-driver --features upstream-tests --test upstream`
+The upstream integration suite is retained as the `upstream` module of the
+crate's test binary, behind `upstream-tests`, because it needs a dedicated
+PostgreSQL authentication fixture on port 5433. Its sources and setup files
+are in `tests/upstream/`. Run it with
+`cargo test -p pgorm-driver --features upstream-tests --test it -- upstream::`
 after provisioning that fixture. pgorm's existing integration suite exercises
 the driver with its normal test database.

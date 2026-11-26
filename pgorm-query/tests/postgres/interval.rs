@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 
 fn mixed() -> Interval {
     Interval::new(1, -2, 3_000_004)

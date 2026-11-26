@@ -10,10 +10,10 @@
 //! invisible to a syntax-only oracle, since every form parses.
 //!
 //! Run the test locally:
-//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test json_operator_tests
+//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test it -- json_operator_tests::
 
+use crate::common;
 use pgorm_query::Expression;
-pub mod common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{

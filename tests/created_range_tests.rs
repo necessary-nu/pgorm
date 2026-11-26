@@ -11,7 +11,7 @@
 //! data; that a built-in range value reaches a range type created over its
 //! subtype, which it cannot by any cast; and what the server refuses.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     BinOper, ColumnType, Expr, Name, Query, SimpleExpr, TypeName, Value, Values,

@@ -7,9 +7,9 @@
 //! judged by its kind.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test disjoint_shape_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it disjoint_shape_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::pgorm_query::{

@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "pgorm-query"
 version = "0.2.0"
 authors = [
@@ -22,6 +23,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 [lib]
 name = "pgorm_query"
 path = "src/lib.rs"
+
+# Every integration suite is a module of tests/it.rs, which links them as
+# one binary; cargo would link each file under tests/ as a binary of its own.
+[[test]]
+name = "it"
+path = "tests/it.rs"
 
 [dependencies]
 inherent = "1.0.14"
@@ -66,25 +73,6 @@ all-features = [
     "attr",
     "serde",
 ]
-
-[[test]]
-name = "test-derive"
-path = "tests/derive/mod.rs"
-required-features = ["derive"]
-
-[[test]]
-name = "test-error"
-path = "tests/error/mod.rs"
-required-features = ["tests-cfg"]
-
-[[test]]
-name = "test-postgres"
-path = "tests/postgres/mod.rs"
-required-features = ["tests-cfg"]
-
-[[test]]
-name = "test-surface"
-path = "tests/surface/mod.rs"
 
 [[bench]]
 name = "basic"

@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::{ManyRows, OneRow, TryInsertResult, ValueHolder, entity::prelude::*, types::ToSql};

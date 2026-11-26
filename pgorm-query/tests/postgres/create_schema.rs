@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 use pgsql_syntax::protobuf::{DropBehavior, ObjectType};
 
 fn n(name: &str) -> Name {
@@ -125,7 +125,7 @@ fn a_rename_moves_the_schema_name() {
 // which is why the statement offers none, and no qualified schema name
 #[test]
 fn the_grammar_refuses_what_is_not_built() {
-    crate::oracle::assert_rejected(r#"ALTER SCHEMA IF EXISTS "a" RENAME TO "b""#);
-    crate::oracle::assert_rejected(r#"CREATE SCHEMA "db"."a""#);
-    crate::oracle::assert_rejected(r#"DROP SCHEMA "#);
+    crate::postgres::oracle::assert_rejected(r#"ALTER SCHEMA IF EXISTS "a" RENAME TO "b""#);
+    crate::postgres::oracle::assert_rejected(r#"CREATE SCHEMA "db"."a""#);
+    crate::postgres::oracle::assert_rejected(r#"DROP SCHEMA "#);
 }

@@ -43,6 +43,5 @@ mod view;
 mod window;
 mod write_relations;
 
-#[path = "../common.rs"]
 mod common;
 use common::*;

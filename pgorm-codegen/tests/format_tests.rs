@@ -1,6 +1,6 @@
 //! The output format, the `Model` attribute assembly, and the import block.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm_codegen::WithSerde;

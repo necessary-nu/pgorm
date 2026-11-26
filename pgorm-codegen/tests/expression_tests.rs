@@ -2,7 +2,7 @@
 //! subset codegen holds, carried on the bridged statement, and written into
 //! the entity as the Rust that builds the same expression back.
 
-mod common;
+use crate::common;
 
 use common::runtime_name as n;
 use common::*;

@@ -8,7 +8,7 @@ use std::result;
 use std::str::FromStr;
 use std::time::{Duration, UNIX_EPOCH};
 
-use crate::connect;
+use crate::upstream::connect;
 use bytes::BytesMut;
 
 #[cfg(feature = "with-bit-vec-0_6")]

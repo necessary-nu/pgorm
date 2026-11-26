@@ -2,7 +2,7 @@
 //! held to PostgreSQL 19's grammar.
 
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 
 fn data() -> Expr {
     Expr::col((Name::runtime("d"), Name::runtime("doc")))

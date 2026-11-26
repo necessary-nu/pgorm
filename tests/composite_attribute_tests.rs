@@ -9,7 +9,7 @@
 //! without `CASCADE`, a column of the type in another table, and names the
 //! type has or lacks.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ColumnType, Name, extension::Type};
 use pgorm::{Connection, ConnectionMut, entity::prelude::*};

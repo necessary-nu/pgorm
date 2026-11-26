@@ -8,7 +8,7 @@
 //! so the render that was once rejected is held to the grammar instead.
 
 use super::*;
-use crate::oracle::{assert_parses, assert_rejected};
+use crate::postgres::oracle::{assert_parses, assert_rejected};
 use pgorm_query::extension::{Extension, Type};
 
 // Fixed by plan node `bug.oracle-findings`: the frame renderer writes a space
@@ -640,7 +640,7 @@ fn a_case_needs_at_least_one_arm() {
         searched,
         r#"SELECT (CASE WHEN ("aspect" > 1) THEN 'big' ELSE 'x' END)"#
     );
-    let case = &crate::oracle::parsed_nodes(&searched, "CaseExpr")[0];
+    let case = &crate::postgres::oracle::parsed_nodes(&searched, "CaseExpr")[0];
     assert_eq!(case["args"].as_array().map(Vec::len), Some(1), "{searched}");
 
     let simple = Query::select()

@@ -11,9 +11,9 @@
 //! `disjoint_serde`, and so are the ones whose variants end with their enum's
 //! name, in `disjoint_variant_names`, under the workspace's clippy.
 
-mod common;
-mod disjoint_serde;
-mod disjoint_variant_names;
+use crate::common;
+use crate::disjoint_serde;
+use crate::disjoint_variant_names;
 
 use common::runtime_name as n;
 use common::*;

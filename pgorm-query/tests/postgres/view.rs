@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, assert_rejected, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, assert_rejected, parsed_nodes};
 use pgsql_syntax::protobuf::{DropBehavior, ObjectType, ViewCheckOption as ParsedCheckOption};
 
 fn n(name: &str) -> Name {
@@ -333,7 +333,9 @@ fn a_refresh_is_concurrent_or_empty_never_both() {
 
     // The grammar takes both, which is why the slot, and not the oracle, is
     // what keeps the pair out.
-    crate::oracle::assert_parses(r#"REFRESH MATERIALIZED VIEW CONCURRENTLY "m" WITH NO DATA"#);
+    crate::postgres::oracle::assert_parses(
+        r#"REFRESH MATERIALIZED VIEW CONCURRENTLY "m" WITH NO DATA"#,
+    );
 }
 
 // [spec:pgorm:req:sql.ddl.materialized-view+2/test]    a materialized view drop is a drop of

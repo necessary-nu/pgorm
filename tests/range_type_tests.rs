@@ -10,7 +10,7 @@
 //! what code; and that the existing `DROP TYPE` and `RENAME TO` reach a range
 //! as they reach the other kinds.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Name, RangeType, Table,

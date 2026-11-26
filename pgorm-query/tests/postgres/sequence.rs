@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 use pgsql_syntax::protobuf::{DropBehavior, ObjectType};
 
 fn n(name: &str) -> Name {
@@ -368,7 +368,7 @@ fn an_identity_takes_the_sequence_options() {
         r#"CREATE TABLE "glyph" ( "id" integer GENERATED ALWAYS AS IDENTITY )"#
     );
     assert!(identity_options(&bare).is_empty());
-    crate::oracle::assert_rejected(
+    crate::postgres::oracle::assert_rejected(
         r#"CREATE TABLE "glyph" ( "id" integer GENERATED ALWAYS AS IDENTITY () )"#,
     );
 }

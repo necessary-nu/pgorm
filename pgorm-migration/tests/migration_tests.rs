@@ -1,4 +1,4 @@
-mod common;
+use crate::common;
 
 use common::setup::{
     TestContext, count_rows, count_rows_in, has_column, has_column_in, has_index, has_schema,

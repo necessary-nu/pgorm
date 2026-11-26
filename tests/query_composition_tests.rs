@@ -8,9 +8,9 @@
 //! prove that; only rows coming back can.
 //!
 //! Run the test locally:
-//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test query_composition_tests
+//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test it -- query_composition_tests::
 
-pub mod common;
+use crate::common;
 
 use futures::StreamExt;
 

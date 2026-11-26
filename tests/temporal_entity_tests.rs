@@ -12,7 +12,7 @@
 //! by equality, period included, and the relation joins a booking to every
 //! version of its room whose period overlaps its stay.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, extension::Extension};
 use pgorm::{Connection, ConnectionMut, LoadRelated, Schema, entity::prelude::*};

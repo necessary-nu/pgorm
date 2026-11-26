@@ -5,7 +5,7 @@
 //! literals the server accepts and a hostile one stays data, and what the
 //! server refuses that the builder cannot see.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Asterisk, ColumnType, Condition, Expr, Func, JoinType, JsonExistsBehavior, JsonQueryBehavior,

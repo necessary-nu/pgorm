@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 

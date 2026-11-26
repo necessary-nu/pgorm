@@ -15,7 +15,7 @@
 //! ordinary spelling as a control, so a clause that rendered and was then
 //! ignored still fails.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Expr, FrameType, Func, Keyword, Name, Order, OrderedStatement, Query, SelectStatement,

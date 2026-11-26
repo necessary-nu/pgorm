@@ -10,7 +10,7 @@
 //! reach a composite as they reach an enumeration while the label alterations
 //! do not; and what still does not read a composite value back.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ColumnDef, ColumnType, Name, Table, Values, extension::Type};
 use pgorm::{Connection, ConnectionMut, SelectGetableTuple, SelectorRaw, entity::prelude::*};

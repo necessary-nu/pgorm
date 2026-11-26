@@ -6,7 +6,7 @@
 //! Each test provisions its own database. Injection payloads only select
 //! constants or modify the test's own schema.
 
-pub mod common;
+use crate::common;
 use common::TestContext;
 use pgorm::{DecodeRaw, entity::prelude::*};
 use pgorm_query::{Expr, Func, Query, inject_parameters};

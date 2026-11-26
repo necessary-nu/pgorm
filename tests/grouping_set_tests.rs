@@ -17,7 +17,7 @@
 
 use std::collections::BTreeMap;
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Expr, Func, Grouping, GroupingElement, Name, Order, OrderedStatement, Query, SelectStatement,

@@ -9,11 +9,11 @@
 //! and `limit` / `offset` counting rows rather than roots.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo test --test graph_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo test --test it -- graph_tests::`
 
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 use futures::TryStreamExt;
 use pgorm::tests_cfg::{

@@ -1,7 +1,7 @@
 //! Range types a schema creates: `CREATE TYPE ... AS RANGE` read by the DDL
 //! bridge, its columns typed by it, and the newtype each one generates.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm::{Column, ColumnTypeExt, Entity, Iterable, Statement};

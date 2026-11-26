@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_parses, assert_query_eq};
+use crate::postgres::oracle::{assert_parses, assert_query_eq};
 use pgorm_query::extension::{Extension, Type};
 use std::sync::Arc;
 
@@ -1042,14 +1042,14 @@ fn oracle_shim_fires_on_a_string() {
                 .raw_suffix("ANYTHING I WANT TO SAY"),
         )
         .to_string();
-    crate::oracle::assert_eq!(rendered, rendered.clone());
+    crate::postgres::oracle::assert_eq!(rendered, rendered.clone());
 }
 
 // [spec:pgorm:req:sql.render.oracle+6/test]
 #[test]
 #[should_panic(expected = "PostgreSQL rejected")]
 fn oracle_shim_fires_on_a_str_slice() {
-    crate::oracle::assert_eq!("SELECT FROM WHERE", "SELECT FROM WHERE");
+    crate::postgres::oracle::assert_eq!("SELECT FROM WHERE", "SELECT FROM WHERE");
 }
 
 // [spec:pgorm:req:sql.render.oracle+6/test]    a render that opens with a parenthesised query is
@@ -1058,7 +1058,7 @@ fn oracle_shim_fires_on_a_str_slice() {
 #[should_panic(expected = "PostgreSQL rejected")]
 fn oracle_shim_fires_on_a_parenthesised_query() {
     let grouped = "((SELECT 1 UNION (SELECT FROM WHERE)) INTERSECT (SELECT 2)";
-    crate::oracle::assert_eq!(grouped, grouped);
+    crate::postgres::oracle::assert_eq!(grouped, grouped);
 }
 
 // [spec:pgorm:req:sql.render.oracle+6/test]    a grouped set operation's render passes the shim's
@@ -1075,8 +1075,11 @@ fn oracle_shim_reads_a_grouped_set_operation() {
         .union(UnionType::Distinct, arm("b"))
         .union(UnionType::Intersect, arm("c"))
         .to_string();
-    assert!(crate::oracle::looks_like_statement(&grouped), "{grouped}");
-    crate::oracle::assert_eq!(
+    assert!(
+        crate::postgres::oracle::looks_like_statement(&grouped),
+        "{grouped}"
+    );
+    crate::postgres::oracle::assert_eq!(
         grouped,
         r#"(SELECT "id" FROM "a" UNION (SELECT "id" FROM "b")) INTERSECT (SELECT "id" FROM "c")"#
     );
@@ -1087,7 +1090,10 @@ fn oracle_shim_reads_a_grouped_set_operation() {
         "(CASE WHEN TRUE THEN 1 END)",
         r#"( "selected" )"#,
     ] {
-        assert!(!crate::oracle::looks_like_statement(fragment), "{fragment}");
+        assert!(
+            !crate::postgres::oracle::looks_like_statement(fragment),
+            "{fragment}"
+        );
     }
 }
 
@@ -1102,8 +1108,11 @@ fn oracle_shim_reads_a_bare_query() {
         r#"TABLE "glyph""#,
         r#"WITH "v" AS (VALUES (1)) TABLE "v""#,
     ] {
-        assert!(crate::oracle::looks_like_statement(query), "{query}");
-        crate::oracle::assert_eq!(query, query);
+        assert!(
+            crate::postgres::oracle::looks_like_statement(query),
+            "{query}"
+        );
+        crate::postgres::oracle::assert_eq!(query, query);
     }
 }
 
@@ -1112,7 +1121,7 @@ fn oracle_shim_reads_a_bare_query() {
 #[should_panic(expected = "PostgreSQL rejected")]
 fn oracle_shim_fires_on_a_values_list() {
     let broken = "VALUES (1, 'a'), (2";
-    crate::oracle::assert_eq!(broken, broken);
+    crate::postgres::oracle::assert_eq!(broken, broken);
 }
 
 // [spec:pgorm:req:sql.render.oracle+6/test]    a broken render that opens with TABLE fails the shim
@@ -1120,5 +1129,5 @@ fn oracle_shim_fires_on_a_values_list() {
 #[should_panic(expected = "PostgreSQL rejected")]
 fn oracle_shim_fires_on_a_table_query() {
     let broken = r#"TABLE "glyph" WHERE "id" = 1"#;
-    crate::oracle::assert_eq!(broken, broken);
+    crate::postgres::oracle::assert_eq!(broken, broken);
 }

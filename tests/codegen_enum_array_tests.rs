@@ -10,7 +10,7 @@
 //! over one by the domain's name; and a value written through the entity is
 //! read back as it was written.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::Name;
 use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};

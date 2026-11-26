@@ -13,7 +13,7 @@
 //! named form beside the answer another arbiter gives the same row, so a name
 //! that rendered and was then ignored still fails.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, Name, OnConflict, Query};
 use pgorm::{Connection, ConnectionMut, entity::prelude::*};

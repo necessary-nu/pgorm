@@ -10,7 +10,7 @@
 //! `DEFERRABLE INITIALLY IMMEDIATE` from it. Both are transaction-scoped, so
 //! neither shows up in rendered text.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ColumnDef, Deferrability, ForeignKey, Name, Table};
 use pgorm::{Connection, ConnectionMut, Transact, TransactionError, entity::prelude::*};

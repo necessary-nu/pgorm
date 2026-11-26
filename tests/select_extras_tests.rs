@@ -12,7 +12,7 @@
 //! not syntax. So every case counts or reads rows, with the plain form beside
 //! it as the control, and every bound value travels through `build`.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::{

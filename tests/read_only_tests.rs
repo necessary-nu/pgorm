@@ -3,7 +3,7 @@
 //! read-only transactions, the type-only view, COPY and the metrics layer.
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 use async_trait::async_trait;
 use bytes::Bytes;
