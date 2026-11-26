@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-26T00:06:13.507564Z
+last_sync_at 2026-11-26T01:29:53.674489Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -664,6 +664,11 @@ derived_priorities (
     {id bug.relation-pairing, priority 2, derived_at 2026-09-02T14:40:48.714779Z}
     {id bug.test-harness, priority 0, derived_at 2026-09-04T14:19:01.307427Z}
     {id bug.window-position, priority 2, derived_at 2026-09-02T14:40:48.714779Z}
+    {id build-speed.check-dedupe, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
+    {id build-speed.debuginfo, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
+    {id build-speed.no-incremental, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
+    {id build-speed.test-binaries, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id build-speed.tool-thrash, priority 1, derived_at 2026-11-26T01:29:53.674489Z}
     {id cache-listener-keepalive, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id campaign-evidence-durable, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id campaign-refuses-stale-build, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
@@ -695,6 +700,7 @@ derived_priorities (
     {id codegen-schema-qualifiers, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
     {id codegen-unique-parts-dropped, priority 0, derived_at 2026-11-03T17:30:45.402236Z}
     {id codegen.test-helpers-shared, priority 2, derived_at 2026-11-05T00:28:09.491091Z}
+    {id codeql-test-code, priority 2, derived_at 2026-11-26T01:29:53.674489Z}
     {id column-default-parens, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id coming-from-seaorm, priority 0, derived_at 2026-10-24T06:20:32.099314Z}
     {id composite-attribute-alteration, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
@@ -1164,6 +1170,11 @@ derived_priorities (
     {id raw-entry-points-one-shape, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id raw-identifier-casts, priority 0, derived_at 2026-09-08T15:20:53.390093Z}
     {id raw-pagination-placeholder-lexing, priority 2, derived_at 2026-09-06T16:36:02.710141Z}
+    {id read-only.binding-native-refusal, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id read-only.double-downgrade, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id read-only.hook-connection, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id read-only.lock-clauses, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
+    {id read-only.migration-status, priority 3, derived_at 2026-11-26T01:29:53.674489Z}
     {id read-only.napi, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
     {id read-only.python, priority 3, derived_at 2026-11-24T03:02:44.138946Z}
     {id read-only.rust, priority 2, derived_at 2026-11-24T03:02:44.138946Z}
@@ -1175,6 +1186,7 @@ derived_priorities (
     {id retire-try-from-u64, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id runtime-entity-name-per-query, priority 0, derived_at 2026-11-05T15:00:37.202811Z}
     {id rust, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
+    {id rust-1-100, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
     {id rust-view-body-check, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id same-named-tables-across-schemas, priority 0, derived_at 2026-11-03T03:52:36.39422Z}
     {id save-as-predicate-casts, priority 0, derived_at 2026-09-07T15:33:15.757479Z}
@@ -1265,6 +1277,7 @@ derived_priorities (
     {id trait-names, priority 1, derived_at 2026-11-24T03:02:44.138946Z}
     {id transaction-stale-plan-recovery, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id turso.capabilities, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
+    {id turso.ci-gaps, priority 0, derived_at 2026-11-26T01:29:53.674489Z}
     {id turso.connect, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
     {id turso.docs, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
     {id turso.execution, priority 3, derived_at 2026-11-24T18:53:22.443726Z}
