@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 import { Order, OrderLine } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
@@ -11,8 +11,8 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   const order = await pool.transaction(async (tx) => {
     const order = await Order.insert({ customerId: 2, bakeryId: 1, placedAt }).returning().one(tx);
     await OrderLine.insertMany([
-      { orderId: order.id, cakeId: 5, quantity: 1, price: new Decimal("6.00") },
-      { orderId: order.id, cakeId: 2, quantity: 2, price: new Decimal("3.20") },
+      { orderId: order.id, cakeId: 5, quantity: 1, price: dec`6.00` },
+      { orderId: order.id, cakeId: 2, quantity: 2, price: dec`3.20` },
     ]).execute(tx);
     return order;
   });

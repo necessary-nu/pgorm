@@ -18,7 +18,7 @@ pub const MAX_DEPTH: usize = 64;
 
 /// A `json` or `jsonb` value whose every number serde_json read exactly.
 // [spec:pgorm:req:bindings.values]
-// [spec:pgorm:req:napi.values+1]
+// [spec:pgorm:req:napi.values+2]
 #[derive(Debug)]
 pub struct ExactJson(pub Value);
 
@@ -109,7 +109,7 @@ mod tests {
     use super::*;
 
     // [spec:pgorm:req:bindings.values/test]
-    // [spec:pgorm:req:napi.values+1/test]
+    // [spec:pgorm:req:napi.values+2/test]
     #[test]
     fn json_numbers_are_read_exactly_or_refused() -> Result<(), CodecError> {
         for text in [

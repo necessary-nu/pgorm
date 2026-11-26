@@ -278,10 +278,10 @@ function returns can use more than once:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, pipeline as pl } from "@necessary/pgorm";
+import { dec, pipeline as pl } from "@necessary/pgorm";
 
 const cake = (column: string) => pl.col("cake", column);
-const budget = new Decimal("3.50");
+const budget = dec`3.50`;
 
 const affordable = pl.from(Cake.table)
   .filterWith((binder) => cake("price").lte(binder.bind(budget)))
@@ -308,12 +308,12 @@ that function returned is a `LifecycleError`:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, LifecycleError, pipeline as pl } from "@necessary/pgorm";
+import { dec, LifecycleError, pipeline as pl } from "@necessary/pgorm";
 
 const price = pl.col("cake", "price");
 let leaked: pl.PipelineExpr | undefined;
 pl.from(Cake.table).filterWith((binder) => {
-  leaked = binder.bind(new Decimal("3.50"));
+  leaked = binder.bind(dec`3.50`);
   return price.lte(leaked);
 });
 

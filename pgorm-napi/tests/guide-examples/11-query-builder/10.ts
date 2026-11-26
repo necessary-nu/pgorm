@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { col, ConstructionError, Decimal, deleteFrom, Table, update } from "@necessary/pgorm";
+import { col, ConstructionError, dec, deleteFrom, Table, update } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -11,7 +11,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
 
   // Every cake sold in Bergen goes up by fifty cents.
   const raise = update(cake)
-    .set("price", cake.col("price").add(new Decimal("0.50")))
+    .set("price", cake.col("price").add(dec`0.50`))
     .from(bakery)
     .where(cake.col("bakery_id").eq(bakery.col("id")))
     .where(bakery.col("city").eq("Bergen"));

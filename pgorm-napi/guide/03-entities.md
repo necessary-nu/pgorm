@@ -265,7 +265,7 @@ column, and allow each cake once per order:
 <!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { col, column, DataType, Decimal, fromModel, model } from "@necessary/pgorm";
+import { col, column, DataType, dec, fromModel, model } from "@necessary/pgorm";
 
 const money = new DataType("numeric", { precision: 10, scale: 2 });
 const OrderLine = model("order_line", {
@@ -289,7 +289,7 @@ assert.equal(
 await pool.execute(create);
 
 // The quantity takes its default, and the database computes the total.
-const line = await OrderLine.insert({ orderId: 1, cakeId: 2, price: new Decimal("3.20") })
+const line = await OrderLine.insert({ orderId: 1, cakeId: 2, price: dec`3.20` })
   .returning("quantity", "total")
   .one(pool);
 assert.equal(line.quantity, 1);
@@ -376,7 +376,7 @@ type `flavor` in the `public` schema:
 
 ```ts
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal } from "@necessary/pgorm";
+import { ConstructionError, dec } from "@necessary/pgorm";
 
 assert.equal(Cake.columns.flavor.kind.toString(), `"public"."flavor"`);
 assert.deepEqual(Cake.columns.flavor.values, ["chocolate", "vanilla", "lemon", "carrot"]);
@@ -391,7 +391,7 @@ assert.throws(
       name: "Banana Bread",
       // @ts-expect-error: "banana" is not one of the flavor's labels
       flavor: "banana",
-      price: new Decimal("3.00"),
+      price: dec`3.00`,
       glutenFree: false,
       bakeryId: 1,
     }),

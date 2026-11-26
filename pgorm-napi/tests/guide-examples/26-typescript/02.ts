@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal, type InsertOf } from "@necessary/pgorm";
+import { ConstructionError, Decimal, dec, type InsertOf } from "@necessary/pgorm";
 import { Cake, Customer } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
@@ -31,6 +31,6 @@ export default async function example({ pool }: GuideContext): Promise<void> {
     ConstructionError,
   );
 
-  const fine = Cake.update({ price: new Decimal("3.25") }).where(Cake.key({ id: 2 }));
+  const fine = Cake.update({ price: dec`3.25` }).where(Cake.key({ id: 2 }));
   assert.equal(await fine.execute(pool), 1);
 }

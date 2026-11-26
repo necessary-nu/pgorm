@@ -365,6 +365,14 @@ export declare class Decimal {
   toJSON(): string;
 }
 
+/**
+ * A `Decimal` written as a literal, dec`19.99`: the same value as
+ * `new Decimal("19.99")`. Taking the template's strings alone, it makes an
+ * interpolation a type error; a value known only at run time is
+ * `new Decimal(text)`.
+ */
+export declare function dec(strings: TemplateStringsArray): Decimal;
+
 /** A UUID, held as its lower-case hyphenated text. */
 export declare class Uuid {
   constructor(value: string);

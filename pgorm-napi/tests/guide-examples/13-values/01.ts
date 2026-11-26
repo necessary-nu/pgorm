@@ -2,10 +2,10 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal, Value } from "@necessary/pgorm";
+import { ConstructionError, dec, Value } from "@necessary/pgorm";
 
 export default async function example(): Promise<void> {
-  const price = new Value(new Decimal("4.50"));
+  const price = new Value(dec`4.50`);
   assert.equal(price.kind, "decimal");
   assert.equal(String(price.value), "4.50");
 

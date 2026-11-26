@@ -228,6 +228,7 @@ export {
   CreatedMultirange,
   CreatedRange,
   Decimal,
+  dec,
   Interval,
   Multirange,
   Range,

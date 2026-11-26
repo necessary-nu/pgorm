@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { col, column, DataType, Decimal, fromModel, model } from "@necessary/pgorm";
+import { col, column, DataType, dec, fromModel, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -28,7 +28,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   await pool.execute(create);
 
   // The quantity takes its default, and the database computes the total.
-  const line = await OrderLine.insert({ orderId: 1, cakeId: 2, price: new Decimal("3.20") })
+  const line = await OrderLine.insert({ orderId: 1, cakeId: 2, price: dec`3.20` })
     .returning("quantity", "total")
     .one(pool);
   assert.equal(line.quantity, 1);

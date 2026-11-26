@@ -226,7 +226,14 @@ declared above, and their tables exist:
 ```ts
 import assert from "node:assert/strict";
 import {
-  column, createDisjoint, DecodeError, Decimal, disjoint, ForeignKeyViolationError, model, TypeName,
+  column,
+  createDisjoint,
+  DecodeError,
+  dec,
+  disjoint,
+  ForeignKeyViolationError,
+  model,
+  TypeName,
 } from "@necessary/pgorm";
 
 const paymentKind = new TypeName("payment_kind", { schema: "public" });
@@ -259,7 +266,7 @@ const Payments = disjoint(
 for (const statement of createDisjoint(Payments)) await pool.execute(statement);
 
 const [base, kind, card] = await Payments
-  .insert({ orderId: 1, amount: new Decimal("12.20") }, "card", { lastFour: "4242" })
+  .insert({ orderId: 1, amount: dec`12.20` }, "card", { lastFour: "4242" })
   .returningModel(pool);
 assert.equal(kind, "card");
 assert.deepEqual(card, { paymentId: base.id, lastFour: "4242" });
@@ -270,11 +277,11 @@ assert.deepEqual(updated, { paymentId: base.id, lastFour: "4343" });
 
 // An update as another kind finds no row of that kind.
 await assert.rejects(
-  Payments.update({ id: base.id, amount: new Decimal("1") }, "cash").returningModel(pool),
+  Payments.update({ id: base.id, amount: dec`1` }, "cash").returningModel(pool),
   DecodeError,
 );
 
-const [cash] = await Payments.insert({ orderId: 2, amount: new Decimal("3.80") }, "cash").returningModel(pool);
+const [cash] = await Payments.insert({ orderId: 2, amount: dec`3.80` }, "cash").returningModel(pool);
 
 // The customer paid with a voucher after all.
 const [moved, movedKind, voucher] = await Payments
@@ -314,7 +321,7 @@ Three methods are its own:
 
 ```ts
 import assert from "node:assert/strict";
-import { column, createDisjoint, Decimal, disjoint, model, TypeName } from "@necessary/pgorm";
+import { column, createDisjoint, dec, disjoint, model, TypeName } from "@necessary/pgorm";
 
 const paymentKind = new TypeName("payment_kind", { schema: "public" });
 const Payment = model("payment", {
@@ -344,9 +351,9 @@ const Payments = disjoint(
   { schemaName: "public" },
 );
 for (const statement of createDisjoint(Payments)) await pool.execute(statement);
-await Payments.insert({ orderId: 1, amount: new Decimal("12.20") }, "card", { lastFour: "4242" }).returningModel(pool);
-await Payments.insert({ orderId: 2, amount: new Decimal("3.80") }, "cash").returningModel(pool);
-await Payments.insert({ orderId: 1, amount: new Decimal("4.50") }, "card", { lastFour: "1111" }).returningModel(pool);
+await Payments.insert({ orderId: 1, amount: dec`12.20` }, "card", { lastFour: "4242" }).returningModel(pool);
+await Payments.insert({ orderId: 2, amount: dec`3.80` }, "cash").returningModel(pool);
+await Payments.insert({ orderId: 1, amount: dec`4.50` }, "card", { lastFour: "1111" }).returningModel(pool);
 
 const every = await Payments.find().orderBy(Payment.col("id").asc()).all(pool);
 assert.deepEqual(every.map(([, kind]) => kind), ["card", "cash", "card"]);
@@ -397,7 +404,7 @@ The tables are first created as the earlier declaration had them:
 <!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { addDisjointKind, column, createDisjoint, Decimal, disjoint, model, TypeName } from "@necessary/pgorm";
+import { addDisjointKind, column, createDisjoint, dec, disjoint, model, TypeName } from "@necessary/pgorm";
 
 const paymentKind = new TypeName("payment_kind", { schema: "public" });
 const payment = (kinds: string[]) =>
@@ -450,7 +457,7 @@ for (const step of steps) {
 }
 
 const [, kind, voucher] = await Payments
-  .insert({ orderId: 2, amount: new Decimal("3.80") }, "voucher", { code: "XMAS-2026" })
+  .insert({ orderId: 2, amount: dec`3.80` }, "voucher", { code: "XMAS-2026" })
   .returningModel(pool);
 assert.equal(kind, "voucher");
 assert.deepEqual(voucher, { paymentId: 1, code: "XMAS-2026" });

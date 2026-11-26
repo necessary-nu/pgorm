@@ -22,7 +22,7 @@ pub(crate) const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 /// within 64 bits, a string, an array, or an object of the module's plain
 /// kind. Anything JSON cannot hold is refused, never dropped or turned into a
 /// string as `JSON.stringify` would.
-// [spec:pgorm:req:napi.values+1]
+// [spec:pgorm:req:napi.values+2]
 pub(crate) fn read<'cx>(
     cx: &mut Cx<'cx>,
     codec: Codec<'cx>,

@@ -116,7 +116,7 @@ first rule: a value reaches JavaScript exactly or not at all.
 | a created range | its type | `Range`, its kind a `CreatedRange` |
 | a created multirange | its type, in a binary COPY | `Multirange`, its kind a `CreatedMultirange` |
 
-> [spec:pgorm:req:napi.values+1]
+> [spec:pgorm:req:napi.values+2]
 > Every kind `bindings.values` names, and SQL NULL as `null`, MUST cross as
 > the JavaScript type the table above declares for it, exactly: `int8`
 > decodes as a `bigint`, never a number; `numeric` as a `Decimal`, whose text
@@ -130,6 +130,11 @@ first rule: a value reaches JavaScript exactly or not at all.
 > `Decimal` in exponent notation, and a `Decimal` made from a number, which
 > may already be rounded, MUST be refused with a `ConstructionError`. A
 > `Decimal` MUST NOT become a number implicitly.
+>
+> A `Decimal` is also written as a literal, dec`19.99`, the value
+> `new Decimal("19.99")` makes. `dec` takes the template's text alone, so an
+> interpolation MUST be a type error under TypeScript and MUST be refused at
+> run time with a `ConstructionError`.
 
 > [spec:pgorm:req:napi.temporal+1]
 > Dates and times MUST be Temporal's: `date` a `Temporal.PlainDate`, `time` a

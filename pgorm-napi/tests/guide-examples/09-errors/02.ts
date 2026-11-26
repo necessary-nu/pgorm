@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { CheckViolationError, Decimal, ExclusionViolationError } from "@necessary/pgorm";
+import { CheckViolationError, dec, ExclusionViolationError } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -16,7 +16,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
     )`);
 
   const free = await pool
-    .execute("UPDATE cake SET price = $1 WHERE id = 1", [new Decimal("0")])
+    .execute("UPDATE cake SET price = $1 WHERE id = 1", [dec`0`])
     .catch((error: unknown) => error);
   assert.ok(free instanceof CheckViolationError);
   assert.equal(free.constraint, "cake_price_positive");

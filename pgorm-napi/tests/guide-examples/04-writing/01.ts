@@ -2,14 +2,14 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal, type InsertOf } from "@necessary/pgorm";
+import { dec, type InsertOf } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
 
 export default async function example(): Promise<void> {
   const muffin: InsertOf<typeof Cake> = {
     name: "Blueberry Muffin",
     flavor: "vanilla",
-    price: new Decimal("2.75"),
+    price: dec`2.75`,
     glutenFree: false,
     bakeryId: 2,
   };

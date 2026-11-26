@@ -39,7 +39,7 @@ tables on an empty database:
 <!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, ForeignKeyViolationError, fromModel } from "@necessary/pgorm";
+import { dec, ForeignKeyViolationError, fromModel } from "@necessary/pgorm";
 
 const cake = fromModel(Cake, { relations: [cakeBakery] });
 assert.deepEqual(cake.enums.map((statement) => statement.inspect().sql), [
@@ -54,7 +54,7 @@ for (const statement of [...cake.enums, fromModel(Bakery).table, cake.table]) aw
 
 // The foreign key holds: a cake needs its bakery.
 await assert.rejects(
-  Cake.insert({ name: "Nowhere Cake", flavor: "vanilla", price: new Decimal("1"), glutenFree: false, bakeryId: 99 })
+  Cake.insert({ name: "Nowhere Cake", flavor: "vanilla", price: dec`1`, glutenFree: false, bakeryId: 99 })
     .execute(pool),
   ForeignKeyViolationError,
 );

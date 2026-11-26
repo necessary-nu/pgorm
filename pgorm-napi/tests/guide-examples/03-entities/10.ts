@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal } from "@necessary/pgorm";
+import { ConstructionError, dec } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
@@ -20,7 +20,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
         name: "Banana Bread",
         // @ts-expect-error: "banana" is not one of the flavor's labels
         flavor: "banana",
-        price: new Decimal("3.00"),
+        price: dec`3.00`,
         glutenFree: false,
         bakeryId: 1,
       }),

@@ -53,14 +53,14 @@ writes it:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
 // A cake's bakers, through the cake_baker junction.
 const lemonDrizzle = {
   id: 2,
   name: "Lemon Drizzle",
   flavor: "lemon",
-  price: new Decimal("3.20"),
+  price: dec`3.20`,
   glutenFree: true,
   bakeryId: 1,
 } as const;

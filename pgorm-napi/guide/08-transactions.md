@@ -24,14 +24,14 @@ transaction. `transaction` resolves with what the callback resolved with:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
 const placedAt = Temporal.Instant.from("2026-11-04T10:00:00Z");
 const order = await pool.transaction(async (tx) => {
   const order = await Order.insert({ customerId: 2, bakeryId: 1, placedAt }).returning().one(tx);
   await OrderLine.insertMany([
-    { orderId: order.id, cakeId: 5, quantity: 1, price: new Decimal("6.00") },
-    { orderId: order.id, cakeId: 2, quantity: 2, price: new Decimal("3.20") },
+    { orderId: order.id, cakeId: 5, quantity: 1, price: dec`6.00` },
+    { orderId: order.id, cakeId: 2, quantity: 2, price: dec`3.20` },
   ]).execute(tx);
   return order;
 });
@@ -82,13 +82,13 @@ and the order written before it is rolled back with it:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, ForeignKeyViolationError } from "@necessary/pgorm";
+import { dec, ForeignKeyViolationError } from "@necessary/pgorm";
 
 const placedAt = Temporal.Instant.from("2026-11-04T10:00:00Z");
 await assert.rejects(
   pool.transaction(async (tx) => {
     const order = await Order.insert({ customerId: 1, bakeryId: 1, placedAt }).returning().one(tx);
-    await OrderLine.insert({ orderId: order.id, cakeId: 99, quantity: 1, price: new Decimal("1.00") }).execute(tx);
+    await OrderLine.insert({ orderId: order.id, cakeId: 99, quantity: 1, price: dec`1.00` }).execute(tx);
     return order;
   }),
   ForeignKeyViolationError,
@@ -117,7 +117,7 @@ other failure ends the whole order:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, ForeignKeyViolationError } from "@necessary/pgorm";
+import { dec, ForeignKeyViolationError } from "@necessary/pgorm";
 
 const placedAt = Temporal.Instant.from("2026-11-04T10:00:00Z");
 const { order, skipped } = await pool.transaction(async (tx) => {
@@ -126,7 +126,7 @@ const { order, skipped } = await pool.transaction(async (tx) => {
   for (const cakeId of [3, 99, 4]) {
     try {
       await tx.transaction((savepoint) =>
-        OrderLine.insert({ orderId: order.id, cakeId, quantity: 1, price: new Decimal("3.00") }).execute(savepoint)
+        OrderLine.insert({ orderId: order.id, cakeId, quantity: 1, price: dec`3.00` }).execute(savepoint)
       );
     } catch (error) {
       // No such cake: the savepoint rolled the line back, and the order goes

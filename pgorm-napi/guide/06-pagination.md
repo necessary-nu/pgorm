@@ -114,11 +114,11 @@ the wrong length is a `ConstructionError` when it is given:
 
 ```ts
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal } from "@necessary/pgorm";
+import { ConstructionError, dec } from "@necessary/pgorm";
 
 const feed = Cake.find().cursor("price", "id");
 // @ts-expect-error: the key is two fields, so the boundary is two values.
-assert.throws(() => feed.after(new Decimal("3.20")), ConstructionError);
+assert.throws(() => feed.after(dec`3.20`), ConstructionError);
 ```
 
 The cursor writes the ordering and the boundary itself. A boundary over
@@ -126,9 +126,9 @@ several fields becomes the comparison that reads them in order:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
-const feed = Cake.select("name").cursor("price", "id").after(new Decimal("3.20"), 2).first(2);
+const feed = Cake.select("name").cursor("price", "id").after(dec`3.20`, 2).first(2);
 assert.equal(
   feed.inspect().sql,
   `SELECT "cake"."name" FROM "cake" WHERE ("cake"."price" = $1 AND "cake"."id" > $2) OR "cake"."price" > $3 ORDER BY "cake"."price" ASC, "cake"."id" ASC LIMIT $4`,

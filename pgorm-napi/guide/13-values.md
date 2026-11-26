@@ -59,9 +59,9 @@ through its type; a JavaScript `Value` is made with its kind named:
 
 ```ts
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal, Value } from "@necessary/pgorm";
+import { ConstructionError, dec, Value } from "@necessary/pgorm";
 
-const price = new Value(new Decimal("4.50"));
+const price = new Value(dec`4.50`);
 assert.equal(price.kind, "decimal");
 assert.equal(String(price.value), "4.50");
 
@@ -174,7 +174,10 @@ JavaScript `bigint` so that no integer past 2^53 is rounded. `numeric` maps to
 `Decimal`, which is exact: `4.50` is stored as `4.50` and read back as
 `4.50`, with its scale. A `Decimal` is made from a string or a `bigint`,
 never from a `number`, which already holds `0.1` inexactly, and it refuses to
-become a number implicitly.
+become a number implicitly. A price the program knows as it is written is a
+literal, dec`4.50`, the value `new Decimal("4.50")` makes; `dec` takes no
+interpolation, which TypeScript refuses, since a value known only at run time
+is no literal and is `new Decimal(text)`.
 
 Arithmetic the database does on a `numeric` stays exact, so a sum of prices
 is the sum to the cent. JavaScript's `Decimal` holds a value and its text, and
@@ -220,7 +223,7 @@ column, and its reads, writes and comparisons take pgorm's casts for
 <!-- example: empty -->
 ```ts
 import assert from "node:assert/strict";
-import { column, Decimal, fromModel, model } from "@necessary/pgorm";
+import { column, dec, fromModel, model } from "@necessary/pgorm";
 
 const TipJar = model("tip_jar", {
   columns: {
@@ -230,11 +233,11 @@ const TipJar = model("tip_jar", {
 });
 await pool.execute(fromModel(TipJar).table);
 
-const tips = await TipJar.insert({ amount: new Decimal("12.345") }).returning().one(pool);
+const tips = await TipJar.insert({ amount: dec`12.345` }).returning().one(pool);
 // Rounded to the currency's two places.
 assert.equal(String(tips.amount), "12.35");
 
-const query = TipJar.find().where(TipJar.col("amount").gt(new Decimal("10")));
+const query = TipJar.find().where(TipJar.col("amount").gt(dec`10`));
 assert.equal(
   query.inspect().sql,
   `SELECT "tip_jar"."id", CAST("tip_jar"."amount" AS numeric) AS "amount" FROM "tip_jar" WHERE "tip_jar"."amount" > CAST($1::numeric AS money)`,
@@ -416,7 +419,7 @@ because each is greater than the last:
 
 ```ts
 import assert from "node:assert/strict";
-import { column, Decimal, model, Uuid } from "@necessary/pgorm";
+import { column, dec, model, Uuid } from "@necessary/pgorm";
 
 await pool.execute("CREATE TABLE voucher (code uuid PRIMARY KEY DEFAULT uuidv7(), value numeric NOT NULL)");
 const Voucher = model("voucher", {
@@ -426,8 +429,8 @@ const Voucher = model("voucher", {
   },
 });
 
-const first = await Voucher.insert({ value: new Decimal("10") }).returning("code").one(pool);
-const second = await Voucher.insert({ value: new Decimal("10") }).returning("code").one(pool);
+const first = await Voucher.insert({ value: dec`10` }).returning("code").one(pool);
+const second = await Voucher.insert({ value: dec`10` }).returning("code").one(pool);
 
 assert.ok(first.code instanceof Uuid);
 // The version digit, and the order: a later v7 UUID sorts after an earlier one.

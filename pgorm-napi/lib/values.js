@@ -6,7 +6,7 @@
 // value — its kind, its range, its precision — is the addon's; these classes
 // hold what it accepted.
 // [spec:pgorm:req:bindings.values]
-// [spec:pgorm:req:napi.values+1]
+// [spec:pgorm:req:napi.values+2]
 // [spec:pgorm:req:bindings.value-tags+1]
 // [spec:pgorm:req:napi.temporal+1]
 
@@ -192,6 +192,24 @@ export class Decimal {
     }
     return this.#text;
   }
+}
+
+/**
+ * A `Decimal` written as a literal, dec`19.99`: the same value as
+ * `new Decimal("19.99")`. Nothing may be interpolated, since a value known
+ * only at run time is no literal; that is `new Decimal(text)`.
+ * [spec:pgorm:req:napi.values+2]
+ *
+ * @param {TemplateStringsArray} strings
+ * @param {...unknown} values
+ */
+export function dec(strings, ...values) {
+  if (!Array.isArray(strings) || !Array.isArray(strings.raw) || values.length !== 0) {
+    throw new ConstructionError(
+      "dec`…` takes a decimal literal with nothing interpolated, such as dec`19.99`; a value known only at run time is new Decimal(text)",
+    );
+  }
+  return new Decimal(strings[0]);
 }
 
 /** A UUID, held as its lower-case hyphenated text. */

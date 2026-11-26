@@ -84,11 +84,11 @@ same.
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
 const chocolateUnderFive = Cake.find()
   .where(Cake.col("flavor").eq("chocolate"))
-  .where(Cake.col("price").lt(new Decimal("5.00")));
+  .where(Cake.col("price").lt(dec`5.00`));
 assert.equal(
   chocolateUnderFive.inspect().sql,
   `SELECT "cake"."id", "cake"."name", "cake"."flavor", "cake"."price", "cake"."gluten_free", "cake"."bakery_id" FROM "cake" WHERE "cake"."flavor" = CAST($1::text AS public.flavor) AND "cake"."price" < $2`,
@@ -97,7 +97,7 @@ const found = await chocolateUnderFive.all(pool);
 assert.deepEqual(found.map((cake) => cake.name), ["Chocolate Fudge"]);
 
 const midPriced = await Cake.find()
-  .where(Cake.col("price").between(new Decimal("3.00"), new Decimal("4.00")))
+  .where(Cake.col("price").between(dec`3.00`, dec`4.00`))
   .count(pool);
 assert.equal(midPriced, 2);
 
@@ -136,7 +136,7 @@ suits a search form whose fields are optional:
 
 ```ts
 import assert from "node:assert/strict";
-import { Condition, Decimal } from "@necessary/pgorm";
+import { Condition, Decimal, dec } from "@necessary/pgorm";
 
 const lemonOrGlutenFree = Cake.select("name").where(
   Condition.any(Cake.col("flavor").eq("lemon"), Cake.col("glutenFree").eq(true)),
@@ -154,7 +154,7 @@ function search(maxPrice: Decimal | null) {
 }
 assert.equal(search(null).inspect().sql, `SELECT "cake"."name" FROM "cake" WHERE "cake"."bakery_id" = $1`);
 assert.equal(
-  search(new Decimal("4.00")).inspect().sql,
+  search(dec`4.00`).inspect().sql,
   `SELECT "cake"."name" FROM "cake" WHERE "cake"."bakery_id" = $1 AND "cake"."price" <= $2`,
 );
 ```
