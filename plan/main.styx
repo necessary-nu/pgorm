@@ -22923,6 +22923,7 @@ children (
         title "CodeQL scans what ships and not test-only code, whose credentials for throwaway servers its hard-coded-cryptographic-value rule reported 99 times once the vendored driver's tests arrived"
         kind @ci
         deps (driver-vendor)
+        sealed true
         log (
             {
                 at 2026-11-26T00:23:47.734947Z
@@ -22936,6 +22937,13 @@ children (
                 author "brendan@necessary.nu"
                 kind @status
                 text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-26T00:30:38.591967Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }

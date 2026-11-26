@@ -1890,7 +1890,7 @@ assertions (
     {id build-speed.no-incremental, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:04.865718Z}
     {id turso.ci-gaps, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:01.940354Z}
     {id rust-1-100, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:02.500195Z}
-    {id codeql-test-code, kind @doing, author "brendan@necessary.nu", at 2026-11-26T00:23:48.104762Z}
+    {id codeql-test-code, kind @complete, author "brendan@necessary.nu", at 2026-11-26T00:30:38.591967Z}
 )
 
 impl_evidence (
