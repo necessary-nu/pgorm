@@ -23164,4 +23164,18 @@ children (
             }
         )
     }
+
+    {
+        id perf-drizzle
+        title "pgorm's JavaScript binding is measured against Drizzle ORM and the raw Node drivers on matched workloads, the same SQL checked on every side, and the results recorded with their conditions"
+        kind @perf
+        log (
+            {
+                at 2026-11-26T14:42:35.376346Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"What I want us to do first is actually do a performance comparison with drizzle\" (before building personal-data, which is to be planned and specified only). Method follows docs/performance/README.md's driver_baseline: paired workloads, rounds alternating order, every result checked, conditions recorded (versions, load averages, server sessions). Sides: pgorm-napi's release addon; Drizzle ORM over node-postgres (pg) and over postgres.js, each with and without Drizzle's .prepare(); and the raw pg and postgres.js drivers as the floor."
+            }
+        )
+    }
 )
