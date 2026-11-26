@@ -1408,6 +1408,8 @@ assertions (
     {id build-speed.check-dedupe, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:03.949446Z}
     {id build-speed.debuginfo, kind @complete, author "brendan@necessary.nu", at 2026-11-25T18:45:15.263922Z}
     {id build-speed.no-incremental, kind @complete, author "brendan@necessary.nu", at 2026-11-25T23:25:04.865718Z}
+    {id build-speed.test-binaries, kind @complete, author "brendan@necessary.nu", at 2026-11-26T05:57:19.613032Z}
+    {id build-speed.tool-thrash, kind @complete, author "brendan@necessary.nu", at 2026-11-26T02:44:54.741627Z}
     {id cache-listener-keepalive, kind @complete, author "brendan@necessary.nu", at 2026-10-25T22:49:56.472812Z}
     {id campaign-evidence-durable, kind @complete, author "brendan@necessary.nu", at 2026-09-17T12:43:20.982163Z}
     {id campaign-refuses-stale-build, kind @complete, author "brendan@necessary.nu", at 2026-09-17T00:41:30.128736Z}
@@ -1722,6 +1724,7 @@ assertions (
     {id python-created-ranges, kind @complete, author "brendan@necessary.nu", at 2026-10-08T16:45:27.273279Z}
     {id python-datatype-export, kind @complete, author "brendan@necessary.nu", at 2026-10-19T12:56:06.241222Z}
     {id python-ddl-factories, kind @complete, author "brendan@necessary.nu", at 2026-10-31T22:52:13.77853Z}
+    {id python-dist-shared-deps, kind @complete, author "brendan@necessary.nu", at 2026-11-26T03:41:57.040908Z}
     {id python-expr-collate, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:52:19.069641Z}
     {id python-hook-refusal-class, kind @complete, author "brendan@necessary.nu", at 2026-11-01T03:02:51.173922Z}
     {id python-json-table, kind @complete, author "brendan@necessary.nu", at 2026-10-08T23:34:09.315805Z}
@@ -1919,7 +1922,6 @@ assertions (
     {id view-check-dedup, kind @complete, author "brendan@necessary.nu", at 2026-10-19T13:16:21.425085Z}
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
-    {id build-speed.test-binaries, kind @complete, author "brendan@necessary.nu", at 2026-11-26T05:57:19.613032Z}
 )
 
 impl_evidence (
