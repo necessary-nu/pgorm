@@ -23028,12 +23028,20 @@ children (
         id python-dist-shared-deps
         title "The distribution check's wheel built from the sdist reuses the direct build's compiled dependencies, so the macOS Python job fits its 90 minutes again (78 on PR #44, timed out on PR #45)"
         kind @ci
+        sealed true
         log (
             {
                 at 2026-11-26T03:26:11.222379Z
                 author "brendan@necessary.nu"
                 kind @status
                 text "Todo → Doing (nplan start)"
+            }
+
+            {
+                at 2026-11-26T03:41:57.040908Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
