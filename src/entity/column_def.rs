@@ -435,15 +435,18 @@ impl ColumnDef {
     /// never changed after, so an update setting it is refused as
     /// [`Error::ImmutableColumn`](crate::Error::ImmutableColumn) before
     /// anything is sent, and an upsert's `DO UPDATE SET` naming it is too.
-    /// Every scope column is one, since a row cannot leave its scope.
-    // [spec:pgorm:req:scope.immutable]
+    /// The `Entity` derive's `#[pgorm(immutable)]` writes it, and every scope
+    /// column is one, since a row cannot leave its scope. The schema is the
+    /// same either way: what holds a statement pgorm does not build to it is
+    /// the application's, a trigger for one.
+    // [spec:pgorm:def:entity.immutable]
     pub fn immutable(mut self) -> Self {
         self.immutable = true;
         self
     }
 
     /// Whether the column is immutable: see [`immutable`](Self::immutable).
-    // [spec:pgorm:req:scope.immutable]
+    // [spec:pgorm:def:entity.immutable]
     pub fn is_immutable(&self) -> bool {
         self.immutable
     }

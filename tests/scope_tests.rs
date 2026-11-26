@@ -100,11 +100,14 @@ fn reads_hold_to_the_contexts_scopes() {
     );
 }
 
-// [spec:pgorm:def:scope.written/test]    a hand-written scope's condition is
+// [spec:pgorm:def:scope.written+1/test]    a hand-written scope's condition is
 // its own, qualified by the name the row is read under, and a pipeline, which
-// cannot read it, refuses it
+// cannot read it, refuses it; of the columns it reads, the one keyed
+// `immutable` is immutable and the other is not
 #[test]
 fn a_written_scope_puts_its_own_condition() {
+    assert!(message::Column::SenderId.def().is_immutable());
+    assert!(!message::Column::RecipientId.def().is_immutable());
     assert_eq!(
         Pipeline::from_for(&UserId(10), message::Entity).into_sql(),
         Err(PipelineError::Scope(ScopeError::Unpiped {
@@ -311,7 +314,7 @@ fn from_and_using_hold_entities_to_scopes() {
     );
 }
 
-// [spec:pgorm:req:scope.immutable/test]    a scope column set in an update is
+// [spec:pgorm:req:scope.immutable+1/test]    a scope column set in an update is
 // refused, by key or in bulk, and so is one an upsert's DO UPDATE SET names
 #[test]
 fn a_scope_column_is_never_changed() {
@@ -510,7 +513,7 @@ async fn from_and_using_read_only_scoped_rows() -> Result<(), Error> {
 // context, a row naming another scope's value, a row leaving a lifted scope's
 // column unset, and a bulk update or upsert changing a scope column are each
 // refused when the statement would run, and nothing is sent
-// [spec:pgorm:req:scope.immutable/test]
+// [spec:pgorm:req:scope.immutable+1/test]
 // [spec:pgorm:sem:scope.from-using/test]    a `from_for` or `using_for` whose
 // context does not hold the added entity's scope is refused when the
 // statement would run, and nothing is sent

@@ -62,6 +62,9 @@ struct FieldAttrs {
     /// Where this field's `scope` key was written: the column holds the
     /// scope its type is, equal to the value a statement's context holds.
     scope: Option<Span>,
+    /// Where this field's `immutable` key was written: the column is written
+    /// by its row's insert and by no statement after.
+    immutable: Option<Span>,
 }
 
 /// Which of PostgreSQL's two identity forms a field declared.
@@ -331,6 +334,11 @@ fn parse_field_attrs(
                     return Err(meta.error("a column holds one scope; `scope` is given twice"));
                 }
                 parsed.scope = Some(meta.path.span());
+            } else if meta.path.is_ident("immutable") {
+                if parsed.immutable.is_some() {
+                    return Err(meta.error("`immutable` is given twice"));
+                }
+                parsed.immutable = Some(meta.path.span());
             } else {
                 return Err(unknown_pgorm_key(&meta));
             }
@@ -363,9 +371,27 @@ fn check_scope(attrs: &FieldAttrs, optional: bool) -> syn::Result<()> {
     Err(syn::Error::new(span, refusal))
 }
 
+/// Refuse `immutable` on a field no statement writes: one read from no
+/// column, and a generated column, which the database computes.
+// [spec:pgorm:def:entity.immutable]
+fn check_immutable(attrs: &FieldAttrs) -> syn::Result<()> {
+    let Some(span) = attrs.immutable else {
+        return Ok(());
+    };
+    let refusal = if attrs.ignore {
+        "an `ignore`d field reads no column, so there is no column to keep immutable"
+    } else if attrs.generated.is_some() {
+        "a generated column is computed by the database and written by no statement, \
+         so `immutable` says nothing about it"
+    } else {
+        return Ok(());
+    };
+    Err(syn::Error::new(span, refusal))
+}
+
 /// The types the container's `scope(..)` names, each a scope whose condition
 /// the program writes as its `ScopeOn` this entity.
-// [spec:pgorm:def:scope.written]
+// [spec:pgorm:def:scope.written+1]
 fn written_scopes(meta: &ParseNestedMeta) -> syn::Result<Vec<Type>> {
     let content;
     parenthesized!(content in meta.input);
@@ -867,6 +893,7 @@ pub fn expand_derive_entity_model(
                 check_identity(&attrs, unwrap_option(&field.ty).is_some())?;
                 check_generated(&attrs)?;
                 check_scope(&attrs, unwrap_option(&field.ty).is_some())?;
+                check_immutable(&attrs)?;
                 let FieldAttrs {
                     sql_type,
                     column_name,
@@ -887,6 +914,7 @@ pub fn expand_derive_entity_model(
                     identity,
                     generated,
                     scope,
+                    immutable,
                 } = attrs;
 
                 if let Some(variant) = variant {
@@ -991,6 +1019,10 @@ pub fn expand_derive_entity_model(
                 }
                 if scope.is_some() {
                     scopes.columns.push((field_name.clone(), field.ty.clone()));
+                }
+                // [spec:pgorm:def:entity.immutable]
+                // [spec:pgorm:req:scope.immutable+1]
+                if scope.is_some() || immutable.is_some() {
                     match_row = quote! { #match_row.immutable() };
                 }
                 columns_trait.push(match_row);

@@ -1,4 +1,4 @@
-use crate::entity::{immutable_unset, scope_condition};
+use crate::entity::scope_condition;
 use crate::{
     ActiveEnum, ColumnDef, DisjointShape, DisjointValues, Entity, EntityName, EntityScopes, Error,
     FromQueryResult, IntoPrimaryKey, Iterable, Model, NoContext, PrimaryKey, ScopeContext,
@@ -190,10 +190,7 @@ pub trait Disjoint: Sized + Send {
         shape.check()?;
         let written = kind.kind().to_value();
         let base = DisjointValues::of_active(&base)?;
-        let row = kind.visit(KindValues {
-            cx,
-            write: KindWrite::Insert,
-        })?;
+        let row = kind.visit(KindValues { fills: Some(cx) })?;
         shape
             .insert(&base, &written, row.as_ref())
             .map(WriteDisjoint::of)
@@ -210,11 +207,14 @@ pub trait Disjoint: Sized + Send {
     /// both rows left as they were. Changing the kind is
     /// [`change_kind`](Self::change_kind), so the base's kind column `Set`,
     /// and the kind row's key columns `Set`, are refused as [`Error::Type`],
-    /// as is a declaration [`check_disjoint`] refuses, and a `NotSet` key of
-    /// the base is [`Error::PrimaryKeyNotSet`]; nothing is sent. With nothing
-    /// set in either, the write is a read of the row of that key and kind.
+    /// as is a declaration [`check_disjoint`] refuses, a `NotSet` key of
+    /// the base is [`Error::PrimaryKeyNotSet`], and a column of either row
+    /// its definition marks [`immutable`](ColumnDef::immutable) `Set` is
+    /// [`Error::ImmutableColumn`]; nothing is sent. With nothing set in
+    /// either, the write is a read of the row of that key and kind.
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
+    // [spec:pgorm:req:entity.immutable.writes]
     fn update(
         base: <Self::Base as Entity>::ActiveModel,
         kind: <Self as KindedDisjoint>::ActiveModel,
@@ -229,7 +229,8 @@ pub trait Disjoint: Sized + Send {
     /// [`update`](Self::update) under the context `cx`: the base row found by
     /// its key and kind and `cx`'s scopes side by side, so a row outside them
     /// is [`Error::RecordNotFound`]. A scope column is immutable, so either
-    /// row setting one is refused as [`Error::ImmutableColumn`].
+    /// row setting one is refused as [`Error::ImmutableColumn`], as any
+    /// immutable column is.
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:scope.write]
     fn update_for<Cx>(
@@ -254,16 +255,12 @@ pub trait Disjoint: Sized + Send {
     where
         Self: KindedDisjoint,
     {
-        immutable_unset::<Self::Base>(&base)?;
         let shape = DisjointShape::of::<Self>();
         shape.check()?;
         let scope = scope_condition::<Self::Base>(cx)?;
         let current = kind.kind().to_value();
         let base = DisjointValues::of_active(&base)?;
-        let row = kind.visit(KindValues {
-            cx,
-            write: KindWrite::Update,
-        })?;
+        let row = kind.visit(KindValues { fills: None })?;
         shape
             .update_under(&base, &current, row.as_ref(), scope)
             .map(WriteDisjoint::of)
@@ -279,9 +276,12 @@ pub trait Disjoint: Sized + Send {
     /// [`exec_returning_model`](WriteDisjoint::exec_returning_model), with
     /// nothing changed. The new row's key columns come from the base row, so
     /// a value held in one is refused as [`Error::Type`], as is a declaration
-    /// [`check_disjoint`] refuses, and nothing is sent.
+    /// [`check_disjoint`] refuses, and a kind column its definition marks
+    /// [`immutable`](ColumnDef::immutable), a row's kind being written once,
+    /// is [`Error::ImmutableColumn`]; nothing is sent.
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
+    // [spec:pgorm:req:entity.immutable.writes]
     fn change_kind<T>(
         key: T,
         kind: <Self as KindedDisjoint>::ActiveModel,
@@ -332,10 +332,7 @@ pub trait Disjoint: Sized + Send {
             .into_value_tuple()
             .into_iter()
             .collect();
-        let row = kind.visit(KindValues {
-            cx,
-            write: KindWrite::Insert,
-        })?;
+        let row = kind.visit(KindValues { fills: Some(cx) })?;
         shape
             .change_kind_under(key, &new, row.as_ref(), scope)
             .map(WriteDisjoint::of)
@@ -391,18 +388,12 @@ pub trait KindedDisjoint: Disjoint<Kind: ActiveEnum<Value = String>> {
 }
 
 /// What a `<Enum>ActiveModel`'s kind row is given: its kind entity's
-/// `ActiveModel`'s values, its scope columns filled from `cx` for an insert
-/// and refused set for an update, or none for a kind without a table.
+/// `ActiveModel`'s values, or none for a kind without a table.
 struct KindValues<'a> {
-    cx: &'a dyn ScopeContext,
-    write: KindWrite,
-}
-
-/// Which write a kind row is given to.
-#[derive(Clone, Copy)]
-enum KindWrite {
-    Insert,
-    Update,
+    /// The context an insert fills the row's scope columns from. An update
+    /// fills none, and the shape refuses one it sets, as it does any
+    /// immutable column.
+    fills: Option<&'a dyn ScopeContext>,
 }
 
 impl<D: Disjoint> ActiveKindVisitor<D> for KindValues<'_> {
@@ -414,9 +405,8 @@ impl<D: Disjoint> ActiveKindVisitor<D> for KindValues<'_> {
         _: D::Kind,
         mut active: <M::Entity as Entity>::ActiveModel,
     ) -> Self::Output {
-        match self.write {
-            KindWrite::Insert => M::Entity::fill_scopes(self.cx, &mut active)?,
-            KindWrite::Update => immutable_unset::<M::Entity>(&active)?,
+        if let Some(cx) = self.fills {
+            M::Entity::fill_scopes(cx, &mut active)?;
         }
         DisjointValues::of_active(&active).map(Some)
     }

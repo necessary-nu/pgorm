@@ -384,10 +384,10 @@ where
 
     /// What every execution path asks before sending anything: a model
     /// refused for its scopes, and an `ON CONFLICT .. DO UPDATE SET` that
-    /// would change a column its definition marks immutable, which a row
-    /// cannot leave by conflicting either.
+    /// would change a column its definition marks immutable in the row
+    /// already written.
     // [spec:pgorm:req:scope.refusals+1]
-    // [spec:pgorm:req:scope.immutable]
+    // [spec:pgorm:req:entity.immutable.writes]
     pub(crate) fn refusal(&self) -> Result<(), Error> {
         if let Some(refused) = &self.refused {
             return Err(Error::Scope(refused.clone()));
@@ -588,6 +588,11 @@ where
     ///     r#"INSERT INTO "cake" ("id", "name") VALUES (2, 'Orange') ON CONFLICT ("name") DO UPDATE SET "name" = "excluded"."name""#,
     /// );
     /// ```
+    ///
+    /// A `DO UPDATE SET` naming a column its definition marks
+    /// [`immutable`](crate::ColumnDef::immutable) is refused as
+    /// [`Error::ImmutableColumn`] when the statement would run, and nothing
+    /// is sent: the row it conflicted with keeps the value its insert wrote.
     pub fn on_conflict<T>(mut self, on_conflict: T) -> Self
     where
         T: Into<OnConflict>,

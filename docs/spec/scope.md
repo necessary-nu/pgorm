@@ -153,17 +153,11 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 > name no entity to pgorm and are added as they are, outside scopes as
 > pgorm-query used directly is (`[spec:pgorm:req:scope.raw]`).
 
-> [spec:pgorm:req:scope.immutable]
-> A column whose definition is `immutable` (`ColumnDef::immutable`) is
-> written when its row is inserted and never changed after; every column
-> scope's column MUST be one, since a row cannot leave its scope. An update
-> setting one MUST be refused with `Error::ImmutableColumn` naming the table
-> and column, before anything is sent: `Update::one` and its `_for` and `_in`
-> forms at construction, an `UpdateMany` whose `set` or `col_expr` names one
-> when it would run, an upsert whose `ON CONFLICT .. DO UPDATE SET` assigns
-> one when it would run, and a disjoint update setting one in the base's or
-> the kind's row. pgorm writes no `DO UPDATE SET` of its own, so an upsert
-> leaves such a column out unless it names it.
+> [spec:pgorm:req:scope.immutable+1]
+> Every column scope's column MUST be immutable
+> (`[spec:pgorm:def:entity.immutable]`), since a row cannot leave its scope,
+> and is held there by the rule every immutable column is held by
+> (`[spec:pgorm:req:entity.immutable.writes]`) and by no rule of its own.
 
 ## Refusals
 
@@ -191,7 +185,7 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 
 ## Scopes written by hand
 
-> [spec:pgorm:def:scope.written]
+> [spec:pgorm:def:scope.written+1]
 > `ScopeOn<E>`, implemented for a scope type the entity's `scope(..)` names,
 > MUST give the condition a value puts on a row of `E` read under a given
 > name, the table's own or a join's alias, which reads and joins put where a
@@ -199,8 +193,10 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 > under the value writes. Under `Every` of the scope neither is called. The
 > condition is pgorm-query's, which a pipeline cannot read, so `from_for`
 > under a context holding a value of such a scope MUST be refused with
-> `ScopeError::Unpiped`. The columns the condition reads are its own; pgorm
-> marks immutable only the columns `#[pgorm(scope)]` marks.
+> `ScopeError::Unpiped`. The columns the condition reads are its own: pgorm
+> marks immutable only the columns `#[pgorm(scope)]` marks, and a column
+> such a condition reads is immutable where the program keys it
+> `#[pgorm(immutable)]` (`[spec:pgorm:def:entity.immutable]`).
 
 ## Raw SQL
 

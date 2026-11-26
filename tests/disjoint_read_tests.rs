@@ -128,14 +128,6 @@ pub enum Loose {
     Only,
 }
 
-/// Run the statements `create_disjoint` returns, in order.
-async fn create<D: KindedDisjoint>(db: &DatabaseConnection) -> Result<(), Error> {
-    for statement in Schema::new().create_disjoint::<D>()? {
-        db.execute(&statement.to_string(), &[]).await?;
-    }
-    Ok(())
-}
-
 /// The vehicles every live test but the inconsistent one reads, in key
 /// order: two cars, a truck, a bike and a second truck.
 struct Fleet {
@@ -198,7 +190,7 @@ async fn insert_truck(
 
 /// Create the vehicle tables and write the fleet, through raw SQL.
 async fn fleet(db: &DatabaseConnection) -> Result<Fleet, Error> {
-    create::<Vehicle>(db).await?;
+    create_disjoint::<Vehicle>(db).await?;
     let sedan = insert_car(db, "sedan", 5).await?;
     let coupe = insert_car(db, "coupe", 2).await?;
     let lorry = insert_truck(db, "lorry", 3, 18_000).await?;
@@ -300,7 +292,7 @@ async fn find_by_id_reads_one_key_live() -> Result<(), Error> {
     );
 
     db.execute("CREATE SCHEMA market", &[]).await?;
-    create::<Listing>(&db).await?;
+    create_disjoint::<Listing>(&db).await?;
     db.execute(
         "WITH l AS (INSERT INTO market.listing (tenant_id, id, category, title) \
          VALUES (7, 1, 'apartment', 'loft') RETURNING tenant_id, id) \
@@ -504,7 +496,7 @@ async fn pages_and_cursor_follow_the_base_live() -> Result<(), Error> {
 async fn many_kinds_read_without_shadowing_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_read_many").await;
     let db = ctx.db.get().await?;
-    create::<Shape>(&db).await?;
+    create_disjoint::<Shape>(&db).await?;
 
     let sided = [
         "triangle", "square", "pentagon", "hexagon", "heptagon", "octagon", "nonagon",
@@ -755,7 +747,7 @@ async fn same_named_tables_read_apart_live() -> Result<(), Error> {
     let db = ctx.db.get().await?;
     db.batch_execute("CREATE SCHEMA gallery; CREATE SCHEMA archive; CREATE SCHEMA loan;")
         .await?;
-    create::<Exhibit>(&db).await?;
+    create_disjoint::<Exhibit>(&db).await?;
     db.batch_execute(
         "BEGIN; SET CONSTRAINTS ALL DEFERRED; \
          INSERT INTO gallery.exhibit (id, kind, title) VALUES \

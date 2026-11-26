@@ -1,0 +1,17 @@
+error: `immutable` is given twice
+ --> tests/compile-fail/entity_model_immutable.rs:9:28
+  |
+9 |         #[pgorm(immutable, immutable)]
+  |                            ^^^^^^^^^
+
+error: an `ignore`d field reads no column, so there is no column to keep immutable
+  --> tests/compile-fail/entity_model_immutable.rs:22:25
+   |
+22 |         #[pgorm(ignore, immutable)]
+   |                         ^^^^^^^^^
+
+error: a generated column is computed by the database and written by no statement, so `immutable` says nothing about it
+  --> tests/compile-fail/entity_model_immutable.rs:35:59
+   |
+35 |         #[pgorm(generated_stored = Expr::col(Column::Id), immutable)]
+   |                                                           ^^^^^^^^^

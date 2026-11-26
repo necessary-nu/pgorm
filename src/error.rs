@@ -109,7 +109,7 @@ pub enum Error {
     /// An update would change a column its definition marks immutable,
     /// written when its row is inserted and never changed, as every scope
     /// column is. Nothing was sent.
-    // [spec:pgorm:req:scope.immutable]
+    // [spec:pgorm:req:entity.immutable.writes]
     #[error("`{table}`.`{column}` is written when its row is inserted and never changed")]
     ImmutableColumn {
         /// The table the update writes.

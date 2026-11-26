@@ -4219,6 +4219,13 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
+    {id immutable.rust, covered_rules (
+        entity.immutable
+        entity.immutable.writes
+    ), covered_claims (
+        {impl_name main, rule entity.immutable}
+        {impl_name main, rule entity.immutable.writes}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

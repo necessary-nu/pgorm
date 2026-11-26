@@ -1,6 +1,6 @@
 use pgorm::{
-    Column, ColumnType, ConnectionMut, DatabasePool, Entity, Error, Iterable, Schema,
-    TransactionError,
+    Column, ColumnType, ConnectionMut, DatabasePool, Entity, Error, Iterable, KindedDisjoint,
+    Schema, TransactionError,
 };
 use pgorm_query::{
     Name, TableCreateStatement,
@@ -104,6 +104,14 @@ where
     C: ConnectionMut,
 {
     db.execute(&create.to_string(), &[]).await
+}
+
+/// Run the statements `create_disjoint` returns for `D`, in order.
+pub async fn create_disjoint<D: KindedDisjoint>(db: &impl ConnectionMut) -> Result<(), Error> {
+    for statement in Schema::new().create_disjoint::<D>()? {
+        db.execute(&statement.to_string(), &[]).await?;
+    }
+    Ok(())
 }
 
 pub fn rust_dec<T: ToString>(v: T) -> rust_decimal::Decimal {

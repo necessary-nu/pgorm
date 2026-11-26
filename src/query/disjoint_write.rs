@@ -23,8 +23,8 @@ use super::disjoint::{KindRows, key_filter};
 use super::join::join_condition;
 use crate::entity::KindedBy;
 use crate::{
-    ActiveValue, Disjoint, DisjointKind, DisjointShape, DisjointTable, DisjointValues, Error,
-    Statement,
+    ActiveValue, Disjoint, DisjointColumn, DisjointKind, DisjointShape, DisjointTable,
+    DisjointValues, Error, Statement,
 };
 
 /// A write to a disjoint entity `D`, built by [`Disjoint::insert`],
@@ -149,6 +149,19 @@ fn unwritten_key(
                 kind.value
             ),
         )?;
+    }
+    Ok(())
+}
+
+/// Refuse an update setting `column` of `table` where its definition marks
+/// it immutable, as an entity's update refuses one.
+// [spec:pgorm:req:entity.immutable.writes]
+fn mutable(table: &DisjointTable, column: &DisjointColumn) -> Result<(), Error> {
+    if column.def.is_immutable() {
+        return Err(Error::ImmutableColumn {
+            table: table.table.table().to_string(),
+            column: column.name.to_string(),
+        });
     }
     Ok(())
 }
@@ -331,6 +344,7 @@ impl DisjointShape {
         update.table(table.named());
         for (column, value) in table.columns.iter().zip(values) {
             if let ActiveValue::Set(value) = value {
+                mutable(table, column)?;
                 update.value(Name::clone(&column.name), column.casts.save(value.clone()));
             }
         }
@@ -421,9 +435,11 @@ impl DisjointShape {
     ///
     /// The statement [`Disjoint::update`] builds, for a shape described at run
     /// time, refusing what it refuses: the base's kind column `Set`, and a
-    /// kind row's key `Set`, as [`Error::Type`], and a `NotSet` key part of
-    /// `base` as [`Error::PrimaryKeyNotSet`], beside what
-    /// [`insert`](Self::insert) refuses of `row`, of `kind` and of the shape.
+    /// kind row's key `Set`, as [`Error::Type`], a `NotSet` key part of
+    /// `base` as [`Error::PrimaryKeyNotSet`], and a column of either row
+    /// whose definition is [`immutable`](crate::ColumnDef::immutable) `Set`
+    /// as [`Error::ImmutableColumn`], beside what [`insert`](Self::insert)
+    /// refuses of `row`, of `kind` and of the shape.
     /// With nothing set in either, the write is a read of the row of that key
     /// and kind.
     // [spec:pgorm:sem:disjoint.write+2]
@@ -471,6 +487,7 @@ impl DisjointShape {
             if let ActiveValue::Set(value) = value
                 && !self.base.key.contains(&index)
             {
+                mutable(&self.base, column)?;
                 update.value(Name::clone(&column.name), column.casts.save(value.clone()));
             }
         }
@@ -532,7 +549,9 @@ impl DisjointShape {
     /// The statement [`Disjoint::change_kind`] builds, for a shape described
     /// at run time, refusing what it refuses as [`Error::Type`], beside a key
     /// of another arity than the base's and what [`insert`](Self::insert)
-    /// refuses of `row`, of `kind` and of the shape.
+    /// refuses of `row`, of `kind` and of the shape, and a kind column whose
+    /// definition is [`immutable`](crate::ColumnDef::immutable) as
+    /// [`Error::ImmutableColumn`].
     // [spec:pgorm:sem:disjoint.write+2]
     // [spec:pgorm:req:bindings.disjoint+2]
     // [spec:pgorm:sem:disjoint.unkinded+1]
@@ -557,6 +576,7 @@ impl DisjointShape {
         scope: Option<Condition>,
     ) -> Result<SelectStatement, Error> {
         let kinded = self.writable()?;
+        mutable(&self.base, &self.base.columns[kinded.column])?;
         self.key_arity(key.len())?;
         let (new, entry) = self.kind(kind)?;
         let mut parts = Vec::new();

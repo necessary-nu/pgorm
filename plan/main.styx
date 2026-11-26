@@ -22045,6 +22045,9 @@ children (
             {
                 id immutable.rust
                 title "#[pgorm(immutable)] refuses an update, bulk update or upsert that would change the column, and scope columns are immutable through the same rule"
+                implements {
+                    main ([spec:pgorm:def:entity.immutable] [spec:pgorm:req:entity.immutable.writes])
+                }
                 deps (scopes.rust read-only.rust)
             }
 

@@ -669,14 +669,6 @@ fn unkeyable_key_shapes_are_refused() {
     assert!(rendered::<Period>()[1].contains(r#"PRIMARY KEY ("id", "valid_at" WITHOUT OVERLAPS)"#));
 }
 
-/// Run the statements `create_disjoint` returns, in order.
-async fn create<D: KindedDisjoint>(db: &DatabaseConnection) -> Result<(), Error> {
-    for statement in Schema::new().create_disjoint::<D>()? {
-        db.execute(&statement.to_string(), &[]).await?;
-    }
-    Ok(())
-}
-
 /// Assert that PostgreSQL refused a write with a foreign key violation of
 /// `constraint`.
 fn assert_refused<T: Debug>(outcome: Result<T, Error>, constraint: &str) {
@@ -713,7 +705,7 @@ const CAR_ALONE: &str = "INSERT INTO vehicle (kind, name) VALUES ('car', 'ghost'
 async fn every_state_the_enum_omits_is_refused_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
 
     let car: i32 = db.query_one(CAR_WITH_ROW, &[]).await?.get(0);
     let truck: i32 = db.query_one(TRUCK_WITH_ROW, &[]).await?.get(0);
@@ -820,7 +812,7 @@ async fn every_state_the_enum_omits_is_refused_live() -> Result<(), Error> {
 async fn keys_are_checked_per_statement_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_txn").await;
     let mut db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
 
     let outcome = db
         .transaction(async |txn| {
@@ -918,7 +910,7 @@ async fn composite_keys_hold_every_row_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_composite").await;
     let db = ctx.db.get().await?;
     db.execute("CREATE SCHEMA market", &[]).await?;
-    create::<Listing>(&db).await?;
+    create_disjoint::<Listing>(&db).await?;
 
     db.execute(
         "WITH l AS (INSERT INTO market.listing (tenant_id, id, category, title) \
@@ -1002,7 +994,7 @@ async fn composite_keys_hold_every_row_live() -> Result<(), Error> {
 async fn bounded_names_are_the_servers_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_schema_names").await;
     let db = ctx.db.get().await?;
-    create::<Long>(&db).await?;
+    create_disjoint::<Long>(&db).await?;
 
     let [column, unique, kind_key, base_key] = long_names();
     let mut constraints: Vec<String> = db
@@ -1073,7 +1065,7 @@ async fn quoted_enum_names_create_their_columns_live() -> Result<(), Error> {
         &[],
     )
     .await?;
-    create::<Shelved>(&db).await?;
+    create_disjoint::<Shelved>(&db).await?;
 
     let types: Vec<(String, String, String)> = db
         .query_all(
@@ -1166,9 +1158,12 @@ async fn unkeyable_key_shapes_send_nothing_live() -> Result<(), Error> {
             .get(0))
     };
     for (outcome, refused) in [
-        (create::<Computed>(&db).await, refusal::<Computed>()),
-        (create::<Mooded>(&db).await, refusal::<Mooded>()),
-        (create::<Span>(&db).await, refusal::<Span>()),
+        (
+            create_disjoint::<Computed>(&db).await,
+            refusal::<Computed>(),
+        ),
+        (create_disjoint::<Mooded>(&db).await, refusal::<Mooded>()),
+        (create_disjoint::<Span>(&db).await, refusal::<Span>()),
     ] {
         match outcome {
             Err(Error::Type(message)) => assert_eq!(message, refused),
@@ -1177,7 +1172,7 @@ async fn unkeyable_key_shapes_send_nothing_live() -> Result<(), Error> {
     }
     assert_eq!(tables(&db).await?, 0);
 
-    create::<Period>(&db).await?;
+    create_disjoint::<Period>(&db).await?;
     let valid_at = Range::from(1..10);
     let written = Period::insert(
         period_base::ActiveModel {

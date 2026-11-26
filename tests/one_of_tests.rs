@@ -13,8 +13,8 @@
 use crate::common;
 pub use common::TestContext;
 
-use async_trait::async_trait;
-use pgorm::metric::{InstrumentedPool, MetricsCollector, QueryContext};
+use common::statements::Statements;
+use pgorm::metric::InstrumentedPool;
 use pgorm::tests_cfg::scoped::{self, CompanyAdmin, CompanyId, Member, UserId};
 use pgorm::tests_cfg::{
     comment::{self, Commentable, CommentableKey, CommentableModel},
@@ -25,10 +25,6 @@ use pgorm::{
 };
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
 
 /// A comment on a post or a photo, never on neither.
 #[derive(Clone, Copy, Debug, OneOf)]
@@ -142,51 +138,6 @@ pub enum Bookmarked {
     Message(scoped::message::Entity),
     #[pgorm(column = bookmark::Column::NoteId)]
     Note(scoped::note::Entity),
-}
-
-/// The SQL of every statement a connection sends.
-#[derive(Clone, Debug, Default)]
-struct Statements(Arc<Mutex<Vec<String>>>);
-
-impl Statements {
-    fn push(&self, query: QueryContext<'_>) {
-        if let Ok(mut sent) = self.0.lock() {
-            sent.push(query.sql().unwrap_or_default().to_owned());
-        }
-    }
-
-    fn take(&self) -> Vec<String> {
-        self.0
-            .lock()
-            .map(|mut sent| std::mem::take(&mut *sent))
-            .unwrap_or_default()
-    }
-}
-
-#[async_trait]
-impl MetricsCollector for Statements {
-    async fn record_query_success(
-        &self,
-        query: QueryContext<'_>,
-        _duration: Duration,
-        _rows: Option<u64>,
-    ) {
-        self.push(query);
-    }
-
-    async fn record_query_error(&self, query: QueryContext<'_>, _duration: Duration, _: &Error) {
-        self.push(query);
-    }
-
-    async fn record_connection_acquired(&self, _duration: Duration) {}
-
-    async fn record_connection_error(&self, _duration: Duration, _error: &Error) {}
-
-    async fn record_transaction_begin(&self, _duration: Duration) {}
-
-    async fn record_transaction_commit(&self, _duration: Duration) {}
-
-    async fn record_transaction_rollback(&self, _duration: Duration) {}
 }
 
 /// Create the post, photo and comment tables, their foreign keys among them,

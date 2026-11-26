@@ -351,7 +351,11 @@ impl Scopes {
 /// The condition is given the name the row is read under, which is the
 /// table's own or the alias a join reads it under, and qualifies its columns
 /// by it. Under an [`Every`] of the scope neither is called.
-// [spec:pgorm:def:scope.written]
+///
+/// A column the condition reads is not made immutable, as a column scope's
+/// is: a row whose update must not move it out of the scope keys that column
+/// `#[pgorm(immutable)]` ([`ColumnDef::immutable`](crate::ColumnDef::immutable)).
+// [spec:pgorm:def:scope.written+1]
 pub trait ScopeOn<E: Entity>: Scope {
     /// The condition this value puts on a row of `E` read under `table`.
     fn condition(&self, table: Name) -> Condition;

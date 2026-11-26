@@ -470,6 +470,52 @@ explicit limitations.
 > `postgres-array`), and likewise for the other types when the `postgres-array`
 > feature is disabled.
 
+## Immutable columns
+
+> [spec:pgorm:def:entity.immutable]
+> A column whose definition is immutable (`ColumnDef::immutable()`, read back
+> by `is_immutable()`) is written when its row is inserted and never changed
+> after: a row's creation time or author, an external id, a ledger entry's
+> amount. The `Entity` derive's bare field key `immutable` MUST write
+> `.immutable()` into the column's definition, as `scope` does for every
+> column scope's column (`[spec:pgorm:req:scope.immutable]`). The derive MUST
+> refuse the key, spanned at it, given twice on one field, on an `ignore`d
+> field, which reads no column, and on a generated column, which no statement
+> writes. A primary key column MAY be immutable. Immutability is pgorm's own:
+> the schema pgorm writes is the same with it as without it, and no trigger
+> is generated, so a statement pgorm does not build (raw SQL, pgorm-query's
+> builders used directly, another program) is held to it only by what the
+> application puts in the database. The Rust guide's entities chapter MUST
+> teach it.
+
+> [spec:pgorm:req:entity.immutable.writes]
+> A statement pgorm builds that would change an immutable column of a row
+> already written MUST be refused with `Error::ImmutableColumn` naming the
+> table and the column, and nothing MUST be sent:
+>
+> - `Update::one` and its `_in` and `_for` forms, at construction, given a
+>   model holding the column `Set`, and so `ActiveModel::update` and its
+>   forms, whose `before_save` hook runs first, so a value it sets is refused
+>   as the caller's is. A primary key column a model holds is the row's key
+>   there, never set, and is not refused;
+> - an `UpdateMany` whose `SET` names one, by `set` or `col_expr`, when it
+>   would run, from every terminal;
+> - an insert, `Insert` or `TryInsert`, whose `ON CONFLICT .. DO UPDATE SET`
+>   names one, when it would run, from every terminal. pgorm writes no
+>   `DO UPDATE SET` of its own, so an upsert leaves an immutable column out
+>   unless the program names it;
+> - a disjoint entity's update setting one in the base's row or in the
+>   kind's, and a change of kind where the base's kind column is one, at
+>   construction, whether the shape is a `Disjoint` enum's or one described
+>   at run time.
+>
+> Where the refusal is made when the statement would run, it MUST read the
+> statement as it would be sent, so a `SET` or `DO UPDATE SET` added through
+> `Statement::query` is held as one the builder added. The refusal is made at
+> run time: an `ActiveModel` serves an insert and an update alike and
+> `col_expr` takes a column named at run time, so refusing at compile time
+> would need separate insert and update model types.
+
 ## Active model
 
 > [spec:pgorm:req:entity.active-model+5]

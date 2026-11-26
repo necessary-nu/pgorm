@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, PoisonError, RwLock},
 };
 
-use pgorm::pgorm_query::{ConflictAction, ConflictAssignment, OnConflict, Value, ValueType};
+use pgorm::pgorm_query::{OnConflict, Value, ValueType};
 use pgorm::{Held, Provides, Scope, ScopeContext};
 
 use crate::{Dialect, Failure, Tag, entity::ColumnInfo};
@@ -328,20 +328,8 @@ impl DeclaredScopes {
     /// scope column, as Rust refuses one, by the column's SQL name: an
     /// update of the row it conflicted with would move it out of its scope.
     pub fn upsert(&self, on_conflict: &OnConflict) -> Result<(), Failure> {
-        let OnConflict::Targeted {
-            action: ConflictAction::Update { sets, .. },
-            ..
-        } = on_conflict
-        else {
-            return Ok(());
-        };
-        for assignment in sets.iter() {
-            let name = match assignment {
-                ConflictAssignment::Column(name) | ConflictAssignment::Expr(name, _) => {
-                    name.to_string()
-                }
-                _ => continue,
-            };
+        for name in on_conflict.updated_columns() {
+            let name = name.to_string();
             if self.columns.iter().any(|column| column.column == name) {
                 return Err(immutable(&self.table, &name));
             }

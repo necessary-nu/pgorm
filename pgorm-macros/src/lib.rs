@@ -64,6 +64,34 @@ mod derives;
 /// assert_eq!(ActiveModel::new().title, set("untitled"));
 /// ```
 ///
+/// A field keyed `immutable` is a column its row's insert writes and no
+/// statement after: an update, a bulk update or an upsert setting it is
+/// refused as `Error::ImmutableColumn` before anything is sent.
+///
+/// ```
+/// use pgorm::entity::prelude::*;
+///
+/// #[derive(Clone, Debug, PartialEq, Entity)]
+/// #[pgorm(table_name = "entries")]
+/// pub struct Model {
+///     #[pgorm(primary_key)]
+///     pub id: i32,
+///     #[pgorm(immutable)]
+///     pub amount: i64,
+///     pub memo: String,
+/// }
+///
+/// # #[derive(Copy, Clone, Debug, Relation)]
+/// # pub enum Relation {}
+/// #
+/// let corrected = Update::one(ActiveModel {
+///     id: set(1),
+///     amount: set(-5),
+///     ..Default::default()
+/// });
+/// assert!(matches!(corrected, Err(Error::ImmutableColumn { column, .. }) if column == "amount"));
+/// ```
+///
 /// ### Usage
 ///
 /// ```
