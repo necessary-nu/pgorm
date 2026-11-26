@@ -3753,19 +3753,6 @@ impl_evidence (
         {impl_name main, rule scope.refusals}
         {impl_name main, rule scope.write}
         {impl_name main, rule scope.written}
-    ), rule_versions_seen (
-        {id scope.compile, version 0}
-        {id scope.context, version 0}
-        {id scope.declare, version 1}
-        {id scope.every, version 0}
-        {id scope.immutable, version 0}
-        {id scope.insert, version 0}
-        {id scope.join, version 0}
-        {id scope.raw, version 2}
-        {id scope.read, version 0}
-        {id scope.refusals, version 1}
-        {id scope.write, version 0}
-        {id scope.written, version 0}
     )}
     {id signature-types-reexported, covered_rules (
         conn.driver-types
