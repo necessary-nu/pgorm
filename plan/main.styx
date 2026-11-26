@@ -21990,6 +21990,27 @@ children (
                     }
                 )
             }
+
+            {
+                id scopes.one-of-compile
+                title "A one-of load is held to its targets' scopes at compile time, as scope.compile says: load bounded by ScopedIn<NoContext> and load_for by ScopedIn<Cx> for every target, not refused at run time"
+                kind @fix
+                deps (scopes.one-of-live)
+            }
+
+            {
+                id scopes.from-using-alias
+                title "A scoped entity added to a bulk update's FROM or a bulk delete's USING under an alias is held to its scopes (from_as_for, using_as_for)"
+                kind @feat
+                deps (scopes.from-using)
+            }
+
+            {
+                id scopes.diagnostic-forms
+                title "The derive's per-entity scope diagnostic names every _for form a refused call has, from_for and using_for among them"
+                kind @fix
+                deps (scopes.from-using)
+            }
         )
         log (
             {
