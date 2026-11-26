@@ -4,7 +4,7 @@
 //! returned `Ok`: PostgreSQL answers its `COMMIT` with a rollback, and pgorm
 //! reports that rather than a commit.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::{TransactionError, TransactionMode, entity::prelude::*};

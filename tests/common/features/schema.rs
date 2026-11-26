@@ -1,9 +1,9 @@
 use super::*;
 use crate::common::setup::{create_enum, create_table, create_table_without_asserts};
-use pgorm::{Connection, ConnectionMut, DatabasePool, EntityName, Schema, error::*, pgorm_query};
+use pgorm::{ConnectionMut, DatabasePool, EntityName, Schema, error::*, pgorm_query};
 use pgorm_query::{
-    ColumnDef, ColumnType, ForeignKeyCreateStatement, IntoName, Name, QueryBuilder, StringLen,
-    alias, extension::Type,
+    ColumnDef, ColumnType, ForeignKeyCreateStatement, IntoName, Name, StringLen, alias,
+    extension::Type,
 };
 
 pub async fn create_tables(db: &DatabasePool) -> Result<(), Error> {

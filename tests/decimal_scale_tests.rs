@@ -14,7 +14,7 @@
 //! pgorm writes the zero header itself now, and these tests pin the two paths
 //! to agree against a real server.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::{DecodeRaw, Schema, entity::prelude::*, set};

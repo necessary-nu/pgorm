@@ -29,13 +29,18 @@ def run(command, *, environment, capture=False):
     return result
 
 
+# The crate's integration tests are one binary, `it`; the parity tests are its
+# `direct_builders` module, which this filter runs alone.
+ORACLE_TESTS = "direct_builders::"
+
+
 def rust_oracle(root, environment):
     output = run(["cargo", "test", "--manifest-path", str(root / "pgorm-python/Cargo.toml"),
-                  "--target-dir", str(root / "target"), "--locked", "--test", "direct_builders",
+                  "--target-dir", str(root / "target"), "--locked", "--test", "it",
                   "--no-run", "--message-format=json"], environment=environment, capture=True)
     executables = [entry["executable"] for line in output.stdout.splitlines()
                    if (entry := json.loads(line)).get("reason") == "compiler-artifact"
-                   and entry.get("executable") and entry["target"]["name"] == "direct_builders"]
+                   and entry.get("executable") and entry["target"]["name"] == "it"]
     if len(executables) != 1:
         raise RuntimeError("expected exactly one precompiled Rust parity executable")
     return executables[0]
@@ -50,7 +55,7 @@ def assert_parity_fails(oracle, report, environment, field):
         case["params"].pop()
     path = report.with_name(f"negative-{field}.json")
     path.write_text(json.dumps(changed))
-    result = subprocess.run([oracle], env={**environment, "PGORM_DIRECT_REPORT": str(path)},
+    result = subprocess.run([oracle, ORACLE_TESTS], env={**environment, "PGORM_DIRECT_REPORT": str(path)},
                             capture_output=True, text=True)
     if result.returncode == 0 or "assertion" not in result.stdout + result.stderr:
         raise AssertionError(f"Rust parity did not reject the intentional {field} mismatch")
@@ -89,7 +94,7 @@ def main():
         environment.pop("PYTHONPATH", None)
         run([str(python), "-I", str(root / "pgorm-python/tests/test_direct_builders.py"), "-v"],
             environment={**environment, "PATH": str(python.parent)})
-        run([oracle], environment=environment)
+        run([oracle, ORACLE_TESTS], environment=environment)
         for field in ("sql", "params"):
             assert_parity_fails(oracle, report, environment, field)
     summary = {

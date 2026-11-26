@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "pgorm-pool"
 version = "0.2.0"
 edition = "2024"
@@ -16,6 +17,12 @@ all-features = true
 [features]
 default = []
 turso = ["pgorm-driver/turso"]
+
+# Every integration suite is a module of tests/it.rs, which links them as
+# one binary; cargo would link each file under tests/ as a binary of its own.
+[[test]]
+name = "it"
+path = "tests/it.rs"
 
 [dependencies]
 async-trait.workspace = true # = "0.1.80"

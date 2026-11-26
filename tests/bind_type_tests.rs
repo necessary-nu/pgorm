@@ -4,7 +4,7 @@
 //! representation is not the wire format of the type Postgres inferred for the
 //! placeholder is refused client-side, before the bind message is sent.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::{DecodeRaw, Schema, Update, ValueHolder, entity::prelude::*, set};

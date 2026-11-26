@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 
 /// `SELECT "aspect" FROM "glyph" GROUP BY <element>`.
 fn grouped(element: impl Into<GroupingElement>) -> String {

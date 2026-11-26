@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, assert_eq_unparsed};
+use crate::postgres::oracle::{assert_eq, assert_eq_unparsed};
 
 // [spec:pgorm:req:sql.ddl.create-table+16/test]
 // [spec:pgorm:req:sql.ddl.column-def+14/test]
@@ -1194,7 +1194,7 @@ fn identity_with_serial_is_a_documented_boundary() {
 
     // The grammar has no objection; only a server with a catalog does. That is
     // why the refusal cannot live in the oracle, and lives in the live suite.
-    crate::oracle::assert_parses(&both);
+    crate::postgres::oracle::assert_parses(&both);
 }
 
 // [spec:pgorm:req:sql.ddl.column-def+14/test]    an operator expression is a column's DEFAULT

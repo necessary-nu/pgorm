@@ -12,9 +12,9 @@
 //! what the schema holds.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test codegen_one_of_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it codegen_one_of_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::TestContext;
 
 use pgorm::entity::prelude::*;
@@ -22,7 +22,7 @@ use pgorm::{Connection, ConnectionMut, OneOf, Schema, set};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
-mod codegen_one_of;
+use crate::codegen_one_of;
 
 use codegen_one_of::comment::{Commentable, CommentableKey, CommentableModel};
 use codegen_one_of::long_names::{

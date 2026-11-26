@@ -8,7 +8,7 @@
 
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 use futures::StreamExt;
 use pgorm::tests_cfg::{cake, cake_filling, filling, fruit, vendor};

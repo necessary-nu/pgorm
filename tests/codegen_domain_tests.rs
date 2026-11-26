@@ -11,7 +11,7 @@
 //! leaves out; and each domain's `NOT NULL` and checks refuse what they do not
 //! hold, a check's refusal reaching the caller as the error PostgreSQL raised.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, Range};
 use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};

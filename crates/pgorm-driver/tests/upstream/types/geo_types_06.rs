@@ -1,6 +1,6 @@
 use geo_types_06::{Coordinate, LineString, Point, Rect};
 
-use crate::types::test_type;
+use crate::upstream::types::test_type;
 
 #[tokio::test]
 async fn test_point_params() {

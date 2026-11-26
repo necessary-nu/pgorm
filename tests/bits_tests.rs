@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 use common::features::*;
 use pgorm::{ActiveValue::Unchanged, entity::prelude::*, entity::*};

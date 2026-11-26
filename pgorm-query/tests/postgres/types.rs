@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, assert_eq_unparsed};
+use crate::postgres::oracle::{assert_eq, assert_eq_unparsed};
 use pgorm_query::extension::Type;
 
 // [spec:pgorm:req:sql.ddl.type-enum+7/test]

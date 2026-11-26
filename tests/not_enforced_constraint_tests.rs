@@ -8,7 +8,7 @@
 //! `pg_constraint` with `conenforced` false and never checked — and what it
 //! refuses around one.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Check, ColumnDef, ConstraintChange, Deferrability, Enforcement, Expr, ForeignKey,

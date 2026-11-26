@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 use pgsql_syntax::protobuf::SortByDir;
 
 fn image() -> Expr {

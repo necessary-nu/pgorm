@@ -160,10 +160,10 @@ cargo check -p pgorm-driver --lib --no-default-features
 cargo check -p pgorm-driver --lib --no-default-features --features turso
 cargo check -p pgorm --lib --no-default-features
 cargo check -p pgorm --lib --no-default-features --features turso
-cargo test -p pgorm --test turso_feature_tests --test fork_pin_tests
+cargo test -p pgorm --test it -- turso_feature_tests:: fork_pin_tests::
 cargo test --workspace --lib --tests
 cargo test --workspace --lib --tests --features pgorm/turso
-cargo test -p pgorm --features turso --test turso_compatibility_tests
+cargo test -p pgorm --features turso --test it -- turso_compatibility_tests::
 python3.14 pgorm-python/checks/notices.py --write
 node pgorm-napi/checks/notices.js --write
 python3.14 pgorm-python/checks/notices.py

@@ -2,7 +2,7 @@
 //! subquery position.
 
 use super::*;
-use crate::oracle::assert_eq;
+use crate::postgres::oracle::assert_eq;
 
 // [spec:pgorm:def:sql.ast.func+12/test]      FILTER takes any IntoCondition
 // [spec:pgorm:req:sql.render.func-mods/test]

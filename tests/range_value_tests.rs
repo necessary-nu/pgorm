@@ -10,7 +10,7 @@
 //! multirange is merged, that the inline and the bound renderings of one value
 //! are one value, and what the server refuses.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     BinOper, ColumnDef, ColumnType, Expr, Name, Query, SimpleExpr, Table, Value, Values, alias,

@@ -1,6 +1,6 @@
 use bit_vec_06::BitVec;
 
-use crate::types::test_type;
+use crate::upstream::types::test_type;
 
 #[tokio::test]
 async fn test_bit_params() {

@@ -3,7 +3,7 @@
 //! text alone could hide a clause in the wrong slot.
 
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 
 /// The one node of `kind` in `sql`, as the parser read it.
 fn only(sql: &str, kind: &str) -> serde_json::Value {

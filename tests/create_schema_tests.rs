@@ -13,7 +13,7 @@
 //! transaction that created it; and what the server refuses that no builder
 //! value records — a schema that exists, a missing one, and a `pg_` name.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Name, Schema, Sequence};
 use pgorm::{Connection, ConnectionMut, Transact, entity::prelude::*};

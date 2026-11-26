@@ -1,7 +1,7 @@
 //! The DDL bridge: `schema.sql` in, the same entities the statement-building
 //! path produces out — and a named error for everything else in the file.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm::{
@@ -83,7 +83,7 @@ CREATE TABLE tenant_task_note (
         REFERENCES tenant_task (tenant_id, id) ON DELETE CASCADE
 );";
 
-mod serial_keys;
+use crate::serial_keys;
 
 const SERIAL_KEYS: &str = "CREATE TABLE tenant_order (
     tenant_id int NOT NULL,

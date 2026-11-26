@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
+use crate::common;
 use pgorm_query::Expression;
-pub mod common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::alias;

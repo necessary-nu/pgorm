@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 
 /// The parse tree's `SubLinkType`, by the number it serialises as.
 const ARRAY_SUBLINK: i64 = 7;

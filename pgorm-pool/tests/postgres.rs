@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     env,
     num::NonZeroUsize,
     sync::{
@@ -1040,61 +1039,45 @@ struct EnvConfig {
 }
 
 impl EnvConfig {
-    pub fn from_env_with_prefix(prefix: &str) -> Self {
+    /// The configuration `config` reads under `prefix` from `vars`, which it
+    /// treats as it treats the process environment. The test binary's other
+    /// tests run in the same process, so this one leaves its environment be.
+    pub fn from_env_with_prefix(prefix: &str, vars: &[(&str, &str)]) -> Self {
+        let vars = vars
+            .iter()
+            .map(|&(name, value)| (name.to_owned(), value.to_owned()))
+            .collect();
         let cfg = config::Config::builder()
-            .add_source(config::Environment::with_prefix(prefix).separator("__"))
+            .add_source(
+                config::Environment::with_prefix(prefix)
+                    .separator("__")
+                    .source(Some(vars)),
+            )
             .build()
             .unwrap();
         cfg.try_deserialize::<Self>().unwrap()
     }
 }
 
-struct Env {
-    backup: HashMap<String, Option<String>>,
-}
-
-impl Env {
-    pub fn new() -> Self {
-        Self {
-            backup: HashMap::new(),
-        }
-    }
-    pub fn set(&mut self, name: &str, value: &str) {
-        self.backup.insert(name.to_string(), env::var(name).ok());
-        unsafe { env::set_var(name, value) };
-    }
-}
-
-impl Drop for Env {
-    fn drop(&mut self) {
-        for (name, value) in self.backup.iter() {
-            println!("setting {} = {:?}", name, value);
-            match value {
-                Some(val) => unsafe { env::set_var(name.as_str(), val) },
-                None => unsafe { env::remove_var(name.as_str()) },
-            }
-        }
-    }
-}
-
 #[test]
 fn config_from_env() {
-    // This test must not use "PG" as prefix as this can cause the other
-    // tests which also use the "PG" prefix to fail.
-    let mut env = Env::new();
-    env.set("ENV_TEST__PG__HOST", "pg.example.com");
-    env.set("ENV_TEST__PG__PORT", "5433");
-    env.set("ENV_TEST__PG__USER", "john_doe");
-    env.set("ENV_TEST__PG__PASSWORD", "topsecret");
-    env.set("ENV_TEST__PG__DBNAME", "example");
-    env.set("ENV_TEST__PG__POOL__MAX_SIZE", "42");
-    env.set("ENV_TEST__PG__POOL__TIMEOUTS__WAIT__SECS", "1");
-    env.set("ENV_TEST__PG__POOL__TIMEOUTS__WAIT__NANOS", "0");
-    env.set("ENV_TEST__PG__POOL__TIMEOUTS__CREATE__SECS", "2");
-    env.set("ENV_TEST__PG__POOL__TIMEOUTS__CREATE__NANOS", "0");
-    env.set("ENV_TEST__PG__POOL__TIMEOUTS__RECYCLE__SECS", "3");
-    env.set("ENV_TEST__PG__POOL__TIMEOUTS__RECYCLE__NANOS", "0");
-    let cfg = EnvConfig::from_env_with_prefix("ENV_TEST");
+    let cfg = EnvConfig::from_env_with_prefix(
+        "ENV_TEST",
+        &[
+            ("ENV_TEST__PG__HOST", "pg.example.com"),
+            ("ENV_TEST__PG__PORT", "5433"),
+            ("ENV_TEST__PG__USER", "john_doe"),
+            ("ENV_TEST__PG__PASSWORD", "topsecret"),
+            ("ENV_TEST__PG__DBNAME", "example"),
+            ("ENV_TEST__PG__POOL__MAX_SIZE", "42"),
+            ("ENV_TEST__PG__POOL__TIMEOUTS__WAIT__SECS", "1"),
+            ("ENV_TEST__PG__POOL__TIMEOUTS__WAIT__NANOS", "0"),
+            ("ENV_TEST__PG__POOL__TIMEOUTS__CREATE__SECS", "2"),
+            ("ENV_TEST__PG__POOL__TIMEOUTS__CREATE__NANOS", "0"),
+            ("ENV_TEST__PG__POOL__TIMEOUTS__RECYCLE__SECS", "3"),
+            ("ENV_TEST__PG__POOL__TIMEOUTS__RECYCLE__NANOS", "0"),
+        ],
+    );
     // `pgorm_driver::Config` does not provide any read access to its
     // internals, so we can only check if the environment was actually read
     // correctly.

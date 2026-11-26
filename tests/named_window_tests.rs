@@ -11,7 +11,7 @@
 //!
 //! The weights are powers of two, so a sum names exactly the rows it read.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Expr, ExtendedWindow, FrameType, Func, Name, Order, OrderedStatement, Query, SelectStatement,

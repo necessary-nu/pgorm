@@ -224,8 +224,8 @@ macro_rules! assert_eq {
             (left, right) => {
                 {
                     #[allow(unused_imports)]
-                    use $crate::oracle::NotSql as _;
-                    $crate::oracle::Probe(left).oracle_check();
+                    use $crate::postgres::oracle::NotSql as _;
+                    $crate::postgres::oracle::Probe(left).oracle_check();
                 }
                 ::pretty_assertions::assert_eq!(*left, *right);
             }
@@ -236,8 +236,8 @@ macro_rules! assert_eq {
             (left, right) => {
                 {
                     #[allow(unused_imports)]
-                    use $crate::oracle::NotSql as _;
-                    $crate::oracle::Probe(left).oracle_check();
+                    use $crate::postgres::oracle::NotSql as _;
+                    $crate::postgres::oracle::Probe(left).oracle_check();
                 }
                 ::pretty_assertions::assert_eq!(*left, *right, $($arg)+);
             }

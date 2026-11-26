@@ -12,7 +12,7 @@
 //! that quietly produced the other form would show up as the answers
 //! agreeing.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Expr, Keyword, Name, Order, OrderedStatement, Query, SelectStatement, SimpleExpr, Values,

@@ -3,9 +3,9 @@
 //! The execution-boundary guard on an empty select list.
 //!
 //! Run the test locally:
-//! cargo test --test empty_select_tests
+//! cargo test --test it -- empty_select_tests::
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, bakery_chain::*, setup::*};
 use pgorm::{

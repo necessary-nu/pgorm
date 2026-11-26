@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 
 fn tags() -> Expr {
     Expr::col(Name::runtime("tags"))
@@ -162,7 +162,10 @@ fn unparenthesised_computed_bases_do_not_parse() {
         r#"SELECT CAST('{1,2}' AS int4[])[1] FROM "glyph""#,
         r#"SELECT ARRAY [1,2][1] FROM "glyph""#,
     ] {
-        assert!(crate::oracle::parses(rejected).is_err(), "{rejected}");
+        assert!(
+            crate::postgres::oracle::parses(rejected).is_err(),
+            "{rejected}"
+        );
     }
 }
 

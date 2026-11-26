@@ -365,28 +365,28 @@ platforms (
                 cmd "cargo test -p pgorm-driver --features turso --lib --tests"
             }
             features {
-                cmd "cargo test -p pgorm --test turso_feature_tests"
+                cmd "cargo test -p pgorm --test it -- turso_feature_tests::"
             }
             execution {
-                cmd "cargo test -p pgorm --features turso --test turso_execution_tests"
+                cmd "cargo test -p pgorm --features turso --test it -- turso_execution_tests::"
             }
             transactions {
                 cmd "cargo test -p pgorm --features turso --lib database::turso_transaction_tests"
             }
             pool {
-                cmd "cargo test -p pgorm --features turso --test turso_pool_tests"
+                cmd "cargo test -p pgorm --features turso --test it -- turso_pool_tests::"
             }
             capabilities {
-                cmd "cargo test -p pgorm --features turso --test turso_capability_tests"
+                cmd "cargo test -p pgorm --features turso --test it -- turso_capability_tests::"
             }
             config-paths-default {
-                cmd "cargo test -p pgorm-driver --test config_paths"
+                cmd "cargo test -p pgorm-driver --test it -- config_paths::"
             }
             config-paths-native {
-                cmd "cargo test -p pgorm-driver --features turso --test config_paths"
+                cmd "cargo test -p pgorm-driver --features turso --test it -- config_paths::"
             }
             compatibility {
-                cmd "cargo test -p pgorm --features turso --test turso_compatibility_tests"
+                cmd "cargo test -p pgorm --features turso --test it -- turso_compatibility_tests::"
             }
         }
     }

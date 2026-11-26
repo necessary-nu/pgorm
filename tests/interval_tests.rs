@@ -4,7 +4,7 @@
 //! inlined as literals, decoded through `TryGetable`, and written through an
 //! entity's `ActiveValue` — each holding months, days and microseconds apart.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::{DecodeRaw, Schema, entity::prelude::*, set};

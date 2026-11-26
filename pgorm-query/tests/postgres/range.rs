@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, assert_parses, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, assert_parses, parsed_nodes};
 use pgorm_query::extension::{RangeDefinition, Type};
 use std::ops::Bound::{Excluded, Included, Unbounded};
 

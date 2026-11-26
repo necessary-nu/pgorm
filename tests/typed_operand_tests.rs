@@ -6,7 +6,7 @@
 //! Each case is one PostgreSQL refuses with a bare placeholder, and
 //! each guard is one the column's type must keep deciding.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use jiff::{Timestamp, civil::Date};
 use pgorm::pgorm_query::{

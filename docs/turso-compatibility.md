@@ -50,7 +50,7 @@ the serial, VARCHAR, NUMERIC and REAL differences. Run it with a PostgreSQL
 `DATABASE_URL` configured:
 
 ```sh
-cargo test -p pgorm --features turso --test turso_compatibility_tests
+cargo test -p pgorm --features turso --test it -- turso_compatibility_tests::
 ```
 
 The [experimental CI lane](../.github/workflows/turso.yml) runs the existing

@@ -2,7 +2,7 @@
 //! schemas generates the entities the same file without them does, every
 //! table and type in a schema carrying that schema as its qualifier.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm::{Column, ColumnTypeExt, EntityName, Iterable, StaticName};

@@ -10,7 +10,7 @@
 //! through the entity lands in that schema's table, not in a same-named one
 //! `search_path` reaches first, and is read back as written.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};
 use pretty_assertions::assert_eq;

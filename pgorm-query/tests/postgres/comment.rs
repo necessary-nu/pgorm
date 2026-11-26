@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::assert_eq;
+use crate::postgres::oracle::assert_eq;
 
 // [spec:pgorm:req:sql.ddl.comment+5/test]    both targets render, at every level of qualification
 #[test]

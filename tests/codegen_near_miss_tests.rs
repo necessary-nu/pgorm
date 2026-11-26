@@ -11,9 +11,9 @@
 //! foreign key onto the base's UNIQUE pair has the key it references.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test codegen_near_miss_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it codegen_near_miss_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::entity::prelude::*;
@@ -21,7 +21,7 @@ use pgorm::{Connection, ConnectionMut, Schema, set};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
-mod codegen_near_miss;
+use crate::codegen_near_miss;
 
 use codegen_near_miss::pgorm_active_enums::ShelfKind;
 use codegen_near_miss::{book, shelf};

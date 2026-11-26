@@ -8,7 +8,7 @@
 //! the version and the minting instant — and nothing, rather than an error,
 //! where a UUID carries no such thing.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{Expr, Func, Name, Query, SimpleExpr, Values};
 use pgorm::{Connection, ConnectionMut, Schema, entity::prelude::*};

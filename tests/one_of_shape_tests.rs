@@ -4,7 +4,7 @@
 //! refuses what the derive does not compile.
 //!
 //! Run locally:
-//! `cargo nextest run --test one_of_shape_tests`
+//! `cargo nextest run --test it one_of_shape_tests::`
 
 use pgorm::pgorm_query::{ColumnType, Name, SelectStatement, StringLen, TableName, Value};
 use pgorm::tests_cfg::comment::Commentable;

@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::assert_eq;
+use crate::postgres::oracle::assert_eq;
 
 // [spec:pgorm:req:sql.ddl.foreign-key+11/test]
 #[test]
@@ -115,7 +115,7 @@ fn a_period_pair_closes_both_column_lists() {
         .join(" "),
         "a later pair replaces the earlier"
     );
-    let node = crate::oracle::parsed_nodes(&sql, "Constraint").remove(0);
+    let node = crate::postgres::oracle::parsed_nodes(&sql, "Constraint").remove(0);
     assert_eq!(node["fk_with_period"], true, "{sql}");
     assert_eq!(node["pk_with_period"], true, "{sql}");
 

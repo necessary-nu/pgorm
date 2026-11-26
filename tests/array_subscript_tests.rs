@@ -11,7 +11,7 @@
 //! Each case below pins one of those against a value a zero-based or
 //! error-raising reading would give instead.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Expr, Func, Name, Order, OrderedStatement, Query, SelectStatement, SimpleExpr, Subscript,

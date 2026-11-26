@@ -16,7 +16,7 @@
 //! not updatable, an `OR REPLACE` that moves a column, a drop of the wrong
 //! kind.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, Expr, Func, Index, MaterializedView, Name, Order, Query, SelectStatement, Table,

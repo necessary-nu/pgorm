@@ -8,7 +8,7 @@
 //! has to survive. Each test owns a throwaway database named after it.
 
 use pgorm::{
-    Connection, ConnectionMut, DatabaseConnection, DecodeRaw,
+    Connection, DatabaseConnection, DecodeRaw,
     pgorm_query::{
         Asterisk, ColumnDef, ColumnType, Comment, CommonTableExpression, Domain, DomainCheck, Expr,
         ExtendedWindow, ForeignKey, Func, Index, IntoNamedTable, MergeInsert, MergeUpdate,

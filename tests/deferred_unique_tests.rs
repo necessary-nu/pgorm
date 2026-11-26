@@ -15,7 +15,7 @@
 //! `CREATE UNIQUE INDEX`, and a deferrable constraint cannot arbitrate an
 //! `ON CONFLICT`.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, Deferrability, Index, Name, OnConflict, Query, Table, TableKey, Unique,

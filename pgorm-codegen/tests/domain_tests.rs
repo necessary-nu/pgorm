@@ -2,7 +2,7 @@
 //! and the entity the writer generates for them — each field the Rust type
 //! of the domain's base, the domain's name carried in the column's definition.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm::{Column, ColumnTypeExt, Iterable, StaticName};

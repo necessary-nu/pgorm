@@ -11,9 +11,9 @@
 //! their kinds.
 //!
 //! Run locally:
-//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test codegen_disjoint_tests`
+//! `DATABASE_URL="postgres://postgres:postgres@localhost:54319" cargo nextest run --test it codegen_disjoint_tests::`
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 
 use pgorm::entity::prelude::*;
@@ -23,7 +23,7 @@ use pgorm::{
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
-mod codegen_disjoint;
+use crate::codegen_disjoint;
 
 use codegen_disjoint::listing::{Listing, ListingKind};
 use codegen_disjoint::vehicle::{Vehicle, VehicleKind};

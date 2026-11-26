@@ -2,7 +2,7 @@
 //! inverse relations it synthesises, and the many-to-many conjunct relations it
 //! derives from junction tables.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm_codegen::Column;

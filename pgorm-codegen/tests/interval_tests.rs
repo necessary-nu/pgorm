@@ -3,7 +3,7 @@
 //! `Interval` whatever the qualifier, the qualifier carried in the column's
 //! definition so that the table the entity creates is the table described.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm::{Column, ColumnTypeExt, Iterable, StaticName};

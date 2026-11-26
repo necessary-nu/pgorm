@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, assert_query_eq};
+use crate::postgres::oracle::{assert_eq, assert_query_eq};
 use pgorm_query::extension::{Extension, Type};
 
 // [spec:pgorm:req:sql.ddl+12/test]    the whole DDL surface is reachable through the six

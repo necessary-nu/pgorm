@@ -11,7 +11,7 @@
 //! used to emit for the same DDL — silently gets `public.item` instead.
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::entity::prelude::*;

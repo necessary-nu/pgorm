@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "pgorm-test-support"
 version = "0.2.0"
 authors = []
@@ -12,6 +13,12 @@ publish = false
 # path back to pgorm would build its tests against a second copy of pgorm's
 # types. pgorm-driver is the workspace's own requirement, so the `Config`
 # returned here is the type `pgorm::connect` takes.
+# Every integration suite is a module of tests/it.rs, which links them as
+# one binary; cargo would link each file under tests/ as a binary of its own.
+[[test]]
+name = "it"
+path = "tests/it.rs"
+
 [dependencies]
 tokio.workspace = true
 pgorm-driver.workspace = true

@@ -18,7 +18,7 @@
 //! The weights are powers of two, so a `SUM(weight)` names exactly the rows
 //! its frame held.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     Expr, FrameClause, FrameExclusion, FrameType, Func, Name, Order, OrderedStatement, Query,

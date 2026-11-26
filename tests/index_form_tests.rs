@@ -13,7 +13,7 @@
 //! against the catalogue or against behaviour, not against the same SQL that
 //! produced it.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ConditionalStatement, Expr, Func, Index, IndexColumn, IndexOrder, Name, Table,

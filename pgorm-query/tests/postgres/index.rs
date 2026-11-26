@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::assert_eq;
+use crate::postgres::oracle::assert_eq;
 
 // [spec:pgorm:req:sql.ddl.index-create+11/test]
 #[test]

@@ -10,14 +10,14 @@
 //! is held to the column's length, precision and scale — padded, rounded or
 //! refused as the column makes it.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::Range;
 use pgorm::{Connection, ConnectionMut, Schema, Statement, entity::prelude::*};
 use pgorm_driver::error::SqlState;
 use pretty_assertions::assert_eq;
 
-mod codegen_column_types;
+use crate::codegen_column_types;
 
 use codegen_column_types::pgorm_active_enums::Grade;
 use codegen_column_types::pgorm_range_types::Textrange;

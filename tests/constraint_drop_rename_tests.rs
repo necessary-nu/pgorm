@@ -10,7 +10,7 @@
 //! does not have, the keys others depend on, and the constraints a table
 //! inherited.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{ConstraintDrop, Name, Table};
 use pgorm::{Connection, ConnectionMut, entity::prelude::*};

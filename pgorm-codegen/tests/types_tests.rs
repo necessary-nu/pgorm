@@ -1,7 +1,7 @@
 //! Column type mapping, the unsupported-type policy, and how primary keys
 //! surface in each format.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm_codegen::{Column, Error};

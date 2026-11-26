@@ -20,7 +20,7 @@
 
 use std::{collections::BTreeMap, fs, path::Path, process::Command};
 
-use crate::spec::{
+use crate::surface::spec::{
     bracketed_citations, checkout_root, citations, declared_verbs, defined_id, read_spec_file,
     spec_dir, spec_files,
 };

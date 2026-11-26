@@ -1,6 +1,6 @@
 use serde_json_1::Value;
 
-use crate::types::test_type;
+use crate::upstream::types::test_type;
 
 #[tokio::test]
 async fn test_json_params() {

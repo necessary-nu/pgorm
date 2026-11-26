@@ -10,7 +10,7 @@
 //! what the ORM's readers make of a row that references nothing: the
 //! relation's loaders and joins read it as having no related row.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::{Connection, ConnectionMut, LoadRelated, Schema, Transact, entity::prelude::*};
 use pgorm_driver::error::SqlState;

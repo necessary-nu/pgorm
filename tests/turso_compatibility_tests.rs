@@ -1,7 +1,7 @@
 //! The same operations run on PostgreSQL, isolated native memory and a fresh file.
 #![cfg(feature = "turso")]
 
-mod turso_compatibility;
+use crate::turso_compatibility;
 
 use futures::TryStreamExt;
 use pgorm::{Connection, DecodeRaw};

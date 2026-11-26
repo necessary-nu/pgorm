@@ -13,7 +13,7 @@
 //! the reason the mutual exclusion is documented rather than typed, so it is
 //! checked here rather than asserted in prose.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, Expr, GeneratedKind, IdentityGeneration, Name, Overriding, Query, Sequence,

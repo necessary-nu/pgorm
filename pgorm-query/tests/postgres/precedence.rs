@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, assert_rejected, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, assert_rejected, parsed_nodes};
 
 /// An expression as the grammar grouped it: a boolean node as its operator
 /// over its arguments, an operator expression as its operator name — over its

@@ -8,7 +8,7 @@
 //! written through against a live server at the workspace root
 //! (`tests/codegen_column_types_tests.rs`), whose module tree they are.
 
-mod common;
+use crate::common;
 
 use common::*;
 

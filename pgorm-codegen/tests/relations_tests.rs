@@ -1,7 +1,7 @@
 //! Relation variants and attributes, the `Related` impls, and the many-to-many
 //! `via` impls.
 
-mod common;
+use crate::common;
 
 use common::*;
 use pgorm_query::{ColumnDef, ForeignKey, ForeignKeyAction, Name, Table, TableCreateStatement};

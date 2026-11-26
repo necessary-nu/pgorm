@@ -5,7 +5,7 @@
 //! tokio-postgres logs every statement text it is handed, at debug level,
 //! before encoding it: `executing statement batch: {sql}` for the simple
 //! protocol and `preparing query {name}: {sql}` for the extended one. A
-//! logger installed here records those lines for the current thread, so a
+//! subscriber scoped to the current thread records those lines, so a
 //! site's statements are exactly what the client would have sent. Each site
 //! runs twice — once with the benign name, once with the hostile one — each
 //! time on a fresh pool, so no statement cache hides a statement from the
@@ -18,19 +18,29 @@
 //! [`Outage`], never judged.
 
 use std::{
+    fmt::Debug,
     future::Future,
     pin::Pin,
-    sync::{LazyLock, Mutex},
-    thread::{self, ThreadId},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
 use pgorm::{
-    Connection, ConnectionMut, DatabasePool, Entity, NoTls, Relation, SelectModel,
+    Connection, DatabasePool, Entity, NoTls, Relation, SelectModel,
     pgorm_query::{Asterisk, IntoKey, Name, Query},
     tests_cfg::{cake, fruit},
 };
 use pgorm_migration::{Migration, MigrationName, Migrator};
+use tracing::{
+    Event, Level, Subscriber,
+    field::{Field, Visit},
+};
+use tracing_log::NormalizeEvent;
+use tracing_subscriber::{
+    Layer,
+    layer::{Context, SubscriberExt},
+    util::SubscriberInitExt,
+};
 
 use super::{
     corpus::{Hostile, NUL_NAME, corpus},
@@ -379,66 +389,78 @@ where
 // The capture
 // ---------------------------------------------------------------------------
 
-static LINES: LazyLock<Mutex<Vec<(ThreadId, String)>>> = LazyLock::new(Mutex::default);
+/// The statement texts tokio-postgres logs while a [`capture`] runs.
+#[derive(Clone, Default)]
+struct Capture(Arc<Mutex<Vec<String>>>);
 
-struct Capture;
-
-static CAPTURE: Capture = Capture;
-
-impl log::Log for Capture {
-    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-        metadata.target().starts_with("pgorm_driver") && metadata.level() <= log::Level::Debug
-    }
-
-    fn log(&self, record: &log::Record<'_>) {
-        if !self.enabled(record.metadata()) {
+impl<S: Subscriber> Layer<S> for Capture {
+    fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+        // A `log` record reaches `tracing` under the bridge's own metadata;
+        // its target and level are the normalized metadata's.
+        let normalized = event.normalized_metadata();
+        let metadata = normalized.as_ref().unwrap_or_else(|| event.metadata());
+        if !metadata.target().starts_with("pgorm_driver") || *metadata.level() > Level::DEBUG {
             return;
         }
-        let message = record.args().to_string();
-        let sql = if let Some(sql) = message.strip_prefix("executing statement batch: ") {
-            sql
-        } else if let Some(sql) = message.strip_prefix("executing simple query: ") {
-            sql
-        } else if let Some(rest) = message.strip_prefix("preparing query ") {
-            match rest.split_once(": ") {
-                Some((_, sql)) => sql,
-                None => return,
-            }
-        } else {
-            return;
-        };
-        if let Ok(mut lines) = LINES.lock() {
-            lines.push((thread::current().id(), sql.to_owned()));
+        let mut message = Message::default();
+        event.record(&mut message);
+        if let Some(sql) = statement(&message.0)
+            && let Ok(mut lines) = self.0.lock()
+        {
+            lines.push(sql.to_owned());
         }
     }
+}
 
-    fn flush(&self) {}
+#[derive(Default)]
+struct Message(String);
+
+impl Visit for Message {
+    fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
+        if field.name() == "message" {
+            self.0 = format!("{value:?}");
+        }
+    }
+}
+
+fn statement(message: &str) -> Option<&str> {
+    if let Some(sql) = message.strip_prefix("executing statement batch: ") {
+        Some(sql)
+    } else if let Some(sql) = message.strip_prefix("executing simple query: ") {
+        Some(sql)
+    } else {
+        let (_, sql) = message.strip_prefix("preparing query ")?.split_once(": ")?;
+        Some(sql)
+    }
 }
 
 /// Every statement tokio-postgres was handed on this thread while `run` ran,
 /// but for its own catalogue lookups, or the outage that kept `run` from the
 /// server.
+///
+/// The test binary's other tests share the process, and with it the one
+/// `log` logger, so this captures through the bridge from `log` to `tracing`
+/// that `#[pgorm_macros::test]`'s subscriber installs as that logger too. A
+/// subscriber made the thread's default for the run sees what the run logs
+/// and nothing another test does.
 async fn capture(run: Pin<Box<dyn Future<Output = Reached> + '_>>) -> Result<Vec<String>, Outage> {
-    // Installing twice fails harmlessly: the logger is the same one.
-    let _ = log::set_logger(&CAPTURE);
-    log::set_max_level(log::LevelFilter::Debug);
-    let me = thread::current().id();
-    let drain = || {
-        LINES.lock().map_or_else(
-            |_| Vec::new(),
-            |mut lines| {
-                let (mine, theirs) = lines.drain(..).partition(|(thread, _)| *thread == me);
-                *lines = theirs;
-                mine.into_iter()
-                    .map(|(_, sql)| sql)
-                    .filter(|sql| !is_catalogue(sql) && !is_commit(sql))
-                    .collect::<Vec<_>>()
-            },
-        )
+    let _ = tracing_log::LogTracer::init();
+    let capture = Capture::default();
+    let reached = {
+        let _scoped = tracing_subscriber::registry()
+            .with(capture.clone())
+            .set_default();
+        run.await
     };
-    drain();
-    let reached = run.await;
-    let statements = drain();
+    let statements = capture.0.lock().map_or_else(
+        |_| Vec::new(),
+        |mut lines| {
+            lines
+                .drain(..)
+                .filter(|sql| !is_catalogue(sql) && !is_commit(sql))
+                .collect()
+        },
+    );
     reached.map(|()| statements)
 }
 

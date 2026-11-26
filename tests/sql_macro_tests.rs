@@ -5,7 +5,7 @@
 //! server unchanged.
 #![allow(unused_imports, dead_code)]
 
-pub mod common;
+use crate::common;
 
 pub use common::TestContext;
 use futures::TryStreamExt;

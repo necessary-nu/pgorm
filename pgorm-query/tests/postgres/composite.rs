@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 use pgorm_query::extension::Type;
 
 fn n(name: &str) -> Name {
@@ -92,7 +92,7 @@ fn an_empty_composite_is_a_type() {
     let sql = Type::create(n("nothing")).as_composite().to_string();
     assert_eq!(sql, r#"CREATE TYPE "nothing" AS ()"#);
     assert!(attributes(&composite(&sql)).is_empty());
-    crate::oracle::assert_rejected(r#"CREATE TYPE "nothing" AS"#);
+    crate::postgres::oracle::assert_rejected(r#"CREATE TYPE "nothing" AS"#);
 }
 
 // [spec:pgorm:req:sql.ddl.type-composite+3/test]    a type is an enumeration or a composite, and
@@ -150,7 +150,7 @@ fn an_attribute_is_not_a_column() {
         r#"CREATE TYPE "t" AS ("a" integer CHECK ("a" > 0))"#,
         r#"CREATE TYPE "t" AS ("a" integer GENERATED ALWAYS AS IDENTITY)"#,
     ] {
-        crate::oracle::assert_rejected(refused);
+        crate::postgres::oracle::assert_rejected(refused);
     }
 }
 

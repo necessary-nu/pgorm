@@ -6,7 +6,7 @@
 //! describes; the refusals of a row of the wrong width or type; models; and
 //! a transaction and the metrics wrapper.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, setup::*};
 

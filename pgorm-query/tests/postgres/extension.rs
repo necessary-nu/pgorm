@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::assert_eq;
+use crate::postgres::oracle::assert_eq;
 use pgorm_query::extension::{Extension, PgLTree};
 
 // [spec:pgorm:req:sql.ddl.extension+5/test]    every part of the CREATE EXTENSION grammar

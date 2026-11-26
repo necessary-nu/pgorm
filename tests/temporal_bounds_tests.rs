@@ -14,7 +14,7 @@
 //! the same crate's decoder reads those bytes back happily. pgorm encodes
 //! `timestamp` itself now; these tests hold that against a real server.
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, features::*, setup::*};
 use pgorm::{DecodeRaw, Schema, entity::prelude::*, set};

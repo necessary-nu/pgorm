@@ -11,9 +11,9 @@
 //! render bare.
 //!
 //! Run the test locally:
-//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test boolean_operator_tests
+//! DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54319 cargo test --test it -- boolean_operator_tests::
 
-pub mod common;
+use crate::common;
 
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{

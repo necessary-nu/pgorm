@@ -1,6 +1,6 @@
 use eui48_1::MacAddress;
 
-use crate::types::test_type;
+use crate::upstream::types::test_type;
 
 #[tokio::test]
 async fn test_eui48_params() {

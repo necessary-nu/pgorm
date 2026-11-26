@@ -22947,6 +22947,15 @@ children (
                 title "Each crate's integration tests link as one test binary (plus one per required feature set) rather than one per file"
                 kind @test
                 deps (read-only.rust)
+                sealed true
+                log (
+                    {
+                        at 2026-11-26T05:57:19.613032Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {

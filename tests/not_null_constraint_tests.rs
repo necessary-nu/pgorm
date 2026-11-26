@@ -8,7 +8,7 @@
 //! under the name given or one derived, `connoinherit` and `convalidated` —
 //! and what it refuses around one.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ConstraintChange, Expr, Name, NotNullConstraint, Table, TableKey,

@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::assert_eq;
+use crate::postgres::oracle::assert_eq;
 
 // [spec:pgorm:sem:sql.render.locking+1/test]    the four lock types
 #[test]
@@ -123,15 +123,16 @@ fn lock_of_names_what_items_answer_to() {
         r#"SELECT * FROM "glyph" AS "g", (SELECT "id" FROM "font") AS "q", "character" FOR NO KEY UPDATE OF "g", "q", "character""#
     );
 
-    let locked: Vec<serde_json::Value> = crate::oracle::parsed_nodes(&sql, "LockingClause")
-        .into_iter()
-        .flat_map(|clause| {
-            clause["locked_rels"]
-                .as_array()
-                .cloned()
-                .unwrap_or_default()
-        })
-        .collect();
+    let locked: Vec<serde_json::Value> =
+        crate::postgres::oracle::parsed_nodes(&sql, "LockingClause")
+            .into_iter()
+            .flat_map(|clause| {
+                clause["locked_rels"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default()
+            })
+            .collect();
     let names: Vec<(&str, bool)> = locked
         .iter()
         .map(|rel| {

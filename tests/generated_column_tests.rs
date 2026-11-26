@@ -12,7 +12,7 @@
 //! `SET EXPRESSION` does to the rows already written, and what
 //! `DROP EXPRESSION` leaves behind.
 
-pub mod common;
+use crate::common;
 pub use common::{TestContext, setup::*};
 use pgorm::pgorm_query::{
     ColumnDef, ColumnType, Expr, Func, GeneratedKind, Index, Name, Table, TableKey, extension::Type,

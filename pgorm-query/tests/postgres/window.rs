@@ -1,5 +1,5 @@
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 use pgorm_query::error::Error;
 
 fn counted() -> FunctionCall {
@@ -426,7 +426,7 @@ fn extending(base: &str) -> ExtendedWindow {
 fn check_windows_refuses_what_postgres_refuses() {
     let refused = |windows: Vec<(&str, WindowDefinition)>| {
         let query = declaring(windows);
-        crate::oracle::assert_parses(&query.to_string());
+        crate::postgres::oracle::assert_parses(&query.to_string());
         query.check_windows().expect_err("a refused clause")
     };
     let pair = |window: &str, base: &str| (Some(window.to_owned()), base.to_owned());
@@ -650,7 +650,7 @@ fn check_windows_refuses_inline_bases_postgres_refuses() {
         for (name, definition) in windows {
             query.window(named(name), definition);
         }
-        crate::oracle::assert_parses(&query.to_string());
+        crate::postgres::oracle::assert_parses(&query.to_string());
         query.check_windows()
     };
     let refused = |window, windows| over(window, windows).expect_err("a refused window");

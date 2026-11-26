@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "pgorm-macros"
 version = "0.2.0"
 authors = [ "Billy Chan <ccw.billy.123@gmail.com>" ]
@@ -15,6 +16,12 @@ rust-version = "1.89"
 name = "pgorm_macros"
 path = "src/lib.rs"
 proc-macro = true
+
+# Every integration suite is a module of tests/it.rs, which links them as
+# one binary; cargo would link each file under tests/ as a binary of its own.
+[[test]]
+name = "it"
+path = "tests/it.rs"
 
 [dependencies]
 syn = { version = "3", default-features = false, features = ["parsing", "proc-macro", "derive", "printing", "clone-impls", "extra-traits", "full"] }

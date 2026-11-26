@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use super::*;
-use crate::oracle::{assert_eq, parsed_nodes};
+use crate::postgres::oracle::{assert_eq, parsed_nodes};
 use pgorm_query::error::Error;
 use serde_json::{Value as Json, json};
 
