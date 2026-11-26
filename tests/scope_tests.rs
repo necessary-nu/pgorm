@@ -9,7 +9,10 @@ use pgorm::entity::prelude::*;
 use pgorm::pgorm_query::OnConflict;
 use pgorm::pipeline::{Pipeline, PipelineError};
 use pgorm::tests_cfg::scoped::{CompanyAdmin, CompanyId, Member, UserId, company, message, note};
+use pgorm::tests_cfg::{cake, fruit};
+use pgorm::{Held, Provides};
 use pretty_assertions::assert_eq;
+use std::any::{Any, TypeId};
 
 const MEMBER: Member = Member {
     company: CompanyId(1),
@@ -20,6 +23,30 @@ const ADMIN: CompanyAdmin = CompanyAdmin {
     company: CompanyId(1),
     users: Every::new(),
 };
+
+#[derive(Clone, Copy, Debug, ScopeContext)]
+struct Operator {
+    companies: Every<CompanyId>,
+    users: Every<UserId>,
+}
+
+const OPERATOR: Operator = Operator {
+    companies: Every::new(),
+    users: Every::new(),
+};
+
+/// A context whose `Provides` say it holds `CompanyId` and whose
+/// `ScopeContext` holds nothing: how a `_for` form's types hold and its
+/// statement is refused all the same.
+struct Unheld;
+
+impl ScopeContext for Unheld {
+    fn held(&self, _scope: TypeId) -> Option<Held<'_, dyn Any>> {
+        None
+    }
+}
+
+impl Provides<CompanyId> for Unheld {}
 
 fn written(body: &str) -> note::ActiveModel {
     note::ActiveModel {
@@ -225,6 +252,65 @@ fn a_write_by_key_carries_its_scopes() -> Result<(), Error> {
     Ok(())
 }
 
+// [spec:pgorm:sem:scope.from-using/test]    an entity `from_for` or
+// `using_for` adds has its context's scopes ANDed into the WHERE under its
+// own name, a hand-written one's bracketed, and an unscoped one adds its
+// table alone, as the plain form does
+#[test]
+fn from_and_using_hold_entities_to_scopes() {
+    assert_eq!(
+        Update::many_for(&CompanyId(1), company::Entity)
+            .col_expr(
+                company::Column::Name,
+                Expr::col((note::Entity, note::Column::Body)).into()
+            )
+            .from_for(&MEMBER, note::Entity)
+            .filter(company::Column::Id.eq_col(note::Column::CompanyId))
+            .as_query()
+            .to_string(),
+        [
+            r#"UPDATE "company" SET "name" = "note"."body" FROM "note""#,
+            r#"WHERE "company"."id" = 1 AND "note"."company_id" = 1 AND "note"."author_id" = 10"#,
+            r#"AND "company"."id" = "note"."company_id""#,
+        ]
+        .join(" ")
+    );
+    assert_eq!(
+        Delete::many_for(&ADMIN, note::Entity)
+            .using_for(&UserId(10), message::Entity)
+            .filter(note::Column::AuthorId.eq_col(message::Column::SenderId))
+            .as_query()
+            .to_string(),
+        [
+            r#"DELETE FROM "note" USING "message" WHERE "note"."company_id" = 1"#,
+            r#"AND ("message"."sender_id" = 10 OR "message"."recipient_id" = 10)"#,
+            r#"AND "note"."author_id" = "message"."sender_id""#,
+        ]
+        .join(" ")
+    );
+    let renamed = |update: pgorm::UpdateMany<fruit::Entity>| {
+        update
+            .col_expr(
+                fruit::Column::Name,
+                Expr::col((cake::Entity, cake::Column::Name)).into(),
+            )
+            .filter(fruit::Column::CakeId.eq_col(cake::Column::Id))
+            .as_query()
+            .to_string()
+    };
+    assert_eq!(
+        renamed(Update::many(fruit::Entity).from_for(&MEMBER, cake::Entity)),
+        renamed(Update::many(fruit::Entity).from(cake::Entity)),
+    );
+    assert_eq!(
+        Delete::many(fruit::Entity)
+            .using_for(&MEMBER, cake::Entity)
+            .as_query()
+            .to_string(),
+        r#"DELETE FROM "fruit" USING "cake""#,
+    );
+}
+
 // [spec:pgorm:req:scope.immutable/test]    a scope column set in an update is
 // refused, by key or in bulk, and so is one an upsert's DO UPDATE SET names
 #[test]
@@ -370,11 +456,64 @@ async fn a_context_reads_and_writes_its_own_rows() -> Result<(), Error> {
     Ok(())
 }
 
-// [spec:pgorm:req:scope.refusals/test]    a join into a scoped table with no
+// [spec:pgorm:sem:scope.from-using/test]    an update reading another table
+// through `from_for` and a delete narrowed through `using_for` touch only the
+// rows the added table's scopes hold, where the statements with those scopes
+// left out would touch every company's
+#[pgorm_macros::test]
+async fn from_and_using_read_only_scoped_rows() -> Result<(), Error> {
+    let ctx = TestContext::new("scope_from_using").await;
+    let db = ctx.db.get().await?;
+    schema(&db).await?;
+    let companies = Every::<CompanyId>::new();
+
+    let renamed = Update::many_for(&companies, company::Entity)
+        .col_expr(
+            company::Column::Name,
+            Expr::col((note::Entity, note::Column::Body)).into(),
+        )
+        .from_for(&MEMBER, note::Entity)
+        .filter(company::Column::Id.eq_col(note::Column::CompanyId))
+        .exec(&db)
+        .await?;
+    assert_eq!(
+        renamed, 1,
+        "Ada's note is Acme's, and no Globex note is hers"
+    );
+    let names: Vec<String> = company::Entity::find_for(&companies)
+        .order_by_asc(company::Column::Id)
+        .all(&db)
+        .await?
+        .into_iter()
+        .map(|company| company.name)
+        .collect();
+    assert_eq!(names, ["mine", "Globex"]);
+
+    let deleted = Delete::many_for(&OPERATOR, note::Entity)
+        .using_for(&CompanyId(2), company::Entity)
+        .filter(note::Column::CompanyId.eq_col(company::Column::Id))
+        .exec(&db)
+        .await?;
+    assert_eq!(deleted, 1, "Globex's note, and neither of Acme's");
+    let left = note::Entity::find_for(&OPERATOR)
+        .order_by_asc(note::Column::Id)
+        .all(&db)
+        .await?;
+    assert_eq!(bodies(left), ["mine", "a colleague's"]);
+
+    drop(db);
+    ctx.delete().await;
+    Ok(())
+}
+
+// [spec:pgorm:req:scope.refusals+1/test]    a join into a scoped table with no
 // context, a row naming another scope's value, a row leaving a lifted scope's
 // column unset, and a bulk update or upsert changing a scope column are each
 // refused when the statement would run, and nothing is sent
 // [spec:pgorm:req:scope.immutable/test]
+// [spec:pgorm:sem:scope.from-using/test]    a `from_for` or `using_for` whose
+// context does not hold the added entity's scope is refused when the
+// statement would run, and nothing is sent
 #[pgorm_macros::test]
 async fn a_statement_outside_its_scopes_is_refused() -> Result<(), Error> {
     let ctx = TestContext::new("scope_refusals").await;
@@ -430,6 +569,35 @@ async fn a_statement_outside_its_scopes_is_refused() -> Result<(), Error> {
     assert!(
         matches!(&upsert, Err(Error::ImmutableColumn { column, .. }) if column == "author_id"),
         "{upsert:?}"
+    );
+
+    let not_held = |refused: &Result<u64, Error>| {
+        matches!(
+            refused,
+            Err(Error::Scope(ScopeError::NotHeld { table, scope }))
+                if table == "company" && *scope == "CompanyId"
+        )
+    };
+    let from_unheld = Update::many_for(&ADMIN, note::Entity)
+        .col_expr(note::Column::Body, Expr::value("unheld"))
+        .from_for(&Unheld, company::Entity)
+        .filter(note::Column::CompanyId.eq_col(company::Column::Id))
+        .exec(&db)
+        .await;
+    assert!(not_held(&from_unheld), "{from_unheld:?}");
+    let using_unheld = Delete::many_for(&OPERATOR, note::Entity)
+        .using_for(&Unheld, company::Entity)
+        .filter(note::Column::CompanyId.eq_col(company::Column::Id))
+        .exec(&db)
+        .await;
+    assert!(not_held(&using_unheld), "{using_unheld:?}");
+    assert!(
+        note::Entity::find_for(&OPERATOR)
+            .all(&db)
+            .await?
+            .iter()
+            .all(|note| note.body != "unheld"),
+        "the refused update set nothing"
     );
 
     assert_eq!(

@@ -547,7 +547,7 @@ impl<E: Entity + ScopedIn<NoContext>> Default for SelectGraph<E, ()> {
 impl<E: Entity, S, R, Cx> SelectGraph<E, S, R, Cx> {
     /// Hold `refusal`, the first one held being the one the graph fails
     /// with when it would run.
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     pub(crate) fn refuse(&mut self, refusal: ScopeError) {
         self.refused.get_or_insert(refusal);
     }

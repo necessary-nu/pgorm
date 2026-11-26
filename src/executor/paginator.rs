@@ -134,7 +134,7 @@ where
         Ok(buffer)
     }
 
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     fn refusal(&self) -> Result<(), Error> {
         match &self.refused {
             Some(refused) => Err(Error::Scope(refused.clone())),

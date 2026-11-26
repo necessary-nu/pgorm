@@ -53,7 +53,7 @@ pub(crate) fn immutable_set<E: Entity>(query: &UpdateStatement) -> Result<(), Er
     Ok(())
 }
 
-// [spec:pgorm:sem:query.build.update+5]
+// [spec:pgorm:sem:query.build.update+6]
 /// Refuse a row of `E` an update writes that sets a column its definition
 /// marks immutable.
 // [spec:pgorm:req:scope.immutable]

@@ -29,6 +29,7 @@
 // [spec:pgorm:sem:disjoint.unkinded+1/test]    the refusals an `unkinded` declaration words: `kind`, `enum_name` or `schema_name` beside it, `unkinded` twice, a variant's `value`, a second unit variant, and no variant holding a kind's `Model`
 // [spec:pgorm:def:disjoint.one-of+4/test]    the refusals the one-of derive words: not an enum, generic, no `entity`, a quoted `entity` or `column`, a key twice or unknown, no variant naming a target, a variant of another shape, a discriminant, a target with no `column`, a unit variant with one, a second unit variant, a key on the target, and a name over 59 bytes in snake_case, which the CHECK `create_one_of` names `ck-{enum}` could not keep whole
 // [spec:pgorm:req:scope.compile/test]    a scoped entity under a context missing a scope, a struct context missing one, and `NoContext` each fail with the entity's own message naming its scopes and the context
+// [spec:pgorm:sem:scope.from-using/test]    a scoped entity named in a bulk update's `from` or a bulk delete's `using` fails with the entity's own message, `NoContext` not holding its scope
 // [spec:pgorm:def:scope.declare+1/test]    a scope column that is `Option`, `scope` twice on a field, and an empty `scope()` are refused at the key
 // [spec:pgorm:def:scope.context/test]    a context holding a scope twice, one with generic parameters, and an enum are refused by the derive
 #[test]

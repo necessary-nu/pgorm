@@ -103,7 +103,7 @@ pub enum Error {
     /// A statement on a scoped table that its context does not cover: a join
     /// added without one, a context that does not hold a scope, or a row
     /// outside the context's scopes. Nothing was sent.
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     #[error("Scope Error: {0}")]
     Scope(#[from] crate::ScopeError),
     /// An update would change a column its definition marks immutable,

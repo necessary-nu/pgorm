@@ -386,7 +386,7 @@ where
     /// refused for its scopes, and an `ON CONFLICT .. DO UPDATE SET` that
     /// would change a column its definition marks immutable, which a row
     /// cannot leave by conflicting either.
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     // [spec:pgorm:req:scope.immutable]
     pub(crate) fn refusal(&self) -> Result<(), Error> {
         if let Some(refused) = &self.refused {

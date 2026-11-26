@@ -678,7 +678,7 @@ where
         self
     }
 
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     fn into_selector_raw(self) -> Result<SelectorRaw<S, Reads>, Error> {
         if let Some(refused) = self.refused {
             return Err(Error::Scope(refused));
