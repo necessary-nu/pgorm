@@ -4183,6 +4183,11 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
+    {id scopes.from-using, covered_rules (
+        scope.from-using
+    ), covered_claims (
+        {impl_name main, rule scope.from-using}
+    )}
 )
 
 onboarding {kind @adopt, phase 11}

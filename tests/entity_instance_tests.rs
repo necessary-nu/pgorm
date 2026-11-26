@@ -57,8 +57,8 @@ fn cake(id: i32, name: &str) -> Model {
 // [spec:pgorm:req:entity.traits.crud+6/test]    the reads and the key delete
 // take the instance whose schema they read
 // [spec:pgorm:sem:query.build.insert+6/test]
-// [spec:pgorm:sem:query.build.update+5/test]
-// [spec:pgorm:sem:query.build.delete+4/test]
+// [spec:pgorm:sem:query.build.update+6/test]
+// [spec:pgorm:sem:query.build.delete+5/test]
 // [spec:pgorm:def:query.graph+3/test]    a graph rooted at an instance
 // [spec:pgorm:sem:pipeline.qualify+5/test]    a pipeline over an instance, its
 // model terminal and its source selection

@@ -21931,6 +21931,9 @@ children (
             {
                 id scopes.from-using
                 title "An UPDATE .. FROM or DELETE .. USING naming a scoped entity holds it to its scopes, refused without a context that holds them"
+                implements {
+                    main ([spec:pgorm:sem:scope.from-using])
+                }
                 deps (trait-names)
                 log (
                     {

@@ -1,11 +1,11 @@
 use crate::entity::entity_table;
-use crate::entity::{immutable_column, immutable_set, scope_condition};
+use crate::entity::{hold_statement, immutable_column, immutable_set, scope_condition};
 use crate::{
     ActiveModel, ActiveValue, Column, Entity, Error, Iterable, NoContext, PrimaryKeyToColumn,
-    QueryFilter, ScopeContext, ScopeError, ScopedIn, Statement, StaticName,
+    QueryFilter, ScopeContext, ScopeError, ScopedIn, Statement, StaticName, UnscopedFromItem,
 };
 use core::marker::PhantomData;
-use pgorm_query::{Expr, IntoFromItem, IntoName, SimpleExpr, UpdateStatement};
+use pgorm_query::{Expr, IntoName, SimpleExpr, UpdateStatement};
 
 /// Defines a structure to perform UPDATE query operations on a ActiveModel
 #[derive(Clone, Debug)]
@@ -107,7 +107,7 @@ impl Update {
     ///     .join(" "),
     /// );
     /// ```
-    // [spec:pgorm:sem:query.build.update+5]
+    // [spec:pgorm:sem:query.build.update+6]
     // [spec:pgorm:sem:scope.write]
     pub fn one_for<Cx, E, A>(cx: &Cx, model: A) -> Result<UpdateOne<A>, Error>
     where
@@ -144,7 +144,7 @@ impl Update {
     ///     r#"UPDATE "acme"."cake" SET "name" = 'Apple Pie' WHERE "cake"."id" = 1"#,
     /// );
     /// ```
-    // [spec:pgorm:sem:query.build.update+5]
+    // [spec:pgorm:sem:query.build.update+6]
     pub fn one_in<E, A>(entity: E, model: A) -> Result<UpdateOne<A>, Error>
     where
         E: Entity + ScopedIn<NoContext>,
@@ -155,7 +155,7 @@ impl Update {
 
     /// The update of `model`'s row of the table `entity` names, by its key
     /// alone.
-    // [spec:pgorm:sem:query.build.update+5]
+    // [spec:pgorm:sem:query.build.update+6]
     fn one_unscoped<E, A>(entity: E, model: A) -> Result<UpdateOne<A>, Error>
     where
         E: Entity,
@@ -195,7 +195,7 @@ impl Update {
 
     /// [`many`](Update::many) under the context `cx`: `cx`'s scopes are
     /// ANDed into the `WHERE`, so only rows they hold are updated.
-    // [spec:pgorm:sem:query.build.update+5]
+    // [spec:pgorm:sem:query.build.update+6]
     // [spec:pgorm:sem:scope.write]
     pub fn many_for<Cx, E>(cx: &Cx, entity: E) -> UpdateMany<E>
     where
@@ -203,13 +203,7 @@ impl Update {
         E: Entity + ScopedIn<Cx>,
     {
         let mut many = Self::many_unscoped(&entity);
-        match scope_condition::<E>(cx) {
-            Ok(Some(condition)) => {
-                many.query.cond_where(condition);
-            }
-            Ok(None) => {}
-            Err(refusal) => many.refused = Some(refusal),
-        }
+        hold_statement::<E>(cx, &mut many.query, &mut many.refused);
         many
     }
 
@@ -330,7 +324,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.update+5]
+// [spec:pgorm:sem:query.build.update+6]
 impl<E> UpdateMany<E>
 where
     E: Entity,
@@ -404,12 +398,52 @@ where
     ///     .join(" "),
     /// );
     /// ```
-    // [spec:pgorm:sem:query.build.update+5]
+    ///
+    /// A scoped entity is added by [`from_for`](Self::from_for), so naming
+    /// one here does not compile.
+    // [spec:pgorm:sem:query.build.update+6]
+    // [spec:pgorm:sem:scope.from-using]
     pub fn from<R>(mut self, tbl_ref: R) -> Self
     where
-        R: IntoFromItem,
+        R: UnscopedFromItem,
     {
         self.query.from(tbl_ref);
+        self
+    }
+
+    /// [`from`](Self::from) of the entity `entity` under the context `cx`:
+    /// its table is added to the `FROM` list, under its `Default` name as the
+    /// `_for` statement forms read theirs, and `cx`'s scopes on its rows are
+    /// ANDed into the `WHERE`, so the update reads no row of it outside them.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*, pgorm_query::Expr};
+    /// use pgorm::tests_cfg::scoped::{company, note, CompanyId, Member, UserId};
+    ///
+    /// let member = Member { company: CompanyId(7), user: UserId(3) };
+    /// assert_eq!(
+    ///     Update::many_for(&member, company::Entity)
+    ///         .col_expr(company::Column::Name, Expr::col((note::Entity, note::Column::Body)).into())
+    ///         .from_for(&member, note::Entity)
+    ///         .filter(company::Column::Id.eq_col(note::Column::CompanyId))
+    ///         .as_query()
+    ///         .to_string(),
+    ///     [
+    ///         r#"UPDATE "company" SET "name" = "note"."body" FROM "note""#,
+    ///         r#"WHERE "company"."id" = 7 AND "note"."company_id" = 7 AND "note"."author_id" = 3"#,
+    ///         r#"AND "company"."id" = "note"."company_id""#,
+    ///     ]
+    ///     .join(" "),
+    /// );
+    /// ```
+    // [spec:pgorm:sem:scope.from-using]
+    pub fn from_for<Cx, R>(mut self, cx: &Cx, entity: R) -> Self
+    where
+        Cx: ScopeContext,
+        R: ScopedIn<Cx>,
+    {
+        self.query.from(entity_table(&entity));
+        hold_statement::<R>(cx, &mut self.query, &mut self.refused);
         self
     }
 }

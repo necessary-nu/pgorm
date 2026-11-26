@@ -1165,6 +1165,66 @@ assert_eq!(note::Entity::delete_by_id_for(&ada, 2).exec(&db).await?, 0);
 # }
 ```
 
+A bulk update's `FROM` and a bulk delete's `USING` add a table whose rows
+the statement reads, as a join does, so a scoped entity added there is held
+to its scopes too. [`from_for`](crate::UpdateMany::from_for) and
+[`using_for`](crate::DeleteMany::using_for) take the context the entity is
+read under, which, as a join's, need not be the statement's own, and AND its
+scopes into the `WHERE`. The support desk, over every company, deletes
+Globex's notes, reading `company` under Globex's scope so that no other
+company's row joins:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::notes("entities_scoped_using").await;
+# let db = scratch.pool.get().await?;
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::notes::{CompanyAdmin, CompanyId, UserId, company, note};
+
+#[derive(Clone, Copy, Debug, ScopeContext)]
+pub struct Support {
+    pub companies: Every<CompanyId>,
+    pub users: Every<UserId>,
+}
+
+let support = Support { companies: Every::new(), users: Every::new() };
+let globex = Delete::many_for(&support, note::Entity)
+    .using_for(&CompanyId(2), company::Entity)
+    .filter(note::Column::CompanyId.eq_col(company::Column::Id));
+assert_eq!(
+    globex.as_query().to_string(),
+    [
+        r#"DELETE FROM "note" USING "company""#,
+        r#"WHERE "company"."id" = 2 AND "note"."company_id" = "company"."id""#,
+    ]
+    .join(" ")
+);
+assert_eq!(globex.exec(&db).await?, 1, "Cy's note, and neither of Acme's");
+
+let acme = CompanyAdmin { company: CompanyId(1), users: Every::new() };
+assert_eq!(note::Entity::find_for(&acme).count(&db).await?, 2);
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+[`from`](crate::UpdateMany::from) and [`using`](crate::DeleteMany::using),
+which take no context, take an unscoped entity or one of pgorm-query's own
+items (a [`FromItem`](crate::pgorm_query::FromItem), `NamedTable`,
+`TableName`, `Name`, `TableSample` or `AliasName`), which name no entity to
+pgorm and are added as they are. A scoped entity there does not compile, the
+error the entity's own, as a plain statement form's is:
+
+```rust,compile_fail,E0277
+use pgorm::entity::prelude::*;
+use pgorm_guide_support::notes::{CompanyId, Member, UserId, company, note};
+
+let ada = Member { company: CompanyId(1), user: UserId(10) };
+let _ = Delete::many_for(&ada, company::Entity).using(note::Entity);
+```
+
 ### Scopes written by hand
 
 A scope whose condition is not one column equal to its value is declared on

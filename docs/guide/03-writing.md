@@ -277,7 +277,9 @@ no statement was sent. That is easy to reach by handing `set` a model read
 from the database, whose columns are all `Unchanged`. `UPDATE` takes no
 `ORDER BY` or `LIMIT` in PostgreSQL, so neither builder has them; filter on a
 subquery instead. To read another table's columns in the update, name it with
-[`from`](crate::UpdateMany::from) and join it in the filter.
+[`from`](crate::UpdateMany::from) and join it in the filter; a
+[scoped](crate::guide::entities#scopes) entity is named with
+[`from_for`](crate::UpdateMany::from_for), under a context holding its scopes.
 
 ### Before and after
 
@@ -353,7 +355,8 @@ assert_eq!(cake::Entity::find().count(&db).await?, 4);
 ```
 
 [`using`](crate::DeleteMany::using) names another table the filter reads,
-PostgreSQL's `DELETE .. USING`. A delete that matches nothing returns
+PostgreSQL's `DELETE .. USING`, and [`using_for`](crate::DeleteMany::using_for)
+a scoped one, under a context. A delete that matches nothing returns
 `Ok(0)`.
 
 ## Upserts

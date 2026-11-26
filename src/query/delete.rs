@@ -1,11 +1,12 @@
 use crate::entity::entity_table;
-use crate::entity::scope_condition;
+use crate::entity::{hold_statement, scope_condition};
 use crate::{
     ActiveModel, ActiveValue, Column, Entity, Error, IntoActiveModel, Iterable, NoContext,
     PrimaryKeyToColumn, QueryFilter, ScopeContext, ScopeError, ScopedIn, Statement,
+    UnscopedFromItem,
 };
 use core::marker::PhantomData;
-use pgorm_query::{DeleteStatement, IntoFromItem};
+use pgorm_query::DeleteStatement;
 
 /// Defines the structure for a delete operation
 #[derive(Clone, Debug)]
@@ -34,7 +35,7 @@ where
     pub(crate) refused: Option<ScopeError>,
 }
 
-// [spec:pgorm:sem:query.build.delete+4]
+// [spec:pgorm:sem:query.build.delete+5]
 impl Delete {
     /// Delete one Model or ActiveModel
     ///
@@ -97,7 +98,7 @@ impl Delete {
     /// [`one`](Delete::one) under the context `cx`: the row is found by its
     /// key and `cx`'s scopes side by side, so a key of a row outside them
     /// deletes nothing.
-    // [spec:pgorm:sem:query.build.delete+4]
+    // [spec:pgorm:sem:query.build.delete+5]
     // [spec:pgorm:sem:scope.write]
     pub fn one_for<Cx, E, A, M>(cx: &Cx, model: M) -> Result<DeleteOne<A>, Error>
     where
@@ -135,7 +136,7 @@ impl Delete {
     ///     r#"DELETE FROM "acme"."cake" WHERE "cake"."id" = 1"#,
     /// );
     /// ```
-    // [spec:pgorm:sem:query.build.delete+4]
+    // [spec:pgorm:sem:query.build.delete+5]
     pub fn one_in<E, A, M>(entity: E, model: M) -> Result<DeleteOne<A>, Error>
     where
         E: Entity + ScopedIn<NoContext>,
@@ -147,7 +148,7 @@ impl Delete {
 
     /// The delete of `model`'s row of the table `entity` names, by its key
     /// alone.
-    // [spec:pgorm:sem:query.build.delete+4]
+    // [spec:pgorm:sem:query.build.delete+5]
     fn one_unscoped<E, A, M>(entity: E, model: M) -> Result<DeleteOne<A>, Error>
     where
         E: Entity,
@@ -186,7 +187,7 @@ impl Delete {
 
     /// [`many`](Delete::many) under the context `cx`: `cx`'s scopes are
     /// ANDed into the `WHERE`, so only rows they hold are deleted.
-    // [spec:pgorm:sem:query.build.delete+4]
+    // [spec:pgorm:sem:query.build.delete+5]
     // [spec:pgorm:sem:scope.write]
     pub fn many_for<Cx, E>(cx: &Cx, entity: E) -> DeleteMany<E>
     where
@@ -194,13 +195,7 @@ impl Delete {
         E: Entity + ScopedIn<Cx>,
     {
         let mut many = Self::many_unscoped(&entity);
-        match scope_condition::<E>(cx) {
-            Ok(Some(condition)) => {
-                many.query.cond_where(condition);
-            }
-            Ok(None) => {}
-            Err(refusal) => many.refused = Some(refusal),
-        }
+        hold_statement::<E>(cx, &mut many.query, &mut many.refused);
         many
     }
 
@@ -218,7 +213,7 @@ impl Delete {
     }
 }
 
-// [spec:pgorm:sem:query.build.delete+4]
+// [spec:pgorm:sem:query.build.delete+5]
 impl<A> DeleteOne<A>
 where
     A: ActiveModel,
@@ -297,7 +292,7 @@ where
     }
 }
 
-// [spec:pgorm:sem:query.build.delete+4]
+// [spec:pgorm:sem:query.build.delete+5]
 impl<E> DeleteMany<E>
 where
     E: Entity,
@@ -336,11 +331,51 @@ where
     ///     .join(" "),
     /// );
     /// ```
+    ///
+    /// A scoped entity is added by [`using_for`](Self::using_for), so naming
+    /// one here does not compile.
+    // [spec:pgorm:sem:scope.from-using]
     pub fn using<R>(mut self, tbl_ref: R) -> Self
     where
-        R: IntoFromItem,
+        R: UnscopedFromItem,
     {
         self.query.using(tbl_ref);
+        self
+    }
+
+    /// [`using`](Self::using) of the entity `entity` under the context `cx`:
+    /// its table is added to the `USING` list, under its `Default` name as the
+    /// `_for` statement forms read theirs, and `cx`'s scopes on its rows are
+    /// ANDed into the `WHERE`, so the delete reads no row of it outside them.
+    ///
+    /// ```
+    /// use pgorm::{entity::*, query::*};
+    /// use pgorm::tests_cfg::scoped::{company, note, CompanyAdmin, CompanyId, Member, UserId};
+    ///
+    /// let admin = CompanyAdmin { company: CompanyId(7), users: Every::new() };
+    /// let member = Member { company: CompanyId(7), user: UserId(3) };
+    /// assert_eq!(
+    ///     Delete::many_for(&admin, note::Entity)
+    ///         .using_for(&member, company::Entity)
+    ///         .filter(note::Column::CompanyId.eq_col(company::Column::Id))
+    ///         .as_query()
+    ///         .to_string(),
+    ///     [
+    ///         r#"DELETE FROM "note" USING "company""#,
+    ///         r#"WHERE "note"."company_id" = 7 AND "company"."id" = 7"#,
+    ///         r#"AND "note"."company_id" = "company"."id""#,
+    ///     ]
+    ///     .join(" "),
+    /// );
+    /// ```
+    // [spec:pgorm:sem:scope.from-using]
+    pub fn using_for<Cx, R>(mut self, cx: &Cx, entity: R) -> Self
+    where
+        Cx: ScopeContext,
+        R: ScopedIn<Cx>,
+    {
+        self.query.using(entity_table(&entity));
+        hold_statement::<R>(cx, &mut self.query, &mut self.refused);
         self
     }
 }

@@ -133,6 +133,23 @@ without it. Raw SQL and pgorm-query used directly are outside scopes.
 > scopes into its `WHERE`, and so MUST a disjoint update and change of kind
 > on the base row they find.
 
+> [spec:pgorm:sem:scope.from-using]
+> A table a bulk update's `FROM` or a bulk delete's `USING` adds is read as
+> a joined one is, so a scoped entity named there MUST be held to its scopes.
+> `UpdateMany::from_for(cx, entity)` and `DeleteMany::using_for(cx, entity)`,
+> bounded by `ScopedIn<Cx>`, MUST add the entity's table under its `Default`
+> name, as the `_for` statement forms read theirs, and AND `cx`'s scopes on
+> its rows, qualified by that name, into the statement's `WHERE`; a context
+> whose `ScopeContext` does not hold one is held as its refusal and reported
+> when the statement would run. For an unscoped entity they add its table
+> and nothing else. `UpdateMany::from` and `DeleteMany::using` MUST take an
+> `UnscopedFromItem`: an entity bounded by `ScopedIn<NoContext>`, so naming a
+> scoped one does not compile, the error the entity's own
+> (`[spec:pgorm:req:scope.compile]`), and pgorm-query's `FromItem`,
+> `NamedTable`, `TableName`, `Name`, `TableSample` and `AliasName`, which
+> name no entity to pgorm and are added as they are, outside scopes as
+> pgorm-query used directly is (`[spec:pgorm:req:scope.raw]`).
+
 > [spec:pgorm:req:scope.immutable]
 > A column whose definition is `immutable` (`ColumnDef::immutable`) is
 > written when its row is inserted and never changed after; every column

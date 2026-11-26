@@ -1,0 +1,63 @@
+error[E0277]: `note::Entity` is scoped by `CompanyId`, which `NoContext` does not hold
+  --> tests/compile-fail/scope_from_using.rs:40:48
+   |
+40 |     let _ = Update::many(company::Entity).from(note::Entity);
+   |                                                ^^^^^^^^^^^^ `note::Entity` needs a context holding `CompanyId`
+   |
+   = help: the trait `NoteScopes<note::Entity>` is not implemented for `NoContext`
+   = note: a statement on `note::Entity` starts from a `_for` form, given a context holding its scopes first: `note::Entity::find_for(&cx)`, `Insert::one_for(&cx, row)`, `Update::one_for(&cx, row)`
+   = help: the following other types implement trait `UnscopedFromItem`:
+             AliasName
+             FromItem
+             NamedTable
+             TableName
+             pgorm::Name
+             pgorm::pgorm_query::TableSample
+note: required for `note::Entity` to implement `ScopedIn<NoContext>`
+  --> tests/compile-fail/scope_from_using.rs:25:39
+   |
+25 |     #[derive(Clone, Debug, PartialEq, Entity)]
+   |                                       ^^^^^^ type parameter would need to implement `ScopedIn<NoContext>`
+   = note: required for `note::Entity` to implement `UnscopedFromItem`
+note: required by a bound in `UpdateMany::<E>::from`
+  --> $WORKSPACE/src/query/update.rs
+   |
+   | impl<E> UpdateMany<E>
+...
+   |     pub fn from<R>(mut self, tbl_ref: R) -> Self
+   |     where
+   |         R: UnscopedFromItem,
+   |            ^^^^^^^^^^^^^^^^ required by this bound in `UpdateMany::<E>::from`
+   = note: this error originates in the derive macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `note::Entity` is scoped by `CompanyId`, which `NoContext` does not hold
+  --> tests/compile-fail/scope_from_using.rs:41:49
+   |
+41 |     let _ = Delete::many(company::Entity).using(note::Entity);
+   |                                                 ^^^^^^^^^^^^ `note::Entity` needs a context holding `CompanyId`
+   |
+   = help: the trait `NoteScopes<note::Entity>` is not implemented for `NoContext`
+   = note: a statement on `note::Entity` starts from a `_for` form, given a context holding its scopes first: `note::Entity::find_for(&cx)`, `Insert::one_for(&cx, row)`, `Update::one_for(&cx, row)`
+   = help: the following other types implement trait `UnscopedFromItem`:
+             AliasName
+             FromItem
+             NamedTable
+             TableName
+             pgorm::Name
+             pgorm::pgorm_query::TableSample
+note: required for `note::Entity` to implement `ScopedIn<NoContext>`
+  --> tests/compile-fail/scope_from_using.rs:25:39
+   |
+25 |     #[derive(Clone, Debug, PartialEq, Entity)]
+   |                                       ^^^^^^ type parameter would need to implement `ScopedIn<NoContext>`
+   = note: required for `note::Entity` to implement `UnscopedFromItem`
+note: required by a bound in `DeleteMany::<E>::using`
+  --> $WORKSPACE/src/query/delete.rs
+   |
+   | impl<E> DeleteMany<E>
+...
+   |     pub fn using<R>(mut self, tbl_ref: R) -> Self
+   |     where
+   |         R: UnscopedFromItem,
+   |            ^^^^^^^^^^^^^^^^ required by this bound in `DeleteMany::<E>::using`
+   = note: this error originates in the derive macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
