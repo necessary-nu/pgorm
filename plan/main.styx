@@ -10883,6 +10883,14 @@ children (
                         kind @decision
                         text "Built the lead's decision (pending operator override): every raw entry point takes `sql: &T where T: ?Sized + SqlText` plus `Values` — SelectorRaw::from_statement / into_tuple / with_columns, Select::from_raw_sql, FromQueryResult::find_by_statement and TryGetableMany::find_by_statement (the last was not in the node's list; same shape, so changed too, now `find_by_statement::<C, _>`). Each copies the text into the SelectorRaw it returns. The constructors moved to impls on their selector types (impl<M: FromQueryResult> SelectorRaw<SelectModel<M>>, impl<T> SelectorRaw<SelectGetableTuple<T>>, impl<T, C> SelectorRaw<SelectGetableValue<T, C>>), so a call is SelectorRaw::<SelectModel<M>>::from_statement(sql, values): the target is named once, as the selector type, and no parameter is ignored. Lane choices beyond the brief: (1) Selector's from_select / into_tuple / with_columns had the same phantom-S flaw (exec.crud.selector-entry describes both), so they moved the same way; (2) DecodeRaw's pair narrowed from `(S: Into<String>, Values)` to `(S, Values) where S: Deref, S::Target: SqlText` — &'static str, String, &String, Box<str>, Cow<str> — so the pair is the same text a connection takes; (3) with one bound covering every entry point, macros.sql's call-site rule (+6) now finds them by the SqlText bound instead of listing them."
                     }
+
+                    {
+                        at 2026-11-26T00:11:51.51555Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-covered at macros.sql +10 (read-only.rust, 183a559c): sql! expands to a &'static Sql<Reads> or Sql<Writes>, typed by pgorm_sql_check::classify_sql, which is SqlText whose Kind is that type and dereferences to str; the raw entry points keep the one shape this node gave them, `sql: &T where T: ?Sized + SqlText` beside Values, and SelectorRaw<S, K = Writes> carries the text's kind to decide the connections its terminals run on. Every reference is pinned at the current version."
+                        after_done true
+                    }
                 )
             }
 
