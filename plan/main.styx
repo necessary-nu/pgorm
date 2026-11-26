@@ -21913,6 +21913,14 @@ children (
                         text "Re-covered at scope.raw +2 (read-only.rust, 183a559c): the clippy configuration the guide gives names each method taking SQL text by the trait declaring it, Connection or ConnectionMut (batch_execute's body is ConnectionMut's hidden run_batch, which the configuration leaves out), and tests/guide_tests.rs holds it to src/database/connection.rs. The scoping itself is unchanged. Every reference is pinned at the current version."
                         after_done true
                     }
+
+                    {
+                        at 2026-11-26T08:51:18.63785Z
+                        author "brendan@necessary.nu"
+                        kind @note
+                        text "Re-covered at scope.refusals +1 (scopes.one-of-live, 2026-11-26): NotHeld is reached where the types do not name the table, a RelationDef join under a context not covering it, a one-of load and a hand-written context, not only the last. A one-of load is refused before any target is read when its context does not hold the scopes of one of the enum's targets, whichever targets its rows reference. The live test exposed that Load::target held a target's scope refusal inside its future, so an earlier target's SELECT was sent first, and under UserId(10) the load returned the message target's absent-key error instead of note's NotHeld; a target no row referenced was never checked. Load::target now takes the refusal from Select::scoped for every target as the load is built."
+                        after_done true
+                    }
                 )
             }
 
@@ -21931,6 +21939,9 @@ children (
             {
                 id scopes.from-using
                 title "An UPDATE .. FROM or DELETE .. USING naming a scoped entity holds it to its scopes, refused without a context that holds them"
+                implements {
+                    main ([spec:pgorm:sem:scope.from-using])
+                }
                 deps (trait-names)
                 log (
                     {
@@ -21947,6 +21958,22 @@ children (
                 title "OneOf::load_for is exercised against a live database: a scoped target read under its context, and refused under one that lacks its scopes"
                 kind @test
                 deps (trait-names)
+                sealed true
+                log (
+                    {
+                        at 2026-11-26T08:43:35.533804Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-26T09:20:42.441316Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {

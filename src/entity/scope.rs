@@ -5,7 +5,10 @@
 use crate::entity::column_def::{compared_column, compared_value};
 use crate::pipeline::{Binder, Expr as PipelineExpr};
 use crate::{ActiveModel, ActiveValue, Column, Entity, EntityName, StaticName, Value};
-use pgorm_query::{Condition, Expr, Expression, Name};
+use pgorm_query::{
+    AliasName, Condition, ConditionalStatement, Expr, Expression, FromItem, IntoFromItem, Name,
+    NamedTable, TableName, TableSample,
+};
 use std::any::{Any, TypeId};
 use std::fmt;
 use std::marker::PhantomData;
@@ -172,6 +175,41 @@ impl ScopeContext for NoContext {
 // [spec:pgorm:req:scope.compile]
 pub trait ScopedIn<Cx: ScopeContext + ?Sized>: Entity {}
 
+/// What [`UpdateMany::from`](crate::UpdateMany::from) and
+/// [`DeleteMany::using`](crate::DeleteMany::using) add to a statement with no
+/// context: an entity bounded by [`ScopedIn<NoContext>`](ScopedIn), so an
+/// unscoped one, and pgorm-query's own items, a [`FromItem`], [`NamedTable`],
+/// [`TableName`], [`Name`], [`TableSample`] or [`AliasName`], which name no
+/// entity to pgorm and are added as they are.
+///
+/// A scoped entity is added by [`from_for`](crate::UpdateMany::from_for) or
+/// [`using_for`](crate::DeleteMany::using_for), given a context holding its
+/// scopes, so naming one in `from` or `using` is its compile error:
+///
+/// ```compile_fail,E0277
+/// use pgorm::{entity::*, query::*, tests_cfg::scoped::{company, note, Member, CompanyId, UserId}};
+///
+/// let member = Member { company: CompanyId(7), user: UserId(3) };
+/// let _ = Update::many_for(&member, company::Entity).from(note::Entity);
+/// ```
+// [spec:pgorm:sem:scope.from-using]
+pub trait UnscopedFromItem: IntoFromItem {}
+
+// [spec:pgorm:sem:scope.from-using]
+impl<E: ScopedIn<NoContext>> UnscopedFromItem for E {}
+
+impl UnscopedFromItem for FromItem {}
+
+impl UnscopedFromItem for NamedTable {}
+
+impl UnscopedFromItem for TableName {}
+
+impl UnscopedFromItem for Name {}
+
+impl UnscopedFromItem for TableSample {}
+
+impl UnscopedFromItem for AliasName {}
+
 /// What an entity declares about scopes apart from any context: the scopes,
 /// and how a context's values become the condition on its rows and the
 /// columns of a row it inserts. The `Entity` derive implements it for every
@@ -324,14 +362,15 @@ pub trait ScopeOn<E: Entity>: Scope {
 }
 
 /// Why a statement on a scoped entity was refused before anything was sent.
-// [spec:pgorm:req:scope.refusals]
+// [spec:pgorm:req:scope.refusals+1]
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ScopeError {
     /// The statement's context does not hold a scope the table is scoped by:
     /// a table `join_for` or a graph's hop joins under a context that does
-    /// not cover it, a target `OneOf::load` reads with no context, or a
-    /// context whose `ScopeContext` does not hold what its `Provides` say.
+    /// not cover it, a target of a one-of load whose context, or lack of
+    /// one, does not hold its scopes, or a context whose `ScopeContext` does
+    /// not hold what its `Provides` say.
     #[error("`{table}` is scoped by `{scope}`, which the statement's context does not hold")]
     NotHeld {
         /// The scoped table.
@@ -429,6 +468,28 @@ pub(crate) fn scope_condition<E: Entity>(
     match E::scopes() {
         Some(scopes) => scopes.condition(cx, Name::new(E::default())),
         None => Ok(None),
+    }
+}
+
+/// AND `cx`'s scopes on a row of `E` written under `E`'s own name into
+/// `statement`'s `WHERE`, or hold the refusal in `refused` where none is held
+/// yet, the first being the one reported: what a bulk update or delete does
+/// for its own table and for an entity its `FROM` or `USING` adds.
+// [spec:pgorm:sem:scope.write]
+// [spec:pgorm:sem:scope.from-using]
+pub(crate) fn hold_statement<E: Entity>(
+    cx: &dyn ScopeContext,
+    statement: &mut impl ConditionalStatement,
+    refused: &mut Option<ScopeError>,
+) {
+    match scope_condition::<E>(cx) {
+        Ok(Some(condition)) => {
+            statement.cond_where(condition);
+        }
+        Ok(None) => {}
+        Err(refusal) => {
+            refused.get_or_insert(refusal);
+        }
     }
 }
 

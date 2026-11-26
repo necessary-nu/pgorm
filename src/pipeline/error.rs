@@ -97,7 +97,7 @@ pub enum PipelineError {
     ReshapedSources(&'static str),
     /// A scoped source its context does not cover, from
     /// [`from_for`](super::Pipeline::from_for).
-    // [spec:pgorm:req:scope.refusals]
+    // [spec:pgorm:req:scope.refusals+1]
     #[error("{0}")]
     Scope(crate::ScopeError),
 }
