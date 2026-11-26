@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-26T06:03:08.940433Z
+last_sync_at 2026-11-26T09:06:05.701237Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -109,6 +109,8 @@ rule_versions (
     {id bindings.schema-tables, version 0}
     {id bindings.schema-types, version 0}
     {id bindings.schema-views, version 3}
+    {id bindings.scopes, version 0}
+    {id bindings.scopes-registered, version 0}
     {id bindings.select, version 4}
     {id bindings.shared-runtime, version 0}
     {id bindings.sql-check, version 3}
@@ -391,6 +393,7 @@ rule_versions (
     {id python.raw, version 0}
     {id python.records, version 1}
     {id python.runtime, version 2}
+    {id python.scopes, version 0}
     {id python.transactions, version 3}
     {id python.truth-testing, version 5}
     {id python.typing, version 2}
@@ -441,7 +444,7 @@ rule_versions (
     {id schema.from-entity.index, version 2}
     {id schema.from-shape, version 0}
     {id schema.shape-casts, version 1}
-    {id scope.compile, version 0}
+    {id scope.compile, version 1}
     {id scope.context, version 0}
     {id scope.declare, version 1}
     {id scope.every, version 0}
@@ -3691,6 +3694,7 @@ impl_evidence (
     ), rule_versions_seen (
         {id sql.value.kinds, version 0}
     )}
+    {id scopes.python}
     {id scopes.rust, covered_rules (
         scope.compile
         scope.context
@@ -4183,7 +4187,6 @@ impl_evidence (
     ), rule_versions_seen (
         {id exec.decode.decimal-exact, version 0}
     )}
-    {id scopes.python}
 )
 
 onboarding {kind @adopt, phase 11}
