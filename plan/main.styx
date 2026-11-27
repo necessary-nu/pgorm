@@ -14791,6 +14791,15 @@ children (
                 id napi.single-task-settle
                 title "A JavaScript operation runs as one task on the runtime, its panic caught by catch_unwind as Python's is, not by spawning its work as a second task"
                 kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-27T16:29:08.015658Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
         )
         log (
