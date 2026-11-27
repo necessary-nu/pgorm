@@ -14786,6 +14786,12 @@ children (
                     }
                 )
             }
+
+            {
+                id napi.single-task-settle
+                title "A JavaScript operation runs as one task on the runtime, its panic caught by catch_unwind as Python's is, not by spawning its work as a second task"
+                kind @perf
+            }
         )
         log (
             {
