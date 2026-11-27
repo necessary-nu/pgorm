@@ -23184,6 +23184,7 @@ children (
         id perf-drizzle
         title "pgorm's JavaScript binding is measured against Drizzle ORM and the raw Node drivers on matched workloads, the same SQL checked on every side, and the results recorded with their conditions"
         kind @perf
+        sealed true
         log (
             {
                 at 2026-11-26T14:42:35.376346Z
@@ -23197,6 +23198,13 @@ children (
                 author "brendan@necessary.nu"
                 kind @decision
                 text "2026-11-26, operator: \"important: we are comparing like to like, so the code must be in TypeScript for both.\" Every side's benchmark code is TypeScript, run by the same runtime the same way: pgorm through @necessary/pgorm's TypeScript API (its native addon is part of what is measured, as Drizzle's driver is part of Drizzle's), Drizzle through its own TypeScript API, the raw drivers through theirs. Rust's driver_baseline is not part of this comparison."
+            }
+
+            {
+                at 2026-11-27T22:43:18.252169Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
             }
         )
     }
