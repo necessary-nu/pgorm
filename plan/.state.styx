@@ -1939,6 +1939,7 @@ assertions (
     {id view-check-rule-callers, kind @complete, author "brendan@necessary.nu", at 2026-11-01T14:08:08.366707Z}
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id napi.decimal-literal, kind @complete, author "brendan@necessary.nu", at 2026-11-26T13:58:18.213996Z}
+    {id napi.single-task-settle, kind @doing, author "brendan@necessary.nu", at 2026-11-27T14:37:49.344542Z}
 )
 
 impl_evidence (
