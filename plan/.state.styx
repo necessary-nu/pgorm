@@ -1940,6 +1940,7 @@ assertions (
     {id window-frame-bounds, kind @complete, author "brendan@necessary.nu", at 2026-09-15T17:28:37.183269Z}
     {id napi.decimal-literal, kind @complete, author "brendan@necessary.nu", at 2026-11-26T13:58:18.213996Z}
     {id napi.single-task-settle, kind @complete, author "brendan@necessary.nu", at 2026-11-27T16:29:08.015658Z}
+    {id perf-drizzle, kind @doing, author "brendan@necessary.nu", at 2026-11-27T20:42:59.334674Z}
 )
 
 impl_evidence (
