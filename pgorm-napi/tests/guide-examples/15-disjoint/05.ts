@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, createDisjoint, Decimal, disjoint, model, TypeName } from "@necessary/pgorm";
+import { column, createDisjoint, dec, disjoint, model, TypeName } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -34,9 +34,9 @@ export default async function example({ pool }: GuideContext): Promise<void> {
     { schemaName: "public" },
   );
   for (const statement of createDisjoint(Payments)) await pool.execute(statement);
-  await Payments.insert({ orderId: 1, amount: new Decimal("12.20") }, "card", { lastFour: "4242" }).returningModel(pool);
-  await Payments.insert({ orderId: 2, amount: new Decimal("3.80") }, "cash").returningModel(pool);
-  await Payments.insert({ orderId: 1, amount: new Decimal("4.50") }, "card", { lastFour: "1111" }).returningModel(pool);
+  await Payments.insert({ orderId: 1, amount: dec`12.20` }, "card", { lastFour: "4242" }).returningModel(pool);
+  await Payments.insert({ orderId: 2, amount: dec`3.80` }, "cash").returningModel(pool);
+  await Payments.insert({ orderId: 1, amount: dec`4.50` }, "card", { lastFour: "1111" }).returningModel(pool);
 
   const every = await Payments.find().orderBy(Payment.col("id").asc()).all(pool);
   assert.deepEqual(every.map(([, kind]) => kind), ["card", "cash", "card"]);

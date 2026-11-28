@@ -35,11 +35,11 @@ are pgorm-driver `Row`s, read by position or name with `get`:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
 const raised = await pool.execute(
   "UPDATE cake SET price = price + $1 WHERE bakery_id = $2",
-  [new Decimal("0.50"), 2],
+  [dec`0.50`, 2],
 );
 assert.equal(raised, 2);
 
@@ -133,14 +133,14 @@ apart, where an object would silently keep one of them.
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, DecodeError } from "@necessary/pgorm";
+import { dec, DecodeError } from "@necessary/pgorm";
 
 const menus = await pool.query(
   `SELECT bakery.name AS bakery, count(cake.id) AS cakes
    FROM bakery JOIN cake ON cake.bakery_id = bakery.id
    WHERE cake.price < $1
    GROUP BY bakery.name ORDER BY bakery.name`,
-  [new Decimal("5.00")],
+  [dec`5.00`],
 );
 assert.deepEqual(menus, [
   { bakery: "Moonlight", cakes: 2n },
@@ -344,9 +344,9 @@ text and its array do:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, prql } from "@necessary/pgorm";
+import { dec, prql } from "@necessary/pgorm";
 
-const under = new Decimal("4.00");
+const under = dec`4.00`;
 const { sql, values } = prql("from cake | filter price < $1 | sort name | select {name, price}", [under]);
 assert.equal(sql, "SELECT name, price FROM cake WHERE price < $1 ORDER BY name");
 assert.deepEqual(values, [under]);
@@ -404,9 +404,9 @@ through a binder of the step that takes it:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, pipeline as pl, Table } from "@necessary/pgorm";
+import { dec, pipeline as pl, Table } from "@necessary/pgorm";
 
-const under = new Decimal("4.00");
+const under = dec`4.00`;
 const cheap = pl.from(new Table("cake"))
   .filterWith((binder) => pl.col("cake", "price").lt(binder.bind(under)))
   .sort(pl.col("cake", "name"))

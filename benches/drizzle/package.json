@@ -1,0 +1,27 @@
+{
+  "name": "pgorm-drizzle-bench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "pgorm's JavaScript binding measured against Drizzle ORM and the raw node-postgres and postgres.js drivers",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "bench": "node --expose-gc src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@necessary/pgorm": "file:../../pgorm-napi",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1",
+    "pg-query-stream": "^4.17.1",
+    "postgres": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.11",
+    "@types/pg": "^8.23.1",
+    "typescript": "^7.0.2"
+  }
+}

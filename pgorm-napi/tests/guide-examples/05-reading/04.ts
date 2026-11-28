@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Condition, Decimal } from "@necessary/pgorm";
+import { Condition, Decimal, dec } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
 
 export default async function example(): Promise<void> {
@@ -22,7 +22,7 @@ export default async function example(): Promise<void> {
   }
   assert.equal(search(null).inspect().sql, `SELECT "cake"."name" FROM "cake" WHERE "cake"."bakery_id" = $1`);
   assert.equal(
-    search(new Decimal("4.00")).inspect().sql,
+    search(dec`4.00`).inspect().sql,
     `SELECT "cake"."name" FROM "cake" WHERE "cake"."bakery_id" = $1 AND "cake"."price" <= $2`,
   );
 }

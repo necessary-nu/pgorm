@@ -103,7 +103,7 @@ class RawSQLTests(unittest.IsolatedAsyncioTestCase):
             p.prql("from python_raw_items | select {id, name} | intersect (from python_raw_items | select {id})")
         self.assertIn("different numbers of columns", str(arity.exception))
 
-    # [spec:pgorm:req:bindings.streams+1/test]
+    # [spec:pgorm:req:bindings.streams+2/test]
     async def test_transaction_stream_holds_it_to_last_row(self):
         async with self.pool.transaction() as tx:
             await tx.execute(RawSQL("INSERT INTO python_raw_items VALUES (4, 'four', 4.50)"))

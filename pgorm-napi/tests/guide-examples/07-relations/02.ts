@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 import { Baker, cakeBakers } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
@@ -12,7 +12,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
     id: 2,
     name: "Lemon Drizzle",
     flavor: "lemon",
-    price: new Decimal("3.20"),
+    price: dec`3.20`,
     glutenFree: true,
     bakeryId: 1,
   } as const;

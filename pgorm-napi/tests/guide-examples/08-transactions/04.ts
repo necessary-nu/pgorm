@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal, ForeignKeyViolationError } from "@necessary/pgorm";
+import { dec, ForeignKeyViolationError } from "@necessary/pgorm";
 import { Order, OrderLine } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
@@ -14,7 +14,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
     for (const cakeId of [3, 99, 4]) {
       try {
         await tx.transaction((savepoint) =>
-          OrderLine.insert({ orderId: order.id, cakeId, quantity: 1, price: new Decimal("3.00") }).execute(savepoint)
+          OrderLine.insert({ orderId: order.id, cakeId, quantity: 1, price: dec`3.00` }).execute(savepoint)
         );
       } catch (error) {
         // No such cake: the savepoint rolled the line back, and the order goes

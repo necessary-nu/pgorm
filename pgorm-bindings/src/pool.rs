@@ -13,7 +13,7 @@ use crate::{Connector, Dialect, Failure, HookEvent, Redactions, Refusal, TlsSett
 /// One pool's own options as a binding read them: Rust's `PoolBuilder`
 /// closure's, how long acquiring a connection waits, and the language's
 /// callables `C` its three hooks call.
-// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:bindings.connections+5]
 // [spec:pgorm:req:bindings.pool-hooks]
 #[derive(Debug, Clone)]
 pub struct PoolOptions<C> {
@@ -174,8 +174,9 @@ pub struct PoolSettings {
     /// PostgreSQL connection timeout, replacing the string's setting and
     /// defaulting to ten seconds. Native paths refuse an explicit timeout.
     pub connect_timeout: Option<Duration>,
-    /// How a returned connection is checked before it is lent again.
-    pub recycling_method: RecyclingMethod,
+    /// How a returned connection is checked before it is lent again; absent,
+    /// `Fast`, the method Rust's `connect` recycles with.
+    pub recycling_method: Option<RecyclingMethod>,
     /// How many statements each connection keeps prepared, 0 for none.
     pub statement_cache_size: usize,
     /// A channel whose notifications clear the statement caches.
@@ -188,13 +189,13 @@ impl PoolSettings {
     /// The parsed configuration, the connector it connects through and the
     /// manager configuration, every refusal decided before anything is
     /// built.
-    // [spec:pgorm:req:bindings.connections+4]
+    // [spec:pgorm:req:bindings.connections+5]
     // [spec:pgorm:req:turso.python+1]
     // [spec:pgorm:req:turso.javascript+1]
     fn prepare(self, dialect: Dialect) -> Result<(Config, Connector, ManagerConfig), Failure> {
         let mut config = parse(&self.dsn, self.connect_timeout)?;
         let manager = manager_config(
-            self.recycling_method,
+            self.recycling_method.unwrap_or(RecyclingMethod::Fast),
             self.statement_cache_size,
             self.statement_cache_channel,
             self.tag,
@@ -238,7 +239,7 @@ impl PoolSettings {
     /// The pool `connect_with` builds, shaped as `options` say, each hook
     /// the one `hook` makes of its callable once the parsed configuration
     /// has said what its errors redact.
-    // [spec:pgorm:req:bindings.connections+4]
+    // [spec:pgorm:req:bindings.connections+5]
     pub fn pool<C>(
         self,
         options: &PoolOptions<C>,
@@ -522,7 +523,7 @@ mod tests {
             dsn: dsn.to_owned(),
             tls: TlsSettings::default(),
             connect_timeout: Some(Duration::from_secs(10)),
-            recycling_method: RecyclingMethod::Fast,
+            recycling_method: None,
             statement_cache_size: 0,
             statement_cache_channel: None,
             tag: None,
@@ -657,7 +658,7 @@ mod tests {
             Err(Failure::Construction(_))
         ));
         let clean = PoolSettings {
-            recycling_method: RecyclingMethod::Clean,
+            recycling_method: Some(RecyclingMethod::Clean),
             ..native()
         };
         assert!(matches!(
@@ -675,7 +676,29 @@ mod tests {
         assert!(matches!(built, Err(Failure::UnsupportedCapability(_))));
     }
 
-    // [spec:pgorm:req:bindings.connections+4/test]    each pool keeps its own acquire timeout
+    // [spec:pgorm:req:bindings.connections+5/test]    a pool given no recycling method
+    // recycles as Rust's connect does, and one given a method keeps it
+    #[test]
+    fn a_pool_recycles_fast_unless_told_otherwise() {
+        let plain = "postgres://postgres@db.example.com/bakery?sslmode=disable";
+        let recycling = |method| {
+            let settings = PoolSettings {
+                recycling_method: method,
+                ..settings(plain)
+            };
+            settings
+                .prepare(Dialect::Python)
+                .map(|(_, _, manager)| manager.recycling_method)
+                .map_err(|failure| failure.message().to_owned())
+        };
+        assert_eq!(recycling(None), Ok(RecyclingMethod::Fast));
+        assert_eq!(
+            recycling(Some(RecyclingMethod::Verified)),
+            Ok(RecyclingMethod::Verified)
+        );
+    }
+
+    // [spec:pgorm:req:bindings.connections+5/test]    each pool keeps its own acquire timeout
     #[tokio::test]
     async fn each_pool_keeps_its_acquire_timeout() {
         let plain = "postgres://postgres@db.example.com/bakery?sslmode=disable";

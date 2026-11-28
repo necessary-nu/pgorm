@@ -65,7 +65,8 @@ export function modelRead(pipeline, target, wrap) {
  */
 export function tupleRead(pipeline) {
   return new PipelineSelector(pipeline, same, async (db, statement, terminal, options) => {
-    const [, rows] = await runStatement(runner(db), terminal, statement, options);
+    const [, columns, , count] = await runStatement(runner(db), terminal, statement, options);
+    const rows = Array.from({ length: count }, (_, at) => columns.map((/** @type {unknown[]} */ column) => column[at]));
     return terminal === "all" ? rows : rows[0] ?? null;
   }, TRUSTED);
 }

@@ -14500,34 +14500,6 @@ children (
                     }
 
                     {
-                        id napi.guide-gaps.pg-19
-                        title "pgorm-napi forwards pgorm's pg-19 feature and the module reports the PostgreSQL release its build targets, as pgorm's POSTGRES_TARGET and pgorm-python's forwarded feature and capabilities() do (guide 27-postgres-releases)"
-                        deps (guide.javascript napi-packaging)
-                        log (
-                            {
-                                at 2026-11-05T18:55:45.372306Z
-                                author "brendan@necessary.nu"
-                                kind @note
-                                text "nplan_start refused this node: \"dep napi-packaging is Todo\", though nplan_node shows napi-packaging done, and an nplan_sync did not change the answer. Worked in the pool-config lane's worktree (nplan/guide.python-gaps.pool-config) without a claim, per the lane brief."
-                            }
-
-                            {
-                                at 2026-11-05T19:36:15.438176Z
-                                author "brendan@necessary.nu"
-                                kind @decision
-                                text "Both bindings export the build's target as the shared constant POSTGRES_TARGET (bindings-surface.json modules.pgorm, rule bindings.postgres-target), read from pgorm_query::POSTGRES_TARGET, rather than JavaScript gaining a capabilities() manifest: Python keeps capabilities()[\"features\"] beside it. pgorm-napi carries pg-19 = [\"pgorm/pg-19\"], scripts/build.mjs passes --features through to cargo, and napi-native gains check-pg-19. sql.target bumped to +2 (both bindings forward; tests branch on POSTGRES_TARGET); tests/target_release_tests.rs CARRIERS includes pgorm-napi."
-                            }
-
-                            {
-                                at 2026-11-23T18:27:13.961576Z
-                                author "brendan@necessary.nu"
-                                kind @note
-                                text "pg19-only (2026-11-23) removed what this node delivered: pgorm targets PostgreSQL 19 alone, so the pg-19 feature, POSTGRES_TARGET and rule bindings.postgres-target are gone. Nothing outside tests and docs read the constant. The rule's implements claim was removed from this node with it."
-                            }
-                        )
-                    }
-
-                    {
                         id napi.guide-gaps.entity-select-reads
                         title "A registered entity's Select<E> counts, streams, pages, takes a cursor and joins a relation from JavaScript, as Rust's Select count, stream, paginate, cursor_by and join methods do (guide 24-registered-entities)"
                         deps (guide.javascript napi-entities)
@@ -14791,6 +14763,94 @@ children (
                         text "Root cause of the incident, correcting the guess in the decision above: nplan runs a check's `cmd` without a shell (proved: a probe cmd ending `; false` reported ok). The napi-types check was `cd pgorm-napi && deno check`, so nplan executed macOS's /usr/bin/cd (a sh wrapper running `builtin cd` in a subshell) with the arguments `pgorm-napi && deno check`; it exits 0, and Deno never ran. The napi-types gate has passed vacuously since it was written, which is how ef5fc443's stale import passed `nplan check` although `deno check` fails on that tree. Fix: `cmd \"env -C pgorm-napi deno check\"` (env -C exists in macOS's and GNU env; Deno still gets no parameters), with the hazard stated in the config comment; no other check in the config relies on a shell. Demonstration, 2026-11-09, in the worktree: renamed `export class MultiPool` to `ConnectionSet` in lib/multi-pool.js, leaving pgorm.js's `export { MultiPool } from \"./multi-pool.js\"`. On main's tree (index.js self-typed, no checkJs) `deno check` exits 0. On this branch `deno check` exits 1 with TS2305 at lib/pgorm.js:32; `nplan check` with the old cd cmd reported ok (exit 0), with env -C it reported `FAIL napi-types typing` and exit 1. File restored; `nplan check` green again (51 checks). The other breakages tried, each now exit 1 from `deno check`: an import renamed in pgorm.js, a re-export dropped from pgorm.js (tests/declarations.ts names MultiPool), an export added without a declaration, a pipeline export renamed, models.d.ts without `export {}` (declared, operands, ModelClauses), and an import broken in a lib file or in checks/codegen.js with no `// @ts-check`. nplan's schema documents `cmd` as a shell command-line, so the no-shell execution is nplan's own discrepancy to raise with nplan."
                     }
                 )
+            }
+
+            {
+                id napi.decimal-literal
+                title "A Decimal is written as a tagged literal, dec`19.99`, with nothing interpolated: a type error under TypeScript and refused at run time"
+                kind @feat
+                sealed true
+                log (
+                    {
+                        at 2026-11-26T13:42:22.555667Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-26T13:58:18.213996Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.single-task-settle
+                title "A JavaScript operation runs as one task on the runtime, its panic caught by catch_unwind as Python's is, not by spawning its work as a second task"
+                kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-27T16:29:08.015658Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.stream-batches
+                title "A row stream pulls rows from the runtime in batches, yielding them from a buffer, not one native call, runtime task and event-loop turn per row (perf-drizzle: 9.9 µs per streamed row against 0.63 read all at once, pg 0.96)"
+                kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T03:16:58.256994Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.row-decode
+                title "Rows reach JavaScript without the per-value costs perf-drizzle measured: jsonb parsed once from the server's text, Decimal and Uuid built without a JavaScript call per value, row objects built without Object.fromEntries' pair arrays, and fewer Node-API calls per value"
+                kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T02:49:51.902642Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.pool-recycle-default
+                title "Both bindings' pools default to Rust's recycling method, Fast, as connect does, not Verified's empty query on every acquire (perf-drizzle: 20.0k against 36.2k ops/s under four workers)"
+                kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T01:15:47.287142Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.model-statement-reuse
+                title "A model query whose shape repeats does not rebuild its statement through the addon on every call (perf-drizzle: the model path costs about 13 µs over the raw path on a primary-key lookup)"
+                kind @perf
             }
         )
         log (
@@ -23139,6 +23199,60 @@ children (
 
             {
                 at 2026-11-26T03:41:57.040908Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id sql-templates
+        title "SQL and PRQL are written as templates whose interpolations are bound parameters, checked once per call site: sql`..${id}` and prql`..` in JavaScript, pgorm.sql(t\"..{id}\") in Python"
+        kind @feat
+        children (
+            {
+                id sql-templates.napi
+                title "JavaScript's sql`..` and prql`..` tag templates: each ${..} a bound parameter, the text checked once per call site through its strings array"
+            }
+
+            {
+                id sql-templates.python
+                title "Python's pgorm.sql and pgorm.prql take a 3.14 t-string, each {..} a bound parameter, the text checked once per distinct template"
+            }
+        )
+        log (
+            {
+                at 2026-11-26T13:54:19.027863Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"it would be nice to have sql`` and prql`` to prevalidate and brand the string so the validity checks can be skipped\", then chose bound parameters over literal-only. Design: each ${..} (JavaScript) or {..} (Python t-string) becomes the next $n placeholder with its value bound, never pasted, so a value cannot be injected and placeholders are not numbered by hand; text holding an identifier or keyword where a parameter cannot stand is refused by the grammar check. The check (PostgreSQL 19's grammar, pgorm::sql_check, and PRQL's compile) runs once per call site: a tagged template passes the same TemplateStringsArray object on every evaluation, so a WeakMap keyed on it caches the checked text; Python caches by the template's strings tuple. The result is a branded statement (text, values, and whether it only reads, from the read/write classification sql! makes in Rust, Sql<Reads>/Sql<Writes>) that every raw-statement entry point accepts, so a branded statement is not scanned again (the COPY guard) and a read-only connection (read-only.python, read-only.napi) can accept one that only reads. sql(\"..\") / prql(\"..\", values) stay for text known only at run time. Context: running a raw statement does not re-run the grammar check today; sql() checks when called and returns the string, and execution scans only for COPY."
+            }
+        )
+    }
+
+    {
+        id perf-drizzle
+        title "pgorm's JavaScript binding is measured against Drizzle ORM and the raw Node drivers on matched workloads, the same SQL checked on every side, and the results recorded with their conditions"
+        kind @perf
+        sealed true
+        log (
+            {
+                at 2026-11-26T14:42:35.376346Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"What I want us to do first is actually do a performance comparison with drizzle\" (before building personal-data, which is to be planned and specified only). Method follows docs/performance/README.md's driver_baseline: paired workloads, rounds alternating order, every result checked, conditions recorded (versions, load averages, server sessions). Sides: pgorm-napi's release addon; Drizzle ORM over node-postgres (pg) and over postgres.js, each with and without Drizzle's .prepare(); and the raw pg and postgres.js drivers as the floor."
+            }
+
+            {
+                at 2026-11-26T14:43:19.760556Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"important: we are comparing like to like, so the code must be in TypeScript for both.\" Every side's benchmark code is TypeScript, run by the same runtime the same way: pgorm through @necessary/pgorm's TypeScript API (its native addon is part of what is measured, as Drizzle's driver is part of Drizzle's), Drizzle through its own TypeScript API, the raw drivers through theirs. Rust's driver_baseline is not part of this comparison."
+            }
+
+            {
+                at 2026-11-27T22:43:18.252169Z
                 author "brendan@necessary.nu"
                 kind @status
                 text "Doing → Done (nplan complete)"

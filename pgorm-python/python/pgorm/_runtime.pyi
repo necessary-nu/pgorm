@@ -4,7 +4,7 @@ from typing import Any, Literal, Never, overload
 from ._listen import _Listener
 from ._disjoint import _Disjoint
 from ._entity_reads import _RowDecoder
-from ._results import Record
+from ._results import Record, _Stream
 from ._retrying import _Retrying
 
 STATEMENT_CACHE_CHANNEL: str
@@ -36,12 +36,12 @@ class _HookConnection:
 class _Pool:
     def __init__(self, dsn: str, shape: _PoolShape, *, tag: str | None = ..., tls: str | None = ...,
                  ca_pem: bytes | None = ..., cert_pem: bytes | None = ..., key_pem: bytes | None = ...,
-                 connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str = ...,
+                 connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str | None = ...,
                  recycle_sql: str | None = ..., statement_cache_channel: str | None = ...) -> None: ...
     @staticmethod
     def multi(dsn: str, shapes: Mapping[str, _PoolShape], *, tls: str | None = ...,
               ca_pem: bytes | None = ..., cert_pem: bytes | None = ..., key_pem: bytes | None = ...,
-              connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str = ...,
+              connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str | None = ...,
               recycle_sql: str | None = ...,
               statement_cache_channel: str | None = ...) -> list[tuple[str, _Pool]]: ...
     def tag(self, /) -> str: ...
@@ -73,12 +73,6 @@ class _Connection:
     def fetch(self, /, query: Any, mode: Literal["optional"]) -> Awaitable[Record | None]: ...
     def stream(self, /, query: Any, decoder: _Disjoint | _RowDecoder | None = ...) -> Awaitable[_Stream]: ...
     def notify(self, /, channel: str, payload: str) -> Awaitable[None]: ...
-
-class _Stream:
-    def __init__(self, _native_only: Never, /) -> None: ...
-    def next(self, /) -> Awaitable[Record | Any | None]: ...
-    def close(self, /) -> Awaitable[None]: ...
-    def closed(self, /) -> bool: ...
 
 class _Transaction:
     def __init__(self, _native_only: Never, /) -> None: ...

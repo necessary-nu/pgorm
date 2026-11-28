@@ -275,7 +275,7 @@ fn manifest() -> Value {
         operations.extend(crate::schema::capabilities());
         operations.extend(crate::transactions::capabilities());
         operations.extend(crate::copy::capabilities());
-        // [spec:pgorm:req:bindings.connections+4]
+        // [spec:pgorm:req:bindings.connections+5]
         operations.insert(
             "pool.statement_cache_channel".to_owned(),
             json!({"rust_api": "pgorm::ManagerConfig::statement_cache_channel", "features": []}),

@@ -35,7 +35,7 @@ impl Finalize for DecoderHandle {}
 
 impl DecoderHandle {
     /// The stream's decode of a row into the rows JavaScript reads.
-    // [spec:pgorm:req:bindings.streams+1]
+    // [spec:pgorm:req:bindings.streams+2]
     pub(crate) fn row_decode(&self) -> crate::connect::stream::RowDecode {
         let (decode, sources) = (self.decode.clone(), self.sources.clone());
         Arc::new(move |row| {

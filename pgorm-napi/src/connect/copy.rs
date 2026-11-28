@@ -641,9 +641,7 @@ fn copy_in_finish(mut cx: FunctionContext) -> JsResult<JsPromise> {
         state.ending.released().await;
         outcome.unwrap_or_else(|| Err(state.ending.failure()))
     };
-    settle::promise(&mut cx, work, |cx, rows| {
-        Outcome::Count(rows).into_js(cx, false)
-    })
+    settle::promise(&mut cx, work, |cx, rows| Outcome::Count(rows).into_js(cx))
 }
 
 /// `copyInAbort(copyIn)`: abandon the COPY because its source failed, and

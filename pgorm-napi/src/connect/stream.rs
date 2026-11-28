@@ -1,6 +1,7 @@
-//! Row streams: pgorm's `query_raw` row stream, pulled a row at a time, so
-//! the driver's bounded buffer and the socket hold back the server while
-//! JavaScript is not asking for rows.
+//! Row streams: pgorm's `query_raw` row stream, pulled a batch of rows at a
+//! time, so the driver's bounded buffer and the socket hold back the server
+//! while JavaScript is not asking for rows, and `lib/streams.js` yields each
+//! batch's rows from memory.
 
 use std::{
     fmt,
@@ -21,6 +22,7 @@ pub(super) fn export(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("streamNext", stream_next)?;
     cx.export_function("streamClose", stream_close)?;
     cx.export_function("streamClosed", stream_closed)?;
+    cx.export_function("streamPullable", stream_pullable)?;
     Ok(())
 }
 
@@ -94,7 +96,7 @@ pub(crate) fn decode_argument(cx: &mut FunctionContext, index: usize) -> Option<
 /// stream, which holds the connection until the last row or `close`, each
 /// row read by `decoder` when one is given, a disjoint read's codec or a
 /// registered read's selector.
-// [spec:pgorm:req:bindings.streams+1]
+// [spec:pgorm:req:bindings.streams+2]
 // [spec:pgorm:req:bindings.disjoint+2]
 fn connection_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let connection = cx.argument::<JsBox<ConnectionHandle>>(0)?.0.clone();
@@ -127,32 +129,34 @@ enum Pulled {
     Decoded(crate::connect::job::Output),
 }
 
-/// The next row, decoded, with the column names on the first; `None` at the
-/// end, which returns the connection to its slot.
+/// The next rows, decoded, with the column names when they hold the first
+/// row; `None` at the end, which returns the connection to its slot.
 async fn next(
     stream: Arc<Stream>,
     abort: Abort,
-) -> Result<Option<(Pulled, Option<Vec<String>>)>, Failure> {
+) -> Result<Option<(Vec<Pulled>, Option<Vec<String>>)>, Failure> {
+    let mut names = None;
     let pulled = stream
         .state
         .next(abort.token(), |row| {
             if let Some(decode) = &stream.decode {
-                return decode(row).map(|decoded| (Pulled::Decoded(decoded), None));
+                return decode(row).map(Pulled::Decoded);
             }
-            let names = if stream.named.swap(true, Ordering::Relaxed) {
-                None
-            } else {
-                Some(decode::names(&row)?)
-            };
-            Ok((Pulled::Values(decode::row(&row)?), names))
+            if !stream.named.swap(true, Ordering::Relaxed) {
+                names = Some(decode::names(&row)?);
+            }
+            Ok(Pulled::Values(decode::row(&row)?))
         })
         .await?;
-    pulled.transpose()
+    Ok(pulled.transpose()?.map(|rows| (rows, names)))
 }
 
-/// `streamNext(stream, tagged, abort)`: `[values, names?, kinds?]`, the
-/// names and kinds on the first row, or `null` at the end. A failure, an abort or a decode error discards the connection.
-// [spec:pgorm:req:bindings.streams+1]
+/// `streamNext(stream, tagged, abort)`: `[rows, names?, kinds?]`, the rows
+/// the pull took, at least one, each its values or what the stream's decode
+/// made of it, with the names and kinds when the first row is among them,
+/// or `null` at the end. A failure, an abort or a decode error discards the
+/// connection.
+// [spec:pgorm:req:bindings.streams+2]
 fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = cx.argument::<JsBox<StreamHandle>>(0)?.0.clone();
     let tagged = cx.argument::<JsBoolean>(1)?.value(&mut cx);
@@ -161,40 +165,34 @@ fn stream_next(mut cx: FunctionContext) -> JsResult<JsPromise> {
         let Some((pulled, names)) = item else {
             return Ok(cx.null().upcast());
         };
-        let values = match pulled {
-            Pulled::Values(values) => values,
-            Pulled::Decoded(decoded) => {
-                let pair = JsArray::new(cx, 1);
-                let rows = decoded.into_js(cx)?;
-                pair.set(cx, 0, rows)?;
-                return Ok(pair.upcast());
-            }
-        };
-        let codec = Codec::get(cx)?;
-        let pair = JsArray::new(cx, 3);
+        let batch = JsArray::new(cx, 3);
         if let Some(names) = names {
-            let list = JsArray::new(cx, names.len());
-            for (index, name) in names.iter().enumerate() {
-                let name = cx.string(name);
-                list.set(cx, u32::try_from(index).unwrap_or(u32::MAX), name)?;
-            }
-            pair.set(cx, 1, list)?;
-            let kinds = rows::kinds(cx, Some(&values))?;
-            pair.set(cx, 2, kinds)?;
+            let list = rows::names(cx, &names)?;
+            batch.set(cx, 1, list)?;
+            let first = pulled.first().and_then(|first| match first {
+                Pulled::Values(values) => Some(values.as_slice()),
+                Pulled::Decoded(_) => None,
+            });
+            let kinds = rows::kinds(cx, first)?;
+            batch.set(cx, 2, kinds)?;
         }
-        let array = JsArray::new(cx, values.len());
-        for (index, value) in values.into_iter().enumerate() {
-            let value = rows::value(cx, codec, value, tagged)?;
-            array.set(cx, u32::try_from(index).unwrap_or(u32::MAX), value)?;
+        let codec = Codec::get(cx)?;
+        let list = JsArray::new(cx, pulled.len());
+        for (at, row) in pulled.into_iter().enumerate() {
+            let row = match row {
+                Pulled::Values(values) => rows::values(cx, codec, values, tagged)?.upcast(),
+                Pulled::Decoded(decoded) => decoded.into_js(cx)?,
+            };
+            list.set(cx, u32::try_from(at).unwrap_or(u32::MAX), row)?;
         }
-        pair.set(cx, 0, array)?;
-        Ok(pair.upcast())
+        batch.set(cx, 0, list)?;
+        Ok(batch.upcast())
     })
 }
 
 /// `streamClose(stream)`: end the stream, discarding its connection if rows
 /// remained, and resolve once it is released.
-// [spec:pgorm:req:bindings.streams+1]
+// [spec:pgorm:req:bindings.streams+2]
 fn stream_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let stream = cx.argument::<JsBox<StreamHandle>>(0)?.0.clone();
     let work = async move {
@@ -207,4 +205,12 @@ fn stream_close(mut cx: FunctionContext) -> JsResult<JsPromise> {
 fn stream_closed(mut cx: FunctionContext) -> JsResult<JsBoolean> {
     let closed = cx.argument::<JsBox<StreamHandle>>(0)?.0.state.closed();
     Ok(cx.boolean(closed))
+}
+
+/// `streamPullable(stream)`: whether a pull could give a row, which
+/// `lib/streams.js` asks before yielding a row it holds.
+// [spec:pgorm:req:bindings.streams+2]
+fn stream_pullable(mut cx: FunctionContext) -> JsResult<JsBoolean> {
+    let pullable = cx.argument::<JsBox<StreamHandle>>(0)?.0.state.pullable();
+    Ok(cx.boolean(pullable))
 }

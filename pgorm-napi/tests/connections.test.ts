@@ -83,7 +83,7 @@ function withoutSslmode(text: string, host?: string): string {
   return url.toString();
 }
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 // [spec:pgorm:req:bindings.argument-errors+1/test]
 test("a pool sends nothing until used, and refuses an unusable option at construction", async () => {
   await using unreachable = new Pool("postgres://pgorm@127.0.0.1:1/postgres?sslmode=disable");
@@ -125,14 +125,14 @@ test("a pool sends nothing until used, and refuses an unusable option at constru
   assert.throws(() => new Pool("postgres://["), ConstructionError);
 });
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 test("connect resolves with a pool whose server answered, and rejects when none does", async () => {
   await using connected = await connect(dsn());
   assert.equal(await connected.ping(), true);
   await assert.rejects(connect("postgres://pgorm@127.0.0.1:1/postgres?sslmode=disable"), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 test("closing a connection returns it to its pool at once, and a closed connection refuses work", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   const first = await single.acquire();
@@ -165,7 +165,7 @@ async function preparedStatement(db: Queryable, sql: string): Promise<string | n
   return row === null ? null : (row.statement as string);
 }
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 // [spec:pgorm:req:conn.pool.statement-cache.clear+2/test]    from JavaScript
 test("clearing the statement caches makes a connection that ran an insert prepare it again", async () => {
   await using single = new Pool(scratch(), { maxSize: 1 });
@@ -200,7 +200,7 @@ async function eventually(what: string, probe: () => Promise<boolean>): Promise<
   }
 }
 
-// [spec:pgorm:req:bindings.connections+4/test]    a pool given statementCacheChannel listens from its
+// [spec:pgorm:req:bindings.connections+5/test]    a pool given statementCacheChannel listens from its
 // first acquisition, clears on a notification there whatever its payload, and closes its
 // listening connection with the pool; a pool without it keeps its statements
 // [spec:pgorm:req:conn.pool.statement-cache.listen+1/test]    from JavaScript
@@ -254,7 +254,7 @@ test("a pool listening on statementCacheChannel clears when notified, and only t
   }
 });
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 // [spec:pgorm:req:bindings.errors+6/test]
 test("acquiring waits for a free connection within acquireTimeout, then fails with a TimeoutError", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 200 });
@@ -265,7 +265,7 @@ test("acquiring waits for a free connection within acquireTimeout, then fails wi
   assert.equal((await held.one("SELECT 3 AS n")).n, 3);
 });
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 test("a connection runs one operation at a time and refuses a second rather than racing it", async () => {
   await using connection = await pool().acquire();
   // Refusal follows the order JavaScript calls in, whichever runtime thread
@@ -279,7 +279,7 @@ test("a connection runs one operation at a time and refuses a second rather than
   assert.equal((await connection.one("SELECT 4 AS n")).n, 4);
 });
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 // [spec:pgorm:req:bindings.cancellation/test]
 test("closing a pool cancels what runs on it and releases every connection", async () => {
   const closing = new Pool(scratch(), { maxSize: 3 });
@@ -314,13 +314,13 @@ test("collecting unreferenced handles never cuts work short, and rolls back and 
   );
 });
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 test("verify-full TLS never falls back to plaintext", async () => {
   await using strict = new Pool(withoutSslmode(dsn()));
   await assert.rejects(strict.ping(), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 test("verify-full TLS connects through a configured CA, and checks the host name", async (context) => {
   const ca = tlsCa();
   if (ca === undefined) {
@@ -334,7 +334,7 @@ test("verify-full TLS connects through a configured CA, and checks the host name
   await assert.rejects(misnamed.ping(), ConnectionError);
 });
 
-// [spec:pgorm:req:bindings.connections+4/test]
+// [spec:pgorm:req:bindings.connections+5/test]
 test("verify-full TLS binds SCRAM authentication to the server's certificate", async (context) => {
   const ca = tlsCa();
   if (ca === undefined || new URL(dsn()).password === "") {
@@ -714,7 +714,7 @@ test("a signal bounds a pool's own statement and acquisition", async () => {
   assert.equal((await held.one("SELECT 8 AS n")).n, 8);
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 test("a stream yields its rows one per pull and returns its connection after the last", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   const rows = [];
@@ -729,7 +729,30 @@ test("a stream yields its rows one per pull and returns its connection after the
   assert.equal(tagged.closed, true);
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
+test("the rows a stream took before a decode error or a database error reach the program first", async () => {
+  await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
+  const decoded: string[] = [];
+  const refused = single.stream("SELECT CASE WHEN n < 3 THEN n::numeric ELSE 1e-40 END AS v FROM generate_series(1, 4) AS n");
+  await assert.rejects(async () => {
+    for await (const row of refused) decoded.push(String(row.v));
+  }, DecodeError);
+  assert.deepEqual(decoded, ["1", "2"]);
+  assert.equal(refused.closed, true);
+  const seen: unknown[] = [];
+  await assert.rejects(
+    async () => {
+      for await (const row of single.stream("SELECT CASE WHEN n = 3 THEN 1 / (n - 3) ELSE n END AS n FROM generate_series(1, 3) AS n")) {
+        seen.push(row.n);
+      }
+    },
+    (error: unknown) => (error as { sqlstate?: string }).sqlstate === "22012",
+  );
+  assert.deepEqual(seen, [1, 2]);
+  assert.equal((await single.one("SELECT 13 AS n")).n, 13);
+});
+
+// [spec:pgorm:req:bindings.streams+2/test]
 test("leaving a stream early releases its connection", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   let seen = 0;
@@ -745,7 +768,7 @@ test("leaving a stream early releases its connection", async () => {
   assert.equal((await single.one("SELECT 11 AS n")).n, 11);
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 test("a connection's stream holds the connection, freeing it at the end and discarding it if left early", async () => {
   const connection = await pool().acquire();
   const stream = connection.stream("SELECT generate_series(1, 3) AS n");
@@ -763,7 +786,7 @@ test("a connection's stream holds the connection, freeing it at the end and disc
   await connection.close();
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 test("a stream holds the server back while nothing pulls", async () => {
   await using streaming = new Pool(scratch(), { maxSize: 2 });
   const marker = `held back ${process.pid}`;
@@ -781,7 +804,7 @@ test("a stream holds the server back while nothing pulls", async () => {
   await stream.close();
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 // [spec:pgorm:req:bindings.cancellation/test]
 test("closing a pool ends an idle stream and an idle transaction without waiting for them", async () => {
   const closing = new Pool(scratch(), { maxSize: 2 });

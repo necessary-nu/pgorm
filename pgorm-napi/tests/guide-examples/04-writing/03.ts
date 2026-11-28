@@ -2,14 +2,14 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
 
 export default async function example(): Promise<void> {
   const { sql, values } = Cake.insert({
     name: "Mocha Cupcake",
     flavor: "chocolate",
-    price: new Decimal("3.10"),
+    price: dec`3.10`,
     glutenFree: false,
     bakeryId: 1,
   }).inspect();

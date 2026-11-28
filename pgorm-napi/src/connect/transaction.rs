@@ -119,7 +119,6 @@ fn connection_begin(mut cx: FunctionContext) -> JsResult<JsPromise> {
 fn transaction_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
     let statement = Statement::read(&mut cx, 1)?;
-    let tagged = cx.argument::<JsBoolean>(4)?.value(&mut cx);
     let abort = abort_argument(&mut cx, 5)?;
     let lock = match state.lock() {
         Ok(lock) => lock,
@@ -135,9 +134,7 @@ fn transaction_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
             )
             .await
     };
-    settle::promise(&mut cx, work, move |cx, outcome| {
-        outcome.into_js(cx, tagged)
-    })
+    settle::promise(&mut cx, work, |cx, outcome| outcome.into_js(cx))
 }
 
 /// `transactionBegin(transaction, abort)`: a savepoint.

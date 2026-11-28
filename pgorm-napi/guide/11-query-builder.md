@@ -74,7 +74,7 @@ as it is, each row a plain object keyed by column name:
 
 ```ts
 import assert from "node:assert/strict";
-import { col, Decimal, deleteFrom, select, Table, update } from "@necessary/pgorm";
+import { col, dec, deleteFrom, select, Table, update } from "@necessary/pgorm";
 
 const cake = new Table("cake");
 const bakery = new Table("bakery");
@@ -89,7 +89,7 @@ assert.deepEqual(await pool.query(query), [
   { name: "Vanilla Sponge", city: "Bergen" },
 ]);
 
-const raise = update(cake).set("price", col("price").add(new Decimal("0.50"))).where(col("bakery_id").eq(2));
+const raise = update(cake).set("price", col("price").add(dec`0.50`)).where(col("bakery_id").eq(2));
 assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "bakery_id" = $2`);
 assert.equal(await pool.execute(raise), 2);
 
@@ -400,14 +400,14 @@ row by omission.
 
 ```ts
 import assert from "node:assert/strict";
-import { col, ConstructionError, Decimal, deleteFrom, Table, update } from "@necessary/pgorm";
+import { col, ConstructionError, dec, deleteFrom, Table, update } from "@necessary/pgorm";
 
 const cake = new Table("cake");
 const bakery = new Table("bakery");
 
 // Every cake sold in Bergen goes up by fifty cents.
 const raise = update(cake)
-  .set("price", cake.col("price").add(new Decimal("0.50")))
+  .set("price", cake.col("price").add(dec`0.50`))
   .from(bakery)
   .where(cake.col("bakery_id").eq(bakery.col("id")))
   .where(bakery.col("city").eq("Bergen"));

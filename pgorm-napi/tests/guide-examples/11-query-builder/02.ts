@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { col, Decimal, deleteFrom, select, Table, update } from "@necessary/pgorm";
+import { col, dec, deleteFrom, select, Table, update } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -19,7 +19,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
     { name: "Vanilla Sponge", city: "Bergen" },
   ]);
 
-  const raise = update(cake).set("price", col("price").add(new Decimal("0.50"))).where(col("bakery_id").eq(2));
+  const raise = update(cake).set("price", col("price").add(dec`0.50`)).where(col("bakery_id").eq(2));
   assert.equal(raise.inspect().sql, `UPDATE "cake" SET "price" = "price" + $1::numeric WHERE "bakery_id" = $2`);
   assert.equal(await pool.execute(raise), 2);
 
