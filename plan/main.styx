@@ -14852,6 +14852,42 @@ children (
                 title "A model query whose shape repeats does not rebuild its statement through the addon on every call (perf-drizzle: the model path costs about 13 µs over the raw path on a primary-key lookup)"
                 kind @perf
             }
+
+            {
+                id napi.stream-end
+                title "A stream reports its end with its last batch, so reaching the end costs no pull of its own (napi.stream-batches: the kept end is one more crossing, about 10 to 20 µs a stream, most of a one-row stream's cost)"
+                kind @perf
+            }
+
+            {
+                id napi.transaction-cost
+                title "A transaction costs no more than Drizzle's over node-postgres, its gap attributed first (perf-drizzle: 217 µs against Drizzle's 193, pg 181 and postgres.js 187)"
+                kind @perf
+            }
+
+            {
+                id napi.numeric-text
+                title "A numeric column crosses as text written straight from the server's binary form, held to ExactDecimal's range, rather than decoded to rust_decimal and formatted (napi.row-decode: numeric the slowest scalar left, 1.3 to 1.65 times pg)"
+                kind @perf
+            }
+
+            {
+                id napi.temporal-columns
+                title "Date, time, timestamp, interval and array columns are built a column at a time, as napi.row-decode builds Decimal, Uuid and instants, not by a call into JavaScript per value"
+                kind @perf
+            }
+
+            {
+                id napi.drizzle-rerun
+                title "docs/performance/drizzle-results.md records the Drizzle comparison rerun on an idle machine after the pool, row and stream fixes, its findings and limitations restated, with the harness's attribution narrowed to the workloads a run selects"
+                kind @docs
+            }
+
+            {
+                id napi.row-decode-python
+                title "pgorm-python's rows cross as napi.row-decode's do: a column at a time, and a json or jsonb document passed as the server's text to one parse rather than rebuilt value by value"
+                kind @perf
+            }
         )
         log (
             {
