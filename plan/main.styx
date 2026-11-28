@@ -23323,4 +23323,25 @@ children (
             }
         )
     }
+
+    {
+        id personal-data
+        title "Personal data is declared once in code, by subject, processing activity and category with each personal field naming its category, and pgorm finds, exports, erases and expires a subject's data from those declarations, writes the Art. 30 record from them, keeps their values out of its own output, and carries the same logic into the database through generated migrations"
+        kind @feat
+        children (
+            {
+                id personal-data.spec
+                title "docs/spec/personal-data.md specifies the personal-data design as rules, Rust first and then the bindings' dialects, and the WBS under personal-data is filed against those rules, each build node implementing its own"
+                kind @docs
+            }
+        )
+        log (
+            {
+                at 2026-11-28T03:22:19.240958Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator, in order: \"how can we mark a column as PII for GDPR compliance?\"; \"We need a more detailed answer for GDPR compliance. An attempt in Drizzle looks like this (and I hate it)\" (every column tagged, NOT_PII included, subject, retention and purposes repeated as strings per column); of a row-level policy, \"Declaring it on a model isn't necessary useful; often it's just an individual field\"; \"okay but can we achieve this at a database level, or can this only be in pgorm\" (answered: both, the code the source of truth and pgorm generating the database side into frozen migrations); \"your js proposals are good; but still don't quite answer the gdpr pile\" (answered: subjects, activities and categories declared once in one privacy module, the field naming only its category); then \"I would say wbs and spec up the personal-data item, but we're not going to build it right away.\" So this container is planned and specified only; no build node starts without the operator's go-ahead."
+            }
+        )
+    }
 )
