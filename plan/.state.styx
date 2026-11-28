@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-28T02:23:08.61685Z
+last_sync_at 2026-11-28T03:54:36.876339Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -961,6 +961,7 @@ derived_priorities (
     {id napi-values, priority 1, derived_at 2026-10-09T14:17:42.819993Z}
     {id napi.abort-race-all, priority 1, derived_at 2026-11-05T02:15:29.773078Z}
     {id napi.decimal-literal, priority 0, derived_at 2026-11-26T13:58:23.693594Z}
+    {id napi.drizzle-rerun, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
     {id napi.entity-busy-race, priority 3, derived_at 2026-11-05T14:14:15.598156Z}
     {id napi.guide-gaps.batch-execute, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.binding-refusals, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
@@ -1000,10 +1001,16 @@ derived_priorities (
     {id napi.guide-gaps.verify, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.lib-imports-checked, priority 0, derived_at 2026-11-06T13:17:06.285162Z}
     {id napi.model-statement-reuse, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
+    {id napi.numeric-text, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
     {id napi.pool-recycle-default, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
     {id napi.row-decode, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
+    {id napi.row-decode-python, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
     {id napi.single-task-settle, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
     {id napi.stream-batches, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
+    {id napi.stream-end, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
+    {id napi.temporal-columns, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
+    {id napi.terse-models, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
+    {id napi.transaction-cost, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
     {id nested-source-from-entry, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id nopanic.codegen-gate, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id nopanic.connect-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -1029,6 +1036,7 @@ derived_priorities (
     {id pair-deletion, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
     {id parameter-wire-types, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
     {id perf-drizzle, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
+    {id personal-data.spec, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
     {id pg-query-18, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg-query-19, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg17-json-table, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
@@ -1104,6 +1112,7 @@ derived_priorities (
     {id python-campaign-entity-key-attributes, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id python-campaign-write-versions, priority 3, derived_at 2026-10-09T14:17:42.819993Z}
     {id python-case-expressions, priority 1, derived_at 2026-10-26T20:21:09.753689Z}
+    {id python-class-models, priority 0, derived_at 2026-11-28T03:54:36.876339Z}
     {id python-column-collation, priority 3, derived_at 2026-10-24T06:20:32.099314Z}
     {id python-conflict-merge-shapes, priority 0, derived_at 2026-11-01T03:02:37.492868Z}
     {id python-copy-typing-cases, priority 2, derived_at 2026-10-24T06:20:32.099314Z}
