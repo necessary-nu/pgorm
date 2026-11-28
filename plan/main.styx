@@ -14888,6 +14888,20 @@ children (
                 title "pgorm-python's rows cross as napi.row-decode's do: a column at a time, and a json or jsonb document passed as the server's text to one parse rather than rebuilt value by value"
                 kind @perf
             }
+
+            {
+                id napi.terse-models
+                title "A JavaScript model is declared in the lighter object form: fields at the top level with relations and options in a third argument, a bare kind string for a column without options, key(), numeric(), varchar(n) and nullable() for the common shapes, and camelCase fields named as snake_case columns by default, every type still inferred from the one declaration"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-28T03:21:20.415567Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "2026-11-26, operator: \"Can we use decorators in TS and/or Python as well? Right now it's quite object heavy\", then, of the proposed lighter object form, \"your js proposals are good\". Not decorators: Node 26.11 refuses `@decorator` syntax, both in .mjs and under its own type stripping, so every user would need a transpile step, and a decorator cannot produce a type, so each field would carry a TypeScript type and a decorator naming its SQL type, two declarations that can drift. The proposed form: model(name, fields, options) with no `columns:` level; a bare kind string (\"varchar\", \"bool\") for a column with no options; key(\"i32\") (primary key, auto-increment), numeric(10, 2), varchar(n), nullable(\"text\"); camelCase fields map to snake_case column names by default, a breaking change to today's default. Scopes and personal data take the same form: scoped(CompanyId), personal(CvAnswer, \"text\")."
+                    }
+                )
+            }
         )
         log (
             {
@@ -23292,6 +23306,20 @@ children (
                 author "brendan@necessary.nu"
                 kind @status
                 text "Doing → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id python-class-models
+        title "A Python model is declared as a class of annotated fields on pgorm.Model with class keywords (table, schema, unique), each field's column type read from its annotation (str text, Decimal numeric, X | None nullable, a Scope subclass a scope column) with options in Annotated[...] or = pgorm.column(...), typed for mypy strict through dataclass_transform, beside the object form for models known only at run time"
+        kind @feat
+        log (
+            {
+                at 2026-11-28T03:21:20.61908Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"Can we use decorators in TS and/or Python as well? Right now it's quite object heavy\". Proposed for Python: classes with annotations, `class Customer(pgorm.Model, table=\"customer\", unique=[(\"email\",)])`, fields `id: Annotated[int, pgorm.key(auto_increment=True)]`, `notes: str | None`. A base class with class keywords rather than a @pgorm.model decorator, since mypy cannot see methods a decorator adds; @dataclass_transform gives mypy strict the fields and constructor. The object form stays for models known only at run time (codegen, tools). Scope columns are found by type (`company_id: CompanyId`) and personal fields by Annotated (`Annotated[str, CvAnswer]`). The operator endorsed the JavaScript proposal explicitly; this Python shape was proposed beside it and is filed for the operator's go-ahead."
             }
         )
     }
