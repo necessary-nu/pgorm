@@ -290,6 +290,38 @@ first rule: a value reaches JavaScript exactly or not at all.
 > another type. A registered entity's scopes are refused when its statement
 > is built alone.
 
+## Personal data
+
+> [spec:pgorm:req:napi.personal-data]
+> JavaScript MUST spell a subject as `subject("educator", { key: "uuid",
+> label })`, a `Subject` whose call makes a subject value, `Educator(id)`,
+> as a scope's does (`napi.scopes`); an activity as `activity(name, {
+> purposes, basis: "contract", .. })`; and a category as
+> `personalData(name, { activity, retain: "untilErasure", erase:
+> "deleteRow", .. })`, `retainFor({ years: 6, from: "createdAt" })` and
+> `replace("[erased]")` taking a value, each closed choice a camelCase
+> string (`bindings.personal-data`). In the object form a column holds a
+> subject as `column("uuid", { subject: Educator })`, names its category as
+> `column("text", { personal: MessageBody, of: "senderId" })`, is a clock
+> as `column("timestamptz", { retainFrom: true })`, and a model's options
+> say `noPersonalData: true`. The inventory is `personal.inventory([..])`
+> of models and registrations, its key `pseudonymKey(bytes)`, its calls
+> promises. TypeScript MUST type an export's, a report's and the record's
+> fields, and refuse a `personal` option that is not a category and an `of`
+> naming no field of its model. A record's inspection prints a personal
+> field as `<personal>` (`bindings.personal-masking`). The JavaScript
+> guide's `personal-data` chapter MUST teach it in this form.
+
+> [spec:pgorm:req:napi.personal-data-terse]
+> In the lighter model form (`napi.terse-models`), a subject column MUST be
+> written `Educator.key()`, a column of its subject's key kind holding the
+> subject; a personal field `CvAnswer("text")`, or `MessageBody("text", {
+> of: "senderId" })`, a category called on a kind making a column of it; a
+> clock `retainFrom("timestamptz")`; and a model's third argument MUST take
+> `noPersonalData: true`. The declarations lower as the object form's do, to
+> the same shape and the same refusals, and the guide's chapter teaches
+> this form beside the object form.
+
 ## Registered entities
 
 > [spec:pgorm:req:napi.application+2]

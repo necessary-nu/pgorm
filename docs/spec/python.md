@@ -203,6 +203,44 @@ HTTP adapter, an external sqlmap scan or `sqlmap.acceptance`.
 > context holds each scope a statement needs, a join's and a graph's
 > included, is refused when the statement is built alone.
 
+## Personal data
+
+> [spec:pgorm:req:python.personal-data]
+> Python MUST spell a subject as a subclass of `pgorm.Subject[T]`, as a
+> scope is (`python.scopes`), named by its class or its class keyword
+> `name`, labelled by `label`, and `T` its values' type, a subject value
+> being an instance, `EducatorId(id)`, frozen and equal to another of its
+> class and value; an activity as `pgorm.Activity(name, purposes=[..],
+> basis=pgorm.LawfulBasis.Contract, ..)`; and a category as
+> `pgorm.PersonalData(name, activity=.., retain=pgorm.Retain.UntilErasure,
+> erase=pgorm.Erase.DeleteRow, ..)`, `pgorm.retain_for(years=6,
+> from_="created_at")` and `pgorm.replace("[erased]")` taking a value, the
+> closed choices the classes `pgorm.LawfulBasis`, `pgorm.SpecialCondition`,
+> `pgorm.Special`, `pgorm.Hold`, `pgorm.Source`, `pgorm.Retain` and
+> `pgorm.Erase` (`bindings.personal-data`). In the object form a column
+> holds a subject as `Column("uuid", subject=EducatorId)`, names its
+> category as `Column("text", personal=MessageBody, of="sender_id")`, is a
+> clock as `Column("timestamptz", retain_from=True)`, and a model says
+> `no_personal_data=True`. The inventory is
+> `pgorm.personal.Inventory([..])` of models and registrations, its key
+> `pgorm.personal.PseudonymKey(data)`, its calls awaited as a statement is,
+> and its export, reports and record frozen dataclasses typed for strict
+> mypy. A record's `repr` prints a personal field as `<personal>`
+> (`bindings.personal-masking`). The Python guide's `personal-data` chapter
+> MUST teach it in this form.
+
+> [spec:pgorm:req:python.personal-data-classes]
+> Where a model is declared as a class of annotated fields
+> (`python-class-models`), a subject column MUST be found by its
+> annotation, `educator_id: EducatorId`, as Rust finds one by its type; a
+> personal field MUST name its category in its `Annotated`, `qualifications:
+> Annotated[str, CvAnswer]`, with `pgorm.of("sender_id")` or
+> `pgorm.of(pgorm.via(CvAnswerModel))` and `pgorm.retain_from` beside it as
+> its options; and the class keyword `no_personal_data=True` MUST opt a
+> table out. The declarations lower as the object form's do, to the same
+> shape and the same refusals, and the guide's chapter teaches this form
+> beside the object form.
+
 ## Execution and lifecycle
 
 > [spec:pgorm:req:python.runtime+2]
