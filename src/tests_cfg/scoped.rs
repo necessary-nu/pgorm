@@ -82,12 +82,14 @@ pub mod message {
     use crate::pgorm_query::Name;
 
     /// A message is its sender's and its recipient's to read, which no one
-    /// column says: its `UserId` scope is written by hand.
+    /// column says: its `UserId` scope is written by hand. Its sender is
+    /// immutable, which the scope alone does not make it.
     #[derive(Clone, Debug, PartialEq, Eq, Entity)]
     #[pgorm(table_name = "message", scope(UserId))]
     pub struct Model {
         #[pgorm(primary_key)]
         pub id: i64,
+        #[pgorm(immutable)]
         pub sender_id: UserId,
         pub recipient_id: UserId,
         pub body: String,

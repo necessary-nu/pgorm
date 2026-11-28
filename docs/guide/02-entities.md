@@ -345,6 +345,136 @@ assert_eq!(
 # }
 ```
 
+## Immutable columns
+
+Some columns are written once, when their row is inserted, and are wrong to
+change after: when a row was created and by whom, an id another system gave
+it, the amount of a payment. `immutable` on a field says so:
+[`ColumnDef::immutable`](crate::ColumnDef::immutable) marks the column's
+definition, and every statement pgorm builds that would change the column
+is refused with [`Error::ImmutableColumn`](crate::Error::ImmutableColumn),
+naming the table and the column, before anything is sent:
+
+- [`Update::one`](crate::Update::one) and its forms, and so an active model's
+  `update`, given a model that sets the column. A value its `before_save`
+  hook sets is refused as the caller's is. A primary key the model holds
+  names the row and is never set, so an immutable key is not refused there;
+- a bulk update whose `SET` names the column, by `col_expr` or by `set`;
+- an upsert whose `ON CONFLICT .. DO UPDATE SET` names it. pgorm writes no
+  `DO UPDATE SET` of its own: an upsert updates the columns it names, and an
+  immutable one is left as its insert wrote it unless it is named;
+- a [disjoint](crate::guide::disjoint) update setting one in the base's row
+  or the kind's, and a change of kind whose kind column is immutable.
+
+The bakery's till keeps each payment's reference and amount as it took them,
+and lets its note be corrected:
+
+```rust
+# #[tokio::main(flavor = "current_thread")]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let scratch = pgorm_guide_support::Scratch::empty("entities_immutable").await;
+# let db = scratch.pool.get().await?;
+mod payment {
+    use pgorm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Entity)]
+    #[pgorm(table_name = "payment")]
+    pub struct Model {
+        #[pgorm(primary_key)]
+        pub id: i32,
+        #[pgorm(unique, immutable)]
+        pub reference: String,
+        #[pgorm(immutable)]
+        pub amount_cents: i64,
+        pub note: String,
+    }
+
+    #[derive(Copy, Clone, Debug, Relation)]
+    pub enum Relation {}
+}
+
+use pgorm::entity::prelude::*;
+use pgorm::pgorm_query::OnConflict;
+# db.batch_execute(&pgorm::Schema::new().create_table_from_entity(payment::Entity)?.to_string()).await?;
+
+let paid = payment::ActiveModel {
+    reference: set("till-0042"),
+    amount_cents: set(1250),
+    note: set("two loaves"),
+    ..Default::default()
+}
+.insert(&db)
+.await?;
+
+let noted = payment::ActiveModel {
+    id: set(paid.id),
+    note: set("two sourdough loaves"),
+    ..Default::default()
+}
+.update(&db)
+.await?;
+assert_eq!((noted.amount_cents, noted.note.as_str()), (1250, "two sourdough loaves"));
+
+let discounted = Update::one(payment::ActiveModel {
+    id: set(paid.id),
+    amount_cents: set(950),
+    ..Default::default()
+});
+assert!(matches!(
+    discounted,
+    Err(Error::ImmutableColumn { table, column }) if table == "payment" && column == "amount_cents"
+));
+
+let doubled = Update::many(payment::Entity)
+    .col_expr(
+        payment::Column::AmountCents,
+        Expr::col(payment::Column::AmountCents).mul(2),
+    )
+    .exec(&db)
+    .await;
+assert!(matches!(doubled, Err(Error::ImmutableColumn { .. })));
+
+let resent = || payment::ActiveModel {
+    reference: set("till-0042"),
+    amount_cents: set(1300),
+    note: set("sent twice"),
+    ..Default::default()
+};
+let repriced = Insert::one(resent())
+    .on_conflict(
+        OnConflict::column(payment::Column::Reference)
+            .update_column(payment::Column::AmountCents),
+    )
+    .exec(&db)
+    .await;
+assert!(matches!(repriced, Err(Error::ImmutableColumn { .. })));
+
+let renoted = Insert::one(resent())
+    .on_conflict(
+        OnConflict::column(payment::Column::Reference).update_column(payment::Column::Note),
+    )
+    .exec_returning_model(&db)
+    .await?;
+assert_eq!((renoted.amount_cents, renoted.note.as_str()), (1250, "sent twice"));
+# drop(db);
+# scratch.finish().await;
+# Ok(())
+# }
+```
+
+The refusal is made as the statement is built or run, not as the program
+compiles: one active model serves an insert, which writes the column, and an
+update, which may not, and `col_expr` takes a column named at run time. The
+derive refuses `immutable` where no statement writes the column at all: on
+an `ignore`d field, and on a generated column.
+
+Immutability is pgorm's own. The table pgorm creates is the same with it as
+without it, and no trigger is written, so raw SQL, pgorm-query's builders
+used directly and other programs writing the table are held to it only by
+what the application puts in the database: a trigger refusing the change, or
+an `UPDATE` privilege granted on the other columns alone. Every
+[scope](#scopes) column is immutable, since a row cannot leave its scope.
+
 ## Relations
 
 Each variant of `Relation` is one relation, and its attributes say which
@@ -885,7 +1015,8 @@ assert!(note::Column::AuthorId.def().is_immutable());
 
 The entity's [`EntityScopes`](crate::EntityScopes) lists them, and each
 scope column's definition is [`immutable`](crate::ColumnDef::immutable): a
-row cannot leave its scope, so an update never changes one. A scope column is
+row cannot leave its scope, so an update never changes one
+([Immutable columns](#immutable-columns)). A scope column is
 never `NULL`, so a field `Option` or `nullable` is refused
 where `scope` is written. A primary key can be a scope column too: the
 `company` entity's `id` is a `CompanyId`, so a member reads their own
@@ -1091,12 +1222,11 @@ An update or a delete by key carries the scopes beside the key, so a key of
 a row outside them matches nothing: `Update::one_for` reports
 [`Error::RecordNotFound`](crate::Error::RecordNotFound) and a delete counts
 `0`. A bulk update or delete is filtered by the scopes. A scope column is
-written when its row is inserted and never changed after, since a row cannot
-leave its scope: an update setting one, `Update::one`, `Update::many`'s
-`set` and `col_expr`, and an upsert's `ON CONFLICT .. DO UPDATE SET` naming
-one, is refused with
+[immutable](#immutable-columns), since a row cannot leave its scope: an
+update setting one, `Update::one`, `Update::many`'s `set` and `col_expr`,
+and an upsert's `ON CONFLICT .. DO UPDATE SET` naming one, is refused with
 [`Error::ImmutableColumn`](crate::Error::ImmutableColumn) before anything is
-sent.
+sent, as it is for any immutable column.
 
 ```rust
 # #[tokio::main(flavor = "current_thread")]
@@ -1311,7 +1441,9 @@ Its condition is pgorm-query's, which a pipeline cannot read, so
 `Pipeline::from_for` over such an entity is refused with
 [`ScopeError::Unpiped`](crate::ScopeError::Unpiped) under a context holding
 a value of the scope. A hand-written scope's columns are the condition's
-business; pgorm marks immutable only the columns `#[pgorm(scope)]` marks.
+business; pgorm marks immutable only the columns `#[pgorm(scope)]` marks, so
+a column the condition reads that a row must not change, such as a
+message's sender, is keyed [`immutable`](#immutable-columns) by the program.
 
 An entity whose names are computed at run time is read under its `Default`
 names by the `_for` forms. Its `_in` forms take no context, so for a scoped

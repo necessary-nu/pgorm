@@ -417,6 +417,47 @@ impl OnConflict {
             name: name.into_name(),
         }
     }
+
+    /// The columns the clause's `DO UPDATE SET` assigns, in the order they
+    /// were added: none for `DO NOTHING`.
+    ///
+    /// ```
+    /// use pgorm_query::{tests_cfg::*, *};
+    ///
+    /// let upsert: OnConflict = OnConflict::column(Glyph::Id)
+    ///     .update_column(Glyph::Image)
+    ///     .value(Glyph::Aspect, Expr::value(1))
+    ///     .into();
+    /// let assigned: Vec<String> = upsert.updated_columns().map(|name| name.to_string()).collect();
+    /// assert_eq!(assigned, ["image", "aspect"]);
+    /// assert_eq!(OnConflict::do_nothing().updated_columns().count(), 0);
+    /// ```
+    // [spec:pgorm:req:sql.ast.on-conflict+4]
+    pub fn updated_columns(&self) -> impl Iterator<Item = &Name> {
+        let sets = match self {
+            Self::AnyDoNothing
+            | Self::Targeted {
+                action: ConflictAction::DoNothing,
+                ..
+            } => None,
+            Self::Targeted {
+                action: ConflictAction::Update { sets, .. },
+                ..
+            } => Some(sets),
+        };
+        sets.into_iter()
+            .flat_map(|sets| sets.iter().map(ConflictAssignment::column))
+    }
+}
+
+impl ConflictAssignment {
+    /// The column the assignment sets.
+    // [spec:pgorm:req:sql.ast.on-conflict+4]
+    pub fn column(&self) -> &Name {
+        match self {
+            Self::Column(name) | Self::Expr(name, _) => name,
+        }
+    }
 }
 
 impl ConflictConstraint {

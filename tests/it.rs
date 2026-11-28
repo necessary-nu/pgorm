@@ -95,6 +95,7 @@ pub mod grouping_set_tests;
 pub mod guide_tests;
 pub mod identifier_oracle_tests;
 pub mod identity_column_tests;
+pub mod immutable_tests;
 pub mod index_form_tests;
 pub mod insert_default_tests;
 pub mod insert_returning_pk_tests;

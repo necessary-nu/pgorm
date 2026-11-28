@@ -87,7 +87,7 @@ pub(crate) const PROJECTION_FIELD_KEYS: [&str; 2] = ["from_col", "from_expr"];
 /// and validates this vocabulary itself, so those two step over every key in
 /// it they do not read.
 // [spec:pgorm:syn:macros.derive.entity-model.attrs+10]
-pub(crate) const MODEL_FIELD_KEYS: [&str; 23] = [
+pub(crate) const MODEL_FIELD_KEYS: [&str; 24] = [
     "auto_increment",
     "column_name",
     "column_type",
@@ -99,6 +99,7 @@ pub(crate) const MODEL_FIELD_KEYS: [&str; 23] = [
     "identity",
     "identity_by_default",
     "ignore",
+    "immutable",
     "indexed",
     "nullable",
     "primary_key",

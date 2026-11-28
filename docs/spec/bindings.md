@@ -2448,6 +2448,71 @@ where Rust's compiler stops a statement a binding refuses it as it is built.
 > reference register over unscoped entities alone. A registration's
 > `scopes` lists the scopes its entity declares, by name.
 
+## Personal data
+
+Personal data is declared by subject, activity and category, as
+[personal-data.md](personal-data.md) specifies for Rust, and the inventory, the
+generated layer, export, erasure, the sweep and the record are Rust's. A
+binding has no compile time, so what Rust's compiler refuses a binding refuses
+as the declaration is made; and a binding's object-form column has no type, so
+a subject column is told it holds a subject where Rust finds one by its type.
+
+> [spec:pgorm:req:bindings.personal-data]
+> Each binding MUST let a program declare subjects, activities and
+> categories with the keys Rust's derives take
+> (`[spec:pgorm:def:personal.subject]`,
+> `[spec:pgorm:def:personal.activity]`,
+> `[spec:pgorm:def:personal.category]`), spelled by its naming rule, each of
+> a lawful basis, an Art. 9(2) condition, a special category, a hold, a
+> source and an erasure a closed choice, and `replace(value)` and
+> `retain_for(days, months, years, from)` the two that carry a value beside
+> the closed `until_erasure`. A declared model's column MUST take the
+> options `subject`, which makes it a subject column; `personal`, its
+> category; `of`, a field of the model or `via(model)`, a model it holds a
+> belongs-to relation into; `retain_from`, which makes it its row's clock;
+> and `personal_label`; and a model the option `no_personal_data`, each as
+> Rust's key of that name means it (`[spec:pgorm:def:personal.field]`,
+> `[spec:pgorm:req:personal.retention-clock]`,
+> `[spec:pgorm:req:personal.opt-out]`). What Rust refuses at compile time
+> (`[spec:pgorm:req:personal.checks]`) MUST be a `ConstructionError` raised
+> as the declaration is made, in the words of Rust's refusal, a column's kind
+> and options standing for its type; so MUST a subject column whose kind is
+> not its subject's key kind. A declared model's declarations MUST lower into
+> the `TableShape` the model's table is described by
+> (`[spec:pgorm:def:personal.as-data]`), and a registered Rust entity's are
+> its entity's own, so each reaches an inventory as an entity does.
+
+> [spec:pgorm:req:bindings.personal-inventory]
+> Each binding MUST offer Rust's inventory over a list of its declared models
+> and registered entities, refused as `build()` refuses
+> (`[spec:pgorm:def:personal.inventory]`): `completeness()` and
+> `verify(conn)`; `migration_file(name)` and `anonymizer_file(name)`, each a
+> binding `MigrationFile` (`bindings.migration-file`), with
+> `check_frozen(directory)` and `check_frozen_anonymizer(directory)`;
+> `export(conn, subject)`; `erase(conn, subject)` and `sweep(conn, batch)`,
+> through `key(key)` where they pseudonymise, a key being the binding's
+> `PseudonymKey(bytes)`, masked in its text and refused by its JSON
+> serialization; and `records()`. Each MUST be pgorm's own, reached through
+> pgorm-bindings: the layer's text is pgorm's writer's, so a declared model
+> and a registered entity of one table under the same declarations freeze
+> the same file byte for byte, and the functions a binding calls are those a
+> Rust program calls. A subject's value is its declared subject's value; an
+> export, a report and the record are records of the keys Rust's carry, the
+> export's values decoded from its JSON as a `json` column's are; and a
+> refusal is the error class Rust's error maps to (`bindings.errors`). Which
+> tables an inventory holds, what it refuses and what each call sends MUST
+> be decided once, by pgorm-bindings.
+
+> [spec:pgorm:req:bindings.personal-masking]
+> Each binding MUST print a declared model's or registered entity's
+> personal field as `<personal>` wherever the binding writes a record as
+> text, and leave its value plain everywhere else, the language's JSON
+> serialization included (`[spec:pgorm:def:personal.not-secret]`). An error
+> a binding raises MUST carry pgorm's scrubbed text
+> (`[spec:pgorm:req:personal.mask-errors]`), and its metrics hooks are given
+> the scrubbed error and a statement's text alone
+> (`[spec:pgorm:req:personal.mask-logs]`).
+
 ## Disjoint models
 
 > [spec:pgorm:req:bindings.disjoint+2]

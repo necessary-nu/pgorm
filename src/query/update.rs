@@ -1,8 +1,8 @@
 use crate::entity::entity_table;
-use crate::entity::{hold_statement, immutable_column, immutable_set, scope_condition};
+use crate::entity::{hold_statement, immutable, immutable_set, scope_condition};
 use crate::{
     ActiveModel, ActiveValue, Column, Entity, Error, Iterable, NoContext, PrimaryKeyToColumn,
-    QueryFilter, ScopeContext, ScopeError, ScopedIn, Statement, StaticName, UnscopedFromItem,
+    QueryFilter, ScopeContext, ScopeError, ScopedIn, Statement, UnscopedFromItem,
 };
 use core::marker::PhantomData;
 use pgorm_query::{Expr, IntoName, SimpleExpr, UpdateStatement};
@@ -42,7 +42,11 @@ impl Update {
     ///
     /// Fails with [`Error::PrimaryKeyNotSet`] when a primary-key column of
     /// `model` is [`ActiveValue::NotSet`], since there would be nothing to
-    /// narrow the statement to a single row.
+    /// narrow the statement to a single row, and with
+    /// [`Error::ImmutableColumn`] when `model` sets a column its definition
+    /// marks [`immutable`](crate::ColumnDef::immutable), which the row keeps
+    /// as its insert wrote it. A primary key the model holds is the row's
+    /// key, never set, so an immutable one is not refused.
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::cake};
@@ -83,7 +87,8 @@ impl Update {
     /// key and `cx`'s scopes side by side, so a key of a row outside them
     /// updates nothing, and [`exec_returning_model`](UpdateOne::exec_returning_model)
     /// reports [`Error::RecordNotFound`]. A scope column is immutable, so a
-    /// model setting one is refused as [`Error::ImmutableColumn`].
+    /// model setting one is refused as [`Error::ImmutableColumn`], as one
+    /// setting any immutable column is.
     ///
     /// ```
     /// use pgorm::{entity::*, query::*, tests_cfg::scoped::{note, CompanyId, Member, UserId}};
@@ -238,7 +243,7 @@ where
         Ok(self)
     }
 
-    // [spec:pgorm:req:scope.immutable]
+    // [spec:pgorm:req:entity.immutable.writes]
     fn prepare_values(mut self) -> Result<Self, Error> {
         for col in <A::Entity as Entity>::Column::iter() {
             if <A::Entity as Entity>::PrimaryKey::from_column(col).is_some() {
@@ -246,7 +251,7 @@ where
             }
             match self.model.get(col)? {
                 ActiveValue::Set(value) => {
-                    immutable_column::<A::Entity>(col.as_str())?;
+                    immutable::<A::Entity>(col)?;
                     let expr = col.save_as(Expr::val(value));
                     self.query.value(col, expr);
                 }
@@ -257,8 +262,10 @@ where
     }
 
     /// What every execution path asks before sending anything: a `SET` of a
-    /// column its definition marks immutable.
-    // [spec:pgorm:req:scope.immutable]
+    /// column its definition marks immutable. Construction refused the
+    /// model's; this reads the statement, which `Statement::query` may have
+    /// added to since.
+    // [spec:pgorm:req:entity.immutable.writes]
     pub(crate) fn refusal(&self) -> Result<(), Error> {
         immutable_set::<A::Entity>(&self.query)
     }
@@ -334,7 +341,7 @@ where
     /// immutable, whether [`set`](Self::set) or
     /// [`col_expr`](Self::col_expr) named it.
     // [spec:pgorm:req:scope.refusals+1]
-    // [spec:pgorm:req:scope.immutable]
+    // [spec:pgorm:req:entity.immutable.writes]
     pub(crate) fn refusal(&self) -> Result<(), Error> {
         if let Some(refused) = &self.refused {
             return Err(Error::Scope(refused.clone()));
@@ -347,7 +354,10 @@ where
     /// Only `Set` columns are written: `Unchanged` and `NotSet` ones contribute
     /// nothing, and so does a column this model does not carry at all — the
     /// `Error::Type` [`ActiveModel::get`] reports for one is a statement
-    /// about the model, not a value to write.
+    /// about the model, not a value to write. A column its definition marks
+    /// [`immutable`](crate::ColumnDef::immutable) set here is refused as
+    /// [`Error::ImmutableColumn`] when the statement would run, and nothing
+    /// is sent.
     pub fn set<A>(mut self, model: A) -> Self
     where
         A: ActiveModel<Entity = E>,
@@ -361,7 +371,10 @@ where
         self
     }
 
-    /// Creates a [SimpleExpr] from a column
+    /// Set `col` to `expr`. A column its definition marks
+    /// [`immutable`](crate::ColumnDef::immutable) is refused as
+    /// [`Error::ImmutableColumn`] when the statement would run, and nothing
+    /// is sent.
     pub fn col_expr<T>(mut self, col: T, expr: SimpleExpr) -> Self
     where
         T: IntoName,

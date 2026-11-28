@@ -2,6 +2,7 @@ pub mod bakery_chain;
 pub mod features;
 pub mod runtime;
 pub mod setup;
+pub mod statements;
 
 use pgorm::DatabasePool;
 

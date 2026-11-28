@@ -31,6 +31,7 @@
 // [spec:pgorm:req:scope.compile+1/test]    a scoped entity under a context missing a scope, a struct context missing one, and `NoContext` each fail with the entity's own message naming its scopes and the context
 // [spec:pgorm:sem:scope.from-using/test]    a scoped entity named in a bulk update's `from` or a bulk delete's `using` fails with the entity's own message, `NoContext` not holding its scope
 // [spec:pgorm:def:scope.declare+1/test]    a scope column that is `Option`, `scope` twice on a field, and an empty `scope()` are refused at the key
+// [spec:pgorm:def:entity.immutable/test]    `immutable` given twice on a field, on an `ignore`d field and on a generated column is refused at the key
 // [spec:pgorm:def:scope.context/test]    a context holding a scope twice, one with generic parameters, and an enum are refused by the derive
 #[test]
 fn compile_fail_tests() {

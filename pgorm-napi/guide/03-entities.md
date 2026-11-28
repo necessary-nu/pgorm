@@ -296,6 +296,10 @@ assert.equal(line.quantity, 1);
 assert.equal(line.total.toString(), "3.20");
 ```
 
+Rust's entities can also mark a column `immutable`, written by its row's
+insert and refused in every update and upsert after, which is Rust-only for
+now: a declared column has no such option.
+
 ## Relations
 
 A relation is a value a model's `belongsTo`, `hasOne` or `hasMany` makes. It

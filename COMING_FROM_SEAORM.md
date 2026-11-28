@@ -418,6 +418,10 @@ expanded entity said in a trait method, an attribute says:
   a type to cast to.
 - `on_condition` takes a closure of the two tables as the join binds them,
   `|left, right| ..`, as well as an expression that ignores them.
+- `immutable`, which SeaORM does not have, marks a column its row's insert
+  writes and no statement after: an update, a bulk update or an upsert
+  setting it is refused with `Error::ImmutableColumn` before anything is
+  sent.
 - An entity whose table or schema name is computed at run time keeps a
   hand-written part: its own `Entity` struct holding what the name is computed
   from, an `EntityName` impl, and the `Entity` derive on the struct,

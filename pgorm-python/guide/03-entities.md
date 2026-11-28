@@ -382,6 +382,10 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+Rust's entities can also mark a column `immutable`, written by its row's
+insert and refused in every update and upsert after, which is Rust-only for
+now: a declared `Column` has no such option.
+
 ## Relations
 
 Each relation is made by a method of the model it starts from, and names the

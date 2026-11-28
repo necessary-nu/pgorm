@@ -86,14 +86,6 @@ pub enum Stock {
     Free,
 }
 
-/// Run the statements `create_disjoint` returns, in order.
-async fn create<D: KindedDisjoint>(db: &DatabaseConnection) -> Result<(), Error> {
-    for statement in Schema::new().create_disjoint::<D>()? {
-        db.execute(&statement.to_string(), &[]).await?;
-    }
-    Ok(())
-}
-
 /// Every row of the vehicle tables, each in key order: what a write that
 /// changes nothing leaves exactly as it was.
 #[derive(Debug, PartialEq)]
@@ -198,7 +190,7 @@ async fn assert_read<C: ConnectionMut>(
 async fn insert_writes_every_kind_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_insert").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
 
     let [mini, lorry, bmx] = fleet(&db).await?;
     let ids = [mini.0.id, lorry.0.id, bmx.0.id];
@@ -242,7 +234,7 @@ async fn insert_writes_every_kind_live() -> Result<(), Error> {
 async fn insert_refuses_kind_and_key_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_insert_refused").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
 
     let kinded = [
         vehicle::ActiveModel {
@@ -300,7 +292,7 @@ async fn insert_refuses_kind_and_key_live() -> Result<(), Error> {
 async fn update_writes_either_row_or_both_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_update").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
     let [mini, lorry, bmx] = fleet(&db).await?;
     let id = mini.0.id;
 
@@ -364,7 +356,7 @@ async fn update_writes_either_row_or_both_live() -> Result<(), Error> {
 async fn update_misses_change_nothing_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_update_missed").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
     let [mini, lorry, bmx] = fleet(&db).await?;
     let before = tables(&db).await?;
 
@@ -415,7 +407,7 @@ async fn update_misses_change_nothing_live() -> Result<(), Error> {
 async fn change_kind_moves_rows_between_tables_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_change_kind").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
     let [mini, lorry, _] = fleet(&db).await?;
     let id = mini.0.id;
 
@@ -478,7 +470,7 @@ async fn change_kind_moves_rows_between_tables_live() -> Result<(), Error> {
 async fn change_kind_misses_change_nothing_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_change_missed").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
     let [mini, lorry, bmx] = fleet(&db).await?;
     let before = tables(&db).await?;
 
@@ -517,7 +509,7 @@ async fn change_kind_misses_change_nothing_live() -> Result<(), Error> {
 async fn writes_compose_inside_transaction_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_transaction").await;
     let mut db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
 
     let committed = db
         .transaction(async |tx| {
@@ -642,7 +634,7 @@ async fn update_behind_kind_change(
 async fn update_behind_committed_kind_change_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_concurrent").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
     let [mini, lorry, _] = fleet(&db).await?;
 
     let kind_only = Vehicle::update(keyed(mini.0.id), seats(9))?;
@@ -681,7 +673,7 @@ async fn update_behind_committed_kind_change_live() -> Result<(), Error> {
 async fn base_delete_cascades_to_kind_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_delete").await;
     let db = ctx.db.get().await?;
-    create::<Vehicle>(&db).await?;
+    create_disjoint::<Vehicle>(&db).await?;
     let [mini, lorry, bmx] = fleet(&db).await?;
 
     for gone in [mini.0.id, bmx.0.id] {
@@ -711,7 +703,7 @@ async fn composite_key_writes_pair_columns_live() -> Result<(), Error> {
     let ctx = TestContext::new("disjoint_write_composite").await;
     let db = ctx.db.get().await?;
     db.execute("CREATE SCHEMA market", &[]).await?;
-    create::<Listing>(&db).await?;
+    create_disjoint::<Listing>(&db).await?;
 
     let read = async |key: (i32, i64)| Listing::find_by_id(key).one(&db).await;
     let loft = Listing::insert(
@@ -817,7 +809,7 @@ async fn kind_columns_write_under_casts_live() -> Result<(), Error> {
     let db = ctx.db.get().await?;
     let grade = Schema::new().create_enum_from_active_enum::<Grade>()?;
     db.execute(&grade.to_string(), &[]).await?;
-    create::<Stock>(&db).await?;
+    create_disjoint::<Stock>(&db).await?;
 
     let label = |label: &str| stock::ActiveModel {
         label: set(label),
@@ -891,7 +883,7 @@ async fn same_named_tables_write_apart_live() -> Result<(), Error> {
     let db = ctx.db.get().await?;
     db.batch_execute("CREATE SCHEMA gallery; CREATE SCHEMA archive; CREATE SCHEMA loan;")
         .await?;
-    create::<Exhibit>(&db).await?;
+    create_disjoint::<Exhibit>(&db).await?;
     let titled = |title: &str| gallery_exhibit::ActiveModel {
         title: set(title),
         ..Default::default()

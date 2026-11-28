@@ -14852,6 +14852,56 @@ children (
                 title "A model query whose shape repeats does not rebuild its statement through the addon on every call (perf-drizzle: the model path costs about 13 µs over the raw path on a primary-key lookup)"
                 kind @perf
             }
+
+            {
+                id napi.stream-end
+                title "A stream reports its end with its last batch, so reaching the end costs no pull of its own (napi.stream-batches: the kept end is one more crossing, about 10 to 20 µs a stream, most of a one-row stream's cost)"
+                kind @perf
+            }
+
+            {
+                id napi.transaction-cost
+                title "A transaction costs no more than Drizzle's over node-postgres, its gap attributed first (perf-drizzle: 217 µs against Drizzle's 193, pg 181 and postgres.js 187)"
+                kind @perf
+            }
+
+            {
+                id napi.numeric-text
+                title "A numeric column crosses as text written straight from the server's binary form, held to ExactDecimal's range, rather than decoded to rust_decimal and formatted (napi.row-decode: numeric the slowest scalar left, 1.3 to 1.65 times pg)"
+                kind @perf
+            }
+
+            {
+                id napi.temporal-columns
+                title "Date, time, timestamp, interval and array columns are built a column at a time, as napi.row-decode builds Decimal, Uuid and instants, not by a call into JavaScript per value"
+                kind @perf
+            }
+
+            {
+                id napi.drizzle-rerun
+                title "docs/performance/drizzle-results.md records the Drizzle comparison rerun on an idle machine after the pool, row and stream fixes, its findings and limitations restated, with the harness's attribution narrowed to the workloads a run selects"
+                kind @docs
+            }
+
+            {
+                id napi.row-decode-python
+                title "pgorm-python's rows cross as napi.row-decode's do: a column at a time, and a json or jsonb document passed as the server's text to one parse rather than rebuilt value by value"
+                kind @perf
+            }
+
+            {
+                id napi.terse-models
+                title "A JavaScript model is declared in the lighter object form: fields at the top level with relations and options in a third argument, a bare kind string for a column without options, key(), numeric(), varchar(n) and nullable() for the common shapes, and camelCase fields named as snake_case columns by default, every type still inferred from the one declaration"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-28T03:21:20.415567Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "2026-11-26, operator: \"Can we use decorators in TS and/or Python as well? Right now it's quite object heavy\", then, of the proposed lighter object form, \"your js proposals are good\". Not decorators: Node 26.11 refuses `@decorator` syntax, both in .mjs and under its own type stripping, so every user would need a transpile step, and a decorator cannot produce a type, so each field would carry a TypeScript type and a decorator naming its SQL type, two declarations that can drift. The proposed form: model(name, fields, options) with no `columns:` level; a bare kind string (\"varchar\", \"bool\") for a column with no options; key(\"i32\") (primary key, auto-increment), numeric(10, 2), varchar(n), nullable(\"text\"); camelCase fields map to snake_case column names by default, a breaking change to today's default. Scopes and personal data take the same form: scoped(CompanyId), personal(CvAnswer, \"text\")."
+                    }
+                )
+            }
         )
         log (
             {
@@ -22133,6 +22183,9 @@ children (
             {
                 id immutable.rust
                 title "#[pgorm(immutable)] refuses an update, bulk update or upsert that would change the column, and scope columns are immutable through the same rule"
+                implements {
+                    main ([spec:pgorm:def:entity.immutable] [spec:pgorm:req:entity.immutable.writes])
+                }
                 deps (scopes.rust read-only.rust)
             }
 
@@ -23256,6 +23309,221 @@ children (
                 author "brendan@necessary.nu"
                 kind @status
                 text "Doing → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id python-class-models
+        title "A Python model is declared as a class of annotated fields on pgorm.Model with class keywords (table, schema, unique), each field's column type read from its annotation (str text, Decimal numeric, X | None nullable, a Scope subclass a scope column) with options in Annotated[...] or = pgorm.column(...), typed for mypy strict through dataclass_transform, beside the object form for models known only at run time"
+        kind @feat
+        log (
+            {
+                at 2026-11-28T03:21:20.61908Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"Can we use decorators in TS and/or Python as well? Right now it's quite object heavy\". Proposed for Python: classes with annotations, `class Customer(pgorm.Model, table=\"customer\", unique=[(\"email\",)])`, fields `id: Annotated[int, pgorm.key(auto_increment=True)]`, `notes: str | None`. A base class with class keywords rather than a @pgorm.model decorator, since mypy cannot see methods a decorator adds; @dataclass_transform gives mypy strict the fields and constructor. The object form stays for models known only at run time (codegen, tools). Scope columns are found by type (`company_id: CompanyId`) and personal fields by Annotated (`Annotated[str, CvAnswer]`). The operator endorsed the JavaScript proposal explicitly; this Python shape was proposed beside it and is filed for the operator's go-ahead."
+            }
+        )
+    }
+
+    {
+        id personal-data
+        title "Personal data is declared once in code, by subject, processing activity and category with each personal field naming its category, and pgorm finds, exports, erases and expires a subject's data from those declarations, writes the Art. 30 record from them, keeps their values out of its own output, and carries the same logic into the database through generated migrations"
+        kind @feat
+        children (
+            {
+                id personal-data.spec
+                title "docs/spec/personal-data.md specifies the personal-data design as rules, Rust first and then the bindings' dialects, and the WBS under personal-data is filed against those rules, each build node implementing its own"
+                kind @docs
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T03:54:46.535258Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "Choices made while writing docs/spec/personal-data.md, each with why. (1) Retention clock: the category owns the period, and `from` names the field most tables keep the clock in. A table that keeps it elsewhere marks one `#[pgorm(retain_from)]` field, which overrides `from` for every timed category on that model. A model with a timed category and no clock does not compile. A NULL clock means the period has not started, so the row is never swept; that is how \"6 years after the contract ends\" works. (2) Pseudonymise: the database computes `pseudonym:` + hex HMAC-SHA-256 with pgcrypto `hmac(bytea, bytea, text)`. The key is a bound `bytea` argument (`key bytea DEFAULT NULL`), never stored in the database, the catalog or a file. Custody, rotation and loss are the program's. A value already in pseudonym form is skipped, so the step is idempotent. Pseudonymised data is reported as pseudonymised, never as erased, because it is still personal data (Art. 4(5), Recital 26). (3) Two subjects on one row: `of = <field>`, or `of = via(Entity)` for a row reached through a belongs-to. A row with zero subject columns, or two or more, and no `of` is a compile error, raised by a const assertion because one derive cannot see another's declarations. (4) Erasure: the function locks the home row FOR UPDATE first, then works child tables before the tables they reference, inside the caller's transaction, and touches only rows with something left to erase. build() refuses a RESTRICT/NO ACTION relation into a table that erasure or the sweep deletes from, unless the referencing rows are deleted first through the same subject column. It also refuses FK cycles, and a held category beside a delete_row category of the same subject on one table. The report holds counts, categories, holds and dates, never values or keys. (5) Export: rows by primary key; each field carries its category, value as JSON and a `portable` flag (source subject, basis consent or contract: Art. 20). Activities and categories are listed once and fields refer to them. Debug masks the values; Serialize writes them. (6) Art. 30: Records lists, per activity, items (b) to (f) plus where each category is stored. It implements Serialize and Display (Markdown). Items (a) and (g) are the organisation's. (7) Completeness: a table that links a subject but has no personal field and no `#[pgorm(no_personal_data)]` is a gap, and so is a belongs-to into a home table through a column not typed as the subject. The catalog lists the reviewed non-personal columns, so a new column changes the layer and the drift test forces a review. verify(&conn) finds the tables, FKs, types and digest the inventory cannot see. (8) Drift: check_frozen(dir) compares the last frozen file carrying `-- pgorm: personal-data <digest>` against today's text, without a database, the way the codegen goldens work. export, erase and sweep compare the database's digest with the inventory's in the same round trip, and refuse with PersonalError::Drift on a mismatch rather than run with different meanings. (9) Masking: the field keeps its type. pgorm masks it as `<personal>` only in text it writes itself, using redact's Value::Redacted marked personal. The derive writes Debug for a model that has a personal field, so the program's own derive(Debug) on it conflicts and fails to compile. (10) Inventory is a value the program lists its entities in, like a migrator, because Rust has no portable registry of types and this avoids a linkme/inventory dependency; completeness() and verify() catch a forgotten table. (11) Functions are SECURITY DEFINER with search_path pinned to pg_catalog, pg_temp, REVOKE ALL FROM PUBLIC, and CREATE OR REPLACE with fixed signatures so grants survive regeneration. Grants are the program's. (12) The Anonymizer labels go in a separate, optional file, because the server refuses a label whose provider is not loaded. (13) Python subjects are subclasses of pgorm.Subject[T], as scopes are, rather than the pgorm.Subject(\"educator\", key=UUID) of the 2026-11-26 sketch, because a subject has values the API takes, the way a scope does. The opt-out is spelled no_personal_data in every language, because Python's None default cannot be the opt-out. Open for the operator: SECURITY DEFINER as the only mode, or an INVOKER option; whether export/erase should ever run during drift (they refuse now); whether `of` may name two subjects for data relating to both people (single for now); and the endorsement of python-class-models, which personal-data.python-classes depends on."
+                    }
+
+                    {
+                        at 2026-11-28T04:01:53.37059Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id personal-data.declare
+                title "Subjects, processing activities and categories of personal data are declared once as types (Subject, Activity, PersonalData), a field names its category with #[pgorm(personal = ..)], its subject found by its row's subject column or by of, and what the declarations cannot mean does not compile"
+                kind @feat
+                implements {
+                    main (
+                        [spec:pgorm:def:personal.subject]
+                        [spec:pgorm:def:personal.activity]
+                        [spec:pgorm:def:personal.category]
+                        [spec:pgorm:def:personal.field]
+                        [spec:pgorm:req:personal.retention-clock]
+                        [spec:pgorm:req:personal.opt-out]
+                        [spec:pgorm:req:personal.checks]
+                        [spec:pgorm:def:personal.as-data]
+                    )
+                }
+                deps (personal-data.spec)
+                log (
+                    {
+                        at 2026-11-28T03:58:39.72226Z
+                        author "brendan@necessary.nu"
+                        kind @blocker
+                        text "Held for the operator's go-ahead. 2026-11-26, operator: \"I would say wbs and spec up the personal-data item, but we're not going to build it right away.\" Every other personal-data build node depends on this one, so this blocker holds the chain. Clear it with an unblock note only when the operator says to build. Open before then: whether the generated functions are SECURITY DEFINER only or also offer SECURITY INVOKER; whether export and erase refuse when the database's layer differs from the code (PersonalError::Drift, as specified) or run anyway; whether `of` may name two subjects for data relating to both people; and endorsing python-class-models, which personal-data.python-classes depends on."
+                    }
+                )
+            }
+
+            {
+                id personal-data.inventory
+                title "An Inventory lists a program's entities and shapes, refuses at build what could not be generated or erased safely (foreign-key actions, cycles, a hold beside row deletion, via targets), and lists as gaps the tables that link a subject and declare nothing"
+                kind @feat
+                implements {
+                    main ([spec:pgorm:def:personal.inventory] [spec:pgorm:req:personal.completeness])
+                }
+                deps (personal-data.declare)
+            }
+
+            {
+                id personal-data.database
+                title "The inventory generates its database layer, a catalog, classified column comments and SECURITY DEFINER export and erase functions pseudonymising by a key they are passed, frozen into a migration file whose digest the drift test holds to the declarations"
+                kind @feat
+                implements {
+                    main (
+                        [spec:pgorm:def:personal.catalog]
+                        [spec:pgorm:sem:personal.erasure]
+                        [spec:pgorm:sem:personal.export-function]
+                        [spec:pgorm:sem:personal.erase-function]
+                        [spec:pgorm:req:personal.pseudonymise]
+                        [spec:pgorm:req:personal.function-security]
+                        [spec:pgorm:req:personal.frozen]
+                        [spec:pgorm:req:personal.drift]
+                    )
+                }
+                deps (personal-data.inventory)
+            }
+
+            {
+                id personal-data.api
+                title "Inventory::export and erase call the generated functions under a digest check, returning a typed SubjectExport and ErasureReport, verify finds what the database holds and the inventory lacks, and the guide's personal-data chapter teaches it and what stays outside pgorm"
+                kind @feat
+                implements {
+                    main (
+                        [spec:pgorm:req:personal.export]
+                        [spec:pgorm:req:personal.erase]
+                        [spec:pgorm:req:personal.key]
+                        [spec:pgorm:req:personal.verify]
+                        [spec:pgorm:def:personal.boundary]
+                        [spec:pgorm:req:personal.guide]
+                    )
+                }
+                deps (personal-data.database)
+            }
+
+            {
+                id personal-data.masking
+                title "A personal field keeps its type and is masked as <personal> only in text pgorm writes: the Model's and ActiveModel's Debug, Values and statements through redact's Value::Redacted, scrubbed errors, and pgorm's logs and metrics"
+                kind @feat
+                implements {
+                    main (
+                        [spec:pgorm:def:personal.not-secret]
+                        [spec:pgorm:req:personal.mask-debug]
+                        [spec:pgorm:req:personal.mask-values]
+                        [spec:pgorm:req:personal.mask-errors]
+                        [spec:pgorm:req:personal.mask-logs]
+                    )
+                }
+                deps (personal-data.api redact.rust)
+            }
+
+            {
+                id personal-data.retention
+                title "The generated sweep erases each timed category's fields once its period from the row's clock has passed, a batch at a time, and Inventory::records writes the database's share of the Art. 30 record from the activities and categories"
+                kind @feat
+                implements {
+                    main ([spec:pgorm:sem:personal.sweep] [spec:pgorm:req:personal.records])
+                }
+                deps (personal-data.api)
+            }
+
+            {
+                id personal-data.anonymizer
+                title "Inventory::anonymizer_file writes PostgreSQL Anonymizer security labels for personal columns into an optional migration file of its own, held to the declarations by check_frozen_anonymizer"
+                kind @feat
+                implements {
+                    main ([spec:pgorm:req:personal.anonymizer])
+                }
+                deps (personal-data.api)
+            }
+
+            {
+                id personal-data.bindings
+                title "pgorm-bindings declares subjects, activities and categories, lowers a declared model's personal columns into its TableShape, offers Rust's inventory over declared models and registered entities, and masks personal fields in a record's text, once for both bindings"
+                kind @feat
+                implements {
+                    main ([spec:pgorm:req:bindings.personal-data] [spec:pgorm:req:bindings.personal-inventory] [spec:pgorm:req:bindings.personal-masking])
+                }
+                deps (
+                    personal-data.api
+                    personal-data.masking
+                    personal-data.retention
+                    personal-data.anonymizer
+                )
+            }
+
+            {
+                id personal-data.python
+                title "Python declares personal data in today's object form (pgorm.Subject[T] subclasses, pgorm.Activity, pgorm.PersonalData, Column(subject=.., personal=..)) and runs pgorm.personal.Inventory, a record's repr masking its personal fields"
+                kind @feat
+                implements {
+                    python ([spec:pgorm:req:python.personal-data])
+                }
+                deps (personal-data.bindings)
+            }
+
+            {
+                id personal-data.napi
+                title "JavaScript declares personal data in today's object form (subject(), activity(), personalData(), column(kind, { subject, personal })) and runs personal.inventory, typed by TypeScript, a record's inspection masking its personal fields"
+                kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:napi.personal-data])
+                }
+                deps (personal-data.bindings)
+            }
+
+            {
+                id personal-data.python-classes
+                title "A Python class model finds a subject column by its annotation and a personal field's category in its Annotated, in the class form python-class-models declares models by"
+                kind @feat
+                implements {
+                    python ([spec:pgorm:req:python.personal-data-classes])
+                }
+                deps (personal-data.python python-class-models)
+            }
+
+            {
+                id personal-data.napi-terse
+                title "A JavaScript terse model writes a subject column as Educator.key() and a personal field as CvAnswer(\"text\"), in the lighter form napi.terse-models declares models by"
+                kind @feat
+                implements {
+                    javascript ([spec:pgorm:req:napi.personal-data-terse])
+                }
+                deps (personal-data.napi napi.terse-models)
+            }
+        )
+        log (
+            {
+                at 2026-11-28T03:22:19.240958Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator, in order: \"how can we mark a column as PII for GDPR compliance?\"; \"We need a more detailed answer for GDPR compliance. An attempt in Drizzle looks like this (and I hate it)\" (every column tagged, NOT_PII included, subject, retention and purposes repeated as strings per column); of a row-level policy, \"Declaring it on a model isn't necessary useful; often it's just an individual field\"; \"okay but can we achieve this at a database level, or can this only be in pgorm\" (answered: both, the code the source of truth and pgorm generating the database side into frozen migrations); \"your js proposals are good; but still don't quite answer the gdpr pile\" (answered: subjects, activities and categories declared once in one privacy module, the field naming only its category); then \"I would say wbs and spec up the personal-data item, but we're not going to build it right away.\" So this container is planned and specified only; no build node starts without the operator's go-ahead."
             }
         )
     }
