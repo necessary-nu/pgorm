@@ -23360,6 +23360,14 @@ children (
                     )
                 }
                 deps (personal-data.spec)
+                log (
+                    {
+                        at 2026-11-28T03:58:39.72226Z
+                        author "brendan@necessary.nu"
+                        kind @blocker
+                        text "Held for the operator's go-ahead. 2026-11-26, operator: \"I would say wbs and spec up the personal-data item, but we're not going to build it right away.\" Every other personal-data build node depends on this one, so this blocker holds the chain. Clear it with an unblock note only when the operator says to build. Open before then: whether the generated functions are SECURITY DEFINER only or also offer SECURITY INVOKER; whether export and erase refuse when the database's layer differs from the code (PersonalError::Drift, as specified) or run anyway; whether `of` may name two subjects for data relating to both people; and endorsing python-class-models, which personal-data.python-classes depends on."
+                    }
+                )
             }
 
             {
