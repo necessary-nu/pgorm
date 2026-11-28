@@ -6,7 +6,7 @@
 // [spec:pgorm:req:bindings.pool-hooks]
 
 import { statementArgs } from "./builder.js";
-import { native, queryOptions, row, TRUSTED } from "./operations.js";
+import { native, queryOptions, records, TRUSTED } from "./operations.js";
 
 /** The hook options a pool's shape takes. */
 const HOOKS = /** @type {const} */ (["postCreate", "preRecycle", "postRecycle"]);
@@ -113,8 +113,8 @@ export class HookConnection {
    * @returns {Promise<Record<string, unknown>[]>}
    */
   async #rows(terminal, statement, params, options) {
-    const [names, rows] = await this.#run(terminal, statement, params, options);
-    return rows.map((/** @type {unknown[]} */ values) => row(names, values));
+    const [names, columns, , count] = await this.#run(terminal, statement, params, options);
+    return records(names, columns, count);
   }
 
   /**

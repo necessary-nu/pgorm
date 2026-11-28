@@ -136,23 +136,28 @@ impl Terminal {
     }
 }
 
-/// A statement and its bound parameters, ready to run anywhere.
+/// A statement and its bound parameters, ready to run anywhere, and whether
+/// its rows read as tagged values.
 #[derive(Debug)]
 pub(crate) struct Statement {
     pub(crate) terminal: Terminal,
     sql: String,
     params: Vec<Param>,
+    tagged: bool,
 }
 
 impl Statement {
-    /// The terminal, statement text and parameters at `index` onwards.
+    /// The terminal, statement text, parameters and `tagged` at `index`
+    /// onwards.
     fn read(cx: &mut FunctionContext, index: usize) -> NeonResult<Self> {
         let terminal = Terminal::read(cx, index)?;
         let (sql, params) = sql_and_params(cx, index + 1)?;
+        let tagged = cx.argument::<JsBoolean>(index + 3)?.value(cx);
         Ok(Self {
             terminal,
             sql,
             params,
+            tagged,
         })
     }
 
@@ -196,7 +201,7 @@ impl Statement {
                 rows.len()
             )));
         }
-        rows::decode(&rows).map(Outcome::Rows)
+        rows::decode(&rows, self.tagged).map(Outcome::Rows)
     }
 }
 
@@ -236,8 +241,9 @@ pub(crate) enum Outcome {
 }
 
 impl Outcome {
-    /// `execute`'s count as a number, exact; the rows as `[names, rows]`.
-    pub(crate) fn into_js<'cx>(self, cx: &mut Cx<'cx>, tagged: bool) -> JsResult<'cx, JsValue> {
+    /// `execute`'s count as a number, exact; the rows as `rows::to_js` gives
+    /// them.
+    pub(crate) fn into_js<'cx>(self, cx: &mut Cx<'cx>) -> JsResult<'cx, JsValue> {
         match self {
             Self::Count(count) => {
                 #[allow(clippy::cast_precision_loss)]
@@ -251,7 +257,7 @@ impl Outcome {
                 #[allow(clippy::cast_precision_loss)]
                 Ok(cx.number(count as f64).upcast())
             }
-            Self::Rows(decoded) => rows::to_js(cx, decoded, tagged),
+            Self::Rows(decoded) => rows::to_js(cx, decoded),
         }
     }
 }
@@ -366,7 +372,6 @@ fn pool_acquire(mut cx: FunctionContext) -> JsResult<JsPromise> {
 fn pool_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = pool(&mut cx)?;
     let statement = Statement::read(&mut cx, 1)?;
-    let tagged = cx.argument::<JsBoolean>(4)?.value(&mut cx);
     let abort = abort_argument(&mut cx, 5)?;
     let work = async move {
         on_pool(&state, &abort, async |db| {
@@ -374,9 +379,7 @@ fn pool_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
         })
         .await
     };
-    settle::promise(&mut cx, work, move |cx, outcome| {
-        outcome.into_js(cx, tagged)
-    })
+    settle::promise(&mut cx, work, |cx, outcome| outcome.into_js(cx))
 }
 
 /// Run `work` on a connection the pool lends for it alone, returned to the
@@ -412,7 +415,6 @@ where
 fn connection_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = connection(&mut cx)?;
     let statement = Statement::read(&mut cx, 1)?;
-    let tagged = cx.argument::<JsBoolean>(4)?.value(&mut cx);
     let abort = abort_argument(&mut cx, 5)?;
     let secrets = state.pool.secrets.clone();
     let operation = match Operation::begin(state) {
@@ -425,9 +427,7 @@ fn connection_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
         })
         .await
     };
-    settle::promise(&mut cx, work, move |cx, outcome| {
-        outcome.into_js(cx, tagged)
-    })
+    settle::promise(&mut cx, work, |cx, outcome| outcome.into_js(cx))
 }
 
 /// `connectionPing(connection, abort)`: whether the server answers.

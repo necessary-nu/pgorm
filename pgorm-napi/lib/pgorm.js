@@ -11,6 +11,7 @@
 import { loadAddon } from "./native.js";
 import { installConnections } from "./operations.js";
 import { makeError } from "./errors.js";
+import { finish, gather } from "./value-columns.js";
 import { install } from "./values.js";
 
 // Dates and times are Temporal's, which Node.js carries from version 26.
@@ -24,7 +25,7 @@ if (typeof globalThis.Temporal !== "object") {
 const native = loadAddon();
 
 native.setErrorFactory(makeError);
-install(native);
+install(native, gather, finish);
 installConnections(native);
 
 export { connect, Connection, Pool, Queryable, Transaction } from "./connections.js";

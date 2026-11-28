@@ -18,6 +18,19 @@ use pgorm_bindings::JSON_MAX_DEPTH as MAX_DEPTH;
 /// The largest integer a JavaScript number holds exactly, 2^53 - 1.
 pub(crate) const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 
+/// Whether `value` holds an integer past 2^53 - 1 in magnitude, which
+/// `lib/values.js` reads as a `bigint`.
+pub(crate) fn wide(value: &Value) -> bool {
+    match value {
+        Value::Number(number) => number
+            .as_i64()
+            .map_or(number.is_u64(), |integer| integer.unsigned_abs() >= 1 << 53),
+        Value::Array(items) => items.iter().any(wide),
+        Value::Object(members) => members.values().any(wide),
+        _ => false,
+    }
+}
+
 /// A JavaScript value as JSON: `null`, a boolean, a finite number, a bigint
 /// within 64 bits, a string, an array, or an object of the module's plain
 /// kind. Anything JSON cannot hold is refused, never dropped or turned into a

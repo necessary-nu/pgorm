@@ -85,17 +85,40 @@ export async function abortable(signal, start, late) {
 }
 
 /**
- * Each row an object keyed by column name, in column order. Built with
- * `Object.fromEntries`, which defines its keys, so a column named
- * `__proto__` is a property like any other rather than the object's
- * prototype.
+ * A result's rows, from its columns of values, each an object keyed by
+ * column name in column order. Each is a copy of one template that defines
+ * every key, so that assigning a column named `__proto__` sets that property
+ * rather than the object's prototype.
  * [spec:pgorm:req:napi.records]
  *
- * @param {string[]} names
- * @param {unknown[]} values
+ * @param {readonly string[]} names
+ * @param {readonly unknown[][]} columns
+ * @param {number} count
+ * @returns {Record<string, unknown>[]}
+ */
+export function records(names, columns, count) {
+  const template = Object.fromEntries(names.map((name) => [name, null]));
+  const width = names.length;
+  const rows = [];
+  for (let at = 0; at < count; at++) {
+    /** @type {Record<string, unknown>} */
+    const row = { ...template };
+    for (let column = 0; column < width; column++) {
+      row[/** @type {string} */ (names[column])] = /** @type {unknown[]} */ (columns[column])[at];
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+/**
+ * One row's values as its object, as `records` makes it.
+ *
+ * @param {readonly string[]} names
+ * @param {readonly unknown[]} values
  */
 export function row(names, values) {
-  return Object.fromEntries(names.map((name, index) => [name, values[index]]));
+  return /** @type {Record<string, unknown>} */ (records(names, values.map((value) => [value]), 1)[0]);
 }
 
 /**
