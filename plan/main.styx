@@ -14818,6 +14818,15 @@ children (
                 id napi.pool-recycle-default
                 title "Both bindings' pools default to Rust's recycling method, Fast, as connect does, not Verified's empty query on every acquire (perf-drizzle: 20.0k against 36.2k ops/s under four workers)"
                 kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T01:15:47.287142Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
