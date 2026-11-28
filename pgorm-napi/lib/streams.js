@@ -1,7 +1,7 @@
 // @ts-check
 
 // Row streams over a pool's or a connection's connection.
-// [spec:pgorm:req:bindings.streams+1]
+// [spec:pgorm:req:bindings.streams+2]
 
 import { LifecycleError } from "./errors.js";
 import { abortable, native, queryOptions, row, TRUSTED } from "./operations.js";
@@ -31,8 +31,10 @@ export function decodedWith(stream, decode) {
 
 /**
  * A statement's rows as an async iterator, one row per pull, so the server is
- * held back while nothing asks. Its connection is released at the last row,
- * by `close()`, or when a `for await` loop leaves early.
+ * held back while nothing asks. The addon hands over the rows it has
+ * received in batches, which the stream yields from memory. Its connection is
+ * released at the last row, by `close()`, or when a `for await` loop leaves
+ * early.
  *
  * @implements {AsyncIterableIterator<Record<string, unknown>>}
  */
@@ -47,6 +49,13 @@ export class RowStream {
   #names = [];
   /** @type {string[]} */
   #kinds = [];
+  /**
+   * The rows of the addon's last batch, those from `#at` on not yet yielded.
+   *
+   * @type {unknown[]}
+   */
+  #batch = [];
+  #at = 0;
   /** @type {Decode} */
   #decode = row;
   #tagged;
@@ -87,19 +96,29 @@ export class RowStream {
     if (this.#pulling) throw new LifecycleError("the stream is busy: one row is pulled at a time");
     this.#pulling = true;
     try {
+      if (this.#at < this.#batch.length && native.streamPullable(this.#native)) {
+        const signal = this.#signal;
+        if (signal !== undefined) {
+          signal.throwIfAborted();
+          // A pull's promise settles a turn later, as one the addon answers
+          // does, so an abort right after the call still rejects it.
+          await undefined;
+          signal.throwIfAborted();
+        }
+        return this.#item(this.#batch[this.#at++]);
+      }
+      this.#batch = [];
       return await abortable(this.#signal, async (token) => {
         if (this.#native === null) [this.#native, this.#release] = await this.#open(token);
-        const item = await native.streamNext(this.#native, this.#tagged, token);
-        if (item === null) {
-          await this.#finish();
+        const batch = await native.streamNext(this.#native, this.#tagged, token);
+        if (batch === null) {
+          await this.#finish(false);
           return { done: true, value: undefined };
         }
-        const [values, names, kinds] = item;
+        const [rows, names, kinds] = batch;
         if (names) [this.#names, this.#kinds] = [names, kinds];
-        return {
-          done: false,
-          value: /** @type {Record<string, unknown>} */ (this.#decode(this.#names, values, this.#kinds)),
-        };
+        [this.#batch, this.#at] = [rows, 1];
+        return this.#item(rows[0]);
       });
     } catch (error) {
       await this.#finish();
@@ -107,6 +126,17 @@ export class RowStream {
     } finally {
       this.#pulling = false;
     }
+  }
+
+  /**
+   * @param {unknown} values
+   * @returns {IteratorResult<Record<string, unknown>, undefined>}
+   */
+  #item(values) {
+    return {
+      done: false,
+      value: /** @type {Record<string, unknown>} */ (this.#decode(this.#names, /** @type {unknown[]} */ (values), this.#kinds)),
+    };
   }
 
   /**
@@ -128,11 +158,16 @@ export class RowStream {
     await this.#finish();
   }
 
-  async #finish() {
+  /**
+   * @param {boolean} [close] whether the addon's stream is to be closed:
+   * not once a pull found its end, which released what it held.
+   */
+  async #finish(close = true) {
     if (this.#done) return;
     this.#done = true;
+    this.#batch = [];
     try {
-      if (this.#native !== null) await native.streamClose(this.#native);
+      if (close && this.#native !== null) await native.streamClose(this.#native);
     } finally {
       await this.#release?.();
     }

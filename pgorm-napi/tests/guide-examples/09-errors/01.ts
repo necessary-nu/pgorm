@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal, ForeignKeyViolationError, NotNullViolationError, UniqueViolationError } from "@necessary/pgorm";
+import { dec, ForeignKeyViolationError, NotNullViolationError, UniqueViolationError } from "@necessary/pgorm";
 import { Cake, Customer } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
@@ -19,7 +19,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   const orphan = await Cake.insert({
     name: "Ghost Cake",
     flavor: "vanilla",
-    price: new Decimal("1.00"),
+    price: dec`1.00`,
     glutenFree: false,
     bakeryId: 99,
   }).execute(pool).catch((error: unknown) => error);

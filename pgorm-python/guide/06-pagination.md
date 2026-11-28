@@ -343,10 +343,12 @@ asyncio.run(main())
 ## Streams
 
 `stream(db)` runs a query and gives a `RowStream`, an asynchronous iterator
-over its rows. Each pull reads one row, decoded as the query decodes it, so a
-large result never sits in memory whole, and while nothing pulls, the driver's
-bounded buffer and the socket hold the server back. Only one pull runs at a
-time. `stream` exists on a model query and on a [graph](07-relations.md), and
+over its rows. Each pull gives one row, decoded as the query decodes it. The
+stream takes the rows from the native runtime in batches of those already
+received, 16 at most in the first and up to 256 later, and yields each
+batch's rows from memory, so a large result never sits in memory whole, and
+while nothing pulls, the driver's bounded buffer and the socket hold the
+server back. Only one pull runs at a time. `stream` exists on a model query and on a [graph](07-relations.md), and
 `pool.stream(statement)` and `connection.stream(statement)` stream any
 statement's rows as plain `Record`s, SQL written by hand included. A stream
 is an `async with` block, which closes it however the block ends; `aclose()`
@@ -451,8 +453,8 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-A row that fails to decode raises `DecodeError` and closes the stream, never
-ending it as though the rows had run out. Here Python differs from Rust,
+A row that fails to decode raises `DecodeError` after the rows before it and
+closes the stream, never ending it as though the rows had run out. Here Python differs from Rust,
 where the failed row is one `Err` in the stream and the rows after it still
 come. A database error part-way, such as a division by zero in a later row,
 raises `DatabaseError` with its SQLSTATE after the rows before it.

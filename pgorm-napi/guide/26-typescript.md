@@ -70,7 +70,7 @@ fails if any of them stops being refused:
 
 ```ts
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal, type InsertOf } from "@necessary/pgorm";
+import { ConstructionError, Decimal, dec, type InsertOf } from "@necessary/pgorm";
 
 // @ts-expect-error: a customer needs an email
 const incomplete: InsertOf<typeof Customer> = { name: "Mo" };
@@ -96,7 +96,7 @@ assert.throws(
   ConstructionError,
 );
 
-const fine = Cake.update({ price: new Decimal("3.25") }).where(Cake.key({ id: 2 }));
+const fine = Cake.update({ price: dec`3.25` }).where(Cake.key({ id: 2 }));
 assert.equal(await fine.execute(pool), 1);
 ```
 

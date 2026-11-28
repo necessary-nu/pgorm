@@ -3,7 +3,7 @@
 // Pools, connections and transactions. Each holds a native handle and
 // releases what it holds when closed — `close()`, `await using`, the end of a
 // callback — never by waiting for garbage collection.
-// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:bindings.connections+5]
 // [spec:pgorm:req:napi.lifecycle+3]
 // [spec:pgorm:req:bindings.results+3]
 // [spec:pgorm:req:napi.raw]
@@ -20,7 +20,7 @@ import { verify } from "./raw.js";
 import { COPY, CopyRunner } from "./copy.js";
 import { ConstructionError } from "./errors.js";
 import { Listener, LISTENER, listenerOptions, notifyJob } from "./listen.js";
-import { abortable, JOB, knownOptions, LATE, native, queryOptions, row, RUN, scoped, signalOf, TRUSTED } from "./operations.js";
+import { abortable, JOB, knownOptions, LATE, native, queryOptions, records, RUN, scoped, signalOf, TRUSTED } from "./operations.js";
 import { retried } from "./retry.js";
 import { hooked } from "./hooks.js";
 import { RowStream } from "./streams.js";
@@ -96,12 +96,12 @@ export class Queryable extends CopyRunner {
   async #rows(terminal, statement, params, options) {
     const [sql, values, rest] = statementArgs(statement, params, options);
     const { tagged, signal } = queryOptions(rest);
-    const [names, rows] = await abortable(
+    const [names, columns, , count] = await abortable(
       signal,
       (token) => this[RUN](terminal, sql, values, tagged, token),
       () => this[LATE](),
     );
-    return rows.map((/** @type {unknown[]} */ values) => row(names, values));
+    return records(names, columns, count);
   }
 
   /**
@@ -707,7 +707,7 @@ export class Transaction extends Queryable {
    * stream's until its last row, refusing other work meanwhile; closed
    * before then, the stream discards the transaction with its connection,
    * as a connection's stream discards its connection.
-   * [spec:pgorm:req:bindings.streams+1]
+   * [spec:pgorm:req:bindings.streams+2]
    *
    * @param {unknown} statement
    * @param {unknown} [params]

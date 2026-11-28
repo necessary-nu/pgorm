@@ -2,13 +2,13 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal, pipeline as pl } from "@necessary/pgorm";
+import { dec, pipeline as pl } from "@necessary/pgorm";
 import { Cake } from "../../../guide/bakery.ts";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
   const cake = (column: string) => pl.col("cake", column);
-  const budget = new Decimal("3.50");
+  const budget = dec`3.50`;
 
   const affordable = pl.from(Cake.table)
     .filterWith((binder) => cake("price").lte(binder.bind(budget)))

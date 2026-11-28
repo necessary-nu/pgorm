@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal, DecodeError } from "@necessary/pgorm";
+import { dec, DecodeError } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -11,7 +11,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
      FROM bakery JOIN cake ON cake.bakery_id = bakery.id
      WHERE cake.price < $1
      GROUP BY bakery.name ORDER BY bakery.name`,
-    [new Decimal("5.00")],
+    [dec`5.00`],
   );
   assert.deepEqual(menus, [
     { bakery: "Moonlight", cakes: 2n },

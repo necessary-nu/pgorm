@@ -135,7 +135,7 @@ test("prql's set operations combine whole rows, read whole by the step after the
   );
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 test("a transaction streams, reserved until its last row", async () => {
   await fresh();
   await pool().transaction(async (tx) => {

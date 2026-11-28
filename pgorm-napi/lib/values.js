@@ -6,7 +6,7 @@
 // value — its kind, its range, its precision — is the addon's; these classes
 // hold what it accepted.
 // [spec:pgorm:req:bindings.values]
-// [spec:pgorm:req:napi.values+1]
+// [spec:pgorm:req:napi.values+2]
 // [spec:pgorm:req:bindings.value-tags+1]
 // [spec:pgorm:req:napi.temporal+1]
 
@@ -19,16 +19,19 @@ let native;
 const INSPECT = Symbol.for("nodejs.util.inspect.custom");
 
 /** Marks a construction from data the addon has already checked. */
-const TRUSTED = Symbol("pgorm-napi checked value");
+export const TRUSTED = Symbol("pgorm-napi checked value");
 
 /**
- * Hand the addon the functions it reads and builds values with.
+ * Hand the addon the functions it reads and builds values with, and the two
+ * `lib/value-columns.js` builds a statement's result with.
  *
  * @param {any} addon
+ * @param {Function} gather
+ * @param {Function} finish
  */
-export function install(addon) {
+export function install(addon, gather, finish) {
   native = addon;
-  addon.setCodec(describe, make);
+  addon.setCodec(describe, make, gather, finish);
 }
 
 const encoder = new TextEncoder();
@@ -192,6 +195,24 @@ export class Decimal {
     }
     return this.#text;
   }
+}
+
+/**
+ * A `Decimal` written as a literal, dec`19.99`: the same value as
+ * `new Decimal("19.99")`. Nothing may be interpolated, since a value known
+ * only at run time is no literal; that is `new Decimal(text)`.
+ * [spec:pgorm:req:napi.values+2]
+ *
+ * @param {TemplateStringsArray} strings
+ * @param {...unknown} values
+ */
+export function dec(strings, ...values) {
+  if (!Array.isArray(strings) || !Array.isArray(strings.raw) || values.length !== 0) {
+    throw new ConstructionError(
+      "dec`…` takes a decimal literal with nothing interpolated, such as dec`19.99`; a value known only at run time is new Decimal(text)",
+    );
+  }
+  return new Decimal(strings[0]);
 }
 
 /** A UUID, held as its lower-case hyphenated text. */
@@ -640,7 +661,7 @@ function describe(value) {
  * @param {unknown} value
  * @param {{ source?: string }} [context]
  */
-function revive(_key, value, context) {
+export function revive(_key, value, context) {
   if (
     typeof value === "number" && !Number.isSafeInteger(value) && typeof context?.source === "string" &&
     /^-?\d+$/.test(context.source)
@@ -680,7 +701,7 @@ function make(tag, ...fields) {
     case "instant":
       return new Temporal.Instant(a);
     case "json":
-      return JSON.parse(a, /** @type {any} */ (revive));
+      return b ? JSON.parse(a, /** @type {any} */ (revive)) : JSON.parse(a);
     case "value":
       return new Value(a, TRUSTED);
     case "typename":

@@ -293,6 +293,19 @@ platforms (
         }
     }
     {
+        // The Drizzle comparison's harness (docs/performance/README.md) is
+        // TypeScript Node runs by stripping types, which checks none, and it
+        // imports pgorm-napi's lib and test support, so a change there can
+        // break it too.
+        platform "bench-drizzle"
+        files (benches/drizzle/src/**/*.ts benches/drizzle/*.json benches/drizzle/typecheck.mjs pgorm-napi/lib/**/*.js pgorm-napi/lib/**/*.d.ts pgorm-napi/tests/support.ts)
+        checks {
+            typing {
+                cmd "node benches/drizzle/typecheck.mjs"
+            }
+        }
+    }
+    {
         platform "napi-distribution"
         files (pgorm-napi/Cargo.toml pgorm-napi/Cargo.lock Cargo.toml pgorm-*/Cargo.toml pgorm-query/pgorm-query-attr/Cargo.toml pgorm-query/pgorm-query-derive/Cargo.toml pgorm-query/pgorm-query-derive-internals/Cargo.toml pgorm-napi/package.json pgorm-napi/support.json pgorm-napi/checks/notices.js pgorm-napi/checks/package.js pgorm-napi/licenses/** pgorm-napi/notices/**)
         checks {

@@ -14764,6 +14764,144 @@ children (
                     }
                 )
             }
+
+            {
+                id napi.decimal-literal
+                title "A Decimal is written as a tagged literal, dec`19.99`, with nothing interpolated: a type error under TypeScript and refused at run time"
+                kind @feat
+                sealed true
+                log (
+                    {
+                        at 2026-11-26T13:42:22.555667Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Todo → Doing (nplan start)"
+                    }
+
+                    {
+                        at 2026-11-26T13:58:18.213996Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.single-task-settle
+                title "A JavaScript operation runs as one task on the runtime, its panic caught by catch_unwind as Python's is, not by spawning its work as a second task"
+                kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-27T16:29:08.015658Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.stream-batches
+                title "A row stream pulls rows from the runtime in batches, yielding them from a buffer, not one native call, runtime task and event-loop turn per row (perf-drizzle: 9.9 µs per streamed row against 0.63 read all at once, pg 0.96)"
+                kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T03:16:58.256994Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.row-decode
+                title "Rows reach JavaScript without the per-value costs perf-drizzle measured: jsonb parsed once from the server's text, Decimal and Uuid built without a JavaScript call per value, row objects built without Object.fromEntries' pair arrays, and fewer Node-API calls per value"
+                kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T02:49:51.902642Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.pool-recycle-default
+                title "Both bindings' pools default to Rust's recycling method, Fast, as connect does, not Verified's empty query on every acquire (perf-drizzle: 20.0k against 36.2k ops/s under four workers)"
+                kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T01:15:47.287142Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
+            }
+
+            {
+                id napi.model-statement-reuse
+                title "A model query whose shape repeats does not rebuild its statement through the addon on every call (perf-drizzle: the model path costs about 13 µs over the raw path on a primary-key lookup)"
+                kind @perf
+            }
+
+            {
+                id napi.stream-end
+                title "A stream reports its end with its last batch, so reaching the end costs no pull of its own (napi.stream-batches: the kept end is one more crossing, about 10 to 20 µs a stream, most of a one-row stream's cost)"
+                kind @perf
+            }
+
+            {
+                id napi.transaction-cost
+                title "A transaction costs no more than Drizzle's over node-postgres, its gap attributed first (perf-drizzle: 217 µs against Drizzle's 193, pg 181 and postgres.js 187)"
+                kind @perf
+            }
+
+            {
+                id napi.numeric-text
+                title "A numeric column crosses as text written straight from the server's binary form, held to ExactDecimal's range, rather than decoded to rust_decimal and formatted (napi.row-decode: numeric the slowest scalar left, 1.3 to 1.65 times pg)"
+                kind @perf
+            }
+
+            {
+                id napi.temporal-columns
+                title "Date, time, timestamp, interval and array columns are built a column at a time, as napi.row-decode builds Decimal, Uuid and instants, not by a call into JavaScript per value"
+                kind @perf
+            }
+
+            {
+                id napi.drizzle-rerun
+                title "docs/performance/drizzle-results.md records the Drizzle comparison rerun on an idle machine after the pool, row and stream fixes, its findings and limitations restated, with the harness's attribution narrowed to the workloads a run selects"
+                kind @docs
+            }
+
+            {
+                id napi.row-decode-python
+                title "pgorm-python's rows cross as napi.row-decode's do: a column at a time, and a json or jsonb document passed as the server's text to one parse rather than rebuilt value by value"
+                kind @perf
+            }
+
+            {
+                id napi.terse-models
+                title "A JavaScript model is declared in the lighter object form: fields at the top level with relations and options in a third argument, a bare kind string for a column without options, key(), numeric(), varchar(n) and nullable() for the common shapes, and camelCase fields named as snake_case columns by default, every type still inferred from the one declaration"
+                kind @feat
+                log (
+                    {
+                        at 2026-11-28T03:21:20.415567Z
+                        author "brendan@necessary.nu"
+                        kind @decision
+                        text "2026-11-26, operator: \"Can we use decorators in TS and/or Python as well? Right now it's quite object heavy\", then, of the proposed lighter object form, \"your js proposals are good\". Not decorators: Node 26.11 refuses `@decorator` syntax, both in .mjs and under its own type stripping, so every user would need a transpile step, and a decorator cannot produce a type, so each field would carry a TypeScript type and a decorator naming its SQL type, two declarations that can drift. The proposed form: model(name, fields, options) with no `columns:` level; a bare kind string (\"varchar\", \"bool\") for a column with no options; key(\"i32\") (primary key, auto-increment), numeric(10, 2), varchar(n), nullable(\"text\"); camelCase fields map to snake_case column names by default, a breaking change to today's default. Scopes and personal data take the same form: scoped(CompanyId), personal(CvAnswer, \"text\")."
+                    }
+                )
+            }
         )
         log (
             {
@@ -23117,6 +23255,95 @@ children (
                 author "brendan@necessary.nu"
                 kind @status
                 text "Doing → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id sql-templates
+        title "SQL and PRQL are written as templates whose interpolations are bound parameters, checked once per call site: sql`..${id}` and prql`..` in JavaScript, pgorm.sql(t\"..{id}\") in Python"
+        kind @feat
+        children (
+            {
+                id sql-templates.napi
+                title "JavaScript's sql`..` and prql`..` tag templates: each ${..} a bound parameter, the text checked once per call site through its strings array"
+            }
+
+            {
+                id sql-templates.python
+                title "Python's pgorm.sql and pgorm.prql take a 3.14 t-string, each {..} a bound parameter, the text checked once per distinct template"
+            }
+        )
+        log (
+            {
+                at 2026-11-26T13:54:19.027863Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"it would be nice to have sql`` and prql`` to prevalidate and brand the string so the validity checks can be skipped\", then chose bound parameters over literal-only. Design: each ${..} (JavaScript) or {..} (Python t-string) becomes the next $n placeholder with its value bound, never pasted, so a value cannot be injected and placeholders are not numbered by hand; text holding an identifier or keyword where a parameter cannot stand is refused by the grammar check. The check (PostgreSQL 19's grammar, pgorm::sql_check, and PRQL's compile) runs once per call site: a tagged template passes the same TemplateStringsArray object on every evaluation, so a WeakMap keyed on it caches the checked text; Python caches by the template's strings tuple. The result is a branded statement (text, values, and whether it only reads, from the read/write classification sql! makes in Rust, Sql<Reads>/Sql<Writes>) that every raw-statement entry point accepts, so a branded statement is not scanned again (the COPY guard) and a read-only connection (read-only.python, read-only.napi) can accept one that only reads. sql(\"..\") / prql(\"..\", values) stay for text known only at run time. Context: running a raw statement does not re-run the grammar check today; sql() checks when called and returns the string, and execution scans only for COPY."
+            }
+        )
+    }
+
+    {
+        id perf-drizzle
+        title "pgorm's JavaScript binding is measured against Drizzle ORM and the raw Node drivers on matched workloads, the same SQL checked on every side, and the results recorded with their conditions"
+        kind @perf
+        sealed true
+        log (
+            {
+                at 2026-11-26T14:42:35.376346Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"What I want us to do first is actually do a performance comparison with drizzle\" (before building personal-data, which is to be planned and specified only). Method follows docs/performance/README.md's driver_baseline: paired workloads, rounds alternating order, every result checked, conditions recorded (versions, load averages, server sessions). Sides: pgorm-napi's release addon; Drizzle ORM over node-postgres (pg) and over postgres.js, each with and without Drizzle's .prepare(); and the raw pg and postgres.js drivers as the floor."
+            }
+
+            {
+                at 2026-11-26T14:43:19.760556Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"important: we are comparing like to like, so the code must be in TypeScript for both.\" Every side's benchmark code is TypeScript, run by the same runtime the same way: pgorm through @necessary/pgorm's TypeScript API (its native addon is part of what is measured, as Drizzle's driver is part of Drizzle's), Drizzle through its own TypeScript API, the raw drivers through theirs. Rust's driver_baseline is not part of this comparison."
+            }
+
+            {
+                at 2026-11-27T22:43:18.252169Z
+                author "brendan@necessary.nu"
+                kind @status
+                text "Doing → Done (nplan complete)"
+            }
+        )
+    }
+
+    {
+        id python-class-models
+        title "A Python model is declared as a class of annotated fields on pgorm.Model with class keywords (table, schema, unique), each field's column type read from its annotation (str text, Decimal numeric, X | None nullable, a Scope subclass a scope column) with options in Annotated[...] or = pgorm.column(...), typed for mypy strict through dataclass_transform, beside the object form for models known only at run time"
+        kind @feat
+        log (
+            {
+                at 2026-11-28T03:21:20.61908Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator: \"Can we use decorators in TS and/or Python as well? Right now it's quite object heavy\". Proposed for Python: classes with annotations, `class Customer(pgorm.Model, table=\"customer\", unique=[(\"email\",)])`, fields `id: Annotated[int, pgorm.key(auto_increment=True)]`, `notes: str | None`. A base class with class keywords rather than a @pgorm.model decorator, since mypy cannot see methods a decorator adds; @dataclass_transform gives mypy strict the fields and constructor. The object form stays for models known only at run time (codegen, tools). Scope columns are found by type (`company_id: CompanyId`) and personal fields by Annotated (`Annotated[str, CvAnswer]`). The operator endorsed the JavaScript proposal explicitly; this Python shape was proposed beside it and is filed for the operator's go-ahead."
+            }
+        )
+    }
+
+    {
+        id personal-data
+        title "Personal data is declared once in code, by subject, processing activity and category with each personal field naming its category, and pgorm finds, exports, erases and expires a subject's data from those declarations, writes the Art. 30 record from them, keeps their values out of its own output, and carries the same logic into the database through generated migrations"
+        kind @feat
+        children (
+            {
+                id personal-data.spec
+                title "docs/spec/personal-data.md specifies the personal-data design as rules, Rust first and then the bindings' dialects, and the WBS under personal-data is filed against those rules, each build node implementing its own"
+                kind @docs
+            }
+        )
+        log (
+            {
+                at 2026-11-28T03:22:19.240958Z
+                author "brendan@necessary.nu"
+                kind @decision
+                text "2026-11-26, operator, in order: \"how can we mark a column as PII for GDPR compliance?\"; \"We need a more detailed answer for GDPR compliance. An attempt in Drizzle looks like this (and I hate it)\" (every column tagged, NOT_PII included, subject, retention and purposes repeated as strings per column); of a row-level policy, \"Declaring it on a model isn't necessary useful; often it's just an individual field\"; \"okay but can we achieve this at a database level, or can this only be in pgorm\" (answered: both, the code the source of truth and pgorm generating the database side into frozen migrations); \"your js proposals are good; but still don't quite answer the gdpr pile\" (answered: subjects, activities and categories declared once in one privacy module, the field naming only its category); then \"I would say wbs and spec up the personal-data item, but we're not going to build it right away.\" So this container is planned and specified only; no build node starts without the operator's go-ahead."
             }
         )
     }

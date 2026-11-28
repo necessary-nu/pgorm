@@ -87,7 +87,7 @@ pub(crate) fn counted<'py>(
 /// A stream of `statement`'s rows, each decoded by `decoder`, opened by the
 /// package's stream helper on a pool's connection of its own or on a
 /// connection, which the stream holds until it ends.
-// [spec:pgorm:req:bindings.streams+1]
+// [spec:pgorm:req:bindings.streams+2]
 pub(crate) fn stream<'py>(
     py: Python<'py>,
     connection: &Bound<'py, PyAny>,

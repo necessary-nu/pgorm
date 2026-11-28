@@ -2,13 +2,13 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
   const raised = await pool.execute(
     "UPDATE cake SET price = price + $1 WHERE bakery_id = $2",
-    [new Decimal("0.50"), 2],
+    [dec`0.50`, 2],
   );
   assert.equal(raised, 2);
 

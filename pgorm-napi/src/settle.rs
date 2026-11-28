@@ -1,8 +1,9 @@
 //! How an operation's outcome crosses from the runtime back to JavaScript.
 
 use crate::errors::FailureJs as _;
-use std::future::Future;
+use std::{future::Future, panic::AssertUnwindSafe};
 
+use futures_util::FutureExt as _;
 use neon::prelude::*;
 
 use crate::{errors::Failure, runtime::runtime};
@@ -15,7 +16,11 @@ use crate::{errors::Failure, runtime::runtime};
 /// The channel handle the work holds keeps that thread's event loop alive
 /// while the work is in flight, and releases it once the settling closure has
 /// been queued. Work that panics rejects with an `InternalError`, so no
-/// promise is left pending by a failure on the runtime.
+/// promise is left pending by a failure on the runtime: the panic is caught
+/// around the work alone, so the task still holds the `Deferred` and settles
+/// it. Nothing of the caller's is held across the unwind but what the work
+/// owns, which the unwind drops, so asserting it unwind-safe observes no
+/// broken invariant.
 // [spec:pgorm:req:napi.promises]
 pub(crate) fn promise<'cx, T, W, R>(
     cx: &mut FunctionContext<'cx>,
@@ -31,13 +36,10 @@ where
     let channel = cx.channel();
     let (deferred, promise) = cx.promise();
     runtime.spawn(async move {
-        let outcome = match runtime.spawn(work).await {
-            Ok(outcome) => outcome,
-            Err(error) if error.is_panic() => {
-                Err(pgorm_bindings::panicked(error.into_panic().as_ref()))
-            }
-            Err(_) => Err(Failure::Internal("pgorm's task was cancelled".to_owned())),
-        };
+        let outcome = AssertUnwindSafe(work)
+            .catch_unwind()
+            .await
+            .unwrap_or_else(|payload| Err(pgorm_bindings::panicked(payload.as_ref())));
         // A send fails only once the instance is being torn down — the
         // process exiting or its worker terminated — when no JavaScript is
         // left to settle the promise for, and the outcome is dropped.

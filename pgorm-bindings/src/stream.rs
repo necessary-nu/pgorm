@@ -1,10 +1,11 @@
-//! Row streams: pgorm's `query_raw` row stream, pulled a row at a time, so
-//! the driver's bounded buffer and the socket hold back the server while the
-//! language is not asking for rows.
+//! Row streams: pgorm's `query_raw` row stream, pulled a batch of rows at a
+//! time, so the driver's bounded buffer and the socket hold back the server
+//! while the language is not asking for rows, and the language crosses into
+//! the runtime once per batch rather than once per row.
 
 use std::{fmt, pin::Pin, sync::Arc};
 
-use futures_util::TryStreamExt;
+use futures_util::{FutureExt, TryStreamExt};
 use pgorm::{ConnectionMut, SqlText, Writes, pgorm_query::Value};
 use pgorm_driver::{Row, RowStream, types::ToSql};
 use tokio::sync::Mutex;
@@ -17,6 +18,22 @@ use crate::{
 };
 
 const STREAM_CLOSED: &str = "the stream is closed";
+
+/// The most rows a stream's first pull takes, so its first row waits on the
+/// decoding of few others. Each later pull may take twice as many as the one
+/// before, up to [`MOST_ROWS`], so a program that reads a few rows and stops
+/// decodes few it never reads, and one that reads many crosses into the
+/// runtime once per [`MOST_ROWS`] rows.
+const FIRST_ROWS: usize = 16;
+
+/// The most rows one pull takes. Past it, the crossing a pull costs (a task,
+/// two wake-ups and a turn of the language's event loop) is a small part of
+/// what decoding its rows costs, and a larger batch only holds more memory.
+const MOST_ROWS: usize = 256;
+
+/// The row bytes past which a pull takes no further row, so a batch of wide
+/// rows holds about this much and no more than one row beyond it.
+const MOST_BYTES: usize = 1 << 20;
 
 /// What a stream holds while it reads: its connection, taken out of its
 /// slot, or its transaction, reserved. Released at the last row; dropped
@@ -35,24 +52,35 @@ impl<O: Send + Sync + 'static> Hold<O> {
     }
 }
 
-/// The open result and what it holds.
-struct Active<O> {
-    rows: Pin<Box<RowStream>>,
-    hold: Hold<O>,
+/// What a pull met after the rows it took, which the next pull reports, so
+/// the rows before it reach the language first.
+enum Ahead<E> {
+    End,
+    Failed(pgorm_driver::Error),
+    Refused(E),
 }
 
-/// A stream, which holds its connection or transaction until its last row
-/// or its close.
-pub struct StreamState<O = ()> {
+/// The open result, what it holds, and what the last pull met after its rows.
+struct Active<O, E> {
+    rows: Pin<Box<RowStream>>,
+    hold: Hold<O>,
+    ahead: Option<Ahead<E>>,
+    /// The most rows the next pull takes.
+    limit: usize,
+}
+
+/// A stream, which holds its connection or transaction until a pull finds
+/// its end, or its close; `E` is what its rows' decode refuses with.
+pub struct StreamState<O = (), E = Failure> {
     connection: Arc<ConnectionState<O>>,
-    active: Arc<Mutex<Option<Active<O>>>>,
+    active: Arc<Mutex<Option<Active<O, E>>>>,
     cancelled: CancellationToken,
     finished: CancellationToken,
     /// Fires when the transaction a transaction's stream reads in ends.
     ended: CancellationToken,
 }
 
-impl<O> fmt::Debug for StreamState<O> {
+impl<O, E> fmt::Debug for StreamState<O, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("StreamState")
             .field(
@@ -72,7 +100,7 @@ async fn query_raw<T: SqlText<Kind = Writes> + Sync + ?Sized>(
     db.query_raw(sql, params.iter().copied()).await
 }
 
-impl<O: Send + Sync + 'static> StreamState<O> {
+impl<O: Send + Sync + 'static, E: Send + 'static> StreamState<O, E> {
     fn held(
         connection: Arc<ConnectionState<O>>,
         rows: RowStream,
@@ -84,6 +112,8 @@ impl<O: Send + Sync + 'static> StreamState<O> {
             active: Arc::new(Mutex::new(Some(Active {
                 rows: Box::pin(rows),
                 hold,
+                ahead: None,
+                limit: FIRST_ROWS,
             }))),
             cancelled: CancellationToken::new(),
             finished: CancellationToken::new(),
@@ -95,7 +125,7 @@ impl<O: Send + Sync + 'static> StreamState<O> {
 
     /// `sql`'s rows on the connection `operation` took, which the stream
     /// holds until its last row.
-    // [spec:pgorm:req:bindings.streams+1]
+    // [spec:pgorm:req:bindings.streams+2]
     pub async fn on_connection<P: ToSql + Send + Sync + 'static>(
         operation: Operation<O>,
         sql: String,
@@ -135,7 +165,7 @@ impl<O: Send + Sync + 'static> StreamState<O> {
     /// `sql`'s rows in the transaction `state`, the stream holding the lock
     /// taken as the language opened it until its last row. A statement the
     /// server refuses leaves the transaction as any failed statement does.
-    // [spec:pgorm:req:bindings.streams+1]
+    // [spec:pgorm:req:bindings.streams+2]
     pub async fn in_transaction<P: ToSql + Send + Sync + 'static>(
         state: &Arc<State<O>>,
         lock: tokio::sync::OwnedMutexGuard<()>,
@@ -197,17 +227,32 @@ impl<O: Send + Sync + 'static> StreamState<O> {
         self.finished.cancel();
     }
 
-    /// The next row, as `decode` reads it, or `None` at the end, which
-    /// releases what the stream holds. A row `decode` refuses, a failure or
-    /// a pull cut off discards what the stream holds, its state unknown; one
-    /// the server ended the statement with leaves it known, as the last row
+    /// Whether a pull could give a row: the stream is neither closed nor
+    /// finished, and neither its connection nor its transaction has closed.
+    /// A language yields the rows a pull took only while this holds, so it
+    /// never yields a row the next pull would refuse.
+    pub fn pullable(&self) -> bool {
+        !(self.cancelled.is_cancelled()
+            || self.finished.is_cancelled()
+            || self.ended.is_cancelled()
+            || self.connection.is_closed())
+    }
+
+    /// The next rows, at least one, as `decode` reads each, or `None` at the
+    /// end, which releases what the stream holds. A pull waits for one row,
+    /// then takes the rows already received, up to its limit, without
+    /// waiting for more. What it meets after them, the end, a failure or a
+    /// row `decode` refuses, is the next pull's, which reports it as a pull
+    /// meeting it first does. A row `decode` refuses, a failure or a pull
+    /// cut off discards what the stream holds, its state unknown; one the
+    /// server ended the statement with leaves it known, as the last row
     /// does: a transaction's is aborted, and its commit reports so.
-    // [spec:pgorm:req:bindings.streams+1]
-    pub async fn next<T, E>(
+    // [spec:pgorm:req:bindings.streams+2]
+    pub async fn next<T>(
         &self,
         cancel: &CancellationToken,
-        decode: impl FnOnce(Row) -> Result<T, E>,
-    ) -> Result<Option<Result<T, E>>, Failure> {
+        mut decode: impl FnMut(Row) -> Result<T, E>,
+    ) -> Result<Option<Result<Vec<T>, E>>, Failure> {
         self.connection.ensure_open()?;
         if self.cancelled.is_cancelled() {
             return Err(Failure::Lifecycle(STREAM_CLOSED.to_owned()));
@@ -221,7 +266,10 @@ impl<O: Send + Sync + 'static> StreamState<O> {
         let Some(mut active) = slot.take() else {
             return Ok(None);
         };
-        let row = tokio::select! {
+        if let Some(ahead) = active.ahead.take() {
+            return self.reached(active, ahead);
+        }
+        let first = tokio::select! {
             biased;
             () = cancel.cancelled() => return Err(Failure::Cancelled),
             () = self.cancelled.cancelled() => {
@@ -236,26 +284,64 @@ impl<O: Send + Sync + 'static> StreamState<O> {
             }
             row = active.rows.try_next() => row,
         };
-        match row {
-            Ok(Some(row)) => {
-                let decoded = decode(row);
-                if decoded.is_ok() {
-                    *slot = Some(active);
+        let row = match first {
+            Ok(Some(row)) => row,
+            Ok(None) => return self.reached(active, Ahead::End),
+            Err(error) => return self.reached(active, Ahead::Failed(error)),
+        };
+        let mut bytes = row.raw_size_bytes();
+        let mut rows = Vec::with_capacity(active.limit);
+        match decode(row) {
+            Ok(decoded) => rows.push(decoded),
+            Err(refused) => return self.reached(active, Ahead::Refused(refused)),
+        }
+        while rows.len() < active.limit && bytes < MOST_BYTES {
+            let Some(next) = active.rows.try_next().now_or_never() else {
+                break;
+            };
+            let ahead = match next {
+                Ok(Some(row)) => {
+                    bytes += row.raw_size_bytes();
+                    match decode(row) {
+                        Ok(decoded) => {
+                            rows.push(decoded);
+                            continue;
+                        }
+                        Err(refused) => Ahead::Refused(refused),
+                    }
                 }
-                Ok(Some(decoded))
-            }
-            Ok(None) => {
+                Ok(None) => Ahead::End,
+                Err(error) => Ahead::Failed(error),
+            };
+            active.ahead = Some(ahead);
+            break;
+        }
+        active.limit = (active.limit * 2).min(MOST_ROWS);
+        *slot = Some(active);
+        Ok(Some(Ok(rows)))
+    }
+
+    /// Report what a pull met with no rows before it: the end, which
+    /// releases what the stream holds, a failure, or a row's refusal.
+    fn reached<T>(
+        &self,
+        active: Active<O, E>,
+        ahead: Ahead<E>,
+    ) -> Result<Option<Result<Vec<T>, E>>, Failure> {
+        match ahead {
+            Ahead::End => {
                 active.hold.release();
                 self.finished.cancel();
                 Ok(None)
             }
-            Err(error) => {
+            Ahead::Failed(error) => {
                 if error.as_db_error().is_some() {
                     active.hold.release();
                     self.finished.cancel();
                 }
                 Err(self.connection.pool.failure(&error.into()))
             }
+            Ahead::Refused(refused) => Ok(Some(Err(refused))),
         }
     }
 

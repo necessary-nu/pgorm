@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { addDisjointKind, column, createDisjoint, Decimal, disjoint, model, TypeName } from "@necessary/pgorm";
+import { addDisjointKind, column, createDisjoint, dec, disjoint, model, TypeName } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -57,7 +57,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   }
 
   const [, kind, voucher] = await Payments
-    .insert({ orderId: 2, amount: new Decimal("3.80") }, "voucher", { code: "XMAS-2026" })
+    .insert({ orderId: 2, amount: dec`3.80` }, "voucher", { code: "XMAS-2026" })
     .returningModel(pool);
   assert.equal(kind, "voucher");
   assert.deepEqual(voucher, { paymentId: 1, code: "XMAS-2026" });

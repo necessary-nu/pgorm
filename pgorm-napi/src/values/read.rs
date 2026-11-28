@@ -56,7 +56,7 @@ pub(crate) fn text<'cx>(
 /// A JavaScript string as UTF-8. A lone surrogate has no UTF-8 form, and is
 /// refused rather than replaced with U+FFFD as Node-API's own conversion
 /// would.
-// [spec:pgorm:req:napi.values+1]
+// [spec:pgorm:req:napi.values+2]
 pub(crate) fn string<'cx>(cx: &mut Cx<'cx>, data: Handle<'cx, JsValue>) -> NeonResult<String> {
     let Ok(text) = data.downcast::<JsString, _>(cx) else {
         return refuse(cx, "expected a string");
@@ -513,7 +513,7 @@ fn decimal<'cx>(
 
 /// A decimal written in plain notation, held exactly: at most 28 fractional
 /// digits and a 96-bit coefficient, rust_decimal's and so pgorm's range.
-// [spec:pgorm:req:napi.values+1]
+// [spec:pgorm:req:napi.values+2]
 pub(crate) fn parse_decimal<'cx>(cx: &mut Cx<'cx>, text: &str) -> NeonResult<Decimal> {
     let body = text.strip_prefix(['-', '+']).unwrap_or(text);
     let (whole, fraction) = body.split_once('.').unwrap_or((body, ""));

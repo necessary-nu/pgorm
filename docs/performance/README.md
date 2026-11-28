@@ -7,6 +7,9 @@ pool acquisition. The separate native harness compares the embedded engine,
 
 [The recorded Turso results](turso-results.md) include the retained implementation,
 the rejected batching experiment, raw evidence, and measurement limitations.
+[The recorded Drizzle comparison](drizzle-results.md) measures pgorm's JavaScript
+binding against Drizzle ORM and the raw Node.js drivers; its harness is
+described [below](#javascript-pgorm-napi-against-drizzle-and-the-nodejs-drivers).
 
 Run from the repository root, with the normal test server available:
 
@@ -238,3 +241,102 @@ retaining the direct engine control and alternating variant order for each
 fixed storage mode: two repeats start with before and two start with after.
 Python-only scheduling changes do not require recompiling the preserved
 executables; each window records the exact runner SHA256 used.
+
+## JavaScript: pgorm-napi against Drizzle and the Node.js drivers
+
+`benches/drizzle` is an npm package of its own that measures pgorm's
+JavaScript binding, `@necessary/pgorm` (a `file:` dependency on
+`pgorm-napi`), against Drizzle ORM and the raw `pg` (node-postgres) and
+`postgres` (postgres.js) drivers on `driver_baseline`'s workloads. Every side
+is TypeScript, run by one Node.js process through type stripping, so each
+side's own JavaScript and native code is what is measured: pgorm's addon is
+part of pgorm's cost as each driver is part of Drizzle's. Rust is not one of
+the sides.
+
+Build the release addon, install the harness's locked dependencies, check its
+types, and run it from its directory:
+
+```sh
+node pgorm-napi/scripts/build.mjs --release
+cd benches/drizzle
+npm ci
+npx tsc --noEmit
+node --expose-gc src/main.ts --require-idle true --label recorded
+node src/main.ts summarize ../../target/drizzle-bench/<stamp>.json
+```
+
+The harness refuses an addon that is not the `addon` profile's build (the
+release profile with fat LTO, as `build.mjs --release` writes it), matched by
+its bytes against `target/addon/`; `--allow-unverified-addon true` runs one
+anyway and records which profile, if any, it matched. `--require-idle true`
+refuses to start, saying why, while a Time Machine backup runs, while the
+one-minute load average is at or above `--idle-load` (4), or while any `cargo`
+or `rustc` process runs. `--expose-gc` lets the harness collect garbage
+between workloads, so one workload's garbage is not collected during the
+next one's timed operations; without it the report says no collection ran.
+
+The connection string is `PGORM_TEST_DSN`, or `DATABASE_URL` from the
+environment, `.env.local` or `.env`, as pgorm-napi's live suite reads it: the
+harness imports `scratchDatabase` from `pgorm-napi/tests/support.ts`, so its
+database has the run-scoped name and the sweep of crashed runs' leftovers that
+suite has, and it is dropped when the run ends, a failed check included.
+Reports go to `target/drizzle-bench/<stamp>.json` with a Markdown summary
+beside it, or to `--output`. They hold no password or connection string.
+
+Defaults follow `driver_baseline`: 100 warmup and 1,000 measured operations
+per workload, three rounds, four workers over a pool of four, 128 rows. The
+options are `--warmup`, `--samples`, `--rounds`, `--workers`, `--pool-size`,
+`--rows`, `--attribution-rows` (1,128,1024), `--cursor-batch` (100),
+`--sides` and `--workloads` (comma lists, every one by default),
+`--attribution` (true), `--raw-samples` (false), `--label`, and `--output`.
+
+The sides are pgorm's raw statement path (`pgorm/raw`: SQL text and values on
+a `Connection`) and its model path (`pgorm/orm`: `model`, `findByKey`,
+`find().orderBy().limit()`, `update().where()`, as the JavaScript guide reads
+and writes rows); Drizzle over node-postgres and over postgres.js, each with
+its `.prepare()` (statements built once with `sql.placeholder`) and without
+it; and each raw driver prepared (node-postgres's named query config,
+postgres.js's default `prepare: true`) and unprepared (plain text;
+`prepare: false`). pgorm prepares and caches every statement on its
+connection and has no unprepared mode. After its workloads, each side's
+session reads `pg_prepared_statements`, so the report records what each side
+actually holds prepared on the server.
+
+The workloads are `scalar`, `params16`, `model_lookup`, `update16` and
+`transaction` as in `driver_baseline`; `rows_all` and `rows_stream` (the 128
+rows of `bench_row` into objects, all at once or pulled one at a time: pgorm's
+`stream()`, `pg-query-stream`, postgres.js's `cursor()`); `wide_all` (128 rows
+of an int8, numeric, timestamptz, uuid, text, boolean and jsonb table); and
+`concurrent_pool`, each side's pool-level query from concurrent async loops.
+A side with no statement of its own for a workload is reported as n/a with
+the reason: Drizzle has no PostgreSQL stream, Drizzle's raw `db.execute` has
+no `.prepare()`, and pgorm's model API adds nothing to raw SQL for a scalar.
+Within a round the sides run each workload one after another, in an order
+rotated every round, so a workload's sides are measured close together in
+time. Each round then runs the attribution: `rows_all`, `wide_all` and
+`rows_stream` at each attribution row count; for pgorm, the native call alone
+(the addon's result arrays, before any row object is made) and the row
+objects alone (built from a result fetched once); one column of each type of
+the wide table at a time; text 32 B, 1 KiB and 16 KiB wide; and each side's
+pool query with one operation in flight, with pgorm's pool also measured with
+`recycle: "verified"` beside its default `"fast"`.
+
+Every result is checked, warmup included, after the clock stops, so neither
+an error nor a wrong answer is a fast query: values are normalised only for
+the check (an int8 compared as text whether a side read a string or a bigint,
+a numeric without trailing zeros, an instant as Unix milliseconds), and each
+side keeps its own defaults, whose conversions are part of what it costs.
+The update writes row 17's own values back, so every round reads the fixture
+it started with. Sequential throughput is samples over the sum of their
+latencies; concurrent throughput is wall-clock, as `driver_baseline` reports
+it.
+
+Each report records the Node.js version and flags, every resolved package
+version, the addon's profile and SHA-256, SHA-256 fingerprints of the
+harness's sources and of pgorm-napi's JavaScript at the start and end, git
+HEAD and status, the OS and CPU, the load averages and Time Machine state at
+the start and end of every round, the `cargo`, `rustc` and `node` processes
+running at the start, the PostgreSQL version, the settings `driver_baseline`
+records plus `plan_cache_mode` and `jit`, and the other server sessions at the
+start. Like the Rust harnesses, it measures latency only: no allocations,
+copies or memory.

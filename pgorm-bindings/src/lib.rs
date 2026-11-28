@@ -48,7 +48,7 @@ pub use hook::{HookCall, HookEvent, HookJob, HookJobs, hook};
 pub use insert::{
     InsertConflict, InsertTerminal, InsertWrite, Inserted, Insertion, TryInsertTerminal, insert,
 };
-pub use json::{ExactJson, MAX_DEPTH as JSON_MAX_DEPTH};
+pub use json::{ExactJson, ExactJsonText, MAX_DEPTH as JSON_MAX_DEPTH};
 pub use kind::{CreatedKind, Tag, TypeName, labels};
 pub use listen::{ListenRequest, ListenerState, Received};
 pub use metrics::{Database, Hook, Metrics, Report, Reporter};

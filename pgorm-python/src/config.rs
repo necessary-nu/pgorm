@@ -50,24 +50,25 @@ pub(crate) fn tls(
     })
 }
 
-/// The `recycle` and `recycle_sql` options: one of the named methods, or
-/// SQL of the program's own.
+/// The `recycle` and `recycle_sql` options: one of the named methods, SQL of
+/// the program's own, or neither, which pgorm-bindings decides.
 pub(crate) fn recycling(
-    recycle: &str,
+    recycle: Option<&str>,
     recycle_sql: Option<String>,
-) -> PyResult<pgorm::RecyclingMethod> {
+) -> PyResult<Option<pgorm::RecyclingMethod>> {
     let named = match recycle {
-        "verified" => pgorm::RecyclingMethod::Verified,
-        "fast" => pgorm::RecyclingMethod::Fast,
-        "clean" => pgorm::RecyclingMethod::Clean,
-        _ => {
+        None => None,
+        Some("verified") => Some(pgorm::RecyclingMethod::Verified),
+        Some("fast") => Some(pgorm::RecyclingMethod::Fast),
+        Some("clean") => Some(pgorm::RecyclingMethod::Clean),
+        Some(_) => {
             return Err(PyTypeError::new_err(
                 "recycle is 'verified', 'fast' or 'clean'",
             ));
         }
     };
     Ok(match recycle_sql {
-        Some(sql) => pgorm::RecyclingMethod::Custom(sql),
+        Some(sql) => Some(pgorm::RecyclingMethod::Custom(sql)),
         None => named,
     })
 }
@@ -75,7 +76,7 @@ pub(crate) fn recycling(
 /// What one pool's shape says, as Python gave it, read into Rust as the
 /// pool is built: its size and timeouts, the order it lends in, and the
 /// runtime module's wrappers of its hooks.
-// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:bindings.connections+5]
 #[pyclass(name = "_PoolShape", module = "pgorm._native", frozen)]
 pub(crate) struct NativePoolShape(pub(crate) PoolOptions<Arc<Py<PyAny>>>);
 

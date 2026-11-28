@@ -2,7 +2,7 @@
 // chapter, then run the test with PGORM_GUIDE_WRITE=1 to write this again.
 
 import assert from "node:assert/strict";
-import { column, Decimal, fromModel, model } from "@necessary/pgorm";
+import { column, dec, fromModel, model } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ pool }: GuideContext): Promise<void> {
@@ -14,11 +14,11 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   });
   await pool.execute(fromModel(TipJar).table);
 
-  const tips = await TipJar.insert({ amount: new Decimal("12.345") }).returning().one(pool);
+  const tips = await TipJar.insert({ amount: dec`12.345` }).returning().one(pool);
   // Rounded to the currency's two places.
   assert.equal(String(tips.amount), "12.35");
 
-  const query = TipJar.find().where(TipJar.col("amount").gt(new Decimal("10")));
+  const query = TipJar.find().where(TipJar.col("amount").gt(dec`10`));
   assert.equal(
     query.inspect().sql,
     `SELECT "tip_jar"."id", CAST("tip_jar"."amount" AS numeric) AS "amount" FROM "tip_jar" WHERE "tip_jar"."amount" > CAST($1::numeric AS money)`,

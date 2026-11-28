@@ -11,8 +11,9 @@ import { RowStream } from "./streams.js";
 
 /**
  * Run a built statement and resolve with its result as the addon gives it,
- * `[names, rows, kinds]` — each row an array of values in column order, and
- * each column's kind — for a model to decode against its declaration.
+ * `[names, columns, kinds, count]` — each column an array of its values in
+ * row order, each column's kind, and the row count — for a model to decode
+ * against its declaration.
  * [spec:pgorm:req:bindings.model-records+2]
  *
  * @param {unknown} db
@@ -37,7 +38,7 @@ export async function runStatement(db, terminal, statement, options) {
  * codec, or a registered read's selector. `what` names the read in the
  * refusal of any other database.
  * [spec:pgorm:req:bindings.disjoint+2]
- * [spec:pgorm:req:bindings.streams+1]
+ * [spec:pgorm:req:bindings.streams+2]
  *
  * @param {unknown} db
  * @param {unknown} statement

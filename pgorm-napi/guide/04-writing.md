@@ -29,12 +29,12 @@ nullable, defaulted nor generated, and accepts only the fields the model has
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, type InsertOf } from "@necessary/pgorm";
+import { dec, type InsertOf } from "@necessary/pgorm";
 
 const muffin: InsertOf<typeof Cake> = {
   name: "Blueberry Muffin",
   flavor: "vanilla",
-  price: new Decimal("2.75"),
+  price: dec`2.75`,
   glutenFree: false,
   bakeryId: 2,
 };
@@ -95,12 +95,12 @@ type, since it travels as text:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
 const { sql, values } = Cake.insert({
   name: "Mocha Cupcake",
   flavor: "chocolate",
-  price: new Decimal("3.10"),
+  price: dec`3.10`,
   glutenFree: false,
   bakeryId: 1,
 }).inspect();
@@ -159,9 +159,9 @@ A batch whose rows set different fields:
 
 ```ts
 import assert from "node:assert/strict";
-import { ConstructionError, Decimal } from "@necessary/pgorm";
+import { ConstructionError, dec } from "@necessary/pgorm";
 
-const price = new Decimal("1.00");
+const price = dec`1.00`;
 assert.throws(
   () =>
     Cake.insertMany([
@@ -182,11 +182,11 @@ now is:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
 const fudge = await Cake.findByKey({ id: 1 }).one(pool);
 
-const cheaper = Cake.update({ price: new Decimal("3.99") }).where(Cake.key({ id: fudge.id }));
+const cheaper = Cake.update({ price: dec`3.99` }).where(Cake.key({ id: fudge.id }));
 assert.equal(cheaper.inspect().sql, `UPDATE "cake" SET "price" = $1 WHERE "cake"."id" = $2`);
 
 const updated = await cheaper.returning().one(pool);
@@ -209,10 +209,10 @@ changed, and `returning(..).all(db)` the rows themselves:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
 // Sunrise raises every price by fifty cents.
-const raise = Cake.update({ price: Cake.col("price").add(new Decimal("0.50")) })
+const raise = Cake.update({ price: Cake.col("price").add(dec`0.50`) })
   .where(Cake.col("bakeryId").eq(1));
 assert.equal(
   raise.inspect().sql,

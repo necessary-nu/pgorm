@@ -53,7 +53,7 @@ as `datatype`.
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal, ForeignKeyViolationError, NotNullViolationError, UniqueViolationError } from "@necessary/pgorm";
+import { dec, ForeignKeyViolationError, NotNullViolationError, UniqueViolationError } from "@necessary/pgorm";
 
 // Lee's address is taken.
 const duplicate = await Customer.insert({ name: "Lee Two", email: "lee@example.com" })
@@ -67,7 +67,7 @@ assert.equal(duplicate.constraint, "customer_email_key");
 const orphan = await Cake.insert({
   name: "Ghost Cake",
   flavor: "vanilla",
-  price: new Decimal("1.00"),
+  price: dec`1.00`,
   glutenFree: false,
   bakeryId: 99,
 }).execute(pool).catch((error: unknown) => error);
@@ -93,7 +93,7 @@ oven from overlapping:
 
 ```ts
 import assert from "node:assert/strict";
-import { CheckViolationError, Decimal, ExclusionViolationError } from "@necessary/pgorm";
+import { CheckViolationError, dec, ExclusionViolationError } from "@necessary/pgorm";
 
 await pool.batchExecute(`
   ALTER TABLE cake ADD CONSTRAINT cake_price_positive CHECK (price > 0);
@@ -105,7 +105,7 @@ await pool.batchExecute(`
   )`);
 
 const free = await pool
-  .execute("UPDATE cake SET price = $1 WHERE id = 1", [new Decimal("0")])
+  .execute("UPDATE cake SET price = $1 WHERE id = 1", [dec`0`])
   .catch((error: unknown) => error);
 assert.ok(free instanceof CheckViolationError);
 assert.equal(free.constraint, "cake_price_positive");

@@ -21,7 +21,7 @@ T = TypeVar("T", default=Record)
 U = TypeVar("U")
 
 
-# [spec:pgorm:req:bindings.streams+1]
+# [spec:pgorm:req:bindings.streams+2]
 class RowStream(Generic[T]):
     """An async iterator owning an active native query and its connection.
 
@@ -30,7 +30,8 @@ class RowStream(Generic[T]):
     it. A stream from a Connection reserves that connection until EOF/close,
     and one from a Transaction that transaction, which an early close
     discards with its connection. A model's stream yields each row decoded as
-    its query decodes it.
+    its query decodes it. The native stream hands over the rows it has
+    received in batches, which the stream yields from memory.
     """
 
     def __init__(
@@ -43,6 +44,8 @@ class RowStream(Generic[T]):
         self._release_connection = release_connection
         self._closed = False
         self._decode: Callable[[Record], T] | None = None
+        self._batch: list[Any] = []
+        self._at = 0
 
     def _decoding(self, decode: Callable[[Record], U]) -> "RowStream[U]":
         """This stream, each row decoded by ``decode``: a decode that fails
@@ -63,15 +66,22 @@ class RowStream(Generic[T]):
     async def __anext__(self) -> T:
         if self._closed:
             raise StopAsyncIteration
-        pending = self._native.next()
-        try:
-            record = await pending
-        except BaseException:
-            await self.aclose()
-            raise
-        if record is None:
-            await self.aclose()
-            raise StopAsyncIteration
+        if self._at < len(self._batch) and self._native.pullable():
+            record = self._batch[self._at]
+            self._at += 1
+        else:
+            self._batch = []
+            pending = self._native.next()
+            try:
+                batch = await pending
+            except BaseException:
+                await self.aclose()
+                raise
+            if batch is None:
+                await self._finish()
+                raise StopAsyncIteration
+            self._batch, self._at = batch, 1
+            record = batch[0]
         if self._decode is None:
             return cast(T, record)
         try:
@@ -83,11 +93,22 @@ class RowStream(Generic[T]):
     async def aclose(self) -> None:
         pending = self._native.close()
         self._closed = True
+        self._batch = []
         try:
             await pending
         finally:
-            if self._release_connection and self._connection is not None:
-                await self._connection.close()
+            await self._release()
+
+    async def _finish(self) -> None:
+        """End the stream at the end its pull found, which released what the
+        native stream held, so there is nothing of it to close."""
+        self._closed = True
+        self._batch = []
+        await self._release()
+
+    async def _release(self) -> None:
+        if self._release_connection and self._connection is not None:
+            await self._connection.close()
 
     close = aclose
 

@@ -392,7 +392,7 @@ A pool holds the connections; a `Connection` is one of them checked out; a
 statement's rows over one. Each is a native handle that is released by being
 closed, and a transaction by the block or callback it was opened for ending.
 
-> [spec:pgorm:req:bindings.connections+4]
+> [spec:pgorm:req:bindings.connections+5]
 > A `Pool` MUST be built from a connection string and options, which are the
 > arguments of Rust's `connect_with` (`conn.pool`) a program in the binding's
 > language can give: TLS (`bindings.tls`); the `Config`'s connect timeout; the
@@ -402,7 +402,8 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `ManagerConfig`'s recycling method, its statement-cache size, its
 > statement-cache channel and its `tag`. Beside them is the binding's own
 > acquire timeout, which bounds the whole of an acquisition. The recycling
-> method is `recycle`'s `verified`, the default, `fast` or `clean`, or
+> method is `recycle`'s `fast`, the default, which is the method Rust's
+> `connect` recycles with (`conn.pool.recycle`), `verified` or `clean`, or
 > `recycle_sql`, SQL of the program's own, which is `RecyclingMethod::Custom`
 > and is a `TypeError` beside `recycle`. A pool's `tag` names it, and the
 > pool reports it, the `default-N` pgorm gives an untagged pool among them;
@@ -546,17 +547,27 @@ closed, and a transaction by the block or callback it was opened for ending.
 > entity's write that reads back no row, pgorm's `RecordNotFound`, is a
 > `DecodeError` too.
 
-> [spec:pgorm:req:bindings.streams+1]
+> [spec:pgorm:req:bindings.streams+2]
 > `stream` on a pool or a connection MUST give an async iterator over a
-> statement's rows through pgorm's `query_raw`, each pull giving one row, so
-> that the driver's bounded buffer and the socket hold the server back while
-> nothing pulls. A second pull while one is pending is refused. The stream holds its
-> connection until its last row, which frees it, or until it is closed or
-> abandoned early, which discards the connection if rows remained. A pool's
-> stream holds a connection of its own; a connection's stream reserves that
-> connection, which refuses other work meanwhile. A decode error ends the
-> stream as an error, never as its end, and a database error keeps its
-> SQLSTATE and the rows before it.
+> statement's rows through pgorm's `query_raw`, each pull giving one row. The
+> binding takes the rows from the runtime a batch at a time and yields each
+> batch's rows from memory: a batch waits for one row, then takes only the
+> rows the driver has already received, at most 16 in a stream's first batch
+> and at most twice as many as the batch before it after that, up to 256,
+> and no further row once it holds 1 MiB of row data. What a stream reads
+> ahead of the program is so one bounded batch, and the driver's bounded
+> buffer and the socket hold the server back while nothing pulls. A row a
+> batch holds is yielded only while a pull could still give one: once the
+> stream, its connection, its pool or its transaction has closed, the next
+> pull reports what a pull then reports. A second pull while one is pending
+> is refused. The stream holds its connection until its last row, which
+> frees it, or until it is closed or abandoned early, which discards the
+> connection if rows remained, a batch's rows not yet given included. A
+> pool's stream holds a connection of its own; a connection's stream
+> reserves that connection, which refuses other work meanwhile. A decode
+> error ends the stream as an error, never as its end, and a database error
+> keeps its SQLSTATE; the rows before either reach the program first, in
+> order.
 >
 > `stream` on a transaction or a savepoint MUST give the same iterator through
 > pgorm's `query_raw` on the `DatabaseTransaction`, opened by the closure

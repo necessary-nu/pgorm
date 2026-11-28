@@ -3,7 +3,14 @@
 
 import assert from "node:assert/strict";
 import {
-  column, createDisjoint, DecodeError, Decimal, disjoint, ForeignKeyViolationError, model, TypeName,
+  column,
+  createDisjoint,
+  DecodeError,
+  dec,
+  disjoint,
+  ForeignKeyViolationError,
+  model,
+  TypeName,
 } from "@necessary/pgorm";
 import type { GuideContext } from "../../../guide/context.ts";
 
@@ -38,7 +45,7 @@ export default async function example({ pool }: GuideContext): Promise<void> {
   for (const statement of createDisjoint(Payments)) await pool.execute(statement);
 
   const [base, kind, card] = await Payments
-    .insert({ orderId: 1, amount: new Decimal("12.20") }, "card", { lastFour: "4242" })
+    .insert({ orderId: 1, amount: dec`12.20` }, "card", { lastFour: "4242" })
     .returningModel(pool);
   assert.equal(kind, "card");
   assert.deepEqual(card, { paymentId: base.id, lastFour: "4242" });
@@ -49,11 +56,11 @@ export default async function example({ pool }: GuideContext): Promise<void> {
 
   // An update as another kind finds no row of that kind.
   await assert.rejects(
-    Payments.update({ id: base.id, amount: new Decimal("1") }, "cash").returningModel(pool),
+    Payments.update({ id: base.id, amount: dec`1` }, "cash").returningModel(pool),
     DecodeError,
   );
 
-  const [cash] = await Payments.insert({ orderId: 2, amount: new Decimal("3.80") }, "cash").returningModel(pool);
+  const [cash] = await Payments.insert({ orderId: 2, amount: dec`3.80` }, "cash").returningModel(pool);
 
   // The customer paid with a voucher after all.
   const [moved, movedKind, voucher] = await Payments

@@ -225,12 +225,12 @@ it was stored:
 
 ```ts
 import assert from "node:assert/strict";
-import { Decimal } from "@necessary/pgorm";
+import { dec } from "@necessary/pgorm";
 
 const scone = await Cake.insert({
   name: "Lemon Scone",
   flavor: "lemon",
-  price: new Decimal("2.50"),
+  price: dec`2.50`,
   glutenFree: false,
   bakeryId: 1,
 }).returning().one(pool);

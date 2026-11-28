@@ -7,7 +7,7 @@
 
 import { close, describe, step, watching, write } from "./copy-feed.js";
 import { LifecycleError } from "./errors.js";
-import { decoder } from "./model-decode.js";
+import { rowDecoder } from "./model-decode.js";
 import { shapeOf } from "./model-shape.js";
 import { abortable, native, TRUSTED as HANDLE } from "./operations.js";
 
@@ -107,7 +107,7 @@ export async function pumpRows(handle, open, signal) {
  * @param {unknown} handle
  */
 async function* recordsOf(rows, shape, handle) {
-  const decode = decoder(
+  const decode = rowDecoder(
     [{ fields: shape.fields, names: shape.fields.map((field) => field.sql), optional: false }],
     { exhaustive: false, castsText: false },
   );

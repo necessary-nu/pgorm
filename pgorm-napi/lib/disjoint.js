@@ -16,7 +16,7 @@ import { activeHandleOf, entity, recordOf } from "./entities.js";
 import { ConstructionError } from "./errors.js";
 import { Expr } from "./expressions.js";
 import { columnValue } from "./model-columns.js";
-import { decoder } from "./model-decode.js";
+import { rowDecoder } from "./model-decode.js";
 import { described, fieldOf, shapeOf } from "./model-shape.js";
 import { Model } from "./models.js";
 import { native } from "./operations.js";
@@ -101,7 +101,7 @@ export class Disjoint extends Disjoined {
   constructor(handle, base, kinds, token) {
     if (token !== MADE) throw new TypeError("a Disjoint is made by disjoint(name, base, kinds, options)");
     const values = /** @type {string[]} */ (native.disjointKinds(handle));
-    /** @type {Map<number, ReturnType<typeof decoder>>} */
+    /** @type {Map<number, ReturnType<typeof rowDecoder>>} */
     const decoders = new Map();
     /**
      * The decoder of a row of the kind at `index`: the base's record and the
@@ -118,7 +118,7 @@ export class Disjoint extends Disjoined {
         const sources = source === null || model === null
           ? [own]
           : [own, { fields: model.fields, names: native.disjointResultNames(handle, source), optional: false }];
-        decode = decoder(sources, { exhaustive: false });
+        decode = rowDecoder(sources, { exhaustive: false });
         decoders.set(index, decode);
       }
       return decode;

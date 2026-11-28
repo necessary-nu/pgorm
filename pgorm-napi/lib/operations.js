@@ -85,17 +85,65 @@ export async function abortable(signal, start, late) {
 }
 
 /**
- * Each row an object keyed by column name, in column order. Built with
- * `Object.fromEntries`, which defines its keys, so a column named
- * `__proto__` is a property like any other rather than the object's
- * prototype.
+ * Each result's row template, an object defining every column's key, by the
+ * result's array of column names: a stream's rows all share its one array.
+ *
+ * @type {WeakMap<readonly string[], Record<string, unknown>>}
+ */
+const templates = new WeakMap();
+
+/** @param {readonly string[]} names */
+function template(names) {
+  let made = templates.get(names);
+  if (made === undefined) {
+    made = Object.fromEntries(names.map((name) => [name, null]));
+    templates.set(names, made);
+  }
+  return made;
+}
+
+/**
+ * A result's rows, from its columns of values, each an object keyed by
+ * column name in column order. Each is a copy of one template that defines
+ * every key, so that assigning a column named `__proto__` sets that property
+ * rather than the object's prototype.
  * [spec:pgorm:req:napi.records]
  *
- * @param {string[]} names
- * @param {unknown[]} values
+ * @param {readonly string[]} names
+ * @param {readonly unknown[][]} columns
+ * @param {number} count
+ * @returns {Record<string, unknown>[]}
+ */
+export function records(names, columns, count) {
+  const keys = template(names);
+  const width = names.length;
+  const rows = [];
+  for (let at = 0; at < count; at++) {
+    /** @type {Record<string, unknown>} */
+    const row = { ...keys };
+    for (let column = 0; column < width; column++) {
+      row[/** @type {string} */ (names[column])] = /** @type {unknown[]} */ (columns[column])[at];
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+/**
+ * One row's values as its object, as `records` makes it.
+ * [spec:pgorm:req:napi.records]
+ *
+ * @param {readonly string[]} names
+ * @param {readonly unknown[]} values
+ * @returns {Record<string, unknown>}
  */
 export function row(names, values) {
-  return Object.fromEntries(names.map((name, index) => [name, values[index]]));
+  /** @type {Record<string, unknown>} */
+  const made = { ...template(names) };
+  for (let column = 0; column < names.length; column++) {
+    made[/** @type {string} */ (names[column])] = values[column];
+  }
+  return made;
 }
 
 /**

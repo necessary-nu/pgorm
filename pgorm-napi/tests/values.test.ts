@@ -14,6 +14,7 @@ import {
   CreatedRange,
   DatabaseError,
   Decimal,
+  dec,
   DecodeError,
   Interval,
   Multirange,
@@ -116,7 +117,7 @@ test("booleans round trip, and only a boolean binds as bool", async () => {
   await refused(roundTrip("bool", 1), /cannot bind a `BigInt` value to Postgres type `bool`/);
 });
 
-// [spec:pgorm:req:napi.values+1/test]
+// [spec:pgorm:req:napi.values+2/test]
 test("int8 reads as an exact bigint at both ends of its range", async () => {
   for (const value of [9007199254740993n, -(2n ** 63n), 2n ** 63n - 1n, 0n]) {
     assert.equal(await roundTrip("int8", value), value);
@@ -137,7 +138,7 @@ test("int2, int4, oid and \"char\" read as numbers", async () => {
 });
 
 // [spec:pgorm:req:bindings.values/test]
-// [spec:pgorm:req:napi.values+1/test]
+// [spec:pgorm:req:napi.values+2/test]
 test("an integer kind holds exactly its range, and a number past 2^53 is no exact integer", async () => {
   throwsConstruction(() => new Value(32768, "i16"), /outside i16's range/);
   throwsConstruction(() => new Value(-1, "u32"), /outside u32's range/);
@@ -158,7 +159,7 @@ test("float8 round trips signed zero, the infinities, NaN and every finite doubl
   }
 });
 
-// [spec:pgorm:req:napi.values+1/test]
+// [spec:pgorm:req:napi.values+2/test]
 test("float4 reads exactly, and f32 refuses a number it would round", async () => {
   assert.equal((await one("SELECT 0.1::float4 AS v")).v, Math.fround(0.1));
   throwsConstruction(() => new Value(0.1, "f32"), /no exact f32 form/);
@@ -166,7 +167,7 @@ test("float4 reads exactly, and f32 refuses a number it would round", async () =
   assert.ok(Object.is(await roundTrip("float4", new Value(-0, "f32")), -0));
 });
 
-// [spec:pgorm:req:napi.values+1/test]
+// [spec:pgorm:req:napi.values+2/test]
 test("text round trips any Unicode, and a lone surrogate or NUL is refused", async () => {
   for (const text of ["", "plain", `quotes ' " and \\ backslash`, "100% _like_", "日本語 ✓ 🦀", "é"]) {
     assert.equal(await roundTrip("text", text), text);
@@ -192,7 +193,7 @@ test("bytea round trips every byte value as a Uint8Array", async () => {
   same(fromBuffer, new Uint8Array([1, 2, 3]));
 });
 
-// [spec:pgorm:req:napi.values+1/test]
+// [spec:pgorm:req:napi.values+2/test]
 test("numeric reads as an exact Decimal that keeps its scale", async () => {
   for (const text of ["19.9900", "-0.000001", "79228162514264337593543950335", "0.0000000000000000000000000001", "0"]) {
     const value = await roundTrip("numeric", new Decimal(text));
@@ -207,7 +208,7 @@ test("numeric reads as an exact Decimal that keeps its scale", async () => {
   await undecodable("SELECT 'Infinity'::numeric AS v", /NaN or infinite/);
 });
 
-// [spec:pgorm:req:napi.values+1/test]
+// [spec:pgorm:req:napi.values+2/test]
 test("a Decimal is made only from exact text or a bigint, and never becomes a number implicitly", () => {
   throwsConstruction(() => new Decimal(1.5 as never), /never a number/);
   for (const text of ["1e5", "1.", ".5", "", "1.2.3", "79228162514264337593543950336", "0.00000000000000000000000000001"]) {
@@ -219,6 +220,18 @@ test("a Decimal is made only from exact text or a bigint, and never becomes a nu
   assert.throws(() => +decimal, TypeError);
   assert.equal(`${decimal}`, "1.5");
   assert.equal(JSON.stringify({ decimal }), '{"decimal":"1.5"}');
+});
+
+// [spec:pgorm:req:napi.values+2/test]
+test("dec`…` is a Decimal literal, and an interpolation is refused", () => {
+  assert.ok(dec`4.50` instanceof Decimal);
+  assert.equal(String(dec`4.50`), "4.50");
+  assert.equal(String(dec`+007.50`), "7.50");
+  throwsConstruction(() => dec`1e5`);
+  const cents = "1.5";
+  // @ts-expect-error an interpolated value is no literal
+  throwsConstruction(() => dec`${cents}`, /nothing interpolated/);
+  throwsConstruction(() => (dec as unknown as (text: string) => Decimal)("1.5"), /nothing interpolated/);
 });
 
 // [spec:pgorm:req:bindings.values/test]
@@ -233,7 +246,7 @@ test("uuid reads as a Uuid, and a UUID string binds only when declared", async (
   throwsConstruction(() => new Uuid("not-a-uuid"), /not a UUID/);
 });
 
-// [spec:pgorm:req:napi.values+1/test]
+// [spec:pgorm:req:napi.values+2/test]
 test("json and jsonb read as JavaScript values, an integer past the safe range as a bigint", async () => {
   const text = `{"big": 12345678901234567890, "small": -7, "half": 0.5, "s": "x\\"y", "n": null, "a": [true, false]}`;
   for (const type of ["json", "jsonb"]) {

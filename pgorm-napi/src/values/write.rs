@@ -135,7 +135,7 @@ pub(crate) fn value<'cx>(
         Value::Bytes(Some(bytes)) => JsUint8Array::from_slice(cx, bytes)?.upcast(),
         Value::Json(Some(json)) => {
             let text = json.to_string();
-            codec.make(cx, ("json", text))?
+            codec.make(cx, ("json", text, super::json::wide(json)))?
         }
         Value::Decimal(Some(decimal)) => codec.make(cx, ("decimal", decimal.to_string()))?,
         Value::Uuid(Some(uuid)) => codec.make(cx, ("uuid", uuid.hyphenated().to_string()))?,

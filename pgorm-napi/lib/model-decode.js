@@ -80,20 +80,31 @@ function plan(names, kinds, sources, { exhaustive, castsText }) {
 }
 
 /**
+ * Whether `field`'s value is read from the text a result cast it to, as a
+ * created multirange's is.
+ *
+ * @param {import("./model-shape.js").Field} field
+ * @param {boolean} castsText
+ */
+function fromText(field, castsText) {
+  return castsText && readsText(field.column) && field.column.kind instanceof CreatedMultirange;
+}
+
+/**
  * One field's value, held to its declaration's nullability and values, and
- * read from its text where the field is and the result was cast to it.
+ * read from its text where `textual` says the result was cast to it.
  *
  * @param {import("./model-shape.js").Field} field
  * @param {unknown} value
- * @param {boolean} castsText
+ * @param {boolean} textual
  */
-function checked(field, value, castsText) {
+function checked(field, value, textual) {
   const { column } = field;
   if (value === null) {
     if (!column.nullable) throw new DecodeError(`${field.field} is not nullable, and the row holds NULL`);
     return value;
   }
-  if (castsText && readsText(column) && column.kind instanceof CreatedMultirange) {
+  if (textual) {
     if (!column.array) return native.modelReadText(column.kind, value);
     return /** @type {(string | null)[]} */ (value).map((item) => item === null ? null : native.modelReadText(column.kind, item));
   }
@@ -110,46 +121,76 @@ function checked(field, value, castsText) {
 }
 
 /**
- * One source's record from a row, or null when the source is optional and
- * every column it reads is NULL: the row of a LEFT JOIN that matched
- * nothing, as pgorm's absence witness reads it.
+ * How a decoder reads one source: its fields, a template defining each, and
+ * whether each is read from its text.
  *
- * @param {Source} source
- * @param {number[]} indexes
- * @param {unknown[]} values
- * @param {boolean} castsText
+ * @typedef {{ source: Source, template: Record<string, null>, textual: boolean[] }} Reader
  */
-function record(source, indexes, values, castsText) {
-  if (source.optional && indexes.every((index) => values[index] === null)) return null;
-  return Object.fromEntries(
-    source.fields.map((field, position) => [
-      field.field,
-      checked(field, values[/** @type {number} */ (indexes[position])], castsText),
-    ]),
-  );
+
+/**
+ * One source's record from row `at` of a result's columns, or null when the
+ * source is optional and every column it reads is NULL: the row of a LEFT
+ * JOIN that matched nothing, as pgorm's absence witness reads it. Each record
+ * is a copy of the reader's template, so that a field named `__proto__` is a
+ * property rather than the record's prototype.
+ *
+ * @param {Reader} reader
+ * @param {number[]} indexes
+ * @param {readonly unknown[][]} columns
+ * @param {number} at
+ */
+function record({ source, template, textual }, indexes, columns, at) {
+  if (source.optional && indexes.every((index) => /** @type {unknown[]} */ (columns[index])[at] === null)) return null;
+  /** @type {Record<string, unknown>} */
+  const made = { ...template };
+  const { fields } = source;
+  for (let position = 0; position < fields.length; position++) {
+    const field = /** @type {import("./model-shape.js").Field} */ (fields[position]);
+    const column = /** @type {unknown[]} */ (columns[/** @type {number} */ (indexes[position])]);
+    made[field.field] = checked(field, column[at], /** @type {boolean} */ (textual[position]));
+  }
+  return made;
 }
 
 /**
- * A decoder for a result of `sources`: one source's record, or a tuple of
- * each source's. It finds its columns on the first row it meets, read as
- * `reading` says, every column read by one of them and fields read from
- * their text cast to it unless it says otherwise.
+ * A decoder for a result of `sources`, given its columns of values and a
+ * row: one source's record, or a tuple of each source's. It finds its columns
+ * on the first row it meets, read as `reading` says, every column read by one
+ * of them and fields read from their text cast to it unless it says
+ * otherwise.
  *
  * @param {readonly Source[]} sources
  * @param {Reading} [reading]
- * @returns {(names: readonly string[], values: unknown[], kinds: string[]) => any}
+ * @returns {(names: readonly string[], columns: readonly unknown[][], kinds: string[], at: number) => any}
  */
 export function decoder(sources, { exhaustive = true, castsText = true } = {}) {
   /** @type {number[][] | null} */
   let plans = null;
-  return (names, values, kinds) => {
+  /** @type {Reader[]} */
+  const readers = sources.map((source) => ({
+    source,
+    template: Object.fromEntries(source.fields.map((field) => [field.field, null])),
+    textual: source.fields.map((field) => fromText(field, castsText)),
+  }));
+  return (names, columns, kinds, at) => {
     plans ??= plan(names, kinds, sources, { exhaustive, castsText });
     const found = plans;
-    const records = sources.map((source, index) =>
-      record(source, /** @type {number[]} */ (found[index]), values, castsText)
-    );
-    return records.length === 1 ? records[0] : records;
+    if (readers.length === 1) return record(/** @type {Reader} */ (readers[0]), /** @type {number[]} */ (found[0]), columns, at);
+    return readers.map((reader, index) => record(reader, /** @type {number[]} */ (found[index]), columns, at));
   };
+}
+
+/**
+ * A decoder as `decoder` makes one, given one row's values rather than a
+ * result's columns: a streamed row, a COPY's or a disjoint read's.
+ *
+ * @param {readonly Source[]} sources
+ * @param {Reading} [reading]
+ * @returns {(names: readonly string[], values: readonly unknown[], kinds: string[]) => any}
+ */
+export function rowDecoder(sources, reading) {
+  const decode = decoder(sources, reading);
+  return (names, values, kinds) => decode(names, values.map((value) => [value]), kinds, 0);
 }
 
 /**
@@ -163,9 +204,11 @@ export function decoder(sources, { exhaustive = true, castsText = true } = {}) {
  * @returns {Promise<any[]>}
  */
 export async function decodeAll(db, statement, sources, options, reading) {
-  const [names, rows, kinds] = await runStatement(db, "all", statement, options);
+  const [names, columns, kinds, count] = await runStatement(db, "all", statement, options);
   const decode = decoder(sources, reading);
-  return rows.map((/** @type {unknown[]} */ values) => decode(names, values, kinds));
+  const decoded = [];
+  for (let at = 0; at < count; at++) decoded.push(decode(names, columns, kinds, at));
+  return decoded;
 }
 
 /**
@@ -179,8 +222,8 @@ export async function decodeAll(db, statement, sources, options, reading) {
  * @param {Reading} [reading]
  */
 export async function decodeOne(db, statement, sources, options, reading) {
-  const [names, rows, kinds] = await runStatement(db, "one", statement, options);
-  return decoder(sources, reading)(names, rows[0], kinds);
+  const [names, columns, kinds] = await runStatement(db, "one", statement, options);
+  return decoder(sources, reading)(names, columns, kinds, 0);
 }
 
 /**
@@ -193,8 +236,8 @@ export async function decodeOne(db, statement, sources, options, reading) {
  * @param {Reading} [reading]
  */
 export async function decodeOptional(db, statement, sources, options, reading) {
-  const [names, rows, kinds] = await runStatement(db, "optional", statement, options);
-  return rows.length === 0 ? null : decoder(sources, reading)(names, rows[0], kinds);
+  const [names, columns, kinds, count] = await runStatement(db, "optional", statement, options);
+  return count === 0 ? null : decoder(sources, reading)(names, columns, kinds, 0);
 }
 
 /**
@@ -214,7 +257,7 @@ export function decodeStream(db, statement, sources, options = {}, reading = und
     throw new TypeError("a model's rows stream from a Pool, a Connection or a Transaction");
   }
   if (typeof options !== "object" || options === null) throw new TypeError("options is an object");
-  const decode = decoder(sources, reading);
+  const decode = rowDecoder(sources, reading);
   const made = read === null ? decode : (/** @type {string[]} */ names, /** @type {unknown[]} */ values, /** @type {string[]} */ kinds) =>
     read(decode(names, values, kinds));
   return decodedWith(stream.call(db, statement, { signal: options.signal }), made);
@@ -228,8 +271,8 @@ export function decodeStream(db, statement, sources, options = {}, reading = und
  * @param {unknown} options
  */
 export async function decodeCount(db, statement, options) {
-  const [, rows] = await runStatement(db, "one", statement, options);
-  const count = /** @type {bigint} */ (rows[0][0]);
+  const [, columns] = await runStatement(db, "one", statement, options);
+  const count = /** @type {bigint} */ (columns[0][0]);
   if (count > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new DecodeError(`${count} rows is past the integers a number holds exactly`);
   }

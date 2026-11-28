@@ -22,7 +22,7 @@ pub(crate) struct Shared {
     dsn: String,
     tls: TlsSettings,
     connect_timeout: Option<Duration>,
-    recycling_method: pgorm::RecyclingMethod,
+    recycling_method: Option<pgorm::RecyclingMethod>,
     statement_cache_size: usize,
     statement_cache_channel: Option<String>,
 }
@@ -123,11 +123,12 @@ fn callable<'cx>(
     }
 }
 
+/// The `recycle` and `recycleSql` options: one of the named methods, SQL of
+/// the program's own, or neither, which pgorm-bindings decides.
 fn recycling<'cx>(
     cx: &mut Cx<'cx>,
     options: Handle<'cx, JsObject>,
-    default: pgorm::RecyclingMethod,
-) -> NeonResult<pgorm::RecyclingMethod> {
+) -> NeonResult<Option<pgorm::RecyclingMethod>> {
     let recycle = match option(cx, options, "recycle")? {
         Some(recycle) => Some(pick(
             cx,
@@ -149,15 +150,14 @@ fn recycling<'cx>(
         (Some(_), Some(_)) => {
             return cx.throw_type_error("recycle and recycleSql both say how to recycle: give one");
         }
-        (_, Some(sql)) => pgorm::RecyclingMethod::Custom(sql),
-        (Some(method), None) => method,
-        (None, None) => default,
+        (_, Some(sql)) => Some(pgorm::RecyclingMethod::Custom(sql)),
+        (method, None) => method,
     })
 }
 
 impl Shared {
     /// `dsn` and the shared options, as JavaScript passes them.
-    // [spec:pgorm:req:bindings.connections+4]
+    // [spec:pgorm:req:bindings.connections+5]
     // [spec:pgorm:req:bindings.tls+1]
     // [spec:pgorm:req:napi.lifecycle+3]
     pub(crate) fn read<'cx>(
@@ -176,7 +176,7 @@ impl Shared {
             cert: pem(cx, options, "cert")?,
             key: pem(cx, options, "key")?,
         };
-        let recycling_method = recycling(cx, options, pgorm::RecyclingMethod::Verified)?;
+        let recycling_method = recycling(cx, options)?;
         let statement_cache_channel = match option(cx, options, "statementCacheChannel")? {
             Some(channel) => Some(text(cx, channel, "statementCacheChannel")?),
             None => None,
@@ -207,7 +207,7 @@ impl Shared {
     /// certificate and host name unless the connection string says
     /// `sslmode=disable` or the `tls` option names a weaker mode; there is no
     /// silent fallback to plaintext.
-    // [spec:pgorm:req:bindings.connections+4]
+    // [spec:pgorm:req:bindings.connections+5]
     pub(crate) fn build(self, tag: Option<String>, shape: Shape) -> Result<Built, Failure> {
         self.settings(tag).pool(
             &shape,
@@ -241,7 +241,7 @@ impl Shared {
 }
 
 /// One pool's own options, as JavaScript passes them.
-// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:bindings.connections+5]
 // [spec:pgorm:req:bindings.pool-hooks]
 pub(crate) fn shape<'cx>(cx: &mut Cx<'cx>, options: Handle<'cx, JsObject>) -> NeonResult<Shape> {
     let queue_mode = match option(cx, options, "queueMode")? {
