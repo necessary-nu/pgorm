@@ -77,7 +77,7 @@ pub fn install(cx: &mut ModuleContext, registry: Registry) -> NeonResult<()> {
         features.set(cx, 0, turso)?;
     }
     cx.export_value("features", features)?;
-    // [spec:pgorm:req:bindings.connections+4]    the channel pgorm-migration's runner notifies
+    // [spec:pgorm:req:bindings.connections+5]    the channel pgorm-migration's runner notifies
     let channel = cx.string(pgorm::STATEMENT_CACHE_CHANNEL);
     cx.export_value("statementCacheChannel", channel)?;
     Ok(())

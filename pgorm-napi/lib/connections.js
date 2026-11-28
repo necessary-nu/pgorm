@@ -3,7 +3,7 @@
 // Pools, connections and transactions. Each holds a native handle and
 // releases what it holds when closed — `close()`, `await using`, the end of a
 // callback — never by waiting for garbage collection.
-// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:bindings.connections+5]
 // [spec:pgorm:req:napi.lifecycle+3]
 // [spec:pgorm:req:bindings.results+3]
 // [spec:pgorm:req:napi.raw]

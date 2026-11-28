@@ -21,7 +21,7 @@ builds several pools at once ([Several pools](#several-pools)):
 | `wait_timeout`, `create_timeout`, `recycle_timeout` | `None` | seconds waiting for a free connection, opening one and checking a returned one may take | `PoolBuilder`'s of the same names |
 | `queue_mode` | `"fifo"` | whether the pool lends the idle connection returned first or last, `"lifo"` | `PoolBuilder::queue_mode` |
 | `post_create`, `pre_recycle`, `post_recycle` | `None` | hooks run on a connection as it opens, before a returned one is checked, and after | `PoolBuilder`'s of the same names |
-| `recycle` | `"verified"` | how a returned connection is checked before reuse: `"verified"`, `"fast"` or `"clean"` | `ManagerConfig::recycling_method` |
+| `recycle` | `"fast"` | how a returned connection is checked before reuse: `"fast"`, `"verified"` or `"clean"` | `ManagerConfig::recycling_method` |
 | `recycle_sql` | `None` | SQL of your own that recycles a connection, in place of `recycle` | `RecyclingMethod::Custom` |
 | `statement_cache_size` | `128` | statements each connection keeps prepared; `0` turns the cache off | `ManagerConfig::statement_cache` |
 | `statement_cache_channel` | `None` | a channel whose notifications clear the caches ([Statement caches and DDL](19-statement-caches.md)) | `ManagerConfig::statement_cache_channel` |
@@ -264,16 +264,16 @@ it, checking it in the way the `recycle` option says:
 
 | `recycle` | Before each reuse |
 | --- | --- |
-| `"verified"`, the default | runs an empty query, catching a connection the network dropped without telling it |
-| `"fast"` | checks that the connection is still open, and sends nothing |
+| `"fast"`, the default | checks that the connection is still open, and sends nothing |
+| `"verified"` | also runs an empty query, catching a connection the network dropped without telling it |
 | `"clean"` | also resets the session: `CLOSE ALL; SET SESSION AUTHORIZATION DEFAULT; RESET ALL; UNLISTEN *; SELECT pg_advisory_unlock_all(); DISCARD TEMP; DISCARD SEQUENCES;` |
 | `recycle_sql=` | runs your SQL, in place of `recycle` |
 
-Here Python differs from Rust: Rust's default is `Fast`, and Python's is
-`"verified"`. `"clean"` leaves the prepared statements alone, so the
-[statement cache](19-statement-caches.md) keeps working. A `recycle_sql`
-that deallocates them, such as `DISCARD ALL`, leaves the cache naming
-statements the server no longer has; pair one with
+These are Rust's `RecyclingMethod::Fast`, `Verified`, `Clean` and
+`Custom(sql)`, and the default is Rust's, `Fast`. `"clean"` leaves the
+prepared statements alone, so the [statement cache](19-statement-caches.md)
+keeps working. A `recycle_sql` that deallocates them, such as `DISCARD ALL`,
+leaves the cache naming statements the server no longer has; pair one with
 `statement_cache_size=0`. Giving both `recycle` and `recycle_sql` raises
 `TypeError`.
 
@@ -304,7 +304,7 @@ async def seen_by_the_next_caller(pool: Pool) -> str:
 
 async def main() -> None:
     url = os.environ["DATABASE_URL"]
-    async with Pool(url, max_size=1, recycle="verified", tag="kitchen") as pool:
+    async with Pool(url, max_size=1, tag="kitchen") as pool:
         assert pool.tag == "kitchen"
         assert await seen_by_the_next_caller(pool) == "off"
     async with Pool(url, max_size=1, recycle="clean") as pool:
@@ -314,8 +314,8 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Under `"verified"`, the setting one caller made is still there for the next;
-under `"clean"`, the pool reset it. Code that changes session state on a
+Under `"fast"`, the default, the setting one caller made is still there for
+the next; under `"clean"`, the pool reset it. Code that changes session state on a
 pooled connection either recycles with `"clean"` or puts the state back
 itself; a setting meant for one transaction is better made with `SET LOCAL`,
 which ends with the transaction.

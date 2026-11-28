@@ -319,7 +319,7 @@ time. Each round then runs the attribution: `rows_all`, `wide_all` and
 objects alone (built from a result fetched once); one column of each type of
 the wide table at a time; text 32 B, 1 KiB and 16 KiB wide; and each side's
 pool query with one operation in flight, with pgorm's pool also measured with
-`recycle: "fast"` beside its default `"verified"`.
+`recycle: "verified"` beside its default `"fast"`.
 
 Every result is checked, warmup included, after the clock stops, so neither
 an error nor a wrong answer is a fast query: values are normalised only for
