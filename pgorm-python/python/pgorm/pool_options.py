@@ -16,8 +16,9 @@ TlsMode = Literal["disable", "prefer", "require", "verify-ca", "verify-full"]
 QueueMode = Literal["fifo", "lifo"]
 """Whether a pool lends the idle connection returned first or last."""
 
-Recycle = Literal["verified", "fast", "clean"]
-"""How a pool checks a returned connection before it lends it again."""
+Recycle = Literal["fast", "verified", "clean"]
+"""How a pool checks a returned connection before it lends it again, ``"fast"``
+when a pool is given none."""
 
 
 # [spec:pgorm:req:bindings.pool-hooks]
@@ -204,7 +205,7 @@ def _shared(
     if statement_cache_channel is not None and not isinstance(statement_cache_channel, str):
         raise TypeError("statement_cache_channel is a str or None")
     return {
-        "recycle": recycle or "verified",
+        "recycle": recycle,
         "recycle_sql": recycle_sql,
         "statement_cache_size": statement_cache_size,
         "statement_cache_channel": statement_cache_channel,

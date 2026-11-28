@@ -7,7 +7,7 @@ import type { GuideContext } from "../../../guide/context.ts";
 
 export default async function example({ url }: GuideContext): Promise<void> {
   // What the next caller sees of a setting the last one changed.
-  for (const [recycle, seen] of [["verified", "off"], ["fast", "off"], ["clean", "on"]] as const) {
+  for (const [recycle, seen] of [["fast", "off"], ["verified", "off"], ["clean", "on"]] as const) {
     await using single = new Pool(url, { maxSize: 1, recycle });
 
     let db = await single.acquire();

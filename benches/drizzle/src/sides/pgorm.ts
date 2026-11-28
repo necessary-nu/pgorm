@@ -258,10 +258,10 @@ export function pgormSides(): Side[] {
         const [pool, connection] = await held(dsn);
         return rawSession(connection, pool, parts);
       },
-      poolVariants: ["recycle_fast"],
+      poolVariants: ["recycle_verified"],
       async openPool(dsn: string, options: Options, variant?: string) {
-        // The binding's default recycling is "verified", an empty query on every acquire; Rust's connect() defaults to Fast.
-        const pool = new Pool(dsn, variant === "recycle_fast" ? { maxSize: options.poolSize, recycle: "fast" } : { maxSize: options.poolSize });
+        // The binding's default recycling is Rust's connect()'s, Fast; "verified" adds an empty query to every acquire.
+        const pool = new Pool(dsn, variant === "recycle_verified" ? { maxSize: options.poolSize, recycle: "verified" } : { maxSize: options.poolSize });
         return {
           operation: {
             run: async () => (await pool.one(SCALAR, [SCALAR_VALUE])).int8,

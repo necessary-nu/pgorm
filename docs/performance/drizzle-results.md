@@ -404,6 +404,8 @@ What text costs pgorm is per value, not per byte. A 15-byte label adds
     70 µs with `recycle: "fast"`, 65 µs for `pg` and 61 µs for postgres.js.
   - Under four workers, `concurrent_pool` drops from 188 µs and 20,000 ops/s
     to 106 µs and 36,200 ops/s with `"fast"`, which is `pg`'s 36,900.
+  - Since this run, both bindings' pools default to `"fast"`, as Rust's
+    `connect()` does; `"verified"` remains an option.
 - **The crossing per value.** With no type conversion at all (`id`), pgorm
   spends 120–180 ns per row more than the drivers. The addon's call alone
   costs 0.17 µs per value of `bench_row`, against `pg`'s complete 0.09 µs.

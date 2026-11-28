@@ -48,7 +48,7 @@ class PoolStatus(NamedTuple):
 
 # [spec:pgorm:req:python.runtime+2]
 # [spec:pgorm:req:bindings.runtime]
-# [spec:pgorm:req:bindings.connections+4]
+# [spec:pgorm:req:bindings.connections+5]
 # [spec:pgorm:req:python.lifecycle+4]
 # [spec:pgorm:req:turso.python+1]
 class Pool(RowCopies, RawStatements):
@@ -80,9 +80,12 @@ class Pool(RowCopies, RawStatements):
     last (``"lifo"``). ``post_create``, ``pre_recycle`` and ``post_recycle``
     are hooks, each called with a ``HookConnection`` as a connection opens,
     before a returned one is checked and after; one that raises refuses the
-    connection. ``recycle_sql`` recycles with SQL of the program's own in
-    place of ``recycle``'s methods. ``tag`` names the pool; without one pgorm
-    names it ``default-N``.
+    connection. ``recycle`` checks a returned connection before the pool
+    lends it again: ``"fast"``, the default and the method Rust's ``connect``
+    recycles with, sends nothing; ``"verified"`` runs an empty query; and
+    ``"clean"`` also resets the session. ``recycle_sql`` recycles with SQL of
+    the program's own in place of ``recycle``'s methods. ``tag`` names the
+    pool; without one pgorm names it ``default-N``.
 
     ``connect_timeout=None`` uses PostgreSQL's ten-second connection timeout;
     native paths accept no explicit network connection timeout.

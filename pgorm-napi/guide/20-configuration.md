@@ -177,20 +177,20 @@ it, checking it in the way its `recycle` option says:
 
 | Option | Before each reuse |
 | --- | --- |
-| `recycle: "verified"`, the default | checks that the connection is still open, and runs an empty query, catching a connection the network dropped without telling it |
-| `recycle: "fast"` | only checks that the connection is still open, sending nothing |
+| `recycle: "fast"`, the default | checks that the connection is still open, and sends nothing |
+| `recycle: "verified"` | also runs an empty query, catching a connection the network dropped without telling it |
 | `recycle: "clean"` | also resets the session: `CLOSE ALL; SET SESSION AUTHORIZATION DEFAULT; RESET ALL; UNLISTEN *; SELECT pg_advisory_unlock_all(); DISCARD TEMP; DISCARD SEQUENCES;` |
 | `recycleSql: sql` | runs your SQL |
 
-These are Rust's `RecyclingMethod::Verified`, `Fast`, `Clean` and
-`Custom(sql)`. Rust's default is `Fast`; JavaScript's is `Verified`. Giving
-both `recycle` and `recycleSql` is a `TypeError`. `"clean"` leaves the
-prepared statements alone, so the [statement cache](19-statement-caches.md)
-keeps working; `recycleSql` that deallocates them, such as `DISCARD ALL`,
-leaves the cache naming statements the server no longer has, so pair it with
+These are Rust's `RecyclingMethod::Fast`, `Verified`, `Clean` and
+`Custom(sql)`, and the default is Rust's, `Fast`. Giving both `recycle` and
+`recycleSql` is a `TypeError`. `"clean"` leaves the prepared statements
+alone, so the [statement cache](19-statement-caches.md) keeps working;
+`recycleSql` that deallocates them, such as `DISCARD ALL`, leaves the cache
+naming statements the server no longer has, so pair it with
 `statementCacheSize: 0`.
 
-Under `"verified"` and `"fast"` the setting one caller made is still there for
+Under `"fast"` and `"verified"` the setting one caller made is still there for
 the next; under `"clean"` the pool reset it:
 
 ```ts
@@ -198,7 +198,7 @@ import assert from "node:assert/strict";
 import { Pool } from "@necessary/pgorm";
 
 // What the next caller sees of a setting the last one changed.
-for (const [recycle, seen] of [["verified", "off"], ["fast", "off"], ["clean", "on"]] as const) {
+for (const [recycle, seen] of [["fast", "off"], ["verified", "off"], ["clean", "on"]] as const) {
   await using single = new Pool(url, { maxSize: 1, recycle });
 
   let db = await single.acquire();
