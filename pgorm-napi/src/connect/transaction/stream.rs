@@ -9,7 +9,7 @@ use super::{abort_argument, settle, state};
 /// `transactionStream(transaction, sql, params, abort, decoder?)`: a stream
 /// of the statement's rows in the transaction, which holds its lock until the
 /// last row; closed before it, the transaction is discarded.
-// [spec:pgorm:req:bindings.streams+1]
+// [spec:pgorm:req:bindings.streams+2]
 pub(super) fn transaction_stream(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
     let (sql, params) = crate::connect::sql_and_params(&mut cx, 1)?;

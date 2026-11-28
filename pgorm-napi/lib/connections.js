@@ -707,7 +707,7 @@ export class Transaction extends Queryable {
    * stream's until its last row, refusing other work meanwhile; closed
    * before then, the stream discards the transaction with its connection,
    * as a connection's stream discards its connection.
-   * [spec:pgorm:req:bindings.streams+1]
+   * [spec:pgorm:req:bindings.streams+2]
    *
    * @param {unknown} statement
    * @param {unknown} [params]

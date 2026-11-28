@@ -37,7 +37,7 @@ export async function runStatement(db, terminal, statement, options) {
  * codec, or a registered read's selector. `what` names the read in the
  * refusal of any other database.
  * [spec:pgorm:req:bindings.disjoint+2]
- * [spec:pgorm:req:bindings.streams+1]
+ * [spec:pgorm:req:bindings.streams+2]
  *
  * @param {unknown} db
  * @param {unknown} statement

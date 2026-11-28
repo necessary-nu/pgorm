@@ -180,7 +180,7 @@ from ._json import (
     json_serialize as json_serialize, format_json as format_json,
     is_json as is_json, is_not_json as is_not_json,
 )
-from ._results import Record as Record, Field as Field
+from ._results import Record as Record, Field as Field, _Stream as _Stream
 from ._entity_raw import EntityRawQuery as EntityRawQuery
 from ._entities import Entity as Entity, EntityQuery as EntityQuery, entity as entity, entities as entities
 from ._entity_columns import EntityColumn as EntityColumn
@@ -227,7 +227,7 @@ from ._listen import (
 from ._retrying import _Retrying as _Retrying
 from ._runtime import (
     _Pool as _Pool, _PoolShape as _PoolShape, _HookConnection as _HookConnection,
-    _Connection as _Connection, _Stream as _Stream,
+    _Connection as _Connection,
     _Transaction as _Transaction,
     STATEMENT_CACHE_CHANNEL as STATEMENT_CACHE_CHANNEL,
 )

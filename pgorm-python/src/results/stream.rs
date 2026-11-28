@@ -17,12 +17,19 @@ use crate::{
 /// its own rows, a disjoint one's, makes of it.
 pub(crate) type RowDecode = Arc<dyn Fn(pgorm_driver::Row) -> PyResult<Py<PyAny>> + Send + Sync>;
 
-// [spec:pgorm:req:bindings.streams+1]
+// [spec:pgorm:req:bindings.streams+2]
 // [spec:pgorm:req:bindings.cancellation]
 #[pyclass(name = "_Stream", module = "pgorm._native", frozen)]
 pub(crate) struct NativeStream {
-    state: Arc<pgorm_bindings::StreamState<Loop>>,
+    state: Arc<pgorm_bindings::StreamState<Loop, PyErr>>,
     decode: Option<RowDecode>,
+}
+
+/// One pulled row: a `Record`, made into its Python object with the batch's
+/// others under one attach, or what the stream's decode made of it.
+enum Pulled {
+    Record(PyRecord),
+    Decoded(Py<PyAny>),
 }
 
 impl fmt::Debug for NativeStream {
@@ -35,22 +42,38 @@ impl fmt::Debug for NativeStream {
 
 #[pymethods]
 impl NativeStream {
+    /// The rows the pull took, at least one, or `None` at the end.
     fn next<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.state.connection().pool.check_owner(py)?;
         let (state, decode) = (self.state.clone(), self.decode.clone());
         future_into_py(py, async move {
-            let row = state
+            let pulled = state
                 .next(&CancellationToken::new(), |row| match &decode {
-                    Some(decode) => decode(row),
-                    None => {
-                        let record = PyRecord::decode(&row)?;
-                        Python::attach(|py| Py::new(py, record).map(Py::into_any))
-                    }
+                    Some(decode) => decode(row).map(Pulled::Decoded),
+                    None => PyRecord::decode(&row).map(Pulled::Record),
                 })
                 .await
                 .py()?;
-            row.transpose()
+            let Some(rows) = pulled.transpose()? else {
+                return Ok(None);
+            };
+            Python::attach(|py| {
+                rows.into_iter()
+                    .map(|row| match row {
+                        Pulled::Record(record) => Py::new(py, record).map(Py::into_any),
+                        Pulled::Decoded(decoded) => Ok(decoded),
+                    })
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .map(Some)
         })
+    }
+
+    /// Whether a pull could give a row, which `RowStream` asks before
+    /// yielding a row it holds; refused on another loop, as `next` is.
+    fn pullable(&self, py: Python<'_>) -> PyResult<bool> {
+        self.state.connection().pool.check_owner(py)?;
+        Ok(self.state.pullable())
     }
 
     fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -104,7 +127,7 @@ impl Source {
     }
 }
 
-// [spec:pgorm:req:bindings.streams+1]
+// [spec:pgorm:req:bindings.streams+2]
 pub(crate) fn open<'py>(
     py: Python<'py>,
     source: Source,

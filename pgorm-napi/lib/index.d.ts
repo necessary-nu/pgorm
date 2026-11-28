@@ -947,7 +947,7 @@ export declare class Transaction extends Queryable {
    * settles: released when it resolves, rolled back to when it throws.
    */
   transaction<T>(use: (transaction: Transaction) => Promise<T>, options?: OperationOptions): Promise<T>;
-  // [spec:pgorm:req:bindings.streams+1]
+  // [spec:pgorm:req:bindings.streams+2]
   /**
    * The rows of `sql`, one per pull. The stream holds the transaction until
    * its last row, refusing other work meanwhile; closed before then, it
@@ -957,7 +957,7 @@ export declare class Transaction extends Queryable {
   stream<O extends QueryOptions = QueryOptions>(sql: string, params?: readonly Param[], options?: O): RowStream<RowFor<O>>;
 }
 
-// [spec:pgorm:req:bindings.streams+1]
+// [spec:pgorm:req:bindings.streams+2]
 /**
  * A statement's rows as an async iterator, one row per pull. Its connection
  * is released at the last row, by `close()`, or when a `for await` loop leaves

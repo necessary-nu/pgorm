@@ -204,9 +204,11 @@ assert.throws(() => fromStatement("DELETE FROM cake").paginate(2), ConstructionE
 ## Streams
 
 `stream(db)` runs a query and yields its rows as an async iterator, a
-[`RowStream`](../lib/index.d.ts), each row decoded when it is pulled. It pulls
-one row from the server per `next()`, so a large result never sits in memory
-whole, and an unread result holds the server back. `stream` exists on a model
+[`RowStream`](../lib/index.d.ts), one row per `next()`, each decoded when it is
+pulled. It takes the rows from the addon in batches of those already
+received, 16 at most in the first and up to 256 later, and yields each
+batch's rows from memory, so a large result never sits in memory whole, and
+an unread result holds the server back. `stream` exists on a model
 query and on a [graph](07-relations.md), and a pool's, a connection's or a
 transaction's `stream(sql, params)` streams the rows of any statement, SQL
 text or built, as plain objects.
@@ -245,9 +247,10 @@ JavaScript differs from Rust in two ways:
   were left unread on it; a transaction it read in ends with its connection,
   nothing committed. A Rust stream dropped early leaves its connection
   usable, which reads and discards the rest before its next statement.
-- **A row that fails to decode ends the stream.** It rejects the pull it
-  arrives on with a `DecodeError`, and a `for await` loop then throws. A Rust
-  stream yields the failure as one `Err` and goes on to the rows after it.
+- **A row that fails to decode ends the stream.** The rows before it are
+  yielded, then the pull that would give it rejects with a `DecodeError`, and
+  a `for await` loop throws. A Rust stream yields the failure as one `Err`
+  and goes on to the rows after it.
 
 ```ts
 import assert from "node:assert/strict";

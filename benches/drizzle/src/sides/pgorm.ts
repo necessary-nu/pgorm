@@ -71,7 +71,7 @@ interface Internals {
   readonly native: {
     connectionRun(handle: unknown, terminal: "all", sql: string, params: readonly unknown[], tagged: boolean, token: unknown): Promise<[string[], unknown[][], string[]]>;
     connectionStream(handle: unknown, sql: string, params: readonly unknown[], token: unknown): Promise<unknown>;
-    streamNext(stream: unknown, tagged: boolean, token: unknown): Promise<[unknown[], string[] | undefined, string[] | undefined] | null>;
+    streamNext(stream: unknown, tagged: boolean, token: unknown): Promise<[unknown[][], string[] | undefined, string[] | undefined] | null>;
     streamClose(stream: unknown): Promise<void>;
   };
   readonly row: (names: string[], values: unknown[]) => Record<string, unknown>;
@@ -141,10 +141,10 @@ function attribution(connection: Connection, parts: Internals): (count: number) 
           let names: string[] = [];
           try {
             for (;;) {
-              const item = await parts.native.streamNext(stream, false, undefined);
-              if (item === null) break;
-              if (item[1]) names = item[1];
-              rows.push(item[0]);
+              const batch = await parts.native.streamNext(stream, false, undefined);
+              if (batch === null) break;
+              if (batch[1]) names = batch[1];
+              rows.push(...batch[0]);
             }
           } finally {
             await parts.native.streamClose(stream);

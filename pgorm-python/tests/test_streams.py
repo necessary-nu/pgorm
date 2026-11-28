@@ -15,7 +15,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await asyncio.wait_for(self.pool.close(), 2)
 
-    # [spec:pgorm:req:bindings.streams+1/test]
+    # [spec:pgorm:req:bindings.streams+2/test]
     async def test_stream_exhaustion_releases_pool_lease(self):
         stream = await self.pool.stream(p.RawSQL("SELECT generate_series(1, 20) AS n"))
         with self.assertRaises(p.TimeoutError):
@@ -24,7 +24,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(stream.closed)
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:bindings.streams+1/test]
+    # [spec:pgorm:req:bindings.streams+2/test]
     async def test_connection_stream_reserves_and_releases_owner(self):
         async with self.pool.connection() as connection:
             before = await connection.one(p.RawSQL("SELECT pg_backend_pid() AS pid"))
@@ -35,7 +35,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
             after = await connection.one(p.RawSQL("SELECT pg_backend_pid() AS pid"))
             self.assertEqual(before["pid"], after["pid"])
 
-    # [spec:pgorm:req:bindings.streams+1/test]
+    # [spec:pgorm:req:bindings.streams+2/test]
     async def test_early_close_discards_incomplete_query(self):
         async with self.pool.connection() as connection:
             before = (await connection.one(p.RawSQL("SELECT pg_backend_pid() AS pid")))["pid"]
@@ -59,7 +59,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 await pool.close()
 
-    # [spec:pgorm:req:bindings.streams+1/test]
+    # [spec:pgorm:req:bindings.streams+2/test]
     async def test_stream_abandonment_releases_without_async_cleanup(self):
         rows = await self.pool.stream(p.RawSQL("SELECT generate_series(1, 1000000) AS n"))
         self.assertEqual((await anext(rows))["n"], 1)
@@ -67,7 +67,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
         gc.collect()
         self.assertTrue(await asyncio.wait_for(self.pool.ping(), 1))
 
-    # [spec:pgorm:req:bindings.streams+1/test]
+    # [spec:pgorm:req:bindings.streams+2/test]
     async def test_decode_failure_is_not_stream_exhaustion(self):
         rows = await self.pool.stream(p.RawSQL("SELECT timetz '12:00+02' AS n"))
         with self.assertRaises(p.DecodeError):
@@ -75,7 +75,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(rows.closed)
         self.assertTrue(await self.pool.ping())
 
-    # [spec:pgorm:req:bindings.streams+1/test]
+    # [spec:pgorm:req:bindings.streams+2/test]
     async def test_database_failure_keeps_sqlstate(self):
         with self.assertRaises(p.DatabaseError) as caught:
             rows = await self.pool.stream(p.RawSQL("SELECT 1/0 AS n"))
@@ -132,7 +132,7 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(rows.closed)
         self.assertTrue(await asyncio.wait_for(self.pool.ping(), 1))
 
-    # [spec:pgorm:req:bindings.streams+1/test]
+    # [spec:pgorm:req:bindings.streams+2/test]
     async def test_late_database_error_preserves_prior_rows(self):
         query = p.RawSQL("SELECT CASE WHEN n=3 THEN 1/(n-3) ELSE n END AS n FROM generate_series(1, 3) AS n")
         rows = await self.pool.stream(query)
@@ -142,6 +142,34 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
             await anext(rows)
         self.assertEqual(caught.exception.sqlstate, "22012")
         self.assertTrue(await self.pool.ping())
+
+    # [spec:pgorm:req:bindings.streams+2/test]
+    async def test_rows_before_a_decode_failure_come_first(self):
+        rows = await self.pool.stream(p.RawSQL(
+            "SELECT CASE WHEN n < 3 THEN n::numeric ELSE 1e-40 END AS v FROM generate_series(1, 4) AS n"
+        ))
+        seen = []
+        with self.assertRaises(p.DecodeError):
+            async for row in rows:
+                seen.append(str(row["v"]))
+        self.assertEqual(seen, ["1", "2"])
+        self.assertTrue(rows.closed)
+        self.assertTrue(await self.pool.ping())
+
+    # [spec:pgorm:req:bindings.streams+2/test]
+    async def test_owner_close_drops_held_rows(self):
+        for close_pool in (False, True):
+            pool = p.Pool(os.environ["PGORM_TEST_DSN"], max_size=1)
+            try:
+                connection = await pool.acquire()
+                rows = await connection.stream(p.RawSQL("SELECT generate_series(1, 1000000) AS n"))
+                self.assertEqual((await anext(rows))["n"], 1)
+                await asyncio.wait_for(pool.close() if close_pool else connection.close(), 1)
+                with self.assertRaises(p.LifecycleError):
+                    await anext(rows)
+                self.assertTrue(rows.closed)
+            finally:
+                await pool.close()
 
     # [spec:pgorm:req:python.runtime+2/test]
     async def test_foreign_loop_does_not_consume_stream(self):

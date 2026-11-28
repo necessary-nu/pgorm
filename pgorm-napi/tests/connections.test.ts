@@ -714,7 +714,7 @@ test("a signal bounds a pool's own statement and acquisition", async () => {
   assert.equal((await held.one("SELECT 8 AS n")).n, 8);
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 test("a stream yields its rows one per pull and returns its connection after the last", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   const rows = [];
@@ -729,7 +729,30 @@ test("a stream yields its rows one per pull and returns its connection after the
   assert.equal(tagged.closed, true);
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
+test("the rows a stream took before a decode error or a database error reach the program first", async () => {
+  await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
+  const decoded: string[] = [];
+  const refused = single.stream("SELECT CASE WHEN n < 3 THEN n::numeric ELSE 1e-40 END AS v FROM generate_series(1, 4) AS n");
+  await assert.rejects(async () => {
+    for await (const row of refused) decoded.push(String(row.v));
+  }, DecodeError);
+  assert.deepEqual(decoded, ["1", "2"]);
+  assert.equal(refused.closed, true);
+  const seen: unknown[] = [];
+  await assert.rejects(
+    async () => {
+      for await (const row of single.stream("SELECT CASE WHEN n = 3 THEN 1 / (n - 3) ELSE n END AS n FROM generate_series(1, 3) AS n")) {
+        seen.push(row.n);
+      }
+    },
+    (error: unknown) => (error as { sqlstate?: string }).sqlstate === "22012",
+  );
+  assert.deepEqual(seen, [1, 2]);
+  assert.equal((await single.one("SELECT 13 AS n")).n, 13);
+});
+
+// [spec:pgorm:req:bindings.streams+2/test]
 test("leaving a stream early releases its connection", async () => {
   await using single = new Pool(scratch(), { maxSize: 1, acquireTimeout: 1000 });
   let seen = 0;
@@ -745,7 +768,7 @@ test("leaving a stream early releases its connection", async () => {
   assert.equal((await single.one("SELECT 11 AS n")).n, 11);
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 test("a connection's stream holds the connection, freeing it at the end and discarding it if left early", async () => {
   const connection = await pool().acquire();
   const stream = connection.stream("SELECT generate_series(1, 3) AS n");
@@ -763,7 +786,7 @@ test("a connection's stream holds the connection, freeing it at the end and disc
   await connection.close();
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 test("a stream holds the server back while nothing pulls", async () => {
   await using streaming = new Pool(scratch(), { maxSize: 2 });
   const marker = `held back ${process.pid}`;
@@ -781,7 +804,7 @@ test("a stream holds the server back while nothing pulls", async () => {
   await stream.close();
 });
 
-// [spec:pgorm:req:bindings.streams+1/test]
+// [spec:pgorm:req:bindings.streams+2/test]
 // [spec:pgorm:req:bindings.cancellation/test]
 test("closing a pool ends an idle stream and an idle transaction without waiting for them", async () => {
   const closing = new Pool(scratch(), { maxSize: 2 });

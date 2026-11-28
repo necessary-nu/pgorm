@@ -50,6 +50,30 @@ pub(crate) fn value<'cx>(
     }
 }
 
+pub(crate) fn names<'cx>(cx: &mut Cx<'cx>, names: &[String]) -> JsResult<'cx, JsArray> {
+    let list = JsArray::new(cx, names.len());
+    for (at, name) in names.iter().enumerate() {
+        let name = cx.string(name);
+        list.set(cx, index(at), name)?;
+    }
+    Ok(list)
+}
+
+/// One row's values as an array, in column order.
+pub(crate) fn values<'cx>(
+    cx: &mut Cx<'cx>,
+    codec: Codec<'cx>,
+    row: Vec<Tagged>,
+    tagged: bool,
+) -> JsResult<'cx, JsArray> {
+    let values = JsArray::new(cx, row.len());
+    for (column, item) in row.into_iter().enumerate() {
+        let item = value(cx, codec, item, tagged)?;
+        values.set(cx, index(column), item)?;
+    }
+    Ok(values)
+}
+
 /// Each column's kind as `Tag::key` spells it, read off the first
 /// row: every row of a column holds its type's kind, NULLs included.
 pub(crate) fn kinds<'cx>(cx: &mut Cx<'cx>, row: Option<&[Tagged]>) -> JsResult<'cx, JsArray> {
@@ -74,19 +98,11 @@ pub(crate) fn to_js<'cx>(
     tagged: bool,
 ) -> JsResult<'cx, JsValue> {
     let codec = Codec::get(cx)?;
-    let names = JsArray::new(cx, decoded.names.len());
-    for (at, name) in decoded.names.iter().enumerate() {
-        let name = cx.string(name);
-        names.set(cx, index(at), name)?;
-    }
+    let names = names(cx, &decoded.names)?;
     let kinds = kinds(cx, decoded.rows.first().map(Vec::as_slice))?;
     let rows = JsArray::new(cx, decoded.rows.len());
     for (at, row) in decoded.rows.into_iter().enumerate() {
-        let values = JsArray::new(cx, row.len());
-        for (column, item) in row.into_iter().enumerate() {
-            let item = value(cx, codec, item, tagged)?;
-            values.set(cx, index(column), item)?;
-        }
+        let values = values(cx, codec, row, tagged)?;
         rows.set(cx, index(at), values)?;
     }
     let result = JsArray::new(cx, 3);
