@@ -1,6 +1,6 @@
 schema_version 7
 
-last_sync_at 2026-11-26T13:58:23.693594Z
+last_sync_at 2026-11-28T02:23:08.61685Z
 
 rule_versions (
     {id bindings.api, version 0}
@@ -116,7 +116,7 @@ rule_versions (
     {id bindings.sql-check, version 3}
     {id bindings.sql-json, version 0}
     {id bindings.statements, version 0}
-    {id bindings.streams, version 1}
+    {id bindings.streams, version 2}
     {id bindings.surface, version 2}
     {id bindings.template, version 0}
     {id bindings.tls, version 1}
@@ -997,6 +997,11 @@ derived_priorities (
     {id napi.guide-gaps.transaction-streams, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.guide-gaps.verify, priority 3, derived_at 2026-11-05T18:16:24.073881Z}
     {id napi.lib-imports-checked, priority 0, derived_at 2026-11-06T13:17:06.285162Z}
+    {id napi.model-statement-reuse, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
+    {id napi.pool-recycle-default, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
+    {id napi.row-decode, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
+    {id napi.single-task-settle, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
+    {id napi.stream-batches, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
     {id nested-source-from-entry, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id nopanic.codegen-gate, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
     {id nopanic.connect-builders, priority 0, derived_at 2026-09-02T14:40:48.714779Z}
@@ -1021,6 +1026,7 @@ derived_priorities (
     {id paginator-advances, priority 0, derived_at 2026-09-20T16:56:53.160541Z}
     {id pair-deletion, priority 3, derived_at 2026-09-06T16:36:02.710141Z}
     {id parameter-wire-types, priority 1, derived_at 2026-09-06T16:36:02.710141Z}
+    {id perf-drizzle, priority 0, derived_at 2026-11-28T02:23:08.61685Z}
     {id pg-query-18, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg-query-19, priority 0, derived_at 2026-10-09T14:17:42.819993Z}
     {id pg17-json-table, priority 2, derived_at 2026-10-09T14:17:42.819993Z}
