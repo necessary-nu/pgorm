@@ -14806,6 +14806,15 @@ children (
                 id napi.stream-batches
                 title "A row stream pulls rows from the runtime in batches, yielding them from a buffer, not one native call, runtime task and event-loop turn per row (perf-drizzle: 9.9 µs per streamed row against 0.63 read all at once, pg 0.96)"
                 kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T03:16:58.256994Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {

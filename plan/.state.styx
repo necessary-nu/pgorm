@@ -1656,7 +1656,7 @@ assertions (
     {id napi.pool-recycle-default, kind @complete, author "brendan@necessary.nu", at 2026-11-28T01:15:47.287142Z}
     {id napi.row-decode, kind @complete, author "brendan@necessary.nu", at 2026-11-28T02:49:51.902642Z}
     {id napi.single-task-settle, kind @complete, author "brendan@necessary.nu", at 2026-11-27T16:29:08.015658Z}
-    {id napi.stream-batches, kind @doing, author "brendan@necessary.nu", at 2026-11-27T22:46:35.954295Z}
+    {id napi.stream-batches, kind @complete, author "brendan@necessary.nu", at 2026-11-28T03:16:58.256994Z}
     {id nested-source-from-entry, kind @complete, author "brendan@necessary.nu", at 2026-09-15T12:40:14.356897Z}
     {id nopanic.codegen-gate, kind @complete, author "brendan@necessary.nu", at 2026-09-02T16:09:12.032584Z}
     {id nopanic.connect-builders, kind @complete, author "brendan@necessary.nu", at 2026-09-02T15:44:54.028454Z}
