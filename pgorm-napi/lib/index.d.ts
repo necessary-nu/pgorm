@@ -48,7 +48,7 @@ export * from "./metrics.d.ts";
 /** The addon's version, which is the pgorm release it is built from. */
 export declare const version: string;
 
-// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:bindings.connections+5]
 /**
  * The channel pgorm-migration's runner notifies once a batch that applied a
  * migration commits: give it as {@link PoolOptions.statementCacheChannel} for
@@ -514,7 +514,7 @@ export interface ConnectionOptions {
  */
 export type PoolHook = (connection: HookConnection) => void | Promise<void>;
 
-// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:bindings.connections+5]
 /** What one pool takes of its own: the options Rust's `PoolBuilder` closure sets, and how long acquiring waits. */
 export interface PoolShapeOptions {
   /** Connections the pool keeps at most; 10 by default. */
@@ -540,17 +540,18 @@ export interface PoolShapeOptions {
   readonly postRecycle?: PoolHook;
 }
 
-// [spec:pgorm:req:bindings.connections+4]
+// [spec:pgorm:req:bindings.connections+5]
 /** What every pool built from one connection string shares. */
 export interface SharedPoolOptions extends ConnectionOptions {
   /** Prepared statements each connection caches; 0 disables the cache; 128 by default. */
   readonly statementCacheSize?: number;
   /**
-   * How a returned connection is checked before reuse: `"verified"` (the
-   * default) runs an empty query, `"fast"` sends nothing, and `"clean"` also
-   * resets the session — Rust's `RecyclingMethod::Clean`.
+   * How a returned connection is checked before reuse: `"fast"` (the default,
+   * as Rust's `connect` recycles) sends nothing, `"verified"` runs an empty
+   * query, and `"clean"` also resets the session — Rust's
+   * `RecyclingMethod::Clean`.
    */
-  readonly recycle?: "verified" | "fast" | "clean";
+  readonly recycle?: "fast" | "verified" | "clean";
   /**
    * SQL of the program's own, run on each returned connection before reuse:
    * Rust's `RecyclingMethod::Custom`. A `TypeError` beside {@link recycle}.
@@ -861,7 +862,7 @@ export declare class Connection extends Queryable implements AsyncDisposable {
   ping(options?: OperationOptions): Promise<boolean>;
   /** Return the connection to its pool, ending a transaction or stream that holds it; resolves once released. */
   close(): Promise<void>;
-  // [spec:pgorm:req:bindings.connections+4]
+  // [spec:pgorm:req:bindings.connections+5]
   /**
    * Close the connection and discard it rather than return it to its pool, as
    * Rust's `DatabaseConnection::discard` does: for one whose session state the

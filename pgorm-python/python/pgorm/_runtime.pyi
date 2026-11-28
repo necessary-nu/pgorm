@@ -36,12 +36,12 @@ class _HookConnection:
 class _Pool:
     def __init__(self, dsn: str, shape: _PoolShape, *, tag: str | None = ..., tls: str | None = ...,
                  ca_pem: bytes | None = ..., cert_pem: bytes | None = ..., key_pem: bytes | None = ...,
-                 connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str = ...,
+                 connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str | None = ...,
                  recycle_sql: str | None = ..., statement_cache_channel: str | None = ...) -> None: ...
     @staticmethod
     def multi(dsn: str, shapes: Mapping[str, _PoolShape], *, tls: str | None = ...,
               ca_pem: bytes | None = ..., cert_pem: bytes | None = ..., key_pem: bytes | None = ...,
-              connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str = ...,
+              connect_timeout: float | None = ..., statement_cache_size: int = ..., recycle: str | None = ...,
               recycle_sql: str | None = ...,
               statement_cache_channel: str | None = ...) -> list[tuple[str, _Pool]]: ...
     def tag(self, /) -> str: ...

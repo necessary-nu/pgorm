@@ -139,7 +139,6 @@ fn state(cx: &mut FunctionContext) -> NeonResult<Arc<HookState>> {
 fn hook_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let state = state(&mut cx)?;
     let statement = Statement::read(&mut cx, 1)?;
-    let tagged = cx.argument::<JsBoolean>(4)?.value(&mut cx);
     let work = async move {
         let secrets = state.secrets.clone();
         state
@@ -147,9 +146,7 @@ fn hook_run(mut cx: FunctionContext) -> JsResult<JsPromise> {
             .run(move |db| Box::pin(async move { statement.run(db, &secrets).await }))
             .await?
     };
-    settle::promise(&mut cx, work, move |cx, outcome| {
-        outcome.into_js(cx, tagged)
-    })
+    settle::promise(&mut cx, work, |cx, outcome| outcome.into_js(cx))
 }
 
 /// `hookSettle(done, message)`: the hook's function has finished, refusing

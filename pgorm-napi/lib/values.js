@@ -19,16 +19,19 @@ let native;
 const INSPECT = Symbol.for("nodejs.util.inspect.custom");
 
 /** Marks a construction from data the addon has already checked. */
-const TRUSTED = Symbol("pgorm-napi checked value");
+export const TRUSTED = Symbol("pgorm-napi checked value");
 
 /**
- * Hand the addon the functions it reads and builds values with.
+ * Hand the addon the functions it reads and builds values with, and the two
+ * `lib/value-columns.js` builds a statement's result with.
  *
  * @param {any} addon
+ * @param {Function} gather
+ * @param {Function} finish
  */
-export function install(addon) {
+export function install(addon, gather, finish) {
   native = addon;
-  addon.setCodec(describe, make);
+  addon.setCodec(describe, make, gather, finish);
 }
 
 const encoder = new TextEncoder();
@@ -658,7 +661,7 @@ function describe(value) {
  * @param {unknown} value
  * @param {{ source?: string }} [context]
  */
-function revive(_key, value, context) {
+export function revive(_key, value, context) {
   if (
     typeof value === "number" && !Number.isSafeInteger(value) && typeof context?.source === "string" &&
     /^-?\d+$/.test(context.source)
@@ -698,7 +701,7 @@ function make(tag, ...fields) {
     case "instant":
       return new Temporal.Instant(a);
     case "json":
-      return JSON.parse(a, /** @type {any} */ (revive));
+      return b ? JSON.parse(a, /** @type {any} */ (revive)) : JSON.parse(a);
     case "value":
       return new Value(a, TRUSTED);
     case "typename":

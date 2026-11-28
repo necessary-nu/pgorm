@@ -392,7 +392,7 @@ A pool holds the connections; a `Connection` is one of them checked out; a
 statement's rows over one. Each is a native handle that is released by being
 closed, and a transaction by the block or callback it was opened for ending.
 
-> [spec:pgorm:req:bindings.connections+4]
+> [spec:pgorm:req:bindings.connections+5]
 > A `Pool` MUST be built from a connection string and options, which are the
 > arguments of Rust's `connect_with` (`conn.pool`) a program in the binding's
 > language can give: TLS (`bindings.tls`); the `Config`'s connect timeout; the
@@ -402,7 +402,8 @@ closed, and a transaction by the block or callback it was opened for ending.
 > `ManagerConfig`'s recycling method, its statement-cache size, its
 > statement-cache channel and its `tag`. Beside them is the binding's own
 > acquire timeout, which bounds the whole of an acquisition. The recycling
-> method is `recycle`'s `verified`, the default, `fast` or `clean`, or
+> method is `recycle`'s `fast`, the default, which is the method Rust's
+> `connect` recycles with (`conn.pool.recycle`), `verified` or `clean`, or
 > `recycle_sql`, SQL of the program's own, which is `RecyclingMethod::Custom`
 > and is a `TypeError` beside `recycle`. A pool's `tag` names it, and the
 > pool reports it, the `default-N` pgorm gives an untagged pool among them;

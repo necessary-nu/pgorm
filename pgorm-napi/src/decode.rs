@@ -32,7 +32,7 @@ use crate::{
     values::{CreatedKind, Tag, Tagged, TypeName},
 };
 
-type CodecError = Box<dyn Error + Send + Sync>;
+pub(crate) type CodecError = Box<dyn Error + Send + Sync>;
 
 /// A column's bytes, or `None` for SQL NULL, whatever its type.
 struct Raw<'a>(Option<&'a [u8]>);
@@ -78,17 +78,26 @@ pub(crate) fn row(row: &Row) -> Result<Vec<Tagged>, Failure> {
 }
 
 fn column(row: &Row, index: usize) -> Result<Tagged, Failure> {
+    let raw = raw(row, index)?;
+    decode(row.columns()[index].type_(), raw).map_err(|error| undecodable(row, index, &error))
+}
+
+/// The bytes of a row's column at `index`, `None` for SQL NULL.
+pub(crate) fn raw(row: &Row, index: usize) -> Result<Option<&[u8]>, Failure> {
+    row.try_get::<_, Raw>(index)
+        .map(|raw| raw.0)
+        .map_err(|error| Failure::Decode(error.to_string()))
+}
+
+/// The refusal of a row's column at `index`, naming the column, its type and
+/// the codec's reason, as each value a result cannot decode is refused.
+pub(crate) fn undecodable(row: &Row, index: usize, error: &CodecError) -> Failure {
     let column = &row.columns()[index];
-    let raw = row
-        .try_get::<_, Raw>(index)
-        .map_err(|error| Failure::Decode(error.to_string()))?;
-    decode(column.type_(), raw.0).map_err(|error| {
-        Failure::Decode(format!(
-            "column {:?} of type `{}` cannot be decoded: {error}",
-            column.name(),
-            column.type_()
-        ))
-    })
+    Failure::Decode(format!(
+        "column {:?} of type `{}` cannot be decoded: {error}",
+        column.name(),
+        column.type_()
+    ))
 }
 
 /// One field of a COPY of rows, read as a result column of its type is. A
@@ -114,9 +123,19 @@ pub(crate) fn field(column: &CopyColumn, raw: Option<&[u8]>) -> Result<Tagged, F
     })
 }
 
+/// The kind every value of a column of `ty` decodes as.
+// [spec:pgorm:req:bindings.value-tags+1]
+pub(crate) fn kind(ty: &Type) -> Result<Tag, CodecError> {
+    let ty = base_type(ty);
+    match ty.kind() {
+        Kind::Array(member) => Ok(Tag::Array(Box::new(tag(base_type(member))?))),
+        _ => tag(ty),
+    }
+}
+
 /// A value of `ty`, an array of a supported type included.
 // [spec:pgorm:req:bindings.values]
-fn decode(ty: &Type, raw: Option<&[u8]>) -> Result<Tagged, CodecError> {
+pub(crate) fn decode(ty: &Type, raw: Option<&[u8]>) -> Result<Tagged, CodecError> {
     let ty = base_type(ty);
     let Kind::Array(member) = ty.kind() else {
         return scalar(ty, raw);
@@ -237,15 +256,19 @@ fn scalar(ty: &Type, raw: Option<&[u8]>) -> Result<Tagged, CodecError> {
         return Ok(Tagged::null(tag));
     };
     let datum = match &tag {
-        // The server sends only the type's labels, and the client's copy of
-        // the label list can be older than an `ALTER TYPE ... ADD VALUE`, so
-        // the label is not checked against it.
-        Tag::Enum(_) => Value::String(Some(Box::new(String::from_sql(&Type::TEXT, raw)?))),
+        Tag::Enum(_) => Value::String(Some(Box::new(label(raw)?.to_owned()))),
         Tag::Created(_) => Value::String(Some(Box::new(CreatedRangeText::from_sql(ty, raw)?.0))),
         Tag::Scalar(kind) => value(ty, kind, raw)?,
         Tag::Array(_) => return Err("nested arrays are not supported".into()),
     };
     Ok(Tagged { datum, tag })
+}
+
+/// An enum's label. The server sends only the type's labels, and the
+/// client's copy of the label list can be older than an `ALTER TYPE ... ADD
+/// VALUE`, so the label is not checked against it.
+pub(crate) fn label(raw: &[u8]) -> Result<&str, CodecError> {
+    <&str>::from_sql(&Type::TEXT, raw)
 }
 
 /// A non-NULL value of `kind`, from its binary form.

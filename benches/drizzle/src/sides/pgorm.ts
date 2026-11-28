@@ -69,30 +69,33 @@ const wideQuery = (count: number) => BenchWide.find().orderBy(BenchWide.col("id"
  */
 interface Internals {
   readonly native: {
-    connectionRun(handle: unknown, terminal: "all", sql: string, params: readonly unknown[], tagged: boolean, token: unknown): Promise<[string[], unknown[][], string[]]>;
+    connectionRun(handle: unknown, terminal: "all", sql: string, params: readonly unknown[], tagged: boolean, token: unknown): Promise<Result>;
     connectionStream(handle: unknown, sql: string, params: readonly unknown[], token: unknown): Promise<unknown>;
     streamNext(stream: unknown, tagged: boolean, token: unknown): Promise<[unknown[][], string[] | undefined, string[] | undefined] | null>;
     streamClose(stream: unknown): Promise<void>;
   };
-  readonly row: (names: string[], values: unknown[]) => Record<string, unknown>;
+  readonly records: (names: string[], columns: unknown[][], count: number) => Record<string, unknown>[];
   readonly connectionHandle: (connection: Connection) => unknown;
 }
 
 async function internals(): Promise<Internals> {
   const lib = (file: string) => pathToFileURL(join(checkout, "pgorm-napi", "lib", file)).href;
-  const operations = (await import(lib("operations.js"))) as Pick<Internals, "native" | "row">;
+  const operations = (await import(lib("operations.js"))) as Pick<Internals, "native" | "records">;
   const connections = (await import(lib("connections.js"))) as Pick<Internals, "connectionHandle">;
   if (operations.native === undefined) {
     throw new Error("pgorm-napi's lib/operations.js loaded as a second instance, not the one the package installed its addon in");
   }
-  return { native: operations.native, row: operations.row, connectionHandle: connections.connectionHandle };
+  return { native: operations.native, records: operations.records, connectionHandle: connections.connectionHandle };
 }
 
+/** A result as the native call returns it: column names, each column's values, each column's kind, and the row count. */
+type Result = [string[], unknown[][], string[], number];
+
 /** Rows as the native call returns them, keyed by column for the checks. */
-function keyed([names, rows]: [string[], unknown[][], string[]]): Record<string, unknown>[] {
-  return rows.map((values) => {
+function keyed([names, columns, , count]: Result): Record<string, unknown>[] {
+  return Array.from({ length: count }, (_, row) => {
     const out: Record<string, unknown> = {};
-    names.forEach((name, at) => (out[name] = values[at]));
+    names.forEach((name, at) => (out[name] = columns[at]?.[row]));
     return out;
   });
 }
@@ -112,30 +115,32 @@ function attribution(connection: Connection, parts: Internals): (count: number) 
   const nativeAll = (sql: string, count: number) => parts.native.connectionRun(handle, "all", sql, [count], false, undefined);
   return (count) => {
     // Fetched once, outside the timed operations that only build objects from it.
-    let rowsResult: [string[], unknown[][], string[]] | undefined;
-    let wideResult: [string[], unknown[][], string[]] | undefined;
+    let rowsResult: Result | undefined;
+    let wideResult: Result | undefined;
     const fetched = async () => {
       rowsResult ??= await nativeAll(ROWS, count);
       wideResult ??= await nativeAll(WIDE, count);
       return [rowsResult, wideResult] as const;
     };
     const objects = (pick: 0 | 1) => async () => {
-      const [names, rows] = (await fetched())[pick];
-      return rows.map((values) => parts.row(names, values));
+      const [names, columns, , rows] = (await fetched())[pick];
+      return parts.records(names, columns, rows);
     };
     const loop = (pick: 0 | 1) => async () => {
-      const [names, rows] = (await fetched())[pick];
-      return rows.map((values) => {
-        const out: Record<string, unknown> = {};
-        for (let at = 0; at < names.length; at++) out[names[at] as string] = values[at];
-        return out;
-      });
+      const [names, columns, , rows] = (await fetched())[pick];
+      const out: Record<string, unknown>[] = [];
+      for (let row = 0; row < rows; row++) {
+        const object: Record<string, unknown> = {};
+        for (let at = 0; at < names.length; at++) object[names[at] as string] = (columns[at] as unknown[])[row];
+        out.push(object);
+      }
+      return out;
     };
     return {
       native_rows_all: op(() => nativeAll(ROWS, count), (result) => checkRows(keyed(result), count, "native rows")),
       native_wide_all: op(() => nativeAll(WIDE, count), (result) => checkWide(keyed(result), count, "native wide")),
       native_rows_stream: op(
-        async (): Promise<[string[], unknown[][], string[]]> => {
+        async (): Promise<Result> => {
           const stream = await parts.native.connectionStream(handle, ROWS, [count], undefined);
           const rows: unknown[][] = [];
           let names: string[] = [];
@@ -149,7 +154,7 @@ function attribution(connection: Connection, parts: Internals): (count: number) 
           } finally {
             await parts.native.streamClose(stream);
           }
-          return [names, rows, []];
+          return [names, names.map((_, at) => rows.map((values) => values[at])), [], rows.length];
         },
         (result) => checkRows(keyed(result), count, "native stream"),
       ),
@@ -253,10 +258,10 @@ export function pgormSides(): Side[] {
         const [pool, connection] = await held(dsn);
         return rawSession(connection, pool, parts);
       },
-      poolVariants: ["recycle_fast"],
+      poolVariants: ["recycle_verified"],
       async openPool(dsn: string, options: Options, variant?: string) {
-        // The binding's default recycling is "verified", an empty query on every acquire; Rust's connect() defaults to Fast.
-        const pool = new Pool(dsn, variant === "recycle_fast" ? { maxSize: options.poolSize, recycle: "fast" } : { maxSize: options.poolSize });
+        // The binding's default recycling is Rust's connect()'s, Fast; "verified" adds an empty query to every acquire.
+        const pool = new Pool(dsn, variant === "recycle_verified" ? { maxSize: options.poolSize, recycle: "verified" } : { maxSize: options.poolSize });
         return {
           operation: {
             run: async () => (await pool.one(SCALAR, [SCALAR_VALUE])).int8,

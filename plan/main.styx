@@ -14812,12 +14812,30 @@ children (
                 id napi.row-decode
                 title "Rows reach JavaScript without the per-value costs perf-drizzle measured: jsonb parsed once from the server's text, Decimal and Uuid built without a JavaScript call per value, row objects built without Object.fromEntries' pair arrays, and fewer Node-API calls per value"
                 kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T02:49:51.902642Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
                 id napi.pool-recycle-default
                 title "Both bindings' pools default to Rust's recycling method, Fast, as connect does, not Verified's empty query on every acquire (perf-drizzle: 20.0k against 36.2k ops/s under four workers)"
                 kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T01:15:47.287142Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {
