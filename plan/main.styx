@@ -14812,6 +14812,15 @@ children (
                 id napi.row-decode
                 title "Rows reach JavaScript without the per-value costs perf-drizzle measured: jsonb parsed once from the server's text, Decimal and Uuid built without a JavaScript call per value, row objects built without Object.fromEntries' pair arrays, and fewer Node-API calls per value"
                 kind @perf
+                sealed true
+                log (
+                    {
+                        at 2026-11-28T02:49:51.902642Z
+                        author "brendan@necessary.nu"
+                        kind @status
+                        text "Doing → Done (nplan complete)"
+                    }
+                )
             }
 
             {

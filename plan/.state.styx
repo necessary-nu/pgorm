@@ -1654,7 +1654,7 @@ assertions (
     {id napi.guide-gaps.relation-loaders, kind @complete, author "brendan@necessary.nu", at 2026-11-05T20:17:43.387475Z}
     {id napi.guide-gaps.transaction-streams, kind @complete, author "brendan@necessary.nu", at 2026-11-05T23:05:25.995127Z}
     {id napi.pool-recycle-default, kind @complete, author "brendan@necessary.nu", at 2026-11-28T01:15:47.287142Z}
-    {id napi.row-decode, kind @doing, author "brendan@necessary.nu", at 2026-11-27T22:46:36.48979Z}
+    {id napi.row-decode, kind @complete, author "brendan@necessary.nu", at 2026-11-28T02:49:51.902642Z}
     {id napi.single-task-settle, kind @complete, author "brendan@necessary.nu", at 2026-11-27T16:29:08.015658Z}
     {id nested-source-from-entry, kind @complete, author "brendan@necessary.nu", at 2026-09-15T12:40:14.356897Z}
     {id nopanic.codegen-gate, kind @complete, author "brendan@necessary.nu", at 2026-09-02T16:09:12.032584Z}
